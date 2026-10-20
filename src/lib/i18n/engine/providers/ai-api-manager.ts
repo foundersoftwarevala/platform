@@ -41,6 +41,10 @@ export type AiApiManagerProviderConfig = {
    * adapter is tried and a failure moves the engine on.
    */
   isConfigured?: () => boolean;
+  /** Cooldown before the provider reports itself as available again after a failure. */
+  cooldownMs?: number;
+  /** Clock for cooldown tests; defaults to Date.now(). */
+  now?: () => number;
 };
 
 export function buildTranslationPrompt(request: EngineRequest, segment: TranslationSegment) {
@@ -80,13 +84,22 @@ export function createAiApiManagerProvider(
   config: AiApiManagerProviderConfig,
 ): TranslationProvider {
   const concurrency = Math.max(1, config.concurrency ?? 4);
+  const cooldownMs = config.cooldownMs ?? 0;
+  const nowFn = config.now ?? (() => Date.now());
+  let failedAt: number | null = null;
 
   return {
     id: AI_API_MANAGER_PROVIDER_ID,
     kind: "external",
     // Whether AI API Manager has an active, approved service with a credential
     // comes from the injected check; without one it is only known when asked.
-    isConfigured: () => (config.isConfigured ? config.isConfigured() : true),
+    isConfigured: () => {
+      if (config.isConfigured && !config.isConfigured()) return false;
+      if (cooldownMs > 0 && failedAt !== null) {
+        return nowFn() - failedAt >= cooldownMs;
+      }
+      return true;
+    },
     supports: () => true,
     async translate(request: EngineRequest): Promise<EngineResponse> {
       const results: EngineSegmentResult[] = [];
@@ -121,9 +134,12 @@ export function createAiApiManagerProvider(
         Array.from({ length: Math.min(concurrency, request.segments.length) }, worker),
       );
 
-      // Nothing at all came back: the provider is not usable right now.
       if (results.length === 0 && errors.length > 0) {
+        failedAt = nowFn();
         throw errors[0] instanceof Error ? errors[0] : new Error(String(errors[0]));
+      }
+      if (results.length > 0) {
+        failedAt = null;
       }
       return {
         provider: AI_API_MANAGER_PROVIDER_ID,

@@ -29,7 +29,9 @@ function writer() {
   const url = process.env.SUPABASE_URL ?? "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
   if (!url || !key) {
-    throw new Error("Server storage is not configured: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.");
+    throw new Error(
+      "Server storage is not configured: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.",
+    );
   }
   return createClient<Database>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
@@ -92,10 +94,15 @@ async function requireReseller(
   context: { userId: string; claims?: Record<string, unknown> },
 ): Promise<Reseller> {
   const { hasRole, reseller } = await resellerOf(sb, context.userId);
-  if (!hasRole) throw new Error("This workspace belongs to reseller accounts, and this account does not hold the reseller role.");
+  if (!hasRole)
+    throw new Error(
+      "This workspace belongs to reseller accounts, and this account does not hold the reseller role.",
+    );
   if (!reseller) throw new Error("No reseller record is linked to this account yet.");
   if (reseller.status !== "active") {
-    throw new Error(`This reseller account is ${reseller.status}, so its clients and leads cannot be opened.`);
+    throw new Error(
+      `This reseller account is ${reseller.status}, so its clients and leads cannot be opened.`,
+    );
   }
   const claims = context.claims;
   const email = typeof claims?.email === "string" ? claims.email.trim().toLowerCase() : "";
@@ -191,27 +198,83 @@ const LEAD_COLUMNS =
 
 /** A crm_customers row as CUSTOMER_COLUMNS reads it. */
 type CustomerRow = {
-  id: string; company_name: string; contact_name: string; email: string; phone: string | null;
-  industry: string | null; country: string | null; plan: string; status: string; health_score: number;
-  lifetime_value: number; open_tickets: number; owner_id: string | null; last_contact_at: string | null;
-  created_at: string; updated_at: string;
+  id: string;
+  company_name: string;
+  contact_name: string;
+  email: string;
+  phone: string | null;
+  industry: string | null;
+  country: string | null;
+  plan: string;
+  status: string;
+  health_score: number;
+  lifetime_value: number;
+  open_tickets: number;
+  owner_id: string | null;
+  last_contact_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 /** A leads row as LEAD_COLUMNS reads it. */
 type LeadRow = {
-  id: string; name: string; email: string; phone: string; company: string | null; industry: string;
-  source: string; sub_source: string; campaign: string | null; referrer: string | null; utm_source: string | null;
-  status: string; priority: string; country: string; requirements: string | null; deal_value: number;
-  assigned_agent_id: string | null; next_follow_up: string | null; created_at: string; updated_at: string;
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  company: string | null;
+  industry: string;
+  source: string;
+  sub_source: string;
+  campaign: string | null;
+  referrer: string | null;
+  utm_source: string | null;
+  status: string;
+  priority: string;
+  country: string;
+  requirements: string | null;
+  deal_value: number;
+  assigned_agent_id: string | null;
+  next_follow_up: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 // The enums the leads table enforces (lead_status_type, lead_source_type,
 // lead_industry). Anything else is refused here with a readable message
 // instead of a database error.
-const LEAD_STATUSES = ["new", "contacted", "interested", "follow_up", "negotiation", "won", "lost", "spam"] as const;
-const LEAD_SOURCES = ["website", "seo", "social", "ads", "marketplace", "referral", "manual", "api", "whatsapp"] as const;
+const LEAD_STATUSES = [
+  "new",
+  "contacted",
+  "interested",
+  "follow_up",
+  "negotiation",
+  "won",
+  "lost",
+  "spam",
+] as const;
+const LEAD_SOURCES = [
+  "website",
+  "seo",
+  "social",
+  "ads",
+  "marketplace",
+  "referral",
+  "manual",
+  "api",
+  "whatsapp",
+] as const;
 const LEAD_INDUSTRIES = [
-  "retail", "healthcare", "finance", "education", "real_estate", "manufacturing", "hospitality", "logistics", "technology", "other",
+  "retail",
+  "healthcare",
+  "finance",
+  "education",
+  "real_estate",
+  "manufacturing",
+  "hospitality",
+  "logistics",
+  "technology",
+  "other",
 ] as const;
 
 /** A timestamp, or null for "no date"; an empty string is no date. */
@@ -341,7 +404,8 @@ export const deleteResellerCustomer = createServerFn({ method: "POST" })
       .eq("owner_id", owner)
       .select("id");
     if (error) throw new Error(error.message);
-    if (!((gone ?? []) as unknown[]).length) throw new Error("That client was not found among yours.");
+    if (!((gone ?? []) as unknown[]).length)
+      throw new Error("That client was not found among yours.");
     return { removed: data.id };
   });
 
@@ -397,9 +461,13 @@ export const updateResellerLead = createServerFn({ method: "POST" })
     const who = await requireReseller(sb, context);
     const agent = await agentIdFor(sb, who, false);
     if (!agent) throw new Error("That lead was not found among yours.");
-    const patch: Record<string, unknown> = { ...defined(data.patch), updated_at: new Date().toISOString() };
+    const patch: Record<string, unknown> = {
+      ...defined(data.patch),
+      updated_at: new Date().toISOString(),
+    };
     // A lead that is won or lost is closed; reopening it clears the date.
-    if (data.patch.status === "won" || data.patch.status === "lost") patch.closed_at = new Date().toISOString();
+    if (data.patch.status === "won" || data.patch.status === "lost")
+      patch.closed_at = new Date().toISOString();
     else if (data.patch.status) patch.closed_at = null;
     const { data: row, error } = await loose(sb)
       .from("leads")
@@ -428,7 +496,8 @@ export const deleteResellerLead = createServerFn({ method: "POST" })
       .eq("assigned_agent_id", agent)
       .select("id");
     if (error) throw new Error(error.message);
-    if (!((gone ?? []) as unknown[]).length) throw new Error("That lead was not found among yours.");
+    if (!((gone ?? []) as unknown[]).length)
+      throw new Error("That lead was not found among yours.");
     return { removed: data.id };
   });
 
@@ -488,7 +557,9 @@ export const listResellerLeadFollowUps = createServerFn({ method: "GET" })
     await ownLead(sb, who, data.leadId, false);
     const { data: rows, error } = await loose(sb)
       .from("lead_follow_ups")
-      .select("id, lead_id, scheduled_at, follow_up_type, notes, is_completed, completed_at, created_at")
+      .select(
+        "id, lead_id, scheduled_at, follow_up_type, notes, is_completed, completed_at, created_at",
+      )
       .eq("lead_id", data.leadId)
       .order("scheduled_at", { ascending: false })
       .limit(200);
@@ -523,7 +594,9 @@ export const addResellerLeadFollowUp = createServerFn({ method: "POST" })
         notes: data.text,
         ...(data.kind === "meeting" ? { follow_up_type: "meeting" } : {}),
       })
-      .select("id, lead_id, scheduled_at, follow_up_type, notes, is_completed, completed_at, created_at")
+      .select(
+        "id, lead_id, scheduled_at, follow_up_type, notes, is_completed, completed_at, created_at",
+      )
       .single();
     if (error) throw new Error(error.message);
     await refreshNextFollowUp(sb, data.leadId);
@@ -536,16 +609,25 @@ export const setResellerLeadFollowUpDone = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const sb = writer();
     const who = await requireReseller(sb, context);
-    const found = await loose(sb).from("lead_follow_ups").select("id, lead_id").eq("id", data.id).maybeSingle();
+    const found = await loose(sb)
+      .from("lead_follow_ups")
+      .select("id, lead_id")
+      .eq("id", data.id)
+      .maybeSingle();
     if (found.error) throw new Error(found.error.message);
     const leadId = (found.data as { lead_id?: string } | null)?.lead_id;
     if (!leadId) throw new Error("That follow-up was not found among yours.");
     await ownLead(sb, who, leadId, false);
     const { data: row, error } = await loose(sb)
       .from("lead_follow_ups")
-      .update({ is_completed: data.done, completed_at: data.done ? new Date().toISOString() : null })
+      .update({
+        is_completed: data.done,
+        completed_at: data.done ? new Date().toISOString() : null,
+      })
       .eq("id", data.id)
-      .select("id, lead_id, scheduled_at, follow_up_type, notes, is_completed, completed_at, created_at")
+      .select(
+        "id, lead_id, scheduled_at, follow_up_type, notes, is_completed, completed_at, created_at",
+      )
       .single();
     if (error) throw new Error(error.message);
     await refreshNextFollowUp(sb, leadId);
@@ -590,8 +672,15 @@ async function attributedOrders(sb: Sb, resellerId: string) {
     "id",
     ids,
   )) as {
-    id: string; order_number: string | null; order_no: string | null; buyer_id: string | null; status: string;
-    currency: string | null; total: number | string | null; amount_usd: number | string | null; created_at: string;
+    id: string;
+    order_number: string | null;
+    order_no: string | null;
+    buyer_id: string | null;
+    status: string;
+    currency: string | null;
+    total: number | string | null;
+    amount_usd: number | string | null;
+    created_at: string;
   }[];
 }
 
@@ -617,14 +706,21 @@ async function clientOrders(sb: Sb, who: Reseller, clientId: string) {
   if (client.error) throw new Error(client.error.message);
   if (!client.data) throw new Error("That client was not found among yours.");
   const email = ((client.data as { email?: string | null }).email ?? "").trim().toLowerCase();
-  if (!email) return { owner, client: client.data as { id: string; created_at: string }, orders: [] };
+  if (!email)
+    return { owner, client: client.data as { id: string; created_at: string }, orders: [] };
 
   const orders = await attributedOrders(sb, who.reseller.id);
   const buyerIds = [...new Set(orders.map((o) => o.buyer_id).filter((b): b is string => !!b))];
-  if (!buyerIds.length) return { owner, client: client.data as { id: string; created_at: string }, orders: [] };
+  if (!buyerIds.length)
+    return { owner, client: client.data as { id: string; created_at: string }, orders: [] };
   // Exact, case-insensitive address match among those buyers only.
-  const buyers = (await readIn(sb, "profiles", "id, email", "id", buyerIds)) as { id: string; email: string | null }[];
-  const theirs = new Set(buyers.filter((b) => (b.email ?? "").trim().toLowerCase() === email).map((b) => b.id));
+  const buyers = (await readIn(sb, "profiles", "id, email", "id", buyerIds)) as {
+    id: string;
+    email: string | null;
+  }[];
+  const theirs = new Set(
+    buyers.filter((b) => (b.email ?? "").trim().toLowerCase() === email).map((b) => b.id),
+  );
   return {
     owner,
     client: client.data as { id: string; created_at: string },
@@ -645,8 +741,15 @@ export const listResellerClientLicences = createServerFn({ method: "GET" })
     const { orders } = await clientOrders(sb, who, data.clientId);
     if (!orders.length) return [];
 
-    const items = (await readIn(sb, "marketplace_order_items", "id, product_name", "order_id", orders.map((o) => o.id))) as {
-      id: string; product_name: string;
+    const items = (await readIn(
+      sb,
+      "marketplace_order_items",
+      "id, product_name",
+      "order_id",
+      orders.map((o) => o.id),
+    )) as {
+      id: string;
+      product_name: string;
     }[];
     const product = new Map(items.map((i) => [i.id, i.product_name]));
     if (!product.size) return [];
@@ -658,8 +761,13 @@ export const listResellerClientLicences = createServerFn({ method: "GET" })
       "order_item_id",
       [...product.keys()],
     )) as {
-      id: string; order_item_id: string; license_key: string | null; license_model: string | null;
-      status: string; expires_at: string | null; created_at: string;
+      id: string;
+      order_item_id: string;
+      license_key: string | null;
+      license_model: string | null;
+      status: string;
+      expires_at: string | null;
+      created_at: string;
     }[];
     return licences
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -673,7 +781,14 @@ export const listResellerClientLicences = createServerFn({ method: "GET" })
       }));
   });
 
-type ClientTask = { id: string; title: string; due_at: string | null; status: string; created_at: string; updated_at: string };
+type ClientTask = {
+  id: string;
+  title: string;
+  due_at: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
 
 /**
  * A client's purchase history (orders credited to this reseller that the
@@ -688,12 +803,20 @@ export const listResellerClientActivity = createServerFn({ method: "GET" })
     const { owner, client, orders } = await clientOrders(sb, who, data.clientId);
 
     const items = orders.length
-      ? ((await readIn(sb, "marketplace_order_items", "order_id, product_name", "order_id", orders.map((o) => o.id))) as {
-          order_id: string; product_name: string;
+      ? ((await readIn(
+          sb,
+          "marketplace_order_items",
+          "order_id, product_name",
+          "order_id",
+          orders.map((o) => o.id),
+        )) as {
+          order_id: string;
+          product_name: string;
         }[])
       : [];
     const names = new Map<string, string[]>();
-    for (const i of items) names.set(i.order_id, [...(names.get(i.order_id) ?? []), i.product_name]);
+    for (const i of items)
+      names.set(i.order_id, [...(names.get(i.order_id) ?? []), i.product_name]);
 
     const tasks = await loose(sb)
       .from("crm_tasks")
@@ -802,12 +925,304 @@ export type ResellerOverview = {
     verified: boolean;
     kycStatus: string | null;
   } | null;
-  membership: { planCode: string; planName: string | null; status: string; expiresAt: string | null } | null;
+  membership: {
+    planCode: string;
+    planName: string | null;
+    status: string;
+    expiresAt: string | null;
+  } | null;
   rank: number | null;
   /** KPI values by the reseller KPI keys in lib/roles.ts; null = no source. */
   metrics: Record<string, number | null>;
   earnings: { available: number | null; pending: number | null; lifetime: number | null };
 };
+
+export type ResellerLedgerCommission = {
+  id: string;
+  order_id: string;
+  gross_amount: number;
+  commission_amount: number;
+  currency: string;
+  status: string;
+  created_at: string;
+};
+
+export type ResellerLedgerPayout = {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  requested_at: string | null;
+  completed_at: string | null;
+  provider_reference: string | null;
+};
+
+export type ResellerLedgerMembership = {
+  id: string;
+  plan_code: string | null;
+  membership_state: string;
+  activated_at: string | null;
+  expires_at: string | null;
+  renewal_at: string | null;
+};
+
+export type ResellerLedger = {
+  linked: boolean;
+  commissions: ResellerLedgerCommission[];
+  payouts: ResellerLedgerPayout[];
+  memberships: ResellerLedgerMembership[];
+};
+
+/** The signed-in reseller's own commissions, payouts, and memberships. */
+export const getResellerLedger = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<ResellerLedger> => {
+    const sb = writer();
+    const { hasRole, reseller } = await resellerOf(sb, context.userId);
+    if (!hasRole) throw new Error("This workspace belongs to reseller accounts.");
+    if (!reseller) {
+      return { linked: false, commissions: [], payouts: [], memberships: [] };
+    }
+    if (reseller.status !== "active") {
+      throw new Error(
+        `This reseller account is ${reseller.status}, so its ledger cannot be opened.`,
+      );
+    }
+
+    const [commissions, payouts, memberships] = await Promise.all([
+      loose(sb)
+        .from("reseller_commissions")
+        .select("id, order_id, gross_amount, commission_amount, currency, status, created_at")
+        .eq("reseller_id", reseller.id)
+        .order("created_at", { ascending: false })
+        .limit(1000),
+      loose(sb)
+        .from("reseller_payouts")
+        .select("id, amount, currency, status, requested_at, completed_at, provider_reference")
+        .eq("reseller_id", reseller.id)
+        .order("requested_at", { ascending: false })
+        .limit(1000),
+      loose(sb)
+        .from("reseller_memberships")
+        .select("id, plan_code, membership_state, activated_at, expires_at, renewal_at")
+        .eq("reseller_id", reseller.id)
+        .order("created_at", { ascending: false })
+        .limit(1000),
+    ]);
+    if (commissions.error) throw new Error(commissions.error.message);
+    if (payouts.error) throw new Error(payouts.error.message);
+    if (memberships.error) throw new Error(memberships.error.message);
+
+    return {
+      linked: true,
+      commissions: (commissions.data ?? []) as ResellerLedgerCommission[],
+      payouts: (payouts.data ?? []) as ResellerLedgerPayout[],
+      memberships: (memberships.data ?? []) as ResellerLedgerMembership[],
+    };
+  });
+
+async function loadResellerOverview(context: { userId: string; claims?: Record<string, unknown> }) {
+  const sb = writer();
+  const empty: ResellerOverview = {
+    reseller: null,
+    membership: null,
+    rank: null,
+    metrics: {},
+    earnings: { available: null, pending: null, lifetime: null },
+  };
+  const { reseller } = await resellerOf(sb, context.userId);
+  if (!reseller) return empty;
+  const email =
+    typeof context.claims?.email === "string" ? context.claims.email.trim().toLowerCase() : "";
+  const who: Reseller = { userId: context.userId, reseller, email, name: reseller.name ?? email };
+  const now = Date.now();
+
+  // Clients: crm_customers owned by the reseller's team_members row.
+  const owner = email ? await ownerIdFor(sb, who, false) : null;
+  let activeClients = 0;
+  if (owner) {
+    const { data, error } = await loose(sb)
+      .from("crm_customers")
+      .select("status")
+      .eq("owner_id", owner)
+      .limit(5000);
+    if (error) throw new Error(error.message);
+    activeClients = ((data ?? []) as { status: string }[]).filter(
+      (c) => c.status === "active",
+    ).length;
+  }
+
+  // Leads: assigned to the reseller's own agent row.
+  const agent = email ? await agentIdFor(sb, who, false) : null;
+  const leadCount: Record<string, number> = {};
+  if (agent) {
+    const { data, error } = await loose(sb)
+      .from("leads")
+      .select("status")
+      .eq("assigned_agent_id", agent)
+      .limit(5000);
+    if (error) throw new Error(error.message);
+    for (const l of (data ?? []) as { status: string }[])
+      leadCount[l.status] = (leadCount[l.status] ?? 0) + 1;
+  }
+  const leadsTotal = Object.values(leadCount).reduce((a, b) => a + b, 0);
+  const closed = (leadCount.won ?? 0) + (leadCount.lost ?? 0) + (leadCount.spam ?? 0);
+
+  // Sales credited to the reseller, and the licences issued for them.
+  const orders = await attributedOrders(sb, reseller.id);
+  const paid = orders.filter((o) => PAID.has(o.status));
+  const items = orders.length
+    ? ((await readIn(
+        sb,
+        "marketplace_order_items",
+        "id",
+        "order_id",
+        orders.map((o) => o.id),
+      )) as { id: string }[])
+    : [];
+  const licences = items.length
+    ? ((await readIn(
+        sb,
+        "marketplace_licenses",
+        "id, buyer_id, status, license_model, expires_at",
+        "order_item_id",
+        items.map((i) => i.id),
+      )) as {
+        id: string;
+        buyer_id: string | null;
+        status: string;
+        license_model: string | null;
+        expires_at: string | null;
+      }[])
+    : [];
+  const lapsed = (l: { expires_at: string | null }) =>
+    !!l.expires_at && Date.parse(l.expires_at) < now;
+  const live = licences.filter((l) => l.status === "active" && !lapsed(l));
+  const expired = licences.filter(
+    (l) => l.status === "expired" || (l.status !== "revoked" && lapsed(l)),
+  );
+  const trialBuyers = new Set(
+    live.filter((l) => l.license_model === "trial").map((l) => l.buyer_id ?? l.id),
+  );
+
+  // Commissions and payouts: the reseller's own ledgers.
+  const commissions = await loose(sb)
+    .from("reseller_commissions")
+    .select("commission_amount, currency, status, created_at")
+    .eq("reseller_id", reseller.id)
+    .limit(5000);
+  if (commissions.error) throw new Error(commissions.error.message);
+  const ledger = (commissions.data ?? []) as {
+    commission_amount: number;
+    currency: string;
+    status: string;
+    created_at: string;
+  }[];
+  const monthStart = new Date(
+    Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), 1),
+  ).toISOString();
+  const earned = ledger.filter((c) => c.status !== "reversed");
+  const inDollars = (rows: typeof ledger) =>
+    sumUsd(rows.map((c) => usd(c.commission_amount, c.currency)));
+
+  const payouts = await loose(sb)
+    .from("reseller_payouts")
+    .select("amount, currency, status")
+    .eq("reseller_id", reseller.id)
+    .in("status", ["pending", "approved", "processing"])
+    .limit(5000);
+  if (payouts.error) throw new Error(payouts.error.message);
+
+  // Plan: the active membership of this reseller record.
+  const membership = await loose(sb)
+    .from("reseller_memberships")
+    .select("plan_code, status, expires_at, activated_at")
+    .eq("reseller_id", reseller.id)
+    .eq("status", "active")
+    .order("activated_at", { ascending: false })
+    .limit(1);
+  if (membership.error) throw new Error(membership.error.message);
+  const current =
+    (
+      (membership.data ?? []) as {
+        plan_code: string;
+        status: string;
+        expires_at: string | null;
+      }[]
+    )[0] ?? null;
+  let planName: string | null = null;
+  if (current) {
+    const plan = await loose(sb)
+      .from("reseller_membership_plans")
+      .select("name")
+      .eq("code", current.plan_code)
+      .maybeSingle();
+    planName = (plan.data as { name?: string } | null)?.name ?? null;
+  }
+
+  // Rank: the best place this account holds on any leaderboard.
+  const ranks = await loose(sb)
+    .from("leaderboard_entries")
+    .select("rank")
+    .eq("user_id", context.userId)
+    .limit(100);
+  if (ranks.error) throw new Error(ranks.error.message);
+  const rankList = ((ranks.data ?? []) as { rank: number | null }[])
+    .map((r) => r.rank)
+    .filter((r): r is number => r != null);
+
+  return {
+    reseller: {
+      id: reseller.id,
+      name: reseller.company_name || reseller.name || "Your Reseller Account",
+      status: reseller.status,
+      tier: reseller.tier,
+      verified: reseller.kyc_status === "verified",
+      kycStatus: reseller.kyc_status,
+    },
+    membership: current
+      ? {
+          planCode: current.plan_code,
+          planName,
+          status: current.status,
+          expiresAt: current.expires_at,
+        }
+      : null,
+    rank: rankList.length ? Math.min(...rankList) : null,
+    metrics: {
+      clients: activeClients,
+      licenses: live.length,
+      "trial-clients": trialBuyers.size,
+      "expired-licenses": expired.length,
+      leads: leadsTotal - closed,
+      "leads-won": leadCount.won ?? 0,
+      "leads-lost": leadCount.lost ?? 0,
+      // Not yet worked: a lead still at "new".
+      "leads-pending": leadCount.new ?? 0,
+      commissions: inDollars(earned.filter((c) => c.created_at >= monthStart)),
+      "payout-pending": sumUsd(
+        ((payouts.data ?? []) as { amount: number; currency: string }[]).map((p) =>
+          usd(p.amount, p.currency),
+        ),
+      ),
+      revenue: sumUsd(paid.map((o) => usd(o.total, o.currency, o.amount_usd))),
+      // No table records a licence renewal yet, so there is no rate to show.
+      renewals: null,
+    },
+    earnings: {
+      available: inDollars(ledger.filter((c) => c.status === "available")),
+      pending: inDollars(ledger.filter((c) => c.status === "pending")),
+      lifetime: inDollars(earned),
+    },
+  } satisfies ResellerOverview;
+}
+
+export const getResellerMetrics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const overview = await loadResellerOverview(context);
+    return { metrics: overview.metrics };
+  });
 
 /**
  * Every figure on the reseller's home screen, read from the tables that hold
@@ -817,140 +1232,7 @@ export type ResellerOverview = {
  */
 export const getResellerOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<ResellerOverview> => {
-    const sb = writer();
-    const empty: ResellerOverview = {
-      reseller: null,
-      membership: null,
-      rank: null,
-      metrics: {},
-      earnings: { available: null, pending: null, lifetime: null },
-    };
-    const { reseller } = await resellerOf(sb, context.userId);
-    if (!reseller) return empty;
-    const email = typeof context.claims?.email === "string" ? context.claims.email.trim().toLowerCase() : "";
-    const who: Reseller = { userId: context.userId, reseller, email, name: reseller.name ?? email };
-    const now = Date.now();
-
-    // Clients: crm_customers owned by the reseller's team_members row.
-    const owner = email ? await ownerIdFor(sb, who, false) : null;
-    let activeClients = 0;
-    if (owner) {
-      const { data, error } = await loose(sb).from("crm_customers").select("status").eq("owner_id", owner).limit(5000);
-      if (error) throw new Error(error.message);
-      activeClients = ((data ?? []) as { status: string }[]).filter((c) => c.status === "active").length;
-    }
-
-    // Leads: assigned to the reseller's own agent row.
-    const agent = email ? await agentIdFor(sb, who, false) : null;
-    const leadCount: Record<string, number> = {};
-    if (agent) {
-      const { data, error } = await loose(sb).from("leads").select("status").eq("assigned_agent_id", agent).limit(5000);
-      if (error) throw new Error(error.message);
-      for (const l of (data ?? []) as { status: string }[]) leadCount[l.status] = (leadCount[l.status] ?? 0) + 1;
-    }
-    const leadsTotal = Object.values(leadCount).reduce((a, b) => a + b, 0);
-    const closed = (leadCount.won ?? 0) + (leadCount.lost ?? 0) + (leadCount.spam ?? 0);
-
-    // Sales credited to the reseller, and the licences issued for them.
-    const orders = await attributedOrders(sb, reseller.id);
-    const paid = orders.filter((o) => PAID.has(o.status));
-    const items = orders.length
-      ? ((await readIn(sb, "marketplace_order_items", "id", "order_id", orders.map((o) => o.id))) as { id: string }[])
-      : [];
-    const licences = items.length
-      ? ((await readIn(
-          sb,
-          "marketplace_licenses",
-          "id, buyer_id, status, license_model, expires_at",
-          "order_item_id",
-          items.map((i) => i.id),
-        )) as { id: string; buyer_id: string | null; status: string; license_model: string | null; expires_at: string | null }[])
-      : [];
-    const lapsed = (l: { expires_at: string | null }) => !!l.expires_at && Date.parse(l.expires_at) < now;
-    const live = licences.filter((l) => l.status === "active" && !lapsed(l));
-    const expired = licences.filter((l) => l.status === "expired" || (l.status !== "revoked" && lapsed(l)));
-    const trialBuyers = new Set(live.filter((l) => l.license_model === "trial").map((l) => l.buyer_id ?? l.id));
-
-    // Commissions and payouts: the reseller's own ledgers.
-    const commissions = await loose(sb)
-      .from("reseller_commissions")
-      .select("commission_amount, currency, status, created_at")
-      .eq("reseller_id", reseller.id)
-      .limit(5000);
-    if (commissions.error) throw new Error(commissions.error.message);
-    const ledger = (commissions.data ?? []) as { commission_amount: number; currency: string; status: string; created_at: string }[];
-    const monthStart = new Date(Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), 1)).toISOString();
-    const earned = ledger.filter((c) => c.status !== "reversed");
-    const inDollars = (rows: typeof ledger) => sumUsd(rows.map((c) => usd(c.commission_amount, c.currency)));
-
-    const payouts = await loose(sb)
-      .from("reseller_payouts")
-      .select("amount, currency, status")
-      .eq("reseller_id", reseller.id)
-      .in("status", ["pending", "approved", "processing"])
-      .limit(5000);
-    if (payouts.error) throw new Error(payouts.error.message);
-
-    // Plan: the active membership of this reseller record.
-    const membership = await loose(sb)
-      .from("reseller_memberships")
-      .select("plan_code, status, expires_at, activated_at")
-      .eq("reseller_id", reseller.id)
-      .eq("status", "active")
-      .order("activated_at", { ascending: false })
-      .limit(1);
-    if (membership.error) throw new Error(membership.error.message);
-    const current = ((membership.data ?? []) as { plan_code: string; status: string; expires_at: string | null }[])[0] ?? null;
-    let planName: string | null = null;
-    if (current) {
-      const plan = await loose(sb).from("reseller_membership_plans").select("name").eq("code", current.plan_code).maybeSingle();
-      planName = (plan.data as { name?: string } | null)?.name ?? null;
-    }
-
-    // Rank: the best place this account holds on any leaderboard.
-    const ranks = await loose(sb).from("leaderboard_entries").select("rank").eq("user_id", context.userId).limit(100);
-    if (ranks.error) throw new Error(ranks.error.message);
-    const rankList = ((ranks.data ?? []) as { rank: number | null }[]).map((r) => r.rank).filter((r): r is number => r != null);
-
-    return {
-      reseller: {
-        id: reseller.id,
-        name: reseller.company_name || reseller.name || "Your Reseller Account",
-        status: reseller.status,
-        tier: reseller.tier,
-        verified: reseller.kyc_status === "verified",
-        kycStatus: reseller.kyc_status,
-      },
-      membership: current
-        ? { planCode: current.plan_code, planName, status: current.status, expiresAt: current.expires_at }
-        : null,
-      rank: rankList.length ? Math.min(...rankList) : null,
-      metrics: {
-        clients: activeClients,
-        licenses: live.length,
-        "trial-clients": trialBuyers.size,
-        "expired-licenses": expired.length,
-        leads: leadsTotal - closed,
-        "leads-won": leadCount.won ?? 0,
-        "leads-lost": leadCount.lost ?? 0,
-        // Not yet worked: a lead still at "new".
-        "leads-pending": leadCount.new ?? 0,
-        commissions: inDollars(earned.filter((c) => c.created_at >= monthStart)),
-        "payout-pending": sumUsd(
-          ((payouts.data ?? []) as { amount: number; currency: string }[]).map((p) => usd(p.amount, p.currency)),
-        ),
-        revenue: sumUsd(paid.map((o) => usd(o.total, o.currency, o.amount_usd))),
-        // No table records a licence renewal yet, so there is no rate to show.
-        renewals: null,
-      },
-      earnings: {
-        available: inDollars(ledger.filter((c) => c.status === "available")),
-        pending: inDollars(ledger.filter((c) => c.status === "pending")),
-        lifetime: inDollars(earned),
-      },
-    };
-  });
+  .handler(async ({ context }): Promise<ResellerOverview> => loadResellerOverview(context));
 
 /**
  * The payment rails Finance has switched on, for the membership payment form.

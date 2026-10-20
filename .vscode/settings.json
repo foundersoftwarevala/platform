@@ -1,0 +1,43 @@
+{
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.output/**": true,
+    "**/.output-*/**": true,
+    "**/.output.prev/**": true,
+    "**/.tanstack/**": true,
+    "**/.nitro/**": true,
+    "**/dist/**": true,
+    "**/dist-ssr/**": true,
+    "**/build/**": true,
+    "**/coverage/**": true,
+    "**/test-results/**": true,
+    "**/playwright-report/**": true,
+    "**/.cache/**": true,
+    "**/.turbo/**": true,
+    "**/.vite/**": true,
+    "**/.next/**": true,
+    "**/.wrangler/**": true,
+    "**/.vala-ai/**": true,
+    "**/_archive/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.output": true,
+    "**/.output-*": true,
+    "**/.tanstack": true,
+    "**/.nitro": true,
+    "**/dist": true,
+    "**/dist-ssr": true,
+    "**/build": true,
+    "**/coverage": true,
+    "**/test-results": true,
+    "**/playwright-report": true,
+    "**/.cache": true,
+    "**/.turbo": true,
+    "**/.vite": true,
+    "**/.next": true,
+    "**/.wrangler": true,
+    "**/.vala-ai": true,
+    "**/_archive": true
+  }
+}

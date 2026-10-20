@@ -46,6 +46,7 @@ import { PAYMENT_MESSAGES } from "./payment";
 import { RESELLER_MESSAGES } from "./reseller";
 import { DEMO_MESSAGES } from "./demo";
 import { STOREADMIN_MESSAGES } from "./storeadmin";
+import { LANGUAGES_MESSAGES } from "./languages";
 
 export type MessageSource = string | readonly [text: string, description: string];
 
@@ -72,6 +73,7 @@ export const MODULES = {
   publicseo: PUBLICSEO_MESSAGES,
   demo: DEMO_MESSAGES,
   storeadmin: STOREADMIN_MESSAGES,
+  languages: LANGUAGES_MESSAGES,
 } as const;
 
 type Modules = typeof MODULES;
