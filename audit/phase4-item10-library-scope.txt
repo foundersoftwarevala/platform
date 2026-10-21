@@ -1,38 +1,45 @@
-Item 10 | PARTIALLY FIXED
+Item 10 | VERIFIED WORKING (local code and tests; live acceptance not verified)
 
-Scope selected from repository evidence: customer-owned purchases and their
-licence/invoice access. No duplicate `/library` route was added.
+Scope chosen from the Author Dashboard context: an author's own products and
+their attached downloadable files. The existing sidebar's Library control
+opens the first role module; for authors that module is Products. No duplicate
+`/library` route or separate product list was added.
 
 Findings:
-- No dedicated `/library` route exists.
-- The app already has `/account/purchases`, whose UI loads purchases and
-  displays owned licence keys and invoices.
-- Its API requires a valid signed-in customer and scopes orders, licences,
-  and invoices to that user's ID.
-- Storefront favourites are a separate browser-held feature; the analytics
-  endpoint explicitly says they do not reach the database.
-- The purchases page does not expose purchased product-file downloads, and
-  no customer download endpoint was found. The existing author product-file
-  route is not a buyer download capability.
-- `ams.awards.libraries.*` routes are for the Awards Management System, not
-  a marketplace product library.
+- The author Products workspace lists and edits only the signed-in author's
+  products through `/api/author/products`.
+- Per-product files are listed/uploaded through `/api/author/product-files`.
+  The server checks seller/product ownership and editable moderation state
+  before an upload, and returns short-lived audited signed download URLs only
+  for the author's own file.
+- Customer purchases (`/account/purchases`) and browser-held favourites are
+  separate features and are not substituted for an author-owned library.
+- `ams.awards.libraries.*` routes are for Awards Management System content.
 
-Change: none. Reuse the existing purchases page rather than build a duplicate.
-The existing purchase/licence view does not yet constitute a download library.
-Adding buyer file delivery would require a separately verified, entitlement-
-checked server capability; it must not be simulated with author/operator
-endpoints.
+Change: none. Reuse the author Products workspace and per-product file UI/API
+rather than build a parallel library.
+
+Validation:
+- `npm.cmd exec vitest -- run src/components/dashboard/AuthorProductsWorkspace.test.tsx src/routes/api/author/-product-files.test.ts --reporter=dot`
+  — 9 tests passed across 2 files.
+- Tests exercise the workspace and author file upload, ownership refusal,
+  signed download, and audit behavior. They use fixtures; no database or
+  storage writes were made.
+- The product/file UI and server contracts are existing code, not changes
+  from this item.
 
 Evidence:
-- `src/routes/account/purchases.tsx:11,91,141-146,179-210` — purchase page,
-  authentication-backed request, loading/error/empty states, licence key,
-  and invoice access.
-- `src/routes/api/account/purchases.ts:53-55,65,80,119,159` — authenticated
-  user lookup, owner-scoped orders/licences/invoices, and no-store response.
-- `src/routes/api/analytics/products.ts:252` — favourites are browser-held.
-- `src/components/marketplace-home/TopUtilityBar.tsx:1071-1083` — My Favorites
-  control.
-- No item-specific tests were added because no code was changed. The item #2
-  production build completed, but that is not live or authenticated acceptance.
+- `src/components/dashboard/Sidebar.tsx:125` — Library opens the first role
+  module.
+- `src/lib/roles.ts:166-177` — Author's first module is Products.
+- `src/components/dashboard/ModulePage.tsx:11-13` — author Products opens
+  `AuthorProductsWorkspace`.
+- `src/components/dashboard/AuthorProductsWorkspace.tsx:208-247` — product
+  files are listed, uploaded, and downloaded through the author file API.
+- `src/routes/api/author/product-files.ts:119-148,215-223,364-410` —
+  author gate, seller/product ownership and state checks, storage, and signed
+  download handling.
+- `src/routes/api/author/-product-files.test.ts` — 9 focused API tests.
 
-Live acceptance: BLOCKED — no SSH access, pending key registration.
+Live acceptance: BLOCKED — no SSH access, pending key registration. The local
+tests do not prove production deployment or live storage availability.
