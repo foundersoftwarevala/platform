@@ -7,9 +7,9 @@
 - The Developer Dashboard reads only persisted `skill_tags`; existing submission reads were already filtered to the signed-in developer’s linked row ([developer-profile.functions.ts:9](../../src/lib/dashboard-records/developer-profile.functions.ts#L9), [records.functions.ts:810](../../src/lib/dashboard-records/records.functions.ts#L810)).
 - Toast-only Developer Manager actions and non-persisted settings are disabled; payment wording no longer implies paid/settled status ([DMCodeSubmission.tsx:132](../../src/components/developer-management/screens/DMCodeSubmission.tsx#L132), [DMSettings.tsx:22](../../src/components/developer-management/screens/DMSettings.tsx#L22), [DMPaymentIncentive.tsx:89](../../src/components/developer-management/screens/DMPaymentIncentive.tsx#L89)).
 - The audit screen reads `audit_logs`, but the supplied schema does not show append-only or tamper-evident enforcement for that table ([dev-manager.server.ts:772](../../src/lib/dev-manager.server.ts#L772), [public-schema.sql:23972](../../supabase/schema/public-schema.sql#L23972)).
-- No migration or database write was made; no data was deleted. Validation outcomes are recorded in the completion summary, not represented here as a clean full-repository pass.
-- Focused tests passed 23/23; scoped lint with the repository formatting rule disabled had zero errors and one existing Fast Refresh warning in [RouteAccessGate.tsx:155](../../src/components/auth/RouteAccessGate.tsx#L155).
-- Full typecheck still reports an unrelated existing TS2304 at [AuthorProductsWorkspace.tsx:666](../../src/components/dashboard/AuthorProductsWorkspace.tsx#L666); repository-wide lint and i18n checks are not clean.
+- No migration, database write, or data deletion was included in these Phase 1/2 changes.
+- Focused tests passed 23/23; the changed-file ESLint run has zero errors and one Fast Refresh warning.
+- Full typecheck fails on an unrelated TS2304 in [AuthorProductsWorkspace.tsx:666](../../src/components/dashboard/AuthorProductsWorkspace.tsx#L666); `i18n:check` fails on unrelated worktree diagnostics and a stale generated catalogue.
 
 ## 2. Developer Dashboard fixes
 
@@ -33,11 +33,56 @@
 | Payment amount falsely implied paid/settled or incentive/hold status | [DMPaymentIncentive.tsx:26](../../src/components/developer-management/screens/DMPaymentIncentive.tsx#L26), [DMPaymentIncentive.tsx:89](../../src/components/developer-management/screens/DMPaymentIncentive.tsx#L89), [devmanager.ts:347](../../src/lib/i18n/messages/devmanager.ts#L347) | Amount label is “Amount due (not paid)”; “paid”/“settled” claims and unsupported incentive/hold badges are not rendered. The amount remains a sum of completed task amounts, not a payment record. | Y |
 | Audit screen data source and row mutation controls | [DMAuditLogs.tsx:45](../../src/components/developer-management/screens/DMAuditLogs.tsx#L45), [dev-manager.server.ts:772](../../src/lib/dev-manager.server.ts#L772) | Screen reads the server audit-trail query backed by `audit_logs`; controls are refresh, search, filter, pagination, and export. No row edit/delete control is present. | Y |
 
-## 4. Role matrix
+## 4. Verification results
 
-See [role-matrix.md](./role-matrix.md). It documents route roles, server guards,
-and relevant RLS policies for the Developer Dashboard, Developer Manager,
-Control Panel, Task Manager, and the unchanged out-of-scope `/manager` route.
+### TypeScript
+
+Command: `npx.cmd tsc --noEmit -p .`  
+Status: **FAIL** (exit code 2)
+
+```text
+src/components/dashboard/AuthorProductsWorkspace.tsx(666,23): error TS2304: Cannot find name 'editableStates'.
+```
+
+This diagnostic is outside the Phase 1/2 files changed here.
+
+### ESLint
+
+Command:
+
+```powershell
+$files = git diff --name-only HEAD~3..HEAD -- '*.ts' '*.tsx'
+npx.cmd eslint $files --rule 'prettier/prettier: off'
+```
+
+Status: **PASS** (exit code 0; zero errors)
+
+```text
+src/components/auth/RouteAccessGate.tsx
+  155:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 1 problem (0 errors, 1 warning)
+```
+
+The remaining warning is the existing Fast Refresh warning in
+[RouteAccessGate.tsx:155](../../src/components/auth/RouteAccessGate.tsx#L155).
+
+### i18n
+
+Command: `npm.cmd run i18n:check`  
+Status: **FAIL** (exit code 1)
+
+```text
+137 above-baseline hardcoded-string diagnostics across the current worktree.
+Static source catalogue is stale. Run node scripts/i18n-audit.mjs --public-source.
+```
+
+The above-baseline diagnostics are in unrelated files; none of the Phase 1/2
+changed UI files was reported for new hardcoded strings. The checker also
+reported 40 unused-key warnings, which are not the command's failure cause.
+Refreshing the generated catalogue still left the unrelated hardcoded-string
+failures, so that generated file was not changed as part of this scoped work.
+No missing translation keys for the Phase 1/2 UI changes were reported.
 
 ## 5. Missing columns/features
 
@@ -52,10 +97,11 @@ Control Panel, Task Manager, and the unchanged out-of-scope `/manager` route.
 ## 6. What was NOT done
 
 - No feature-module wiring was added; the profile read is a dashboard-records server function and reuses the REST helper already used by that layer ([records.functions.ts:4](../../src/lib/dashboard-records/records.functions.ts#L4), [developer-profile.functions.ts:9](../../src/lib/dashboard-records/developer-profile.functions.ts#L9)).
-- No migrations, schema edits, database writes, or data deletions were made.
+- No migrations, schema edits, database writes, or data deletions were made by these changes.
 - No submission form, payout processing, one-week scheduler, KYC flow, or profile write flow was added ([sources.ts:118](../../src/lib/dashboard-records/sources.ts#L118), [developer-profile.functions.ts:9](../../src/lib/dashboard-records/developer-profile.functions.ts#L9)).
 - The Task Manager implementation and the AI API Manager `/manager` module were not changed ([task-manager.tsx:28](../../src/routes/task-manager.tsx#L28), [manager.tsx:19](../../src/routes/manager.tsx#L19)).
 - No database/RLS audit-truth repair was made; the existing spoofable task/submission write policies remain for a separately approved migration ([public-schema.sql:53639](../../supabase/schema/public-schema.sql#L53639), [public-schema.sql:53711](../../supabase/schema/public-schema.sql#L53711)).
+- The route and access details are recorded in the separate [role matrix](./role-matrix.md).
 
 ## 7. Next phase recommendation
 
