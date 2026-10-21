@@ -37,7 +37,7 @@
 
 ### TypeScript
 
-Command: `npx.cmd tsc --noEmit -p .`  
+Command: `npx.cmd tsc --noEmit -p .`
 Status: **FAIL** (exit code 2)
 
 ```text
@@ -69,7 +69,7 @@ The remaining warning is the existing Fast Refresh warning in
 
 ### i18n
 
-Command: `npm.cmd run i18n:check`  
+Command: `npm.cmd run i18n:check`
 Status: **FAIL** (exit code 1)
 
 ```text
