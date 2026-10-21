@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Hammer, Play, Square, Send } from 'lucide-react';
-import { toast } from 'sonner';
 import { useTranslation, type Translate } from '@/lib/i18n/use-translation';
 
 /**
@@ -74,33 +73,25 @@ export const DMBuildAssignment: React.FC = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => toast.success(t('devmanager.builds.started_toast', { id: build.id }))}
-                    disabled={build.status === 'in_progress'}
-                  >
-                    <Play className="h-4 w-4 mr-1" />
-                    {t('devmanager.builds.start')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => toast.warning(t('devmanager.builds.stopped_toast', { id: build.id }))}
-                    disabled={build.status !== 'in_progress'}
-                  >
-                    <Square className="h-4 w-4 mr-1" />
-                    {t('devmanager.builds.stop')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toast.info(t('devmanager.builds.sent_toast', { id: build.id }))}
-                    disabled={build.status !== 'completed'}
-                  >
-                    <Send className="h-4 w-4 mr-1" />
-                    {t('devmanager.builds.send_to_qa')}
-                  </Button>
+                  {/* AUDIT-FIX: Build controls stay inert until a real pipeline exists. */}
+                  <span title={t('devmanager.common.not_implemented')}>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" disabled>
+                      <Play className="h-4 w-4 mr-1" />
+                      {t('devmanager.builds.start')}
+                    </Button>
+                  </span>
+                  <span title={t('devmanager.common.not_implemented')}>
+                    <Button size="sm" variant="destructive" disabled>
+                      <Square className="h-4 w-4 mr-1" />
+                      {t('devmanager.builds.stop')}
+                    </Button>
+                  </span>
+                  <span title={t('devmanager.common.not_implemented')}>
+                    <Button size="sm" variant="outline" disabled>
+                      <Send className="h-4 w-4 mr-1" />
+                      {t('devmanager.builds.send_to_qa')}
+                    </Button>
+                  </span>
                 </div>
               </div>
             ))}

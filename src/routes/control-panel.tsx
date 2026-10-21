@@ -165,7 +165,8 @@ function CockpitBanner() {
 
 function GuardedIndex() {
   return (
-    <RequireRole role={["developer", "finance", "support", "sales_support_manager"]}>
+    // AUDIT-FIX: Keep developer accounts out of the manager cockpit.
+    <RequireRole role={["finance", "support", "sales_support_manager"]}>
       <Index />
     </RequireRole>
   );

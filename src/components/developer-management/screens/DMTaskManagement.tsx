@@ -220,18 +220,23 @@ export const DMTaskManagement: React.FC = () => {
                         <RefreshCw className="h-4 w-4 mr-1" />
                         {t('devmanager.tasks.reassign')}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toast.info(t('devmanager.tasks.pause_info'))}>
-                        <Pause className="h-4 w-4 mr-1" />
-                        {t('devmanager.tasks.pause')}
-                      </Button>
+                      {/* AUDIT-FIX: Disable task actions that have no server mutation. */}
+                      <span title={t('devmanager.common.not_implemented')}>
+                        <Button size="sm" variant="outline" disabled>
+                          <Pause className="h-4 w-4 mr-1" />
+                          {t('devmanager.tasks.pause')}
+                        </Button>
+                      </span>
                       <Button size="sm" variant="outline" disabled={escalate.isPending} onClick={() => void escalateTask(task.uuid)}>
                         <AlertTriangle className="h-4 w-4 mr-1" />
                         {t('devmanager.common.escalate')}
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toast.info(t('devmanager.tasks.close_info'))}>
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        {t('devmanager.tasks.close')}
-                      </Button>
+                      <span title={t('devmanager.common.not_implemented')}>
+                        <Button size="sm" variant="outline" disabled>
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          {t('devmanager.tasks.close')}
+                        </Button>
+                      </span>
                     </div>
                     )}
                   </div>

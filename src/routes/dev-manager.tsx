@@ -76,7 +76,11 @@ function DevManagerError({ error }: { error: Error }) {
 
 function DevManagerRoute() {
   return (
-    <RequireRole role={["developer"]}>
+    // AUDIT-FIX: Match the server's operator allowlist; developers use their own dashboard.
+    <RequireRole
+      role={["admin", "boss", "founder", "super_admin", "boss_owner"]}
+      allowOperators={false}
+    >
       <div className="creator-theme min-h-screen">
         <DMFullLayout />
         <Toaster richColors position="bottom-right" />

@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileCode, Upload, RefreshCw, Lock, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
 import { useCodeSubmissions } from '@/hooks/useDevManagerData';
 import { richText, useTranslation, type Translate } from '@/lib/i18n/use-translation';
 
@@ -39,9 +38,8 @@ const muteWords = (nodes: React.ReactNode[]) =>
   });
 
 /**
- * Code submissions, from developer_code_submissions. The three here were typed
- * in. A developer submits and resubmits from their own dashboard, against their
- * task, so those buttons say so; the review decision is taken in Review & QA.
+ * Code submissions, from developer_code_submissions. Submission and lock
+ * actions are not implemented in this manager screen; review is in Review & QA.
  */
 export const DMCodeSubmission: React.FC = () => {
   const { t, formatDate } = useTranslation();
@@ -131,29 +129,25 @@ export const DMCodeSubmission: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => toast.info(t('devmanager.code.submit_info'))}
-                  >
-                    <Upload className="h-4 w-4 mr-1" />
-                    {t('devmanager.code.submit')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toast.info(sub.status === 'rejected' ? t('devmanager.code.resubmit_info_rejected') : t('devmanager.code.resubmit_info'))}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                    {t('devmanager.code.resubmit')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toast.info(sub.status === 'pending' ? t('devmanager.code.lock_info_pending') : t('devmanager.code.lock_info_decided'))}
-                  >
-                    <Lock className="h-4 w-4 mr-1" />
-                    {t('devmanager.code.lock')}
-                  </Button>
+                  {/* AUDIT-FIX: Do not present toast-only controls as persisted actions. */}
+                  <span title={t('devmanager.common.not_implemented')}>
+                    <Button size="sm" disabled>
+                      <Upload className="h-4 w-4 mr-1" />
+                      {t('devmanager.code.submit')}
+                    </Button>
+                  </span>
+                  <span title={t('devmanager.common.not_implemented')}>
+                    <Button size="sm" variant="outline" disabled>
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      {t('devmanager.code.resubmit')}
+                    </Button>
+                  </span>
+                  <span title={t('devmanager.common.not_implemented')}>
+                    <Button size="sm" variant="outline" disabled>
+                      <Lock className="h-4 w-4 mr-1" />
+                      {t('devmanager.code.lock')}
+                    </Button>
+                  </span>
                 </div>
               </div>
             ))}

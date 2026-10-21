@@ -122,6 +122,11 @@ export const DEVMANAGER_MESSAGES = {
 
   // Shared across the screens.
   "devmanager.common.loading": "Loading…",
+  // AUDIT-FIX: Explain disabled controls without implying an action occurred.
+  "devmanager.common.not_implemented": [
+    "Not yet implemented",
+    "tooltip for a disabled control that has no persistent action yet",
+  ],
   "devmanager.common.no_developer": "No developer is registered.",
   "devmanager.common.registry_error": "The registry could not be read: {error}",
   "devmanager.common.figures_error": "Figures could not be read: {error}",
@@ -178,9 +183,6 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.builds.queue": "Build Queue",
   "devmanager.builds.empty": "No build pipeline is connected to developer work yet.",
   "devmanager.builds.started": "Started: {time}",
-  "devmanager.builds.started_toast": "Build {id} started",
-  "devmanager.builds.stopped_toast": "Build {id} stopped",
-  "devmanager.builds.sent_toast": "Build {id} sent to QA",
   "devmanager.builds.start": ["Start Build", "button"],
   "devmanager.builds.stop": ["Stop Build", "button"],
   "devmanager.builds.send_to_qa": ["Send to QA", "button"],
@@ -208,16 +210,8 @@ export const DEVMANAGER_MESSAGES = {
     "{count, plural, one {# file} other {# files}} • {message}",
     "number of files in a submission, then its commit message",
   ],
-  "devmanager.code.submit_info":
-    "Code is submitted by the developer, from their own dashboard, against their task.",
   "devmanager.code.submit": ["Submit", "button"],
-  "devmanager.code.resubmit_info_rejected":
-    "The developer resubmits after the requested changes, from their own dashboard.",
-  "devmanager.code.resubmit_info": "Only a submission sent back for changes is resubmitted.",
   "devmanager.code.resubmit": ["Resubmit", "button"],
-  "devmanager.code.lock_info_pending":
-    "A submission cannot be edited once made; it is decided in Review & QA.",
-  "devmanager.code.lock_info_decided": "This submission is already decided and cannot change.",
   "devmanager.code.lock": ["Lock", "button"],
 
   // Compliance & NDA.
@@ -347,12 +341,10 @@ export const DEVMANAGER_MESSAGES = {
     "banner: nothing is paid out before it is approved",
   ],
   "devmanager.payment.summary": "Payment Summary",
-  "devmanager.payment.incentive_eligible": "Incentive Eligible",
-  "devmanager.payment.payment_hold": "Payment Hold",
   "devmanager.payment.hours": "{hours} hours (estimated)",
-  "devmanager.payment.tasks_approved": "{approved}/{total} tasks approved",
-  "devmanager.payment.flagged": "Flagged for review",
-  "devmanager.payment.earned": "Earned on completed tasks",
+  "devmanager.payment.tasks_completed": "{completed}/{total} tasks completed",
+  // AUDIT-FIX: Do not describe completed work as a paid or settled amount.
+  "devmanager.payment.amount_due": "Amount due (not paid)",
 
   // Performance & KPI.
   "devmanager.performance.title": "Performance & KPI",
@@ -444,6 +436,10 @@ export const DEVMANAGER_MESSAGES = {
   // Settings.
   "devmanager.settings.title": ["Settings", "heading of the Developer Manager settings screen"],
   "devmanager.settings.subtitle": "Configure developer management preferences",
+  "devmanager.settings.not_persisted": [
+    "Settings are not persisted; controls are disabled until they are implemented.",
+    "notice explaining why Developer Manager settings cannot be changed",
+  ],
   "devmanager.settings.notifications": "Notifications",
   "devmanager.settings.task_assignment_alerts": "Task Assignment Alerts",
   "devmanager.settings.code_submission_notifications": "Code Submission Notifications",
@@ -517,11 +513,7 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.tasks.depends_on": "Depends on: {dependency}",
   "devmanager.tasks.unassigned": "Unassigned",
   "devmanager.tasks.reassign": ["Reassign", "button"],
-  "devmanager.tasks.pause_info":
-    "A task is paused by the developer working it, from their own dashboard.",
   "devmanager.tasks.pause": ["Pause", "button"],
-  "devmanager.tasks.close_info":
-    "A task is closed when its work is approved in review, not from here.",
   "devmanager.tasks.close": ["Close", "button: close a task"],
 
   // The console's menu, top bar and bell.

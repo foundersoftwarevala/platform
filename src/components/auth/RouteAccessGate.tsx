@@ -21,9 +21,10 @@ import { RequireRole } from "@/components/auth/RequireRole";
 
 /** Path prefix -> the app_roles allowed there, on top of platform operators. */
 const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
+  // AUDIT-FIX: Developer accounts must not enter the operator cockpit.
   {
     prefix: "/control-panel",
-    roles: ["developer", "finance", "support", "sales_support_manager"],
+    roles: ["finance", "support", "sales_support_manager"],
     label: "Control Panel",
   },
   { prefix: "/boss", roles: [], label: "Boss Console" },
@@ -129,7 +130,8 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/server-manager", roles: ["developer"], label: "Server Manager" },
   // Developer operations. The database enforces the same separation: internal
   // notes are operator-only, so a developer cannot read one about themselves.
-  { prefix: "/dev-manager", roles: ["developer"], label: "Developer Manager" },
+  // AUDIT-FIX: Only platform operators may enter the manager-only console.
+  { prefix: "/dev-manager", roles: [], label: "Developer Manager" },
   // The task control tower. The database enforces the same separation: a member
   // sees their own work and whatever is still claimable, an operator sees all.
   { prefix: "/task-manager", roles: ["developer", "support", "sales"], label: "Task Manager" },
