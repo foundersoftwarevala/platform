@@ -3,20 +3,10 @@ import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import type { Json } from "@/lib/json";
 import type { TaskTransaction } from "./db.server";
+import type { TaskPaymentStatus, TaskStatus } from "./types";
 
 const OPERATOR_ROLES = new Set(["admin", "boss", "founder", "super_admin", "boss_owner"]);
 const DEVELOPER_ROLE = "developer";
-
-type TaskStatus =
-  | "assigned"
-  | "in_progress"
-  | "submitted"
-  | "rejected"
-  | "verified"
-  | "paid"
-  | "cancelled";
-
-type TaskPaymentStatus = "pending" | "verified" | "due" | "paid";
 
 type TaskRow = {
   id: string;
@@ -30,6 +20,7 @@ type TaskRow = {
   verified_at: Date | string | null;
   paid_at: Date | string | null;
   due_at: Date | string | null;
+  deadline_at: Date | string | null;
   priority: string | null;
   artifacts: Json | null;
   submission_notes: string | null;
@@ -41,13 +32,14 @@ type TaskRow = {
 
 type TaskResult = Omit<
   TaskRow,
-  "created_at" | "updated_at" | "verified_at" | "paid_at" | "due_at"
+  "created_at" | "updated_at" | "verified_at" | "paid_at" | "due_at" | "deadline_at"
 > & {
   created_at: string;
   updated_at: string;
   verified_at: string | null;
   paid_at: string | null;
   due_at: string | null;
+  deadline_at: string | null;
 };
 
 type TaskActor = {
@@ -68,10 +60,11 @@ function toTaskResult(row: TaskRow): TaskResult {
     verified_at: asIso(row.verified_at),
     paid_at: asIso(row.paid_at),
     due_at: asIso(row.due_at),
+    deadline_at: asIso(row.deadline_at),
   };
 }
 
-async function requireActor(required: "developer" | "manager"): Promise<TaskActor> {
+async function requireActor(required: "developer" | "manager" | "signed-in"): Promise<TaskActor> {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Unauthorized: sign in required.");
@@ -93,7 +86,9 @@ async function requireActor(required: "developer" | "manager"): Promise<TaskActo
         const allowed =
           required === "manager"
             ? roles.some((row) => OPERATOR_ROLES.has(row.role))
-            : roles.some((row) => row.role === DEVELOPER_ROLE);
+            : required === "developer"
+              ? roles.some((row) => row.role === DEVELOPER_ROLE)
+              : true;
         if (!allowed) {
           throw new Error(
             required === "manager"
@@ -128,13 +123,14 @@ export const createTask = createServerFn({ method: "POST" })
         developerId: z.string().uuid(),
         title: z.string().trim().min(1).max(500),
         desc: z.string().nullable().optional(),
-        assignedBy: z.string().uuid(),
+        assignedBy: z.string().uuid().optional(),
+        deadlineAt: z.string().datetime({ offset: true }).nullable().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data }) => {
     const actor = await requireActor("manager");
-    if (data.assignedBy !== actor.userId) {
+    if (data.assignedBy && data.assignedBy !== actor.userId) {
       throw new Error("assignedBy must match the authenticated operator.");
     }
     const row = await actor.run(async (tx) => {
@@ -148,10 +144,10 @@ export const createTask = createServerFn({ method: "POST" })
       }
       const [task] = await tx<TaskRow[]>`
         insert into public.tasks (
-          developer_id, assigned_by, created_by, title, description
+          developer_id, assigned_by, created_by, title, description, deadline_at
         ) values (
           ${data.developerId}::uuid, ${actor.userId}::uuid, ${actor.userId}::uuid,
-          ${data.title}, ${data.desc ?? null}
+          ${data.title}, ${data.desc ?? null}, ${data.deadlineAt ?? null}::timestamptz
         )
         returning *
       `;
@@ -331,4 +327,127 @@ export const cancelTask = createServerFn({ method: "POST" })
       return updated;
     });
     return toTaskResult(row);
+  });
+
+// PHASE4-WIRED: managers can resume rejected tasks through the canonical transition.
+export const reopenTask = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.object({ taskId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const actor = await requireActor("manager");
+    const row = await actor.run(async (tx) => {
+      const task = await getTaskForUpdate(tx, data.taskId);
+      if (task.status !== "rejected") {
+        throw new Error("Only rejected tasks can be reopened.");
+      }
+      const [updated] = await tx<TaskRow[]>`
+        update public.tasks
+           set status = 'in_progress'
+         where id = ${data.taskId}::uuid
+        returning *
+      `;
+      if (!updated) throw new Error("Task reopen returned no row.");
+      return updated;
+    });
+    return toTaskResult(row);
+  });
+
+// PHASE4-WIRED: all task reads are scoped at the server boundary to the caller.
+export const listDeveloperTasks = createServerFn({ method: "GET" }).handler(async () => {
+  const actor = await requireActor("developer");
+  return actor.run(async (tx) => {
+    const rows = await tx<TaskRow[]>`
+      select *
+        from public.tasks
+       where developer_id = ${actor.userId}::uuid
+       order by created_at desc, id
+       limit 5000
+    `;
+    return rows.map(toTaskResult);
+  });
+});
+
+// PHASE4-WIRED: task notices can be read only by their authenticated recipient.
+export const getTaskNotifications = createServerFn({ method: "GET" }).handler(async () => {
+  const actor = await requireActor("signed-in");
+  return actor.run(async (tx) => {
+    const [rows, counts] = await Promise.all([
+      tx<
+        {
+          id: string;
+          kind: string;
+          message: string;
+          entity_type: string | null;
+          entity_id: string | null;
+          read_at: Date | string | null;
+          created_at: Date | string;
+        }[]
+      >`
+        select id, kind, message, entity_type, entity_id, read_at, created_at
+          from public.notifications
+         where user_id = ${actor.userId}::uuid
+           and entity_type = 'task'
+         order by created_at desc, id desc
+         limit 50
+      `,
+      tx<{ unread: string }[]>`
+        select count(*)::text as unread
+          from public.notifications
+         where user_id = ${actor.userId}::uuid
+           and entity_type = 'task'
+           and read_at is null
+      `,
+    ]);
+    return {
+      notifications: rows.map((row) => ({
+        ...row,
+        read_at: asIso(row.read_at),
+        created_at: asIso(row.created_at)!,
+      })),
+      unread: Number(counts[0]?.unread ?? 0),
+    };
+  });
+});
+
+// PHASE4-WIRED: task notice read state is changed only by an authenticated server function.
+export const markTaskNotificationRead = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.object({ notificationId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const actor = await requireActor("signed-in");
+    return actor.run(async (tx) => {
+      const [notification] = await tx<{ id: string; kind: string; entity_id: string | null; read_at: Date | string | null }[]>`
+        select id, kind, entity_id, read_at
+          from public.notifications
+         where id = ${data.notificationId}::uuid
+           and user_id = ${actor.userId}::uuid
+           and entity_type = 'task'
+        for update
+      `;
+      if (!notification) throw new Error("Task notification not found.");
+      if (notification.read_at === null) {
+        const [updated] = await tx<{ read_at: Date | string }[]>`
+          update public.notifications
+             set read_at = now()
+           where id = ${notification.id}::uuid
+             and user_id = ${actor.userId}::uuid
+             and entity_type = 'task'
+             and read_at is null
+          returning read_at
+        `;
+        if (!updated) throw new Error("Task notification read state changed unexpectedly.");
+        const readAt = asIso(updated.read_at)!;
+        await tx`
+          insert into public.audit_logs (
+            actor_id, actor, action, entity_type, entity_id,
+            before_state, after_state, metadata
+          ) values (
+            ${actor.userId}::uuid, ${actor.userId}, 'notification.read',
+            'notification', ${notification.id},
+            ${tx.json({ read_at: null, kind: notification.kind, entity_id: notification.entity_id })},
+            ${tx.json({ read_at: readAt, kind: notification.kind, entity_id: notification.entity_id })},
+            ${tx.json({ source: 'phase4-task-notification' })}
+          )
+        `;
+      }
+      return { id: notification.id };
+    });
   });

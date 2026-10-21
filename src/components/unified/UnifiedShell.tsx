@@ -51,6 +51,8 @@ interface UnifiedShellProps {
   children: ReactNode;
   footer?: ReactNode;
   showSearch?: boolean;
+  // PHASE4-WIRED: let manager screens replace this legacy count menu with task notices.
+  showNotifications?: boolean;
   notifications?: { id: string; title: string; description?: string; onClick?: () => void }[];
   collapsible?: boolean;
   defaultCollapsed?: boolean;
@@ -72,6 +74,7 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
   children,
   footer,
   showSearch = true,
+  showNotifications = true,
   notifications = [],
   collapsible = true,
   defaultCollapsed = false,
@@ -297,7 +300,7 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
                 />
               </div>
             )}
-            <DropdownMenu>
+            {showNotifications && <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   aria-label={t("devmanager.shell.notifications_count", {
@@ -333,7 +336,7 @@ export const UnifiedShell: React.FC<UnifiedShellProps> = ({
                   ))
                 )}
               </DropdownMenuContent>
-            </DropdownMenu>
+            </DropdownMenu>}
             {topbarRight}
 
           </div>

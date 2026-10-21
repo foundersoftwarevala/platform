@@ -12,7 +12,8 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ChatAppButton } from '@/components/chat/ChatAppButton';
-import { useCodeSubmissions, useDeliveryOverview, useDeveloperRegistry } from '@/hooks/useDevManagerData';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { useCanonicalTasks, useDeliveryOverview, useDeveloperRegistry } from '@/hooks/useDevManagerData';
 import {
   LayoutDashboard, Users, UserPlus, Layers, ListTodo, Target, Hammer,
   FileCode, CheckCircle, Bug, TrendingUp, Wallet, Shield, Lock,
@@ -92,6 +93,7 @@ const GROUPS: NavGroupSource[] = [
 export const DMFullLayout: React.FC = () => {
   const { t } = useTranslation();
   const [activeScreen, setActiveScreen] = useState<DMScreen>('developer_dashboard');
+  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
 
   const renderScreen = () => {
     switch (activeScreen) {
@@ -104,7 +106,7 @@ export const DMFullLayout: React.FC = () => {
       case 'role_skill_mapping':
         return <DMRoleSkillMapping />;
       case 'task_management':
-        return <DMTaskManagement />;
+        return <DMTaskManagement focusTaskId={focusedTaskId} />;
       case 'sprint_milestone':
         return <DMSprintMilestone />;
       case 'build_assignment':
@@ -141,32 +143,18 @@ export const DMFullLayout: React.FC = () => {
   // screen itself shows, and none is drawn while it is unknown or zero.
   const overview = useDeliveryOverview();
   const registry = useDeveloperRegistry();
-  const submissions = useCodeSubmissions();
+  // PHASE4-WIRED: task/review sidebar counts use the same canonical task rows as their screens.
+  const tasks = useCanonicalTasks();
   const counts: Partial<Record<DMScreen, number | undefined>> = {
     onboarding_requests: registry.data?.filter((d) => !d.onboardingCompleted && d.status !== 'exited').length,
-    task_management: overview.data?.stats.activeTasks,
-    review_qa: submissions.data?.filter((s) => s.status === 'submitted').length,
+    task_management: tasks.data?.filter((task) => task.status === 'assigned' || task.status === 'in_progress').length,
+    review_qa: tasks.data?.filter((task) => task.status === 'submitted').length,
     alerts_escalation: overview.data
       ? overview.data.risks.length +
         overview.data.blocked.length +
         overview.data.escalations.filter((e) => e.status === 'pending' || e.status === 'acknowledged').length
       : undefined,
   };
-  // The bell lists what is waiting on a manager here, from the same counts as
-  // the sidebar badges; each entry opens its screen.
-  const notifications = (
-    [
-      ['onboarding_requests', 'devmanager.nav.notify_onboarding'],
-      ['review_qa', 'devmanager.nav.notify_review'],
-      ['alerts_escalation', 'devmanager.nav.notify_alerts'],
-    ] as const
-  )
-    .filter(([id]) => (counts[id] ?? 0) > 0)
-    .map(([id, key]) => ({
-      id,
-      title: t(key, { count: counts[id] ?? 0 }),
-      onClick: () => setActiveScreen(id),
-    }));
   const navigate = useNavigate();
   const groups = useMemo<UnifiedNavGroup[]>(
     () =>
@@ -193,8 +181,19 @@ export const DMFullLayout: React.FC = () => {
       topbarTitle={title}
       onBack={() => void navigate({ to: '/control-panel' })}
       backLabel={t('devmanager.nav.back_label')}
-      notifications={notifications}
-      topbarRight={<ChatAppButton />}
+      showNotifications={false}
+      topbarRight={
+        <>
+          {/* PHASE4-WIRED: task notices open the canonical task-management row. */}
+          <NotificationBell
+            onTaskClick={(taskId) => {
+              setFocusedTaskId(taskId);
+              setActiveScreen('task_management');
+            }}
+          />
+          <ChatAppButton />
+        </>
+      }
     >
       {renderScreen()}
     </UnifiedShell>

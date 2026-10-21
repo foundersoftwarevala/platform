@@ -6,6 +6,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { useServerFn } from "@/lib/serverFn";
+import { getTaskNotifications, markTaskNotificationRead } from "@/lib/tasks/functions";
+import { toast } from "sonner";
 
 /**
  * The notification bell, on the platform's one notification system.
@@ -33,6 +36,20 @@ type BellItem = {
 };
 
 type BellData = { ok: boolean; reason?: string; unread?: number; notifications?: BellItem[] };
+type TaskNotification = {
+  id: string;
+  kind: string;
+  message: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+type DisplayItem = BellItem & {
+  source: "platform" | "task";
+  entity_type?: string | null;
+  entity_id?: string | null;
+};
 
 const TONE: Record<string, string> = {
   success: "bg-emerald-500",
@@ -65,11 +82,21 @@ function useSignedInUser(): string | null {
   return userId;
 }
 
-export function NotificationBell({ buttonClassName }: { buttonClassName?: string }) {
+// PHASE4-WIRED: merge canonical task notices into the existing dashboard bell.
+export function NotificationBell({
+  buttonClassName,
+  onTaskClick,
+}: {
+  buttonClassName?: string;
+  onTaskClick?: (taskId: string) => void;
+}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const userId = useSignedInUser();
   const key = ["notification-bell", userId];
+  const taskKey = ["task-notifications", userId];
+  const fetchTaskNotifications = useServerFn(getTaskNotifications);
+  const setTaskNotificationRead = useServerFn(markTaskNotificationRead);
 
   const q = useQuery({
     queryKey: key,
@@ -84,6 +111,12 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
     },
     refetchInterval: 60_000,
   });
+  const taskQuery = useQuery({
+    queryKey: taskKey,
+    enabled: Boolean(userId),
+    queryFn: () => fetchTaskNotifications(),
+    refetchInterval: 60_000,
+  });
 
   // New rows for this user refresh the bell straight away; a reconnect
   // refreshes too, for anything that arrived while the stream was down.
@@ -93,19 +126,64 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
       // Chat traffic travels the same stream; it is not a notification.
       if ((e.type === "notification" && !e.event?.startsWith("chat.")) || e.type === "open") {
         void qc.invalidateQueries({ queryKey: ["notification-bell", userId] });
+        void qc.invalidateQueries({ queryKey: ["task-notifications", userId] });
       }
     });
   }, [userId, qc]);
 
-  const markRead = async (ids: string[]) => {
-    for (const id of ids) {
-      await supabase.rpc("mm_notification_read" as never, { p_id: id, p_dismiss: false } as never);
+  const legacyItems: DisplayItem[] = (q.data?.notifications ?? []).map((item) => ({
+    ...item,
+    source: "platform",
+  }));
+  const taskItems: DisplayItem[] = (taskQuery.data?.notifications ?? []).map((item: TaskNotification) => ({
+    id: item.id,
+    severity: item.kind === "deadline_overdue" || item.kind === "payment_due" ? "warning" : "info",
+    message: item.message,
+    event: item.kind,
+    action_url: null,
+    action_label: null,
+    read: Boolean(item.read_at),
+    created_at: item.created_at,
+    source: "task",
+    entity_type: item.entity_type,
+    entity_id: item.entity_id,
+  }));
+  const items = [...legacyItems, ...taskItems].sort(
+    (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+  );
+  const loadFailed = Boolean(q.error || q.data?.ok === false || taskQuery.error);
+  const markRead = async (rows: DisplayItem[]): Promise<boolean> => {
+    try {
+      for (const row of rows) {
+        if (row.source === "task") {
+          await setTaskNotificationRead({ data: { notificationId: row.id } });
+        } else {
+          const { error } = await supabase.rpc(
+            "mm_notification_read" as never,
+            { p_id: row.id, p_dismiss: false } as never,
+          );
+          if (error) throw new Error(error.message);
+        }
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: key }),
+        qc.invalidateQueries({ queryKey: taskKey }),
+      ]);
+      return true;
+    } catch (error) {
+      console.error("Notification read update failed:", error);
+      toast.error(t("notifications.update_failed"));
+      return false;
     }
-    await qc.invalidateQueries({ queryKey: key });
   };
 
-  const items = q.data?.notifications ?? [];
-  const unread = Number(q.data?.unread ?? 0);
+  const openTask = async (item: DisplayItem) => {
+    if (!item.entity_id || item.entity_type !== "task") return;
+    if (!item.read && !(await markRead([item]))) return;
+    onTaskClick?.(item.entity_id);
+  };
+  const unread =
+    Number(q.data?.unread ?? 0) + Number(taskQuery.data?.unread ?? 0);
 
   return (
     <Popover>
@@ -143,7 +221,7 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
             <button
               type="button"
               data-mark-all-read
-              onClick={() => markRead(items.filter((i) => !i.read).map((i) => i.id))}
+              onClick={() => void markRead(items.filter((item) => !item.read))}
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
               <CheckCheck className="h-3.5 w-3.5" /> {t("notifications.mark_all_read")}
@@ -155,17 +233,13 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
               {t("notifications.sign_in")}
             </p>
-          ) : q.isLoading ? (
+          ) : q.isLoading || taskQuery.isLoading ? (
             <p className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> {t("notifications.loading")}
             </p>
-          ) : q.error || q.data?.ok === false ? (
-            <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-              {t("notifications.unavailable")}
-            </p>
           ) : items.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-              {t("notifications.empty")}
+              {loadFailed ? t("notifications.unavailable") : t("notifications.empty")}
             </p>
           ) : (
             <ul>
@@ -188,17 +262,26 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
                         {safeLink(n.action_url) && (
                           <a
                             href={safeLink(n.action_url) ?? undefined}
-                            onClick={() => (n.read ? undefined : markRead([n.id]))}
+                            onClick={() => (n.read ? undefined : void markRead([n]))}
                             className="text-primary hover:underline"
                           >
                             {n.action_label ?? t("notifications.open")}
                           </a>
                         )}
+                        {n.source === "task" && n.entity_type === "task" && n.entity_id && onTaskClick && (
+                          <button
+                            type="button"
+                            onClick={() => void openTask(n)}
+                            className="text-primary hover:underline"
+                          >
+                            {t("notifications.open")}
+                          </button>
+                        )}
                         {!n.read && (
                           <button
                             type="button"
                             data-mark-read
-                            onClick={() => markRead([n.id])}
+                            onClick={() => void markRead([n])}
                             className="hover:text-foreground"
                           >
                             {t("notifications.mark_read")}
@@ -212,6 +295,11 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
             </ul>
           )}
         </div>
+        {loadFailed && items.length > 0 && (
+          <p role="alert" className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+            {t("notifications.unavailable")}
+          </p>
+        )}
       </PopoverContent>
     </Popover>
   );

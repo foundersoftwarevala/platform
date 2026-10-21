@@ -8,5 +8,6 @@ export const NOTIFICATIONS_MESSAGES = {
   "notifications.sign_in": "Sign in to see your notifications.",
   "notifications.loading": "Loading notifications",
   "notifications.unavailable": "Notifications could not be loaded.",
-  "notifications.empty": "No notifications yet.",
+  "notifications.update_failed": "The notification could not be updated.",
+  "notifications.empty": ["No notifications", "empty state when the notification list has no items"],
 } as const;
