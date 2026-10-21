@@ -1,0 +1,38 @@
+Item 10 | PARTIALLY FIXED
+
+Scope selected from repository evidence: customer-owned purchases and their
+licence/invoice access. No duplicate `/library` route was added.
+
+Findings:
+- No dedicated `/library` route exists.
+- The app already has `/account/purchases`, whose UI loads purchases and
+  displays owned licence keys and invoices.
+- Its API requires a valid signed-in customer and scopes orders, licences,
+  and invoices to that user's ID.
+- Storefront favourites are a separate browser-held feature; the analytics
+  endpoint explicitly says they do not reach the database.
+- The purchases page does not expose purchased product-file downloads, and
+  no customer download endpoint was found. The existing author product-file
+  route is not a buyer download capability.
+- `ams.awards.libraries.*` routes are for the Awards Management System, not
+  a marketplace product library.
+
+Change: none. Reuse the existing purchases page rather than build a duplicate.
+The existing purchase/licence view does not yet constitute a download library.
+Adding buyer file delivery would require a separately verified, entitlement-
+checked server capability; it must not be simulated with author/operator
+endpoints.
+
+Evidence:
+- `src/routes/account/purchases.tsx:11,91,141-146,179-210` — purchase page,
+  authentication-backed request, loading/error/empty states, licence key,
+  and invoice access.
+- `src/routes/api/account/purchases.ts:53-55,65,80,119,159` — authenticated
+  user lookup, owner-scoped orders/licences/invoices, and no-store response.
+- `src/routes/api/analytics/products.ts:252` — favourites are browser-held.
+- `src/components/marketplace-home/TopUtilityBar.tsx:1071-1083` — My Favorites
+  control.
+- No item-specific tests were added because no code was changed. The item #2
+  production build completed, but that is not live or authenticated acceptance.
+
+Live acceptance: BLOCKED — no SSH access, pending key registration.
