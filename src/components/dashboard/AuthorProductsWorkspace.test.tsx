@@ -136,4 +136,115 @@ describe("author product workspace", () => {
     expect(within(approvedRow).getByText("approved · read-only")).toBeTruthy();
     expect(within(approvedRow).queryByRole("button", { name: /Edit|Submit|Withdraw/ })).toBeNull();
   });
+
+  it("validates the create form and serializes supported schema fields for the author API", async () => {
+    const writes: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: string | URL, init?: RequestInit) => {
+        if ((init?.method ?? "GET") === "GET") {
+          return Response.json({ products: [], categories: [] });
+        }
+        writes.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return Response.json(
+          { ok: true, created: true, product: { id: "new-product" } },
+          { status: 201 },
+        );
+      }),
+    );
+
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: /New Product/ }));
+    fireEvent.change(screen.getByLabelText("Product name"), { target: { value: "TestProduct" } });
+    expect((await screen.findByRole("status")).textContent).toMatch(
+      /remain hidden until reviewed/i,
+    );
+    fireEvent.change(screen.getByLabelText("Product name"), {
+      target: { value: "Author Product" },
+    });
+    fireEvent.change(screen.getByLabelText("Price"), { target: { value: "$25" } });
+    fireEvent.change(screen.getByLabelText("Currency code"), { target: { value: "USD" } });
+    fireEvent.change(screen.getByLabelText("License"), { target: { value: "MIT" } });
+    fireEvent.change(screen.getByLabelText("Tags"), {
+      target: { value: "analytics, reporting" },
+    });
+    fireEvent.change(screen.getByLabelText("Features (JSON)"), {
+      target: { value: '["Audit history"]' },
+    });
+    fireEvent.change(screen.getByLabelText("Demo URL"), {
+      target: { value: "javascript:alert(1)" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "demo_url must be an http(s) web address.",
+    );
+    expect(writes).toHaveLength(0);
+
+    fireEvent.change(screen.getByLabelText("Demo URL"), {
+      target: { value: "https://demo.example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      name: "Author Product",
+      price_label: "$25",
+      currency: "USD",
+      license: "MIT",
+      tags: ["analytics", "reporting"],
+      features: ["Audit history"],
+      demo_url: "https://demo.example.test",
+    });
+  });
+
+  it("exposes every author-editable marketplace product field", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ products: [], categories: [] })),
+    );
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: /New Product/ }));
+    fireEvent.click(screen.getByText("Pricing and license"));
+    fireEvent.click(screen.getByText("Images and links"));
+    fireEvent.click(screen.getByText("Technology, features, and metadata"));
+
+    const fields = [
+      "Product name",
+      "URL slug",
+      "Description",
+      "Industry",
+      "Subcategory",
+      "Category",
+      "Software type",
+      "Version",
+      "Target audience",
+      "Price",
+      "Price period",
+      "Currency code",
+      "License",
+      "Thumbnail URL",
+      "Cover image URL",
+      "Logo URL",
+      "Icon URL or name",
+      "Favicon URL",
+      "Demo URL",
+      "Public repository URL",
+      "Technology",
+      "Frontend",
+      "Backend",
+      "Database",
+      "Mobile support",
+      "Cloud support",
+      "Languages",
+      "Integrations",
+      "Modules",
+      "Benefits",
+      "Roles",
+      "Tags",
+      "Technology stack",
+      "Search keywords",
+      "Features (JSON)",
+    ];
+    for (const field of fields) expect(screen.getByLabelText(field)).toBeTruthy();
+  });
 });

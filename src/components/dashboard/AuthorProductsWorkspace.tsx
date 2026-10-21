@@ -14,6 +14,8 @@ import { useRef, useState, type FormEvent } from "react";
 import { authHeaders } from "@/lib/auth/operator-fetch";
 import type { RoleConfig } from "@/lib/roles";
 import { getAuthorProductActions } from "@/lib/marketplace/author-product-lifecycle";
+import { validateAuthorProductDraft } from "@/lib/marketplace/author-product-form";
+import { productCreationReview } from "@/lib/marketplace/product-safety";
 
 type Product = Record<string, unknown> & {
   id: string;
@@ -379,6 +381,11 @@ export function AuthorProductsWorkspace({
   const submitForm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
+    const validationError = validateAuthorProductDraft(draft);
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
     try {
       const payload = makePayload(draft);
       mutation.mutate(editing ? { id: editing.id, ...payload } : payload);
@@ -391,6 +398,7 @@ export function AuthorProductsWorkspace({
   const transition = (product: Product, action: "submit" | "withdraw") => {
     mutation.mutate({ id: product.id, action });
   };
+  const creationReview = editing === null ? productCreationReview(draft.name ?? "") : null;
 
   return (
     <section className="space-y-5">
@@ -599,6 +607,14 @@ export function AuthorProductsWorkspace({
               />
             ))}
           </div>
+          {creationReview?.review_required && (
+            <p
+              role="status"
+              className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs"
+            >
+              {creationReview.reason} The product will remain hidden until reviewed.
+            </p>
+          )}
 
           <details className="rounded-lg border border-border p-4">
             <summary className="cursor-pointer text-sm font-semibold">Pricing and license</summary>
