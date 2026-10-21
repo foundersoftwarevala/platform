@@ -185,6 +185,7 @@ import { Route as ApplyIndexRouteImport } from './routes/apply.index'
 import { Route as ApplyRoleRouteImport } from './routes/apply.$role'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as ControlPanelFinanceRouteImport } from './routes/control-panel.finance'
 import { Route as DashboardRoleRouteImport } from './routes/dashboard.$role'
 import { Route as DemoRouteImport } from './routes/demo.'
 import { Route as DemoSlugRouteImport } from './routes/demo.$slug'
@@ -1283,6 +1284,11 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ControlPanelFinanceRoute = ControlPanelFinanceRouteImport.update({
+  id: '/finance',
+  path: '/finance',
+  getParentRoute: () => ControlPanelRoute,
+} as any)
 const DashboardRoleRoute = DashboardRoleRouteImport.update({
   id: '/dashboard/$role',
   path: '/dashboard/$role',
@@ -2309,7 +2315,7 @@ export interface FileRoutesByFullPath {
   '/chat-manager': typeof ChatManagerRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
-  '/control-panel': typeof ControlPanelRoute
+  '/control-panel': typeof ControlPanelRouteWithChildren
   '/creator-manager': typeof CreatorManagerRoute
   '/demo-manager': typeof DemoManagerRoute
   '/demo-ops': typeof DemoOpsRoute
@@ -2466,6 +2472,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/control-panel/finance': typeof ControlPanelFinanceRoute
   '/dashboard/$role': typeof DashboardRoleRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
@@ -2681,7 +2688,7 @@ export interface FileRoutesByTo {
   '/chat-manager': typeof ChatManagerRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
-  '/control-panel': typeof ControlPanelRoute
+  '/control-panel': typeof ControlPanelRouteWithChildren
   '/creator-manager': typeof CreatorManagerRoute
   '/demo-manager': typeof DemoManagerRoute
   '/demo-ops': typeof DemoOpsRoute
@@ -2830,6 +2837,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/control-panel/finance': typeof ControlPanelFinanceRoute
   '/dashboard/$role': typeof DashboardRoleRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
@@ -3049,7 +3057,7 @@ export interface FileRoutesById {
   '/chat-manager': typeof ChatManagerRoute
   '/checkout': typeof CheckoutRoute
   '/contact': typeof ContactRoute
-  '/control-panel': typeof ControlPanelRoute
+  '/control-panel': typeof ControlPanelRouteWithChildren
   '/creator-manager': typeof CreatorManagerRoute
   '/demo-manager': typeof DemoManagerRoute
   '/demo-ops': typeof DemoOpsRoute
@@ -3206,6 +3214,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/control-panel/finance': typeof ControlPanelFinanceRoute
   '/dashboard/$role': typeof DashboardRoleRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
@@ -3583,6 +3592,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/apply/$role'
     | '/blog/$slug'
+    | '/control-panel/finance'
     | '/dashboard/$role'
     | '/demo/$slug'
     | '/legal/$slug'
@@ -3947,6 +3957,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/apply/$role'
     | '/blog/$slug'
+    | '/control-panel/finance'
     | '/dashboard/$role'
     | '/demo/$slug'
     | '/legal/$slug'
@@ -4322,6 +4333,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/apply/$role'
     | '/blog/$slug'
+    | '/control-panel/finance'
     | '/dashboard/$role'
     | '/demo/$slug'
     | '/legal/$slug'
@@ -4541,7 +4553,7 @@ export interface RootRouteChildren {
   ChatManagerRoute: typeof ChatManagerRoute
   CheckoutRoute: typeof CheckoutRoute
   ContactRoute: typeof ContactRoute
-  ControlPanelRoute: typeof ControlPanelRoute
+  ControlPanelRoute: typeof ControlPanelRouteWithChildren
   CreatorManagerRoute: typeof CreatorManagerRoute
   DemoManagerRoute: typeof DemoManagerRoute
   DemoOpsRoute: typeof DemoOpsRoute
@@ -5941,6 +5953,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/blog/$slug'
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/control-panel/finance': {
+      id: '/control-panel/finance'
+      path: '/finance'
+      fullPath: '/control-panel/finance'
+      preLoaderRoute: typeof ControlPanelFinanceRouteImport
+      parentRoute: typeof ControlPanelRoute
     }
     '/dashboard/$role': {
       id: '/dashboard/$role'
@@ -7649,6 +7668,18 @@ const AmsRouteChildren: AmsRouteChildren = {
 
 const AmsRouteWithChildren = AmsRoute._addFileChildren(AmsRouteChildren)
 
+interface ControlPanelRouteChildren {
+  ControlPanelFinanceRoute: typeof ControlPanelFinanceRoute
+}
+
+const ControlPanelRouteChildren: ControlPanelRouteChildren = {
+  ControlPanelFinanceRoute: ControlPanelFinanceRoute,
+}
+
+const ControlPanelRouteWithChildren = ControlPanelRoute._addFileChildren(
+  ControlPanelRouteChildren,
+)
+
 interface LeadManagerRouteChildren {
   LeadManagerIndexRoute: typeof LeadManagerIndexRoute
 }
@@ -7852,7 +7883,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatManagerRoute: ChatManagerRoute,
   CheckoutRoute: CheckoutRoute,
   ContactRoute: ContactRoute,
-  ControlPanelRoute: ControlPanelRoute,
+  ControlPanelRoute: ControlPanelRouteWithChildren,
   CreatorManagerRoute: CreatorManagerRoute,
   DemoManagerRoute: DemoManagerRoute,
   DemoOpsRoute: DemoOpsRoute,

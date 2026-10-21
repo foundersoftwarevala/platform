@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 
 import { RequireRole } from "@/components/auth/RequireRole";
 import { useEffect, useState } from "react";
@@ -59,6 +59,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { cockpitTiles, relative, type Tile } from "@/lib/control-panel/cockpit";
 import { useCockpitFigures } from "@/lib/control-panel/use-cockpit";
 import { ValaAiAgent } from "@/components/vala-ai/ValaAiAgent";
+import { useMyPermissions, useSupabaseSession } from "@/hooks/use-session";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export const Route = createFileRoute("/control-panel")({
   head: () => ({
@@ -164,15 +166,56 @@ function CockpitBanner() {
 
 
 function GuardedIndex() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const navigate = useNavigate();
+  const { userId, loading: sessionLoading } = useSupabaseSession();
+  const permissions = useMyPermissions(userId);
+  const { t } = useTranslation();
+  const financeOnly =
+    permissions.roles.includes("finance_manager") &&
+    !permissions.roles.some((role) =>
+      ["finance", "support", "sales_support_manager", "boss", "boss_owner", "admin", "super_admin", "founder"].includes(role),
+    );
+
+  useEffect(() => {
+    if (pathname === "/control-panel" && !sessionLoading && !permissions.isLoading && financeOnly) {
+      void navigate({ to: "/control-panel/finance", replace: true });
+    }
+  }, [financeOnly, navigate, pathname, permissions.isLoading, sessionLoading]);
+
+  if (pathname === "/control-panel/finance") {
+    return (
+      <RequireRole role="finance_manager" allowOperators={false}>
+        <Outlet />
+      </RequireRole>
+    );
+  }
+
+  if (sessionLoading || permissions.isLoading || financeOnly) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-background text-sm text-muted-foreground" role="status" aria-busy>
+        {t("auth.access.checking")}
+      </main>
+    );
+  }
+
+  if (permissions.isError) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-background px-6 text-center text-sm text-destructive" role="alert">
+        {t("wallet.roles_error")}
+      </main>
+    );
+  }
+
   return (
     // AUDIT-FIX: Keep developer accounts out of the manager cockpit.
     <RequireRole role={["finance", "support", "sales_support_manager"]}>
-      <Index />
+      <Index canManageFinance={permissions.roles.includes("finance_manager")} />
     </RequireRole>
   );
 }
 
-function Index() {
+function Index({ canManageFinance }: { canManageFinance: boolean }) {
   const navigate = useNavigate();
   const [activeRole, setActiveRole] = useState<RoleId>("boss_owner");
   const [selectedKpi, setSelectedKpi] = useState<string | null>(null);
@@ -197,6 +240,7 @@ function Index() {
         >
           <ControlPanelSidebar
             activeRole={activeRole}
+            canManageFinance={canManageFinance}
             collapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
             onRoleSelect={(roleId) => {
@@ -276,7 +320,7 @@ function Index() {
                   chat_manager: "/chat-manager",
                   creator_manager: "/creator-manager",
                   demo_manager: "/demo-manager",
-                  finance_manager: "/finance-manager",
+                  finance_manager: "/control-panel/finance",
                   franchise_manager: "/franchise-manager",
                   influencer_manager: "/influencer-manager",
                   lead_manager: "/lead-manager",

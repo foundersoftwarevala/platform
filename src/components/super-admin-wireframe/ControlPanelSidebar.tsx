@@ -115,6 +115,7 @@ type RoleId = typeof ROLE_CATEGORIES[number]['id'];
 interface ControlPanelSidebarProps {
   activeRole?: RoleId;
   onRoleSelect: (roleId: RoleId) => void;
+  canManageFinance?: boolean;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   onLogout: () => void;
@@ -194,6 +195,7 @@ export const SIDEBAR_COLLAPSED_WIDTH = 62;
 export const ControlPanelSidebar = memo<ControlPanelSidebarProps>(({
   activeRole,
   onRoleSelect,
+  canManageFinance = false,
   collapsed = false,
   onToggleCollapse,
   onLogout,
@@ -241,7 +243,7 @@ export const ControlPanelSidebar = memo<ControlPanelSidebarProps>(({
 
       {/* ALL MODULES */}
       <nav className="flex-1 flex flex-col px-2 py-1.5" style={{ gap: '3px' }}>
-        {ROLE_CATEGORIES.map((role) => (
+        {ROLE_CATEGORIES.filter((role) => role.id !== 'finance_manager' || canManageFinance).map((role) => (
           <RoleButton
             key={role.id}
             role={role}

@@ -24,7 +24,7 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   // AUDIT-FIX: Developer accounts must not enter the operator cockpit.
   {
     prefix: "/control-panel",
-    roles: ["finance", "support", "sales_support_manager"],
+    roles: ["finance", "support", "sales_support_manager", "finance_manager"],
     label: "Control Panel",
   },
   { prefix: "/boss", roles: [], label: "Boss Console" },

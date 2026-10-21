@@ -1,31 +1,16 @@
 import React from "react";
 import { AlertTriangle, CheckCircle, Clock, Wallet } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useCanonicalTasks, useMarkCanonicalTaskPaid } from "@/hooks/useDevManagerData";
+import { useCanonicalTasks } from "@/hooks/useDevManagerData";
 import { useTranslation } from "@/lib/i18n/use-translation";
-import { useDMPrompt } from "../DMPromptDialog";
 
 // PHASE4-WIRED: payment states and completion are read/written on canonical tasks.
 export const DMPaymentIncentive: React.FC = () => {
   const { t, formatDate } = useTranslation();
   const tasks = useCanonicalTasks();
-  const markPaid = useMarkCanonicalTaskPaid();
-  const prompt = useDMPrompt();
   const paymentTasks = (tasks.data ?? []).filter(
     (task) => task.paymentStatus !== "pending" || task.status === "verified" || task.status === "paid",
   );
-
-  const markTaskPaid = async (taskId: string) => {
-    const answer = await prompt.ask({
-      title: t("devmanager.payment.mark_paid_prompt"),
-      reasonLabel: t("devmanager.payment.reference"),
-      minLength: 1,
-      confirmLabel: t("devmanager.payment.mark_paid"),
-    });
-    const reference = answer?.reason?.trim();
-    if (reference) markPaid.mutate({ taskId, ref: reference });
-  };
 
   return (
     <div className="space-y-6">
@@ -91,14 +76,9 @@ export const DMPaymentIncentive: React.FC = () => {
                 </div>
                 <div className="mt-3">
                   {task.status === "verified" ? (
-                    <Button
-                      size="sm"
-                      disabled={markPaid.isPending}
-                      onClick={() => void markTaskPaid(task.id)}
-                    >
-                      <CheckCircle className="mr-1 h-4 w-4" />
-                      {t("devmanager.payment.mark_paid")}
-                    </Button>
+                    <p className="text-sm text-muted-foreground" title={t("wallet.finance_only")}>
+                      {t("wallet.finance_only")}
+                    </p>
                   ) : task.status === "paid" ? (
                     <p className="text-sm text-emerald-600">
                       <CheckCircle className="mr-1 inline h-4 w-4" />
@@ -111,7 +91,6 @@ export const DMPaymentIncentive: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-      {prompt.dialog}
     </div>
   );
 };
