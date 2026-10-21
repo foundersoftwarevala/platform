@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/serverFn";
 import type { CrudRecord } from "@/lib/crud-store";
 
+import { getDeveloperProfileSkills } from "./developer-profile.functions";
 import { getDeveloperMetrics, listDashboardRecords } from "./records.functions";
 
 /** A role dashboard module's records, read from the platform for the signed-in partner. */
@@ -41,4 +42,16 @@ export function useDeveloperMetrics(role: string) {
   // Never undefined for a developer: undefined would hand the cards to the
   // sample engine, which drew invented figures until the server answered.
   return { values: query.data?.metrics ?? {} };
+}
+
+// AUDIT-FIX: Keep the dashboard's profile display read-only and caller-scoped.
+// AUDIT-FIX: Keep profile skills scoped to the authenticated dashboard reader.
+export function useDeveloperProfileSkills() {
+  const read = useServerFn(getDeveloperProfileSkills);
+  return useQuery({
+    queryKey: ["developer-profile-skills"],
+    queryFn: () => read(),
+    staleTime: 30_000,
+    retry: 1,
+  });
 }

@@ -256,6 +256,31 @@ export const DASHBOARD_MESSAGES = {
     "Ship Streak",
     "developer figure: consecutive days with shipped work",
   ],
+  // AUDIT-FIX: Localize the persisted-only profile display and its query states.
+  "dashboard.role.developer.profile.skills": [
+    "Profile skills",
+    "read-only skill tags stored on the signed-in developer profile",
+  ],
+  "dashboard.role.developer.profile.skills_loading": [
+    "Loading profile skills…",
+    "loading state for the developer's saved skill tags",
+  ],
+  "dashboard.role.developer.profile.skills_error": [
+    "Profile skills could not be read: {error}",
+    "error state for reading the developer's saved skill tags",
+  ],
+  "dashboard.role.developer.profile.unlinked": [
+    "No developer profile is linked to this account.",
+    "empty state when no developer profile belongs to the signed-in user",
+  ],
+  "dashboard.role.developer.profile.skills_empty": [
+    "No skills are recorded on this profile.",
+    "empty state when the linked developer profile has no skill tags",
+  ],
+  "dashboard.role.developer.profile.skills_label": [
+    "Recorded skills",
+    "accessible name of the developer's saved skill tags list",
+  ],
 
   // Reasons shown on dashboard actions that have no screen behind them yet
   // (disabled buttons and menu items, and the banner notice).

@@ -18,7 +18,10 @@ import { useQuery } from "@tanstack/react-query";
 import { getHeldRoles, ownsActiveSellerRecord } from "@/lib/auth-bridge";
 import { useInfluencerMetrics } from "@/hooks/useInfluencerMetrics";
 import { useResellerMetrics } from "@/hooks/useResellerOverview";
-import { useDeveloperMetrics } from "@/lib/dashboard-records/use-dashboard-records";
+import {
+  useDeveloperMetrics,
+  useDeveloperProfileSkills,
+} from "@/lib/dashboard-records/use-dashboard-records";
 import { ContentRows } from "@/components/dashboard/ContentRows";
 import { Breadcrumbs } from "@/components/dashboard/Breadcrumbs";
 import { KpiToolbar, type KpiSort, type KpiTone } from "@/components/dashboard/KpiToolbar";
@@ -228,6 +231,51 @@ function GuardedDashboardPage() {
     <RequireRole role={DASHBOARD_ROLE_REQUIREMENT[role] ?? []}>
       <DashboardPage />
     </RequireRole>
+  );
+}
+
+// AUDIT-FIX: Display only the developer profile fields persisted by this schema.
+function DeveloperSkillsSummary() {
+  const { t } = useTranslation();
+  const profile = useDeveloperProfileSkills();
+
+  return (
+    <section
+      className="rounded-2xl border border-border bg-card p-5"
+      aria-labelledby="developer-profile-skills-title"
+    >
+      <h2 id="developer-profile-skills-title" className="text-lg font-semibold">
+        {t("dashboard.role.developer.profile.skills")}
+      </h2>
+      {profile.isLoading ? (
+        <p className="mt-2 text-sm text-muted-foreground" role="status" aria-busy="true">
+          {t("dashboard.role.developer.profile.skills_loading")}
+        </p>
+      ) : profile.isError ? (
+        <p className="mt-2 text-sm text-destructive" role="alert">
+          {t("dashboard.role.developer.profile.skills_error", { error: profile.error.message })}
+        </p>
+      ) : !profile.data?.linked ? (
+        <p className="mt-2 text-sm text-muted-foreground" role="status">
+          {t("dashboard.role.developer.profile.unlinked")}
+        </p>
+      ) : profile.data.skills.length === 0 ? (
+        <p className="mt-2 text-sm text-muted-foreground" role="status">
+          {t("dashboard.role.developer.profile.skills_empty")}
+        </p>
+      ) : (
+        <ul
+          className="mt-3 flex flex-wrap gap-2"
+          aria-label={t("dashboard.role.developer.profile.skills_label")}
+        >
+          {profile.data.skills.map((skill) => (
+            <li key={skill} className="rounded-full border border-border px-3 py-1 text-sm">
+              {skill}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -567,6 +615,8 @@ function DashboardPage() {
                   }
                 />
               )}
+              {/* AUDIT-FIX: Show only skill tags already stored on the developer profile. */}
+              {role === "developer" && <DeveloperSkillsSummary />}
               {/* This role's AMS standing; "Open AMS" is the role's Achievements module. */}
               <AmsSummaryCard dashboardRole={role} onOpen={() => openModule("achievements")} />
               <KpiToolbar
