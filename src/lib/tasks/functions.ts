@@ -26,6 +26,7 @@ type TaskRow = {
   submission_notes: string | null;
   manager_notes: string | null;
   payment_reference: string | null;
+  amount_cents: string | number | null;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -64,7 +65,9 @@ function toTaskResult(row: TaskRow): TaskResult {
   };
 }
 
-async function requireActor(required: "developer" | "manager" | "signed-in"): Promise<TaskActor> {
+async function requireActor(
+  required: "developer" | "manager" | "finance_manager" | "signed-in",
+): Promise<TaskActor> {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Unauthorized: sign in required.");
@@ -84,14 +87,18 @@ async function requireActor(required: "developer" | "manager" | "signed-in"): Pr
            where user_id = ${caller.id}::uuid
         `;
         const allowed =
-          required === "manager"
+          required === "finance_manager"
+            ? roles.some((row) => row.role === "finance_manager")
+            : required === "manager"
             ? roles.some((row) => OPERATOR_ROLES.has(row.role))
             : required === "developer"
               ? roles.some((row) => row.role === DEVELOPER_ROLE)
               : true;
         if (!allowed) {
           throw new Error(
-            required === "manager"
+            required === "finance_manager"
+              ? "This action requires the finance_manager role."
+              : required === "manager"
               ? "This action requires an operator account."
               : "This action requires a developer account.",
           );
@@ -274,7 +281,7 @@ export const verifyTask = createServerFn({ method: "POST" })
     return toTaskResult(row);
   });
 
-// PHASE3: payment completion writes only the canonical row; its trigger stamps and audits payment.
+// PHASE5-WALLET: marking a task paid and crediting its developer wallet are one transaction.
 export const markPaid = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
@@ -285,11 +292,14 @@ export const markPaid = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    const actor = await requireActor("manager");
+    const actor = await requireActor("finance_manager");
     const row = await actor.run(async (tx) => {
       const task = await getTaskForUpdate(tx, data.taskId);
       if (task.status !== "verified") {
         throw new Error("Only verified tasks can be marked paid.");
+      }
+      if (!task.amount_cents || BigInt(task.amount_cents) <= 0n) {
+        throw new Error("Finance must set a positive task amount before marking it paid.");
       }
       const [updated] = await tx<TaskRow[]>`
         update public.tasks
@@ -299,6 +309,16 @@ export const markPaid = createServerFn({ method: "POST" })
         returning *
       `;
       if (!updated) throw new Error("Task payment returned no row.");
+      const { creditPaidTask } = await import("@/lib/wallet/service.server");
+      await creditPaidTask(
+        tx,
+        actor.userId,
+        task.id,
+        task.developer_id,
+        task.amount_cents,
+        data.ref,
+        `Payment for task: ${task.title}`,
+      );
       return updated;
     });
     return toTaskResult(row);
