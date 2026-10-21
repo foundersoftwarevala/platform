@@ -1,0 +1,38 @@
+Item 19 | NOT IMPLEMENTED
+
+Scope: local-only inspection. No code, database, auth, or payout changes.
+
+Findings:
+- `src/routes/ams.settings.tsx` is Global Settings for the Award Management
+  System; it is not an author settings route or a seller profile editor.
+- The Author role has no Settings/Profile module. The dashboard sidebar
+  disables Settings when a role has no matching module.
+- Existing author APIs are limited to products, product files, and earnings.
+  Earnings is read-only for profile status and payout currency; it does not
+  save seller profile or payout preferences.
+- Seller manager functions can change seller status, commission, payout
+  schedule, and payout records. They are manager workflows, not an author
+  self-service contract, and must not be exposed to authors.
+- The reseller settings functions are reseller-specific and are not an
+  author settings API.
+
+Change: none. A frontend that submits author profile, payout, or security
+changes has no safe existing author endpoint to call. Directly updating
+seller rows or using manager functions from an author UI would bypass the
+required server-side authorization contract. Creating a new backend or
+performing auth/database writes is outside this local-only item.
+
+Validation: inspection only; no code was changed, so no test was run.
+
+Evidence:
+- `src/routes/ams.settings.tsx:7-22` — Global Settings / AMS Engine route.
+- `src/components/dashboard/Sidebar.tsx:43-50,168-170` — role-based Settings
+  target; roles without a settings module receive a disabled item.
+- `src/lib/roles.ts:166-181` — Author modules do not include Settings.
+- `src/components/dashboard/ModulePage.tsx:21-22` — author product module
+  dispatch; no author settings component is routed.
+- `src/routes/api/author/` — only products, product-files, and earnings APIs.
+- `src/lib/marketplace-manager/sellers.functions.ts` — manager seller/payout
+  operations, not author self-service.
+
+Live acceptance: BLOCKED — no SSH access, pending key registration.
