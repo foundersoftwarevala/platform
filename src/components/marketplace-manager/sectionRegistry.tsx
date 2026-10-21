@@ -2,10 +2,6 @@
 import type { ComponentType } from "react";
 
 import { DashboardSection } from "./sections/DashboardSection";
-// FaqManagerSection is the earlier editor over a browser-local store. It is
-// kept imported and unused rather than removed; FAQ now resolves to the
-// connected screen in sections/index.
-import { FaqManagerSection } from "./sections/ContentStudio";
 // Vala TV reads and writes vala_tv_videos, the table the storefront shows.
 import { ValaTvSection } from "./sections/ValaTvLive";
 import { StoriesAwardsSection } from "./sections/StoriesAwards";
@@ -39,6 +35,7 @@ import { SystemHealth } from "./sections/SystemHealth";
 import { SupportDesk } from "./sections/SupportDesk";
 import * as S from "./sections";
 import { LIVE_SECTIONS, withLive } from "./LiveSections";
+export { filterSchema } from "./filterSchema";
 
 type SectionComponent = ComponentType<{ onNavigate?: (id: string) => void }>;
 
@@ -222,6 +219,6 @@ export const navIdToLabel: Record<string, string> = {
 export const sectionRegistry: Record<string, SectionComponent> = Object.fromEntries(
   Object.entries(designedSections).map(([label, Section]) => {
     const live = LIVE_SECTIONS[label];
-    return [label, live ? withLive(live.resource, live.columns, Section) : Section];
+    return [label, live ? withLive(label, live.resource, live.columns, Section) : Section];
   }),
 );

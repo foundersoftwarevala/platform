@@ -7,17 +7,33 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
+import { resolveMarketplacePublicConfig } from "@/lib/marketplace-public-config";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
 import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
 
-// Migration-backed layout RPCs are absent from the cloud-generated metadata.
-type LayoutDatabase = Omit<Database, "public"> & {
+// These migration-backed RPCs are absent from cloud-generated metadata.
+type MarketplaceRpcDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Functions"> & {
     Functions: Database["public"]["Functions"] & {
       mm_layout_history: { Args: { p_limit?: number }; Returns: Json };
       mm_layout_restore: { Args: { p_audit_id: string }; Returns: Json };
+      mm_record_public_demo_click: {
+        Args: {
+          p_product_id: string;
+          p_demo_url_id: string;
+          p_source_page: string | null;
+          p_referrer: string | null;
+          p_device_type: string | null;
+          p_browser: string | null;
+        };
+        Returns: boolean;
+      };
+      mm_recover_marketplace_catalogue: {
+        Args: { p_actor_id: string; p_products: Json };
+        Returns: Json;
+      };
     };
   };
 };
@@ -161,31 +177,14 @@ function resolveSupabaseEnv() {
    * In the browser there is no process.env, so VITE_* is still what is used
    * there and nothing about the client changes.
    */
-  const url = env?.SUPABASE_URL ?? viteEnv?.VITE_SUPABASE_URL ?? "";
-  const key =
-    viteEnv?.VITE_SUPABASE_PUBLISHABLE_KEY ??
-    viteEnv?.VITE_SUPABASE_ANON_KEY ??
-    env?.SUPABASE_PUBLISHABLE_KEY ??
-    env?.SUPABASE_ANON_KEY ??
-    env?.SUPABASE_SERVICE_ROLE_KEY ??
-    "";
-
-  if (!url || !key) {
-    throw new Error(
-      "Missing Supabase environment configuration: set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or SUPABASE_ANON_KEY).",
-    );
-  }
-
-  return { url, key };
+  return resolveMarketplacePublicConfig(viteEnv, env);
 }
 
 // ---------- server-only publishable client (public reads) ----------
 function publicClient() {
   const { url, key } = resolveSupabaseEnv();
-  const serverKey =
-    typeof process !== "undefined" ? process.env.SUPABASE_SERVICE_ROLE_KEY : undefined;
-  const readKey = serverKey || key;
-  return createClient<Database>(url, readKey, {
+  const readKey = key;
+  return createClient<MarketplaceRpcDatabase>(url, readKey, {
     auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
     global: {
       fetch: (input, init) => {
@@ -199,11 +198,11 @@ function publicClient() {
   });
 }
 
-function serviceClient() {
+function privilegedClient() {
   const url = process.env.SUPABASE_URL?.trim();
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key) throw new Error("Marketplace server write service is not configured.");
-  return createClient<Database>(url, key, {
+  return createClient<MarketplaceRpcDatabase>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
   });
 }
@@ -510,27 +509,19 @@ export const recordPublicDemoClick = createServerFn({ method: "POST" })
       return { ok: true, recorded: false, reason: "rate_limited" };
     }
 
-    const sb = serviceClient();
-    const { data: demo, error: demoError } = await sb
-      .from("product_demo_urls")
-      .select("id")
-      .eq("id", data.demoUrlId)
-      .eq("product_id", data.productId)
-      .eq("status", "active")
-      .maybeSingle();
-    if (demoError) throw new Error(`Could not verify the product demo: ${demoError.message}`);
-    if (!demo) return { ok: false, recorded: false, reason: "demo_not_found" };
-
-    const { error } = await sb.from("demo_clicks").insert({
-      product_id: data.productId,
-      demo_url_id: data.demoUrlId,
-      source_page: data.sourcePage || null,
-      referrer: data.referrer || null,
-      device_type: data.deviceType || null,
-      browser: data.browser || null,
+    const sb = publicClient();
+    const { data: recorded, error } = await sb.rpc("mm_record_public_demo_click", {
+      p_product_id: data.productId,
+      p_demo_url_id: data.demoUrlId,
+      p_source_page: data.sourcePage || null,
+      p_referrer: data.referrer || null,
+      p_device_type: data.deviceType || null,
+      p_browser: data.browser || null,
     });
     if (error) throw new Error(error.message);
-    return { ok: true, recorded: true };
+    return recorded
+      ? { ok: true, recorded: true }
+      : { ok: false, recorded: false, reason: "demo_not_found" };
   });
 
 export const getPublicProduct = createServerFn({ method: "GET" })
@@ -1112,7 +1103,7 @@ export const layoutHistory = createServerFn({ method: "GET" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
-    const client = context.supabase as SupabaseClient<LayoutDatabase>;
+    const client = context.supabase as SupabaseClient<MarketplaceRpcDatabase>;
     const { data, error } = await client.rpc("mm_layout_history", { p_limit: 20 });
     if (error) throw new Error(error.message);
     return (data ?? { entries: [] }) as { entries: Json[] };
@@ -1125,7 +1116,7 @@ export const layoutRestore = createServerFn({ method: "POST" })
     if (!context?.supabase) {
       throw new Error("Unauthorized: Supabase context is unavailable.");
     }
-    const client = context.supabase as SupabaseClient<LayoutDatabase>;
+    const client = context.supabase as SupabaseClient<MarketplaceRpcDatabase>;
     const { data: result, error } = await client.rpc("mm_layout_restore", {
       p_audit_id: data.auditId,
     });
@@ -1389,7 +1380,7 @@ export const listProductDemos = createServerFn({ method: "GET" }).handler(async 
   const { requireOperator } = await import("@/lib/auth/require-operator.server");
   await requireOperator("Reading the demo list");
 
-  const supabase = publicClient();
+  const supabase = privilegedClient();
   const { data: results, error } = await supabase
     .from("product_demo_urls")
     .select(
@@ -1416,177 +1407,180 @@ export const listProductDemos = createServerFn({ method: "GET" }).handler(async 
  */
 export const recoverMarketplaceData = createServerFn({ method: "POST" }).handler(async () => {
   const { requireOperator } = await import("@/lib/auth/require-operator.server");
-  await requireOperator("Marketplace data recovery");
+  const operator = await requireOperator("Marketplace data recovery");
 
-  const supabase = publicClient();
-  console.log("[marketplace] Starting marketplace data recovery...");
+  const supabase = privilegedClient();
 
+  const products = [
+    {
+      slug: "school-management",
+      name: "School Management Software",
+      category_id: null,
+      price_label: "₹59,999",
+      rating: 4.8,
+      downloads: 2150,
+      badge: "HOT",
+      is_featured: true,
+      is_trending: true,
+      sort_order: 1,
+    },
+    {
+      slug: "gym-fitness",
+      name: "Gym & Fitness Center Management",
+      category_id: null,
+      price_label: "₹44,999",
+      rating: 4.6,
+      downloads: 1200,
+      badge: "HOT",
+      is_featured: true,
+      is_trending: true,
+      sort_order: 2,
+    },
+    {
+      slug: "salon-spa",
+      name: "Salon & Spa Management",
+      category_id: null,
+      price_label: "₹39,999",
+      rating: 4.5,
+      downloads: 980,
+      badge: null,
+      is_featured: false,
+      is_trending: false,
+      sort_order: 3,
+    },
+    {
+      slug: "restaurant-pos",
+      name: "Restaurant POS",
+      category_id: null,
+      price_label: "₹54,999",
+      rating: 4.7,
+      downloads: 1950,
+      badge: "TOP",
+      is_featured: true,
+      is_trending: true,
+      sort_order: 4,
+    },
+    {
+      slug: "crm-software",
+      name: "CRM Software",
+      category_id: null,
+      price_label: "₹59,999",
+      rating: 4.7,
+      downloads: 2050,
+      badge: "TOP",
+      is_featured: true,
+      is_trending: true,
+      sort_order: 5,
+    },
+    {
+      slug: "hotel-management",
+      name: "Hotel Management System",
+      category_id: null,
+      price_label: "₹89,999",
+      rating: 4.8,
+      downloads: 1920,
+      badge: "TOP",
+      is_featured: true,
+      is_trending: false,
+      sort_order: 6,
+    },
+    {
+      slug: "fleet-management",
+      name: "Fleet Management System",
+      category_id: null,
+      price_label: "₹69,999",
+      rating: 4.7,
+      downloads: 1750,
+      badge: "HOT",
+      is_featured: true,
+      is_trending: false,
+      sort_order: 7,
+    },
+    {
+      slug: "hospital-hms",
+      name: "Hospital Management System",
+      category_id: null,
+      price_label: "₹99,999",
+      rating: 4.8,
+      downloads: 2300,
+      badge: "TOP",
+      is_featured: true,
+      is_trending: false,
+      sort_order: 8,
+    },
+    {
+      slug: "petcare-veterinary",
+      name: "Pet Care & Veterinary Software",
+      category_id: null,
+      price_label: "₹44,999",
+      rating: 4.6,
+      downloads: 890,
+      badge: "DEAL",
+      is_featured: false,
+      is_trending: true,
+      sort_order: 9,
+    },
+    {
+      slug: "college-erp",
+      name: "College / University ERP",
+      category_id: null,
+      price_label: "₹89,999",
+      rating: 4.5,
+      downloads: 750,
+      badge: "NEW",
+      is_featured: false,
+      is_trending: false,
+      sort_order: 10,
+    },
+  ];
+
+  let transactionOutcome: "rolled_back" | "unknown" = "unknown";
   try {
-    // Sample products data
-    const products = [
-      {
-        slug: "school-management",
-        name: "School Management Software",
-        category_id: null,
-        price_label: "₹59,999",
-        rating: 4.8,
-        downloads: 2150,
-        badge: "HOT",
-        is_featured: true,
-        is_trending: true,
-        sort_order: 1,
-      },
-      {
-        slug: "gym-fitness",
-        name: "Gym & Fitness Center Management",
-        category_id: null,
-        price_label: "₹44,999",
-        rating: 4.6,
-        downloads: 1200,
-        badge: "HOT",
-        is_featured: true,
-        is_trending: true,
-        sort_order: 2,
-      },
-      {
-        slug: "salon-spa",
-        name: "Salon & Spa Management",
-        category_id: null,
-        price_label: "₹39,999",
-        rating: 4.5,
-        downloads: 980,
-        badge: null,
-        is_featured: false,
-        is_trending: false,
-        sort_order: 3,
-      },
-      {
-        slug: "restaurant-pos",
-        name: "Restaurant POS",
-        category_id: null,
-        price_label: "₹54,999",
-        rating: 4.7,
-        downloads: 1950,
-        badge: "TOP",
-        is_featured: true,
-        is_trending: true,
-        sort_order: 4,
-      },
-      {
-        slug: "crm-software",
-        name: "CRM Software",
-        category_id: null,
-        price_label: "₹59,999",
-        rating: 4.7,
-        downloads: 2050,
-        badge: "TOP",
-        is_featured: true,
-        is_trending: true,
-        sort_order: 5,
-      },
-      {
-        slug: "hotel-management",
-        name: "Hotel Management System",
-        category_id: null,
-        price_label: "₹89,999",
-        rating: 4.8,
-        downloads: 1920,
-        badge: "TOP",
-        is_featured: true,
-        is_trending: false,
-        sort_order: 6,
-      },
-      {
-        slug: "fleet-management",
-        name: "Fleet Management System",
-        category_id: null,
-        price_label: "₹69,999",
-        rating: 4.7,
-        downloads: 1750,
-        badge: "HOT",
-        is_featured: true,
-        is_trending: false,
-        sort_order: 7,
-      },
-      {
-        slug: "hospital-hms",
-        name: "Hospital Management System",
-        category_id: null,
-        price_label: "₹99,999",
-        rating: 4.8,
-        downloads: 2300,
-        badge: "TOP",
-        is_featured: true,
-        is_trending: false,
-        sort_order: 8,
-      },
-      {
-        slug: "petcare-veterinary",
-        name: "Pet Care & Veterinary Software",
-        category_id: null,
-        price_label: "₹44,999",
-        rating: 4.6,
-        downloads: 890,
-        badge: "DEAL",
-        is_featured: false,
-        is_trending: true,
-        sort_order: 9,
-      },
-      {
-        slug: "college-erp",
-        name: "College / University ERP",
-        category_id: null,
-        price_label: "₹89,999",
-        rating: 4.5,
-        downloads: 750,
-        badge: "NEW",
-        is_featured: false,
-        is_trending: false,
-        sort_order: 10,
-      },
-    ];
-
-    let insertCount = 0;
-    for (const prod of products) {
-      const { error } = await supabase.from("marketplace_products").insert({
-        slug: prod.slug,
-        name: prod.name,
-        industry_label: prod.name,
-        category_id: prod.category_id,
-        icon: "Sparkles",
-        price_label: prod.price_label,
-        price_period: "lifetime",
-        rating: prod.rating,
-        downloads: prod.downloads,
-        downloads_label: Math.floor(prod.downloads / 1000) + "k",
-        badge: prod.badge,
-        is_featured: prod.is_featured,
-        is_trending: prod.is_trending,
-        is_best_seller: false,
-        is_new_release: prod.badge === "NEW",
-        is_ai: false,
-        visible: true,
-        sort_order: prod.sort_order,
-      });
-
-      if (!error) {
-        insertCount++;
-      }
+    const { data, error } = await supabase.rpc("mm_recover_marketplace_catalogue", {
+      p_actor_id: operator.userId,
+      p_products: products,
+    });
+    if (error) {
+      transactionOutcome = error.code ? "rolled_back" : "unknown";
+      throw new Error(error.message);
     }
-
-    console.log(`[marketplace] Recovery complete: ${insertCount} products inserted`);
-
+    if (
+      !data ||
+      typeof data !== "object" ||
+      Array.isArray(data) ||
+      typeof data.productsInserted !== "number"
+    ) {
+      throw new Error("Recovery RPC returned an invalid result.");
+    }
     return {
       success: true,
-      productsInserted: insertCount,
+      productsInserted: data.productsInserted,
       message: "Marketplace data recovery completed",
     };
   } catch (err) {
-    console.error("[marketplace] Recovery error:", err);
-    return {
-      success: false,
-      error: String(err),
-      message: "Recovery failed",
-    };
+    const reason = err instanceof Error ? err.message : "Unknown recovery failure";
+    const { error: auditError } = await supabase.from("marketplace_audit_logs").insert({
+      actor_id: operator.userId,
+      action: "marketplace.recovery.failed",
+      entity_type: "marketplace_data_recovery",
+      entity_id: null,
+      reason: reason.slice(0, 500),
+      metadata: {
+        products_requested: products.length,
+        transaction_outcome: transactionOutcome,
+      },
+    });
+    if (auditError) {
+      throw new Error(
+        `Marketplace recovery failed and its failure audit could not be persisted: ${auditError.message}`,
+        { cause: err },
+      );
+    }
+    throw new Error(
+      transactionOutcome === "rolled_back"
+        ? "Marketplace recovery failed; the transaction was rolled back and the failed attempt was audited."
+        : "Marketplace recovery failed; the transaction outcome is unknown and the failed attempt was audited.",
+      { cause: err },
+    );
   }
 });

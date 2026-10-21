@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { authHeaders } from "@/lib/auth/operator-fetch";
+import { parseFilterParams } from "./workspaceNavigation";
 
 /**
  * The Marketplace Manager's live table.
@@ -65,7 +66,10 @@ function draftOf(value: unknown): string {
   return String(value);
 }
 
-function parseDraft(value: unknown, draft: string): { ok: true; value: unknown } | { ok: false; message: string } {
+function parseDraft(
+  value: unknown,
+  draft: string,
+): { ok: true; value: unknown } | { ok: false; message: string } {
   if (value !== null && typeof value === "object") {
     try {
       const parsed: unknown = JSON.parse(draft);
@@ -97,12 +101,14 @@ function display(value: unknown): string {
 }
 
 export function LiveTable({
+  section = "",
   resource,
   title,
   columns: preferred,
   description,
   filter,
 }: {
+  section?: string;
   resource: string;
   title?: string;
   /** Columns to show first; the rest follow. */
@@ -111,11 +117,22 @@ export function LiveTable({
   /** Rows to keep, column -> value, applied by the server (a tab such as "Verified"). */
   filter?: Record<string, string>;
 }) {
-  const filterQuery = filter
-    ? Object.entries(filter)
-        .map(([column, value]) => `&filter=${encodeURIComponent(`${column}.eq.${value}`)}`)
-        .join("")
-    : "";
+  const [filterSearch, setFilterSearch] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.search,
+  );
+  useEffect(() => {
+    const sync = () => setFilterSearch(window.location.search);
+    sync();
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+  const urlFilters = parseFilterParams(section, filterSearch).filters;
+  const filterQuery = [
+    ...Object.entries(filter ?? {}).map(([column, value]) => `${column}.eq.${value}`),
+    ...urlFilters.map(({ column, operator, value }) => `${column}.${operator}.${value}`),
+  ]
+    .map((value) => `&filter=${encodeURIComponent(value)}`)
+    .join("");
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -140,10 +157,20 @@ export function LiveTable({
     }
   });
   const [showColumns, setShowColumns] = useState(false);
-  const [plan, setPlan] = useState<{ operation: string; records: number; operation_id: string; changes: unknown } | null>(null);
+  const [plan, setPlan] = useState<{
+    operation: string;
+    records: number;
+    operation_id: string;
+    changes: unknown;
+  } | null>(null);
   const [result, setResult] = useState<{
-    status: string; done: number; failed: number; invalid: number; unauthorized: number;
-    total: number; outcomes: { id: string; status: string; reason?: string }[];
+    status: string;
+    done: number;
+    failed: number;
+    invalid: number;
+    unauthorized: number;
+    total: number;
+    outcomes: { id: string; status: string; reason?: string }[];
   } | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -243,8 +270,10 @@ export function LiveTable({
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
-          resource, ids: data.rows.map((r) => String(r.id)),
-          operation: "update", preview: true,
+          resource,
+          ids: data.rows.map((r) => String(r.id)),
+          operation: "update",
+          preview: true,
           reason: `Exported ${data.rows.length} ${data.label} row(s) as CSV.`,
         }),
       }).catch(() => undefined);
@@ -256,7 +285,12 @@ export function LiveTable({
       head
         .map((c) => {
           const v = r[c];
-          const text = v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+          const text =
+            v === null || v === undefined
+              ? ""
+              : typeof v === "object"
+                ? JSON.stringify(v)
+                : String(v);
           return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
         })
         .join(","),
@@ -354,7 +388,8 @@ export function LiveTable({
 
   /** Take a row out of use. Nothing here is deleted; the server decides how. */
   const retire = async (id: string) => {
-    if (!window.confirm("Take this row out of use? It stays in the database and can be put back.")) return;
+    if (!window.confirm("Take this row out of use? It stays in the database and can be put back."))
+      return;
     setBusy(id);
     setNotice(null);
     try {
@@ -413,8 +448,11 @@ export function LiveTable({
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
-          resource, ids: picked, operation: plan.operation,
-          preview: false, operationId: plan.operation_id,
+          resource,
+          ids: picked,
+          operation: plan.operation,
+          preview: false,
+          operationId: plan.operation_id,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -447,9 +485,11 @@ export function LiveTable({
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {data
               ? `${data.total.toLocaleString()} rows in the marketplace${
-                  data.editable.length ? ` · ${data.editable.length} fields editable here` : " · read only"
+                  data.editable.length
+                    ? ` · ${data.editable.length} fields editable here`
+                    : " · read only"
                 }`
-              : description ?? "Reading the marketplace…"}
+              : (description ?? "Reading the marketplace…")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -468,9 +508,7 @@ export function LiveTable({
               type="button"
               onClick={() =>
                 setAdding((current) =>
-                  current
-                    ? null
-                    : Object.fromEntries((data?.creatable ?? []).map((c) => [c, ""])),
+                  current ? null : Object.fromEntries((data?.creatable ?? []).map((c) => [c, ""])),
                 )
               }
               className="rounded-md border border-border bg-background/60 px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-accent/40 hover:text-accent"
@@ -516,7 +554,11 @@ export function LiveTable({
             <button
               onClick={() => {
                 setHidden([]);
-                try { window.localStorage.removeItem(prefKey); } catch { /* ignore */ }
+                try {
+                  window.localStorage.removeItem(prefKey);
+                } catch {
+                  /* ignore */
+                }
               }}
               className="ml-auto rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold hover:bg-muted"
             >
@@ -530,7 +572,9 @@ export function LiveTable({
                 onClick={() => toggleColumn(c)}
                 aria-pressed={!hidden.includes(c)}
                 className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                  hidden.includes(c) ? "bg-secondary text-muted-foreground" : "bg-accent/15 text-accent"
+                  hidden.includes(c)
+                    ? "bg-secondary text-muted-foreground"
+                    : "bg-accent/15 text-accent"
                 }`}
               >
                 {humanise(c)}
@@ -538,13 +582,17 @@ export function LiveTable({
             ))}
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground">
-            Remembered in this browser only — which columns you like to see is a preference, not shared state.
+            Remembered in this browser only — which columns you like to see is a preference, not
+            shared state.
           </p>
         </div>
       )}
 
       {notice && (
-        <p role="status" className="mb-2 rounded-md border border-border bg-background/60 px-3 py-1.5 text-[11px] text-muted-foreground">
+        <p
+          role="status"
+          className="mb-2 rounded-md border border-border bg-background/60 px-3 py-1.5 text-[11px] text-muted-foreground"
+        >
           {notice}
         </p>
       )}
@@ -581,7 +629,9 @@ export function LiveTable({
               <div className="font-semibold">
                 This would {plan.operation} {plan.records} record(s). Nothing has changed yet.
               </div>
-              <div className="mt-1 font-mono text-[10px] opacity-80">operation {plan.operation_id}</div>
+              <div className="mt-1 font-mono text-[10px] opacity-80">
+                operation {plan.operation_id}
+              </div>
               <div className="mt-2 flex gap-2">
                 <button
                   disabled={busy === "bulk"}
@@ -610,11 +660,14 @@ export function LiveTable({
                 {result.invalid ? `, ${result.invalid} invalid` : ""}
                 {result.unauthorized ? `, ${result.unauthorized} refused` : ""}
               </div>
-              {result.outcomes.filter((o) => o.status !== "done").slice(0, 6).map((o) => (
-                <div key={o.id} className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                  {o.id.slice(0, 8)} · {o.status} · {o.reason}
-                </div>
-              ))}
+              {result.outcomes
+                .filter((o) => o.status !== "done")
+                .slice(0, 6)
+                .map((o) => (
+                  <div key={o.id} className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                    {o.id.slice(0, 8)} · {o.status} · {o.reason}
+                  </div>
+                ))}
             </div>
           )}
         </div>
@@ -630,7 +683,9 @@ export function LiveTable({
               <label key={column} className="block">
                 <span className="mb-0.5 block text-[10px] uppercase tracking-wider text-muted-foreground">
                   {humanise(column)}
-                  {(data.required ?? []).includes(column) && <span className="ml-1 text-accent">required</span>}
+                  {(data.required ?? []).includes(column) && (
+                    <span className="ml-1 text-accent">required</span>
+                  )}
                 </span>
                 <input
                   value={adding[column] ?? ""}
@@ -700,12 +755,17 @@ export function LiveTable({
                       humanise(column)
                     )}
                     {data.editable.includes(column) && (
-                      <span className="ml-1 text-accent" title="Editable">·</span>
+                      <span className="ml-1 text-accent" title="Editable">
+                        ·
+                      </span>
                     )}
                   </th>
                 ))}
                 {canRetire && (
-                  <th scope="col" className="border-b border-border px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <th
+                    scope="col"
+                    className="border-b border-border px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                  >
                     Row
                   </th>
                 )}
@@ -715,7 +775,10 @@ export function LiveTable({
               {data.rows.map((row) => {
                 const id = String(row.id);
                 return (
-                  <tr key={id} className="border-b border-border/60 last:border-0 hover:bg-white/[0.02]">
+                  <tr
+                    key={id}
+                    className="border-b border-border/60 last:border-0 hover:bg-white/[0.02]"
+                  >
                     {canRetire && (
                       <td className="px-2 py-1.5">
                         <input
@@ -724,7 +787,9 @@ export function LiveTable({
                           className="accent-accent"
                           checked={picked.includes(id)}
                           onChange={(e) =>
-                            setPicked((p) => (e.target.checked ? [...p, id] : p.filter((x) => x !== id)))
+                            setPicked((p) =>
+                              e.target.checked ? [...p, id] : p.filter((x) => x !== id),
+                            )
                           }
                         />
                       </td>
@@ -855,7 +920,9 @@ export function LiveTable({
             >
               <ChevronLeft className="h-3 w-3" />
             </button>
-            <span className="px-1 font-mono">{page + 1} / {pages}</span>
+            <span className="px-1 font-mono">
+              {page + 1} / {pages}
+            </span>
             <button
               type="button"
               onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}

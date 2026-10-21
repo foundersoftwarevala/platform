@@ -26,6 +26,7 @@ import { LiveTable } from "./LiveTable";
 type SectionProps = { onNavigate?: (id: string) => void };
 
 export function withLive(
+  section: string,
   resource: string,
   columns: string[],
   Original: ComponentType<SectionProps>,
@@ -33,7 +34,7 @@ export function withLive(
   const Wrapped = (props: SectionProps) => (
     <>
       <div className="px-4 pt-6 md:px-8">
-        <LiveTable resource={resource} columns={columns} />
+        <LiveTable section={section} resource={resource} columns={columns} />
       </div>
       <Original {...props} />
     </>

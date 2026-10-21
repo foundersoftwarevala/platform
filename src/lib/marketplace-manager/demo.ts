@@ -1,8 +1,7 @@
 /**
  * Demo URL Center data layer — CRUD, enable/disable, duplicate, live health
- * checks and an audit trail, kept client-side in this project.
+ * checks and an audit trail, persisted through the authenticated manager API.
  */
-import { createTable, uid } from "./store";
 import { authHeaders } from "@/lib/auth/operator-fetch";
 
 export type DemoAuditEntry = {
@@ -35,66 +34,6 @@ export type DemoUrl = {
   created_at: string;
   updated_at: string;
 };
-
-const now = () => new Date().toISOString();
-
-const SEED: DemoUrl[] = [
-  {
-    id: "demo-erp-admin",
-    product_id: "prd-erp-suite",
-    demo_name: "Vala ERP Suite",
-    role_name: "Admin",
-    url: "https://demo.softwarevala.com/erp/admin",
-    username: "admin@demo.io",
-    password: "demo1234",
-    description: "Full ERP admin workspace",
-    environment: "production",
-    status: "active",
-    sort_order: 0,
-    last_checked_at: null,
-    last_response_ms: null,
-    last_http_status: null,
-    last_result: "unknown",
-    ssl_valid: null,
-    created_at: now(),
-    updated_at: now(),
-  },
-  {
-    id: "demo-crm-sales",
-    product_id: "prd-crm-pro",
-    demo_name: "Vala CRM Pro",
-    role_name: "Sales Rep",
-    url: "https://demo.softwarevala.com/crm/sales",
-    username: "sales@demo.io",
-    password: "demo1234",
-    description: "Pipeline and lead views",
-    environment: "staging",
-    status: "active",
-    sort_order: 1,
-    last_checked_at: null,
-    last_response_ms: null,
-    last_http_status: null,
-    last_result: "unknown",
-    ssl_valid: null,
-    created_at: now(),
-    updated_at: now(),
-  },
-];
-
-const demos = createTable<DemoUrl>("demo_urls", SEED);
-const audit = createTable<DemoAuditEntry>("demo_audit", []);
-
-function log(action: string, demoUrlId: string | null, metadata: Record<string, unknown>) {
-  audit.upsert({
-    id: uid(),
-    demo_url_id: demoUrlId,
-    action,
-    actor_id: null,
-    actor_email: "manager@softwarevala.com",
-    metadata,
-    created_at: now(),
-  });
-}
 
 const ENDPOINT = "/api/manager/resource";
 

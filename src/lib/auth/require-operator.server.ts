@@ -1,3 +1,5 @@
+import { isOperatorRole } from "./operator-roles.generated";
+
 /**
  * The operator check for server functions, in one place.
  *
@@ -12,20 +14,6 @@
  * as `apikey` and the auth service refuses it, which is how an earlier copy
  * ended up turning every valid operator away.
  */
-
-/** Roles that run the platform. Kept in step with mm_is_operator() in SQL. */
-const OPERATOR_ROLES = new Set([
-  "admin",
-  "boss",
-  "founder",
-  "super_admin",
-  "boss_owner",
-  "employee",
-  "sales",
-  "support",
-  "finance",
-  "sales_support_manager",
-]);
 
 export type Operator = { userId: string; email: string; roles: string[] };
 
@@ -62,7 +50,7 @@ export async function requireOperator(
 
   const roles = (rows ?? []).map((r) => String(r.role));
   const also = new Set(options.alsoAllow ?? []);
-  if (!roles.some((r) => OPERATOR_ROLES.has(r) || also.has(r))) {
+  if (!roles.some((r) => isOperatorRole(r) || also.has(r))) {
     throw new Error(`${action} needs operator rights.`);
   }
 

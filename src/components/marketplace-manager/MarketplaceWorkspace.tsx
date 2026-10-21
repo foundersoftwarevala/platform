@@ -8,11 +8,18 @@ import { PageShell } from "@/components/creator/PageShell";
 
 import { marketplaceGroups, marketplacePrimary } from "./navigation";
 import { navIdToLabel, sectionRegistry } from "./sectionRegistry";
+import {
+  hrefWithMarketplaceSection,
+  parseFilterParams,
+  resolveMarketplaceSection,
+} from "./workspaceNavigation";
 import { DashboardSection as DashboardFallback } from "./sections/DashboardSection";
 import { AiChatPanel } from "./AiChatPanel";
 import { ExecutiveBanner } from "@/components/manager-suite/ExecutiveBanner";
+import { useNavigate } from "@/hooks/useNavigate";
 
 export function MarketplaceWorkspace() {
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [active, setActive] = useState("Dashboard");
@@ -41,25 +48,48 @@ export function MarketplaceWorkspace() {
    * so every "Review" landed on the Dashboard and the reader had to go and
    * find the queue by hand. The section is now honoured.
    *
-   * The narrower parameters beside it (`status`, `missing`, `moderation`,
-   * `range`) are carried in the URL and left there deliberately: the target
-   * sections do not filter from the URL yet, so applying them here would mean
-   * pretending to a filter that had not happened. The link opens the right
-   * screen; narrowing it to the exact rows is the next piece of work, and is
-   * reported as outstanding rather than faked.
+   * Product queues accept the documented status, moderation, missing-field,
+   * and created-date range filters. Invalid queue filters are removed, while
+   * unrelated parameters on other sections are left untouched.
    */
   useEffect(() => {
-    const requested = new URLSearchParams(window.location.search).get("section");
-    if (!requested) return;
-    const label = navIdToLabel[requested] ?? requested;
-    if (sectionRegistry[label]) setActive(label);
-  }, []);
+    const syncSection = () => {
+      const requested = new URLSearchParams(window.location.search).get("section");
+      const section = resolveMarketplaceSection(
+        window.location.search,
+        sectionRegistry,
+        navIdToLabel,
+      );
+      setActive(section);
+      const filters = parseFilterParams(section, window.location.search);
+      if (requested !== section || filters.invalidParameters.length > 0) {
+        const nextUrl = new URL(hrefWithMarketplaceSection(window.location.href, section));
+        for (const parameter of filters.invalidParameters) {
+          nextUrl.searchParams.delete(parameter);
+        }
+        const nextHref = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+        const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        if (nextHref !== currentHref) navigate(nextHref, { replace: true });
+      }
+    };
+
+    syncSection();
+    window.addEventListener("popstate", syncSection);
+    return () => window.removeEventListener("popstate", syncSection);
+  }, [navigate]);
 
   const Section = sectionRegistry[active] ?? DashboardFallback;
 
   const select = (label: string) => {
-    setActive(label);
+    const section = sectionRegistry[label] ? label : "Dashboard";
+    setActive(section);
     setMobileOpen(false);
+    const nextHref = hrefWithMarketplaceSection(window.location.href, section);
+    if (
+      nextHref !== `${window.location.pathname}${window.location.search}${window.location.hash}`
+    ) {
+      navigate(nextHref);
+    }
   };
 
   return (

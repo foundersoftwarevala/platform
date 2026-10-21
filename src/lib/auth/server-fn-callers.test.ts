@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { isOperatorRole, SQL_OPERATOR_ROLES } from "./operator-roles.generated";
 
 /**
  * Server functions are reachable by anyone who can POST to /_serverFn, so the
@@ -53,11 +54,11 @@ describe("requireOperator", () => {
 
   it("admits a role only where the action allows it", async () => {
     header = "Bearer t";
-    user = { id: "u2", email: "s@b.c" };
-    roles = ["seo"];
+    user = { id: "u2", email: "d@b.c" };
+    roles = ["developer"];
     const { requireOperator } = await import("./require-operator.server");
     await expect(requireOperator("This")).rejects.toThrow(/operator rights/);
-    await expect(requireOperator("This", { alsoAllow: ["seo", "marketing"] })).resolves.toMatchObject({
+    await expect(requireOperator("This", { alsoAllow: ["developer"] })).resolves.toMatchObject({
       userId: "u2",
     });
   });
@@ -70,6 +71,49 @@ describe("requireOperator", () => {
     await expect(
       requireOperator("This", { alsoAllow: ["developer", "support", "sales"] }),
     ).rejects.toThrow(/operator rights/);
+  });
+
+  it("matches the generated SQL allowlist for every allowed and denied role", async () => {
+    const sqlPath = resolve(
+      process.cwd(),
+      "supabase/migrations/20260907010000_operator_gate_fix.sql",
+    );
+    const sql = readFileSync(sqlPath, "utf8");
+    const canonicalRoles = sql.match(
+      /create\s+or\s+replace\s+function\s+public\.mm_is_operator\b[\s\S]*?ur\.role\s+in\s*\(([^)]*)\)/i,
+    )?.[1];
+    if (!canonicalRoles) throw new Error("Could not find the canonical mm_is_operator role list.");
+    const sqlRoles = [...canonicalRoles.matchAll(/'([a-z_]+)'/gi)].map(([, role]) => role);
+    expect([...SQL_OPERATOR_ROLES]).toEqual(sqlRoles);
+
+    const deniedRoles = [
+      "employee",
+      "sales",
+      "support",
+      "finance",
+      "sales_support_manager",
+      "customer",
+      "owner",
+      "unknown_role",
+    ];
+    const allRoles = [...new Set([...sqlRoles, ...deniedRoles])];
+    const { requireOperator } = await import("./require-operator.server");
+    header = "Bearer parity-test-token";
+    header = "Bearer parity-test-token";
+    user = { id: "role-parity", email: "role-parity@example.test" };
+
+    for (const role of allRoles) {
+      roles = [role];
+      const sqlAllows = sqlRoles.includes(role);
+      expect(isOperatorRole(role), role).toBe(sqlAllows);
+      if (sqlAllows) {
+        await expect(requireOperator("Role parity")).resolves.toMatchObject({
+          userId: "role-parity",
+        });
+      } else {
+        await expect(requireOperator("Role parity")).rejects.toThrow(/operator rights/);
+      }
+    }
   });
 });
 

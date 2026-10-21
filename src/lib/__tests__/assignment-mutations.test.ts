@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import { requireJsonObject } from "@/lib/json";
+import { resolveMarketplacePublicConfig } from "../marketplace-public-config";
 
 const ID = "10000000-0000-4000-8000-000000000001";
 
@@ -14,6 +15,7 @@ function fixture() {
     url: URL;
     body: Record<string, unknown>;
     authorization: string | null;
+    apikey: string | null;
   }[] = [];
   const state = {
     authorized: true,
@@ -21,6 +23,7 @@ function fixture() {
     sectionStatus: "published",
     taskStatus: "submitted",
     failure: false,
+    recoveryRpcFails: false,
   };
   const fetch: typeof globalThis.fetch = vi.fn(async (input, init) => {
     const request = new Request(input, init);
@@ -34,10 +37,24 @@ function fixture() {
       url,
       body,
       authorization: request.headers.get("authorization"),
+      apikey: request.headers.get("apikey"),
     });
     if (state.failure)
       return Response.json({ message: "fixture write refused", code: "42501" }, { status: 400 });
     const endpoint = url.pathname.split("/").at(-1);
+    if (endpoint === "mm_record_public_demo_click") return Response.json(true);
+    if (endpoint === "mm_recover_marketplace_catalogue") {
+      if (state.recoveryRpcFails) {
+        return Response.json(
+          { message: "Injected failure after a product write.", code: "P0001" },
+          { status: 400 },
+        );
+      }
+      return Response.json({ productsInserted: 10 });
+    }
+    if (endpoint === "marketplace_audit_logs" && request.method === "POST") {
+      return new Response(null, { status: 201 });
+    }
     if (endpoint === "user_roles") return Response.json(state.roles.map((role) => ({ role })));
     if (request.method === "GET" && endpoint === "marketplace_homepage_sections")
       return Response.json({ status: state.sectionStatus });
@@ -83,7 +100,15 @@ function fixture() {
       Set,
       Map,
       URL,
-      process: { env: {} },
+      Headers,
+      fetch,
+      process: {
+        env: {
+          SUPABASE_URL: "https://assignment-fixture.invalid",
+          SUPABASE_ANON_KEY: "fixture-anon-key",
+          SUPABASE_SERVICE_ROLE_KEY: "fixture-service-role-key",
+        },
+      },
       require: (id: string) => {
         if (id === "zod") return { z };
         if (id === "@tanstack/react-start")
@@ -120,11 +145,31 @@ function fixture() {
         if (id === "@/lib/json") return { requireJsonObject };
         if (id === "@/lib/marketplace/catalogue-invalidation") return { catalogueChanged };
         if (id === "@/integrations/supabase/auth-middleware") return { requireSupabaseAuth: {} };
-        if (id === "@/lib/i18n/limits") return { SlidingWindowLimiter: class {} };
+        if (id === "@/lib/i18n/limits")
+          return {
+            SlidingWindowLimiter: class {
+              hit() {
+                return false;
+              }
+            },
+          };
+        if (id === "@/lib/marketplace-public-config") return { resolveMarketplacePublicConfig };
         if (id === "@/lib/supplied-demos-catalog") return { SUPPLIED_DEMOS_16: [] };
         if (id === "@/data/catalogue") return { catalogueEntries: [] };
         if (id === "@/lib/site-content/constants") return { LIFETIME_PRICE: 0 };
-        if (id === "@supabase/supabase-js") return { createClient };
+        if (id === "@supabase/supabase-js")
+          return {
+            createClient: (url: string, key: string, options: Record<string, unknown> = {}) =>
+              createClient(url, key, {
+                ...options,
+                global: {
+                  ...((options.global as Record<string, unknown> | undefined) ?? {}),
+                  fetch:
+                    ((options.global as Record<string, unknown> | undefined)?.fetch as
+                      typeof fetch | undefined) ?? fetch,
+                },
+              }),
+          };
         if (id === "@/lib/ai-gateway.server") return { aiComplete: vi.fn() };
         if (id === "@/lib/legal-ai.server") return { buildLegalPrompts: vi.fn() };
         throw new Error(`Unexpected handler dependency: ${id}`);
@@ -137,6 +182,16 @@ function fixture() {
     };
   }
   return { state, requests, load, requireOperator, catalogueChanged };
+}
+
+function recoveryMigration(): string {
+  return readFileSync(
+    new URL(
+      "../../../supabase/migrations/20261108T113000_marketplace_demo_click_and_recovery.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
 }
 
 describe("typed homepage section updates", () => {
@@ -243,6 +298,116 @@ describe("migration-backed layout RPC contract", () => {
     expect(f.requests).toHaveLength(0);
     f.state.failure = true;
     await expect(run("layoutHistory")).rejects.toThrow("fixture write refused");
+  });
+});
+
+describe("Marketplace privileged server functions", () => {
+  it.each(["listProductDemos", "recoverMarketplaceData"])(
+    "denies direct calls to %s before privileged database access",
+    async (name) => {
+      const f = fixture();
+      f.state.authorized = false;
+      await expect(f.load("../marketplace.functions.ts")(name)).rejects.toThrow("Unauthorized");
+      expect(f.requireOperator).toHaveBeenCalledOnce();
+      expect(f.requests).toHaveLength(0);
+    },
+  );
+
+  it("records public demo clicks through the anonymous-only RPC", async () => {
+    const f = fixture();
+    await expect(
+      f.load("../marketplace.functions.ts")("recordPublicDemoClick", {
+        productId: ID,
+        demoUrlId: "20000000-0000-4000-8000-000000000002",
+        sourcePage: "/demo/sample",
+        referrer: "https://example.test/",
+        deviceType: "desktop",
+        browser: "fixture-browser",
+      }),
+    ).resolves.toEqual({ ok: true, recorded: true });
+
+    expect(f.requests).toHaveLength(1);
+    expect(f.requests[0].url.pathname).toBe("/rest/v1/rpc/mm_record_public_demo_click");
+    expect(f.requests[0].apikey).toBe("fixture-anon-key");
+    expect(f.requests[0].apikey).not.toBe("fixture-service-role-key");
+    expect(f.requests[0].body).toEqual({
+      p_product_id: ID,
+      p_demo_url_id: "20000000-0000-4000-8000-000000000002",
+      p_source_page: "/demo/sample",
+      p_referrer: "https://example.test/",
+      p_device_type: "desktop",
+      p_browser: "fixture-browser",
+    });
+
+    const migration = recoveryMigration();
+    expect(migration).toContain('DROP POLICY IF EXISTS "demo_clicks anyone insert"');
+    expect(migration).toContain(
+      "REVOKE INSERT ON TABLE public.demo_clicks FROM anon, authenticated",
+    );
+    expect(migration).toContain(
+      "GRANT EXECUTE ON FUNCTION public.mm_record_public_demo_click(uuid, uuid, text, text, text, text)",
+    );
+    expect(migration).toContain("d.product_id = p_product_id");
+    expect(migration).toContain("d.status = 'active'");
+  });
+
+  it("uses one transactional recovery RPC and keeps an audit row per inserted product", async () => {
+    const f = fixture();
+    await expect(f.load("../marketplace.functions.ts")("recoverMarketplaceData")).resolves.toEqual({
+      success: true,
+      productsInserted: 10,
+      message: "Marketplace data recovery completed",
+    });
+
+    expect(f.requireOperator).toHaveBeenCalledOnce();
+    expect(f.requests).toHaveLength(1);
+    expect(f.requests[0].url.pathname).toBe("/rest/v1/rpc/mm_recover_marketplace_catalogue");
+    expect(f.requests[0].apikey).toBe("fixture-service-role-key");
+    expect(f.requests[0].body.p_actor_id).toBe(ID);
+    const migration = recoveryMigration();
+    const recoverySql = migration.split(
+      "CREATE OR REPLACE FUNCTION public.mm_recover_marketplace_catalogue",
+    )[1];
+    expect(recoverySql).toContain("INSERT INTO public.marketplace_audit_logs");
+    expect(recoverySql.indexOf("INSERT INTO public.marketplace_audit_logs")).toBeLessThan(
+      recoverySql.indexOf("RETURN jsonb_build_object"),
+    );
+    expect(recoverySql).toContain("'marketplace.recovery.product_inserted'");
+    expect(migration).toContain(
+      "REVOKE ALL ON FUNCTION public.mm_recover_marketplace_catalogue(uuid, jsonb)",
+    );
+    expect(migration).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.mm_recover_marketplace_catalogue\(uuid, jsonb\)\s+TO service_role/,
+    );
+  });
+
+  it("surfaces transactional recovery failure and separately audits the failed attempt", async () => {
+    const f = fixture();
+    f.state.recoveryRpcFails = true;
+
+    await expect(f.load("../marketplace.functions.ts")("recoverMarketplaceData")).rejects.toThrow(
+      "the transaction was rolled back and the failed attempt was audited",
+    );
+    expect(f.requests.map((request) => request.url.pathname)).toEqual([
+      "/rest/v1/rpc/mm_recover_marketplace_catalogue",
+      "/rest/v1/marketplace_audit_logs",
+    ]);
+    expect(f.requests[1].body).toMatchObject({
+      actor_id: ID,
+      action: "marketplace.recovery.failed",
+      entity_type: "marketplace_data_recovery",
+      metadata: { products_requested: 10, transaction_outcome: "rolled_back" },
+    });
+  });
+
+  it("does not write failure audit when recovery authorization is denied", async () => {
+    const f = fixture();
+    f.state.authorized = false;
+
+    await expect(f.load("../marketplace.functions.ts")("recoverMarketplaceData")).rejects.toThrow(
+      "Unauthorized",
+    );
+    expect(f.requests).toHaveLength(0);
   });
 });
 
