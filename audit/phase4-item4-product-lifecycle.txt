@@ -1,0 +1,44 @@
+Item 4 | FIXED (local author UI); production verification BLOCKED-SSH
+
+Files:
+- src/components/dashboard/AuthorProductsWorkspace.tsx
+- src/components/dashboard/AuthorProductsWorkspace.test.tsx
+- src/lib/marketplace/author-product-lifecycle.ts
+- src/lib/marketplace/__tests__/author-product-lifecycle.test.ts
+- src/routes/api/author/products.ts
+- src/components/dashboard/ModulePage.tsx (existing route integration)
+
+Root cause:
+Author lifecycle controls were derived from a hard-coded submit-state set.
+That set exposed Submit for rejected products even though the existing API
+permits rejected -> draft only; the request therefore failed with HTTP 409.
+The separate AddProduct.tsx and MarketplaceCatalogAdmin.tsx surfaces are
+manager/operator flows and were not repurposed for author lifecycle controls.
+
+Change:
+- Share the AUTHOR_TRANSITIONS map between the API and author UI action helper.
+- Drafts expose Edit and Submit.
+- Submitted products expose Withdraw.
+- Changes-requested products expose Edit and Submit.
+- Rejected products expose Edit and Return to draft; after that succeeds they
+  can be submitted from draft.
+- Approved products display a read-only status badge and no author actions.
+- Existing loading, empty, API error/retry, and mutation error states remain
+  in the author workspace.
+
+Test evidence:
+- src/lib/marketplace/__tests__/author-product-lifecycle.test.ts:
+  9 tests passed (draft, submitted, changes_requested, rejected, approved,
+  published, under_review, archived, and unknown status).
+- src/components/dashboard/AuthorProductsWorkspace.test.tsx:
+  3 tests passed, including status-specific controls and the API submit body.
+- src/lib/marketplace/__tests__/product-prevention-handlers.test.ts:
+  24 tests passed, including author API lifecycle behavior.
+- Scoped ESLint passed for the changed lifecycle/UI/API files.
+- `npm.cmd run build` passed; Vite reported "built in 1m 7s" and generated
+  `.output/nitro.json`.
+
+Live evidence:
+- No SSH/VPS credentials are available in this checkout; no production
+  request or database write was made for this item.
+- The local author products UI and tests do not establish production rollout.

@@ -6,13 +6,13 @@ import {
 } from "@/lib/marketplace/product-safety";
 
 import {
-  AUTHOR_TRANSITIONS,
   ownsProduct,
   pickAuthorFields,
   requireAuthor,
   rest,
   slugify,
 } from "@/lib/marketplace/author-guard";
+import { AUTHOR_TRANSITIONS } from "@/lib/marketplace/author-product-lifecycle";
 
 /**
  * The author's own products, on the canonical `marketplace_products` table.
@@ -55,8 +55,11 @@ function badLink(fields: Record<string, unknown>): string | null {
 }
 
 const SUMMARY =
-  "id,name,slug,description,category_id,subcategory,demo_url,thumbnail_url,price_label," +
-  "content_status,moderation_status,visible,seller_id,created_at,updated_at,approved_at,version";
+  "id,name,slug,description,features,tech_stack,technology,frontend,backend,database,mobile,cloud," +
+  "integrations,demo_url,public_repo_url,thumbnail_url,cover_image,logo,icon,favicon,tags," +
+  "search_keywords,languages,industry_label,target_audience,subcategory,category_id,software_type," +
+  "modules,benefits,roles,version,license,price_label,price_period,currency," +
+  "content_status,moderation_status,visible,seller_id,created_at,updated_at,approved_at";
 
 export const Route = createFileRoute("/api/author/products")({
   server: {
@@ -65,14 +68,18 @@ export const Route = createFileRoute("/api/author/products")({
         const gate = await requireAuthor(request, { allowPending: true });
         if (!gate.ok) return gate.response;
 
-        const response = await rest(
-          `marketplace_products?select=${SUMMARY}` +
-            `&seller_id=eq.${encodeURIComponent(gate.seller.id)}&order=updated_at.desc&limit=200`,
-        );
-        if (!response.ok) {
+        const [response, categoriesResponse] = await Promise.all([
+          rest(
+            `marketplace_products?select=${SUMMARY}` +
+              `&seller_id=eq.${encodeURIComponent(gate.seller.id)}&order=updated_at.desc&limit=200`,
+          ),
+          rest("marketplace_categories?select=id,name&is_hidden=eq.false&order=name.asc&limit=500"),
+        ]);
+        if (!response.ok || !categoriesResponse.ok) {
           return Response.json({ error: "Could not read your products" }, { status: 502 });
         }
         const products = await response.json();
+        const categories = await categoriesResponse.json();
         return Response.json({
           seller: {
             id: gate.seller.id,
@@ -80,6 +87,7 @@ export const Route = createFileRoute("/api/author/products")({
             status: gate.seller.status,
           },
           products,
+          categories,
         });
       },
 
@@ -147,10 +155,16 @@ export const Route = createFileRoute("/api/author/products")({
           const rows = (await created.json()) as { id: string }[];
           if (!rows[0]?.id) {
             console.error("[author products] create returned no product");
-            return Response.json({ error: "Product creation could not be verified" }, { status: 502 });
+            return Response.json(
+              { error: "Product creation could not be verified" },
+              { status: 502 },
+            );
           }
           logProductReview(review, "author products", rows[0].id);
-          return Response.json({ ok: true, created: true, product: rows[0], review }, { status: 201 });
+          return Response.json(
+            { ok: true, created: true, product: rows[0], review },
+            { status: 201 },
+          );
         }
 
         // Everything below acts on an existing product, so ownership first.
@@ -164,7 +178,13 @@ export const Route = createFileRoute("/api/author/products")({
         const currentResponse = await rest(
           `marketplace_products?select=id,moderation_status,content_status&id=eq.${encodeURIComponent(id)}&limit=1`,
         );
+        if (!currentResponse.ok) {
+          return Response.json({ error: "Could not verify the product state" }, { status: 502 });
+        }
         const current = ((await currentResponse.json()) as { moderation_status: string }[])[0];
+        if (!current) {
+          return Response.json({ error: "Product not found" }, { status: 404 });
+        }
         const state = String(current?.moderation_status ?? "draft");
 
         // ------------------------------------------------- submit / withdraw
