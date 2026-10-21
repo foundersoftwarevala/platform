@@ -13,7 +13,6 @@ import { OrdersSection as OrdersLive } from "./sections/OrdersLive";
 // The module screens that were designed as shells and are now reading their
 // tables. The originals stay exported from ./sections/CatalogSections.
 import {
-  ProductMediaLive,
   DemoSystemLive,
   BlogLive,
   LicenseLive,
@@ -63,7 +62,7 @@ const designedSections: Record<string, SectionComponent> = {
   Categories: S.CategoriesSection,
   Products: S.ProductsSection,
   "Product Content": S.ProductContentSection,
-  "Product Media": ProductMediaLive,
+  "Product Media": S.ProductMediaSection,
   "Card Manager": S.CardManagerSection,
   Cards: S.CardsSection,
   Filters: S.FiltersSection,

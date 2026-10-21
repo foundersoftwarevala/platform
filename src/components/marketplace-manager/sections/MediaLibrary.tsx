@@ -78,6 +78,59 @@ const KIND_ICON: Record<string, typeof ImageIcon> = {
   image: ImageIcon, icon: ImageIcon, video: Video, document: FileText, archive: FolderOpen,
 };
 
+function StoredImagePreview({ asset }: { asset: Asset }) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const preview = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setImageUrl(null);
+    try {
+      const response = await fetch("/api/marketplace/media", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ asset_id: asset.asset_id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok || typeof payload.url !== "string") {
+        throw new Error(payload?.message ?? `That image could not be previewed (${response.status}).`);
+      }
+      setImageUrl(payload.url);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "That image could not be previewed.");
+    } finally {
+      setLoading(false);
+    }
+  }, [asset.asset_id]);
+
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={asset.display_name}
+          className="h-12 w-12 rounded border border-border object-cover"
+          onError={() => {
+            setImageUrl(null);
+            setError("The signed image could not be loaded. Try again.");
+          }}
+        />
+      ) : null}
+      {error ? <span role="alert" className="text-[11px] text-rose-500">{error}</span> : null}
+      <button
+        type="button"
+        onClick={() => void preview()}
+        disabled={loading}
+        className="rounded border border-border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50"
+      >
+        {loading ? "Loading preview…" : error ? "Retry preview" : imageUrl ? "Refresh preview" : "Preview image"}
+      </button>
+    </div>
+  );
+}
+
 export function MediaLibrary() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -323,6 +376,13 @@ export function MediaLibrary() {
                             {a.checksum ? ` · sha256 ${a.checksum.slice(0, 10)}` : ""}
                             {a.width && a.height ? ` · ${a.width}×${a.height}` : ""}
                           </div>
+                          {a.kind === "image" && a.asset_id.startsWith("storage:") ? (
+                            data.permissions.download ? (
+                              <StoredImagePreview asset={a} />
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">Preview requires download permission.</span>
+                            )
+                          ) : null}
                         </div>
                       </div>
                     </td>

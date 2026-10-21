@@ -1,5 +1,5 @@
 import {
-  BarChart3, Download, Image as ImageIcon, KeyRound, MonitorPlay, Newspaper,
+  BarChart3, Download, KeyRound, MonitorPlay, Newspaper,
   PenTool, QrCode, Store, Users, Link2, Handshake,
 } from "lucide-react";
 
@@ -22,30 +22,6 @@ import { useTranslation } from "@/lib/i18n/use-translation";
 
 const ENDPOINT =
   "Every tab above reads its real table through /api/manager/resource, which only lets a screen change the columns it is allowed to.";
-
-export function ProductMediaLive() {
-  const { t } = useTranslation();
-  return (
-    <LiveModule
-      eyebrow="Product Media" title={t("manager.module.product_media")}
-      description="Thumbnails, gallery, video and downloadable files."
-      Icon={ImageIcon}
-      tabs={[
-        { label: "Thumbnails", resource: "media_library" },
-        { label: "Gallery", resource: "media_library" },
-        { label: "Video", resource: "vala_tv_videos" },
-        { label: "Files", resource: "downloads" },
-      ]}
-      counters={[
-        { label: "Assets", resource: "media_library" },
-        { label: "Video", resource: "vala_tv_videos" },
-        { label: "Files", resource: "downloads" },
-        { label: "Missing Alt", absent: "Alt text is not recorded against an asset on this platform." },
-      ]}
-      footnote={ENDPOINT}
-    />
-  );
-}
 
 export function DemoSystemLive() {
   const { t } = useTranslation();

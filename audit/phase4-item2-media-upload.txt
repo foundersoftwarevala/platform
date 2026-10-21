@@ -1,0 +1,41 @@
+Item 2 | PARTIALLY FIXED
+
+Scope: local-only UI work. No database, storage, migration, or production write.
+
+Root cause:
+- The existing Media Library called the real `/api/marketplace/media` endpoint
+  for metadata and signed downloads, but did not render storage images.
+- The Product Media section used the generic `media_library` resource shell
+  instead of the marketplace media endpoint.
+- The endpoint explicitly reports `capabilities.upload.available: false`.
+  Its POST handler accepts an asset ID and issues an audited, five-minute
+  signed download URL; it is not a binary upload endpoint. The API also states
+  that there is no media table to register uploads. A frontend upload form
+  would therefore create untracked files and cannot be safely implemented
+  without backend/schema support.
+
+Change:
+- Product Media now uses the actual Media Library UI and endpoint.
+- Stored image previews are requested on demand through the existing signed
+  download POST, render as `<img>` only after signing, and expose loading,
+  signing/load errors, and retry.
+- Upload remains explicitly unavailable; no fake upload request or progress
+  indicator was added.
+
+Validation:
+- `npm.cmd exec vitest -- run src/components/marketplace-manager/sections/MediaLibrary.test.tsx --reporter=dot`
+  — 2 tests passed. Covers the upload capability message, signed preview
+  request, signing error, and retry.
+- Scoped ESLint on changed media UI files with the repository's existing
+  Prettier rule disabled — passed.
+- Prettier check of the new test — passed.
+- `npm.cmd run build` — passed (`BUILD_EXIT=0`, Vite build completed).
+- `git diff --check` on scoped changes — passed.
+
+Evidence files:
+- `src/routes/api/marketplace/media.ts` — upload capability and POST contract.
+- `src/components/marketplace-manager/sections/MediaLibrary.test.tsx` — UI/API
+  behavior regression tests.
+
+Live storage acceptance: BLOCKED — no SSH access, pending key registration.
+The UI has not been deployed or verified against production.

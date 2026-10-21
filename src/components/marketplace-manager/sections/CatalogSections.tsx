@@ -2,7 +2,6 @@ import { useState, type ComponentType } from "react";
 import {
   Package,
   FileText,
-  Image as ImageIcon,
   MonitorPlay,
   Newspaper,
   DollarSign,
@@ -32,6 +31,7 @@ import {
 import { Card, EmptyHint, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import { TableToolbar, RowActions, BulkActionBar } from "../actions";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { MediaLibrary } from "./MediaLibrary";
 
 // ---------- Reusable module scaffold ----------
 type Stat = {
@@ -174,43 +174,7 @@ export function ProductContentSection() {
 }
 
 export function ProductMediaSection() {
-  return (
-    <ModulePage
-      eyebrow="Product Media"
-      title="Product Media"
-      description="All thumbnails, galleries, videos, and downloadable asset files with CDN control."
-      Icon={ImageIcon}
-      tabs={["Thumbnails", "Gallery", "Video", "Files"]}
-      stats={[
-        { label: "Assets" },
-        { label: "Video", tone: "premium" },
-        { label: "Missing Alt", tone: "warning" },
-        { label: "CDN Hits", tone: "success" },
-      ]}
-      features={[
-        { label: "Thumbnail" },
-        { label: "3D Thumbnail" },
-        { label: "Gallery" },
-        { label: "Screenshots" },
-        { label: "Hero Image" },
-        { label: "Banner" },
-        { label: "Logo" },
-        { label: "Icons" },
-        { label: "Video" },
-        { label: "YouTube URL" },
-        { label: "Vimeo URL" },
-        { label: "Preview Images" },
-        { label: "Preview Video" },
-        { label: "Demo GIF" },
-        { label: "PDF" },
-        { label: "ZIP" },
-        { label: "APK" },
-        { label: "EXE" },
-        { label: "Source Code" },
-        { label: "Documentation Files" },
-      ]}
-    />
-  );
+  return <MediaLibrary />;
 }
 
 export function DemoSection() {
