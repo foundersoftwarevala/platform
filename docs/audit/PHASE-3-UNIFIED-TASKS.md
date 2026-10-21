@@ -55,9 +55,9 @@ The tracked worktree already has unrelated changes in `records.functions.ts`; it
 
 ## 6. Verification results
 
-- `npx.cmd tsc --noEmit -p .`: **NOT RUN for this blocked Phase 3 change**; no TypeScript changes were made.
-- `npx.cmd eslint <changed files> --rule 'prettier/prettier: off'`: **NOT RUN for this blocked Phase 3 change**; no TypeScript/TSX changes were made.
-- `npm.cmd run i18n:check`: **NOT RUN for this blocked Phase 3 change**; no user-facing strings or translations were changed.
+- `npx.cmd tsc --noEmit -p .`: **PASS** on clean committed tree `8d72ddc` (exit 0).
+- `npx.cmd eslint` on the Phase 1/2 changed TypeScript files with `--rule 'prettier/prettier: off'`: **PASS**, zero errors; one existing `react-refresh/only-export-components` warning at `RouteAccessGate.tsx:155`.
+- `npm.cmd run i18n:check`: **PASS** on clean committed tree `8d72ddc`; output reports 3,545 keyed, 167 exempt, 14,366 hardcoded strings (none new). Existing unused-key warnings remain.
 - No migration was applied or executed, and no production database was accessed.
 
 ## 7. What was NOT done
