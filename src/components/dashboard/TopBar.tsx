@@ -360,7 +360,19 @@ export function TopBar({
         title={t("dashboard.topbar.messages")}
         onClick={() => onOpenAIChat?.()}
       />
-      <NotificationBell buttonClassName="press-3d relative grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface hover:bg-surface-2 border border-border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+      {/* PHASE4-WIRED: task notices focus the selected developer's task detail. */}
+      <NotificationBell
+        buttonClassName="press-3d relative grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface hover:bg-surface-2 border border-border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onTaskClick={
+          role.key === "developer"
+            ? (taskId) => {
+                sessionStorage.setItem("sv-dashboard-focus-task", taskId);
+                window.dispatchEvent(new CustomEvent("sv-dashboard-focus-task", { detail: taskId }));
+                onOpenModule?.("tasks");
+              }
+            : undefined
+        }
+      />
 
       <ProfileMenu
         role={role}

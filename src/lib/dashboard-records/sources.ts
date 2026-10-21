@@ -109,7 +109,8 @@ export const MODULE_SOURCES: Record<string, Record<string, ModuleSource>> = {
   },
   developer: {
     "command-center": route("/dev-manager", "Dev Manager"),
-    tasks: money("Task amount"),
+    // PHASE4-WIRED: canonical tasks carry payment states, not a task amount.
+    tasks: plain(),
     bugs: plain(),
     "code-submission": plain(),
     timer: route("/task-manager", "Task Manager"),

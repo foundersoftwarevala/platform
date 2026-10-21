@@ -88,6 +88,7 @@ function record(input: {
   date?: unknown;
   notes?: string;
   tags?: string[];
+  extra?: Record<string, string | number>;
 }): CrudRecord {
   const raw = text(input.raw);
   return {
@@ -103,7 +104,7 @@ function record(input: {
     comments: [],
     audit: [],
     attachments: [],
-    extra: input.currency ? { currency: input.currency } : {},
+    extra: { ...(input.currency ? { currency: input.currency } : {}), ...(input.extra ?? {}) },
   };
 }
 
@@ -763,6 +764,43 @@ async function countRows(path: string): Promise<number> {
 }
 
 async function developerRecords(module: string, uid: string): Promise<Result> {
+  // PHASE4-WIRED: task records are scoped by the authenticated auth.users id,
+  // not the legacy developers.id / developer_tasks relationship.
+  if (module === "tasks") {
+    const rows = await read(
+      `tasks?select=id,title,description,priority,status,payment_status,deadline_at,due_at,verified_at,paid_at,manager_notes,created_at` +
+        `&developer_id=eq.${uid}&order=created_at.desc&limit=${CAP}`,
+    );
+    return {
+      records: rows.map((task) => {
+        const taskStatus = text(task.status);
+        const paymentStatus = text(task.payment_status);
+        const deadlineAt = text(task.deadline_at);
+        const dueAt = text(task.due_at);
+        const verifiedAt = text(task.verified_at);
+        const paidAt = text(task.paid_at);
+        const managerNotes = text(task.manager_notes);
+        return record({
+          id: text(task.id),
+          name: text(task.title),
+          raw: taskStatus,
+          category: text(task.priority),
+          date: deadlineAt || dueAt || task.created_at,
+          notes: text(task.description),
+          tags: [paymentStatus].filter(Boolean),
+          extra: {
+            taskStatus,
+            paymentStatus,
+            deadlineAt,
+            dueAt,
+            verifiedAt,
+            paidAt,
+            managerNotes,
+          },
+        });
+      }),
+    };
+  }
   if (module === "bugs") {
     const member = await tmMemberOf(uid);
     if (!member) return unlinked("Task Manager membership");
@@ -785,25 +823,6 @@ async function developerRecords(module: string, uid: string): Promise<Result> {
   const developer = await partnerOf.developer(uid);
   if (!developer) return unlinked("developer profile");
   const id = text(developer.id);
-  if (module === "tasks") {
-    const rows = await read(
-      `developer_tasks?select=id,title,description,category,priority,status,deadline,task_amount,progress_percent,created_at` +
-        `&developer_id=eq.${id}&order=created_at.desc&limit=${CAP}`,
-    );
-    return {
-      records: rows.map((t) =>
-        record({
-          id: text(t.id),
-          name: text(t.title),
-          raw: t.status,
-          category: [text(t.category), text(t.priority)].filter(Boolean).join(" · "),
-          amount: num(t.task_amount),
-          date: t.deadline ?? t.created_at,
-          notes: `${text(t.description)}\nProgress ${num(t.progress_percent)}%`.trim(),
-        }),
-      ),
-    };
-  }
   if (module === "code-submission") {
     const rows = await read(
       `developer_code_submissions?select=id,task_id,submission_type,commit_message,notes,review_status,review_notes,created_at` +
@@ -878,12 +897,11 @@ export const listDashboardRecords = createServerFn({ method: "GET" })
 export const getDeveloperMetrics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ linked: boolean; metrics: Record<string, number | null> }> => {
-    const developer = await partnerOf.developer(context.userId);
-    if (!developer) return { linked: false, metrics: {} };
-    const mine = `developer_tasks?select=id&developer_id=eq.${text(developer.id)}`;
+    // PHASE4-WIRED: canonical task ownership is the signed-in developer user id.
+    const mine = `tasks?select=id&developer_id=eq.${context.userId}`;
     const [open, done, member] = await Promise.all([
-      countRows(`${mine}&status=not.in.(completed,delivered,cancelled)`),
-      countRows(`${mine}&status=in.(completed,delivered)`),
+      countRows(`${mine}&status=not.in.(verified,paid,cancelled)`),
+      countRows(`${mine}&status=in.(verified,paid)`),
       tmMemberOf(context.userId),
     ]);
     const metrics: Record<string, number | null> = { "tasks-open": open, "tasks-done": done };

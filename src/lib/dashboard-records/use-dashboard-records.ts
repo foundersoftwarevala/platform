@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useServerFn } from "@/lib/serverFn";
 import type { CrudRecord } from "@/lib/crud-store";
+import { useSupabaseSession } from "@/hooks/use-session";
 
 import { getDeveloperProfileSkills } from "./developer-profile.functions";
 import { getDeveloperMetrics, listDashboardRecords } from "./records.functions";
@@ -9,15 +10,17 @@ import { getDeveloperMetrics, listDashboardRecords } from "./records.functions";
 /** A role dashboard module's records, read from the platform for the signed-in partner. */
 export function useDashboardRecords(role: string, module: string, enabled: boolean) {
   const list = useServerFn(listDashboardRecords);
+  const { userId, loading: sessionLoading } = useSupabaseSession();
+  // PHASE4-WIRED: keep task records isolated when the signed-in account changes.
   const query = useQuery({
-    queryKey: ["dashboard-records", role, module],
+    queryKey: ["dashboard-records", role, module, userId],
     queryFn: () => list({ data: { role, module } }),
-    enabled,
+    enabled: enabled && !sessionLoading && Boolean(userId),
   });
   return {
     records: (query.data?.records ?? []) as CrudRecord[],
     note: query.data?.note ?? null,
-    loading: query.isLoading,
+    loading: sessionLoading || query.isLoading,
     error: query.error ? (query.error as Error).message : null,
     refresh: () => void query.refetch(),
   };

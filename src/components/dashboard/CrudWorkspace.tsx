@@ -2,13 +2,17 @@ import { useCallback, useMemo, useState, useEffect, useRef, createContext, useCo
 import {
   ArrowLeft, Plus, Search, Download, Upload, Archive, Check, X, Eye, MoreHorizontal, LayoutGrid, List as ListIcon, Table as TableIcon, ChevronLeft, ChevronRight, CheckCheck, RotateCcw, FileJson, FileText, Printer, Share2, Paperclip, MessageSquare, History, ShieldCheck, Inbox, AlertTriangle, Tag, Calendar, DollarSign, User, FolderOpen, Clock, ListChecks,
 } from "lucide-react";
+import { Button } from "@/components/dashboard/ui/button";
 import { can, type Capability } from "@/lib/permissions";
 import { toast } from "sonner";
 import type { RoleConfig } from "@/lib/roles";
 import { useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@/lib/serverFn";
 import { exportJson, downloadFile, type CrudRecord, type RecordStatus } from "@/lib/crud-store";
 import { sourceFor, type AmountKind } from "@/lib/dashboard-records/sources";
 import { useDashboardRecords } from "@/lib/dashboard-records/use-dashboard-records";
+import { startTask, submitTask } from "@/lib/tasks/functions";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 type View = "table" | "grid" | "list";
 type Mode = { kind: "list" } | { kind: "detail"; id: string };
@@ -146,8 +150,89 @@ function NotConnected(props: CrudProps & { reason: string }) {
   );
 }
 
+function TaskWorkflow({
+  record,
+  artifacts,
+  notes,
+  busy,
+  onArtifactsChange,
+  onNotesChange,
+  onAction,
+}: {
+  record: CrudRecord;
+  artifacts: string;
+  notes: string;
+  busy: boolean;
+  onArtifactsChange: (value: string) => void;
+  onNotesChange: (value: string) => void;
+  onAction: (action: "start" | "submit") => void;
+}) {
+  const { t, formatDate } = useTranslation();
+  const taskStatus = String(record.extra.taskStatus ?? "");
+  const paymentStatus = String(record.extra.paymentStatus ?? "");
+  const deadlineAt = String(record.extra.deadlineAt ?? "");
+  const dueAt = String(record.extra.dueAt ?? "");
+  const verifiedAt = String(record.extra.verifiedAt ?? "");
+  const paidAt = String(record.extra.paidAt ?? "");
+  const managerNotes = String(record.extra.managerNotes ?? "");
+  const dateLabel = (value: string) => value ? formatDate(value) : "—";
+
+  return (
+    <section className="space-y-4 rounded-2xl border border-border bg-card p-5">
+      <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        <p><strong>{t("dashboard.tasks.status")}:</strong> {taskStatus || "—"}</p>
+        <p><strong>{t("dashboard.tasks.payment_status")}:</strong> {paymentStatus || "—"}</p>
+        <p><strong>{t("dashboard.tasks.deadline")}:</strong> {dateLabel(deadlineAt)}</p>
+        <p><strong>{t("dashboard.tasks.payment_due")}:</strong> {dateLabel(dueAt)}</p>
+        <p><strong>{t("dashboard.tasks.verified_at")}:</strong> {dateLabel(verifiedAt)}</p>
+        <p><strong>{t("dashboard.tasks.paid_at")}:</strong> {dateLabel(paidAt)}</p>
+      </div>
+      {managerNotes && (
+        <p className="whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm">
+          <strong>{t("dashboard.tasks.manager_notes")}:</strong> {managerNotes}
+        </p>
+      )}
+      {taskStatus === "assigned" || taskStatus === "rejected" ? (
+        <Button type="button" disabled={busy} onClick={() => onAction("start")}>
+          {t("dashboard.tasks.start")}
+        </Button>
+      ) : taskStatus === "in_progress" ? (
+        <div className="space-y-3">
+          <label className="block space-y-1 text-sm">
+            <span>{t("dashboard.tasks.artifacts")}</span>
+            <textarea
+              value={artifacts}
+              onChange={(event) => onArtifactsChange(event.target.value)}
+              rows={4}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs"
+              aria-label={t("dashboard.tasks.artifacts_aria")}
+            />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span>{t("dashboard.tasks.submission_notes")}</span>
+            <textarea
+              value={notes}
+              onChange={(event) => onNotesChange(event.target.value)}
+              rows={3}
+              maxLength={20_000}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              aria-label={t("dashboard.tasks.submission_notes")}
+            />
+          </label>
+          <Button type="button" disabled={busy} onClick={() => onAction("submit")}>
+            {t("dashboard.tasks.submit")}
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
   const allow = useCap();
+  const { t } = useTranslation();
+  const beginTask = useServerFn(startTask);
+  const sendTask = useServerFn(submitTask);
   const mod = role.modules.find((m) => m.key === moduleKey) ?? { key: moduleKey, label: moduleKey, icon: Inbox };
   const Icon = mod.icon;
   const singular = mod.label.replace(/s$/, "") || mod.label;
@@ -162,10 +247,57 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
   const [page, setPage] = useState(1);
   const pageSize = 8;
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [taskArtifacts, setTaskArtifacts] = useState("[]");
+  const [taskNotes, setTaskNotes] = useState("");
+  const [taskBusy, setTaskBusy] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
   // Reset selection / page when module changes
   useEffect(() => { setSelected(new Set()); setMode({ kind: "list" }); setPage(1); setQuery(""); setStatusFilter("all"); }, [moduleKey, role.key]);
+
+  // PHASE4-WIRED: notification navigation opens the exact caller-owned task.
+  useEffect(() => {
+    if (role.key !== "developer" || moduleKey !== "tasks" || crud.loading) return;
+    const focusTask = (taskId: string) => {
+      if (!crud.records.some((record) => record.id === taskId)) return;
+      setMode({ kind: "detail", id: taskId });
+      sessionStorage.removeItem("sv-dashboard-focus-task");
+    };
+    const storedTaskId = sessionStorage.getItem("sv-dashboard-focus-task");
+    if (storedTaskId) focusTask(storedTaskId);
+    const onFocus = (event: Event) => {
+      const taskId = (event as CustomEvent<string>).detail;
+      if (taskId) focusTask(taskId);
+    };
+    window.addEventListener("sv-dashboard-focus-task", onFocus);
+    return () => window.removeEventListener("sv-dashboard-focus-task", onFocus);
+  }, [crud.loading, crud.records, moduleKey, role.key]);
+
+  // PHASE4-WIRED: start/submit call audited server functions; the browser never writes tasks.
+  async function runTaskAction(record: CrudRecord, action: "start" | "submit") {
+    setTaskBusy(true);
+    try {
+      if (action === "start") {
+        await beginTask({ data: { taskId: record.id } });
+        toast.success(t("dashboard.tasks.start_success"));
+      } else {
+        const artifacts: unknown = JSON.parse(taskArtifacts);
+        await sendTask({
+          data: { taskId: record.id, artifacts, notes: taskNotes.trim() || null },
+        });
+        toast.success(t("dashboard.tasks.submit_success"));
+        setTaskArtifacts("[]");
+        setTaskNotes("");
+      }
+      crud.refresh();
+    } catch (error) {
+      toast.error(action === "start" ? t("dashboard.tasks.start_error") : t("dashboard.tasks.submit_error"), {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setTaskBusy(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -275,6 +407,17 @@ function CrudWorkspaceInner({ role, moduleKey, onBack }: CrudProps) {
           singular={singular}
           onExport={() => handleExport([rec])}
         />
+        {role.key === "developer" && moduleKey === "tasks" && (
+          <TaskWorkflow
+            record={rec}
+            artifacts={taskArtifacts}
+            notes={taskNotes}
+            busy={taskBusy}
+            onArtifactsChange={setTaskArtifacts}
+            onNotesChange={setTaskNotes}
+            onAction={(action) => void runTaskAction(rec, action)}
+          />
+        )}
       </div>
     );
   }
