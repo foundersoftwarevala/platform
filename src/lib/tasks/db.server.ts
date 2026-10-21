@@ -53,3 +53,15 @@ export async function withTaskTransaction<T>(
   });
   return result.value;
 }
+
+// PHASE4-WIRED: scheduled workers need service-role writes without impersonating a user.
+export async function withSystemTaskTransaction<T>(
+  run: (tx: TaskTransaction) => Promise<T>,
+): Promise<Awaited<T>> {
+  const sql = await database();
+  const result = await sql.begin(async (tx) => {
+    await tx`set local role service_role`;
+    return { value: await run(tx) };
+  });
+  return result.value;
+}
