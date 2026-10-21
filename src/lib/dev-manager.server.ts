@@ -21,6 +21,8 @@ import type {
   UiStatus,
   RegistryDeveloperDTO,
 } from "./dev-manager.types";
+import type { CanonicalTaskDTO } from "./tasks/types";
+import { withTaskTransaction } from "./tasks/db.server";
 import { taskCode } from "./dev-manager.types";
 
 export type Db = SupabaseClient<Database>;
@@ -566,6 +568,113 @@ export async function loadDeliveryOverview(
   };
 }
 
+// PHASE4-WIRED: Manager task screens read the canonical task source, scoped to
+// the caller's ownership or the database's existing operator-role predicate.
+export async function loadCanonicalTasks(userId: string): Promise<CanonicalTaskDTO[]> {
+  return withTaskTransaction(userId, async (tx) => {
+    const rows = await tx<
+      {
+        id: string;
+        developer_id: string;
+        developer_record_id: string | null;
+        developer_label: string | null;
+        title: string;
+        description: string | null;
+        status: CanonicalTaskDTO["status"];
+        payment_status: CanonicalTaskDTO["paymentStatus"];
+        due_at: Date | string | null;
+        deadline_at: Date | string | null;
+        verified_at: Date | string | null;
+        paid_at: Date | string | null;
+        priority: string | null;
+        artifacts: CanonicalTaskDTO["artifacts"];
+        submission_notes: string | null;
+        manager_notes: string | null;
+        created_at: Date | string;
+        updated_at: Date | string;
+      }[]
+    >`
+      select
+        t.id,
+        t.developer_id,
+        d.id as developer_record_id,
+        coalesce(d.vala_id, d.full_name) as developer_label,
+        t.title,
+        t.description,
+        t.status::text as status,
+        t.payment_status::text as payment_status,
+        t.due_at,
+        t.deadline_at,
+        t.verified_at,
+        t.paid_at,
+        t.priority,
+        t.artifacts,
+        t.submission_notes,
+        t.manager_notes,
+        t.created_at,
+        t.updated_at
+      from public.tasks t
+      left join public.developers d on d.user_id = t.developer_id
+      where t.assigned_by = ${userId}::uuid
+         or t.created_by = ${userId}::uuid
+         or public.tm_is_operator()
+      order by t.created_at desc, t.id
+      limit 5000
+    `;
+
+    const iso = (value: Date | string | null): string | null =>
+      value === null
+        ? null
+        : value instanceof Date
+          ? value.toISOString()
+          : new Date(value).toISOString();
+
+    return rows.map((row) => ({
+      id: row.id,
+      developerId: row.developer_id,
+      developerRecordId: row.developer_record_id,
+      developerLabel: row.developer_label ?? row.developer_id.slice(0, 8),
+      title: row.title,
+      description: row.description,
+      status: row.status,
+      paymentStatus: row.payment_status,
+      dueAt: iso(row.due_at),
+      deadlineAt: iso(row.deadline_at),
+      verifiedAt: iso(row.verified_at),
+      paidAt: iso(row.paid_at),
+      priority: row.priority,
+      artifacts: row.artifacts,
+      submissionNotes: row.submission_notes,
+      managerNotes: row.manager_notes,
+      createdAt: iso(row.created_at)!,
+      updatedAt: iso(row.updated_at)!,
+    }));
+  });
+}
+
+// PHASE4-WIRED: task assignees come from the same VPS database as canonical tasks.
+export async function loadCanonicalTaskAssignees(
+  userId: string,
+): Promise<{ userId: string; label: string }[]> {
+  return withTaskTransaction(userId, async (tx) => {
+    const [permission] = await tx<{ is_operator: boolean }[]>`
+      select public.tm_is_operator() as is_operator
+    `;
+    if (!permission?.is_operator) {
+      throw new Error("The caller is not an operator in the canonical task database.");
+    }
+    return tx<{ userId: string; label: string }[]>`
+      select distinct d.user_id as "userId",
+             coalesce(d.full_name, 'Developer') || ' · ' || coalesce(d.vala_id, d.user_id::text) as label
+        from public.developers d
+        join public.user_roles ur on ur.user_id = d.user_id
+       where d.user_id is not null
+         and ur.role::text = 'developer'
+       order by label, d.user_id
+    `;
+  });
+}
+
 export async function reassignTaskInDb(
   supabase: Db,
   userId: string | null,
@@ -817,23 +926,30 @@ export async function loadAuditTrail(
 }
 
 /** Live Developer Registry: real developers plus their open task load. */
-export async function loadDeveloperRegistry(supabase: Db): Promise<RegistryDeveloperDTO[]> {
-  const [{ data: devs, error: devErr }, { data: tasks, error: taskErr }] = await Promise.all([
+export async function loadDeveloperRegistry(
+  supabase: Db,
+  userId: string,
+): Promise<RegistryDeveloperDTO[]> {
+  const [{ data: devs, error: devErr }, tasks] = await Promise.all([
     supabase
       .from("developers")
       .select(
-        "id, vala_id, full_name, email, status, availability_status, skill_tags, max_capacity, onboarding_completed, joined_at",
+        "id, user_id, vala_id, full_name, email, status, availability_status, skill_tags, max_capacity, onboarding_completed, joined_at",
       )
       .order("created_at", { ascending: true }),
-    supabase.from("developer_tasks").select("developer_id, status").in("status", OPEN_STATUSES),
+    withTaskTransaction(userId, (tx) =>
+      tx<{ developer_id: string; status: string }[]>`
+        select developer_id, status::text as status
+          from public.tasks
+         where status in ('assigned', 'in_progress', 'submitted', 'rejected')
+      `,
+    ),
   ]);
   if (devErr) throw new Error(`Registry unavailable: ${devErr.message}`);
-  if (taskErr) throw new Error(`Registry task load failed: ${taskErr.message}`);
 
   const load = new Map<string, number>();
-  for (const t of tasks ?? []) {
-    if (!t.developer_id) continue;
-    load.set(t.developer_id, (load.get(t.developer_id) ?? 0) + 1);
+  for (const task of tasks) {
+    load.set(task.developer_id, (load.get(task.developer_id) ?? 0) + 1);
   }
 
   return (devs ?? []).map((d) => ({
@@ -845,7 +961,7 @@ export async function loadDeveloperRegistry(supabase: Db): Promise<RegistryDevel
     availability: (d.availability_status as Availability) ?? "available",
     skillTags: d.skill_tags ?? [],
     maxCapacity: d.max_capacity ?? 0,
-    activeTasks: load.get(d.id) ?? 0,
+    activeTasks: load.get(d.user_id) ?? 0,
     onboardingCompleted: d.onboarding_completed,
     joinedAt: d.joined_at,
   }));

@@ -9,6 +9,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/hooks/use-toast";
 import { hostActor } from "@/components/dev-manager/HostConnectButton";
 import { supabase } from "@/integrations/supabase/client";
+import { useSupabaseSession } from "@/hooks/use-session";
+import type { MessageKey } from "@/lib/i18n/messages";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 import {
   addInternalNote,
@@ -20,7 +23,18 @@ import {
   setDeveloperStatus,
   reassignTask,
   updateEscalation,
+  getCanonicalTasks,
+  getCanonicalTaskAssignees,
 } from "@/lib/dev-manager.functions";
+import {
+  cancelTask,
+  createTask,
+  markPaid,
+  rejectTask,
+  reopenTask,
+  verifyTask,
+} from "@/lib/tasks/functions";
+import type { CanonicalTaskAssigneeDTO, CanonicalTaskDTO } from "@/lib/tasks/types";
 import type {
   AuditTrailDTO,
   DeliveryOverviewDTO,
@@ -29,6 +43,90 @@ import type {
 } from "@/lib/dev-manager.types";
 
 export const DELIVERY_QUERY_KEY = ["dev-manager", "delivery-overview"] as const;
+export const CANONICAL_TASKS_QUERY_KEY = ["dev-manager", "canonical-tasks"] as const;
+
+export function useCanonicalTaskAssignees() {
+  const fetchAssignees = useServerFn(getCanonicalTaskAssignees);
+  const { userId, loading: sessionLoading } = useSupabaseSession();
+  return useQuery<CanonicalTaskAssigneeDTO[]>({
+    queryKey: ["dev-manager", "canonical-task-assignees", userId],
+    queryFn: () => fetchAssignees(),
+    enabled: !sessionLoading && Boolean(userId),
+    retry: (count, error) =>
+      !/Unauthorized|Forbidden/.test(error instanceof Error ? error.message : "") && count < 2,
+    staleTime: 60_000,
+  });
+}
+
+// PHASE4-WIRED: manager task screens use the authenticated canonical task reader.
+export function useCanonicalTasks() {
+  const fetchTasks = useServerFn(getCanonicalTasks);
+  const { userId, loading: sessionLoading } = useSupabaseSession();
+  const query = useQuery<CanonicalTaskDTO[]>({
+    queryKey: [...CANONICAL_TASKS_QUERY_KEY, userId],
+    queryFn: () => fetchTasks(),
+    enabled: !sessionLoading && Boolean(userId),
+    retry: (count, error) =>
+      !/Unauthorized|Forbidden/.test(error instanceof Error ? error.message : "") && count < 2,
+    refetchInterval: 60_000,
+    staleTime: 15_000,
+  });
+  return { ...query, isLoading: sessionLoading || query.isLoading };
+}
+
+function useCanonicalTaskMutation<TInput>(
+  mutation: (input: { data: TInput }) => Promise<unknown>,
+  successTitleKey: MessageKey,
+) {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  return useMutation({
+    mutationFn: (input: TInput) => mutation({ data: input }),
+    onSuccess: () => {
+      toast({ title: t(successTitleKey), variant: "success" });
+      void queryClient.invalidateQueries({ queryKey: CANONICAL_TASKS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ["task-notifications"] });
+    },
+    onError: (error) =>
+      toast({
+        title: t("devmanager.tasks.update_failed"),
+        description: describeError(error),
+        variant: "destructive",
+      }),
+  });
+}
+
+export function useCancelCanonicalTask() {
+  const fn = useServerFn(cancelTask);
+  return useCanonicalTaskMutation(fn, "devmanager.tasks.cancelled_success");
+}
+
+// PHASE4-WIRED: task assignment writes the canonical task and its audit trigger atomically.
+export function useCreateCanonicalTask() {
+  const fn = useServerFn(createTask);
+  return useCanonicalTaskMutation(fn, "devmanager.tasks.created_success");
+}
+
+export function useReopenCanonicalTask() {
+  const fn = useServerFn(reopenTask);
+  return useCanonicalTaskMutation(fn, "devmanager.tasks.reopened_success");
+}
+
+export function useVerifyCanonicalTask() {
+  const fn = useServerFn(verifyTask);
+  return useCanonicalTaskMutation(fn, "devmanager.tasks.verified_success");
+}
+
+export function useRejectCanonicalTask() {
+  const fn = useServerFn(rejectTask);
+  return useCanonicalTaskMutation(fn, "devmanager.tasks.rejected_success");
+}
+
+export function useMarkCanonicalTaskPaid() {
+  const fn = useServerFn(markPaid);
+  return useCanonicalTaskMutation(fn, "devmanager.tasks.paid_success");
+}
 
 export function useDeliveryOverview() {
   const fetchOverview = useServerFn(getDeliveryOverview);

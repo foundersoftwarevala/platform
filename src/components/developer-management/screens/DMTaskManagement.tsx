@@ -1,244 +1,335 @@
-/**
- * TASK MANAGEMENT (CORE)
- * New • Assigned • In Progress • Blocked • Completed
- */
+import React, { useEffect, useState } from "react";
+import {
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  ListTodo,
+  Pause,
+  RefreshCw,
+  RotateCcw,
+  UserPlus,
+  XCircle,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  useCancelCanonicalTask,
+  useCreateCanonicalTask,
+  useCanonicalTaskAssignees,
+  useCanonicalTasks,
+  useReopenCanonicalTask,
+} from "@/hooks/useDevManagerData";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import { useDMPrompt } from "../DMPromptDialog";
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ListTodo, UserPlus, RefreshCw, Pause, AlertTriangle, CheckCircle } from 'lucide-react';
-import { toast } from 'sonner';
-import { useAllDeveloperTasks, useDeliveryOverview, useEscalateTask, useReassignTask } from '@/hooks/useDevManagerData';
-import { taskCode } from '@/lib/dev-manager.types';
-import { useTranslation, type Translate } from '@/lib/i18n/use-translation';
-import { useDMPrompt } from '../DMPromptDialog';
+type TaskFilter = "all" | "assigned" | "in_progress" | "submitted" | "rejected" | "verified" | "paid" | "cancelled";
 
-// Due and completion dates are stored as UTC timestamps; the day shown is the
-// UTC day, as it was when the date was cut from the timestamp.
-const DAY: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeZone: 'UTC' };
-
-const getPriorityBadge = (priority: string, t: Translate) => {
-  switch (priority) {
-    case 'critical': return <Badge variant="destructive">{t('devmanager.level.critical')}</Badge>;
-    case 'high': return <Badge className="bg-red-500/20 text-red-500">{t('devmanager.level.high')}</Badge>;
-    case 'medium': return <Badge className="bg-amber-500/20 text-amber-500">{t('devmanager.level.medium')}</Badge>;
-    case 'low': return <Badge variant="secondary">{t('devmanager.level.low')}</Badge>;
-    default: return <Badge>{priority}</Badge>;
-  }
+const statusTone: Record<string, string> = {
+  assigned: "bg-cyan-500/20 text-cyan-500",
+  in_progress: "bg-green-500/20 text-green-500",
+  submitted: "bg-amber-500/20 text-amber-500",
+  rejected: "bg-red-500/20 text-red-500",
+  verified: "bg-emerald-500/20 text-emerald-500",
+  paid: "bg-blue-500/20 text-blue-500",
+  cancelled: "bg-muted text-muted-foreground",
 };
 
-const getStatusBadge = (status: string, t: Translate) => {
-  switch (status) {
-    case 'new': return <Badge className="bg-blue-500/20 text-blue-500">{t('devmanager.status.new')}</Badge>;
-    case 'assigned': return <Badge className="bg-cyan-500/20 text-cyan-500">{t('devmanager.status.assigned')}</Badge>;
-    case 'in_progress': return <Badge className="bg-green-500/20 text-green-500">{t('devmanager.status.in_progress')}</Badge>;
-    case 'blocked': return <Badge className="bg-red-500/20 text-red-500">{t('devmanager.status.blocked')}</Badge>;
-    case 'completed': return <Badge variant="secondary">{t('devmanager.status.completed')}</Badge>;
-    default: return <Badge>{status}</Badge>;
-  }
+const paymentTone: Record<string, string> = {
+  pending: "bg-muted text-muted-foreground",
+  verified: "bg-amber-500/20 text-amber-500",
+  due: "bg-red-500/20 text-red-500",
+  paid: "bg-emerald-500/20 text-emerald-500",
 };
 
-/**
- * Developer tasks, from the delivery overview (developer_tasks).
- *
- * The five tasks here were typed in, and every button only showed a message.
- * Assign and reassign now move the task to the developer chosen, and escalate
- * records an escalation - both audited by the Dev Manager's server functions.
- * Pausing and closing belong to the developer's own workflow, so those say so.
- */
-export const DMTaskManagement: React.FC = () => {
+export const DMTaskManagement: React.FC<{ focusTaskId?: string | null }> = ({ focusTaskId }) => {
   const { t, formatDate } = useTranslation();
   const prompt = useDMPrompt();
-  const [activeTab, setActiveTab] = useState('all');
-  const overview = useDeliveryOverview();
-  const reassign = useReassignTask();
-  const escalate = useEscalateTask();
-  const developers = overview.data?.developers ?? [];
-  const tasks = (overview.data?.tasks ?? []).map((t) => ({
-    id: t.code,
-    uuid: t.id,
-    project: t.title,
-    module: t.promiseIds.length > 0 ? 'promise' : '',
-    priority: t.priority,
-    deadline: t.dueDate ? formatDate(t.dueDate, DAY) : '—',
-    dependency: 'None',
-    status: t.status === 'pending' ? (t.developerId ? 'assigned' : 'new') : t.status === 'review' ? 'in_progress' : t.status,
-    assignee: t.developerId ? t.assignedTo : null,
-    assigneeId: t.developerId,
-  }));
+  const [activeTab, setActiveTab] = useState<TaskFilter>("all");
+  const [developerId, setDeveloperId] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const tasks = useCanonicalTasks();
+  const assignees = useCanonicalTaskAssignees();
+  const create = useCreateCanonicalTask();
+  const cancel = useCancelCanonicalTask();
+  const reopen = useReopenCanonicalTask();
+  const taskRows = tasks.data ?? [];
+  const assignableDevelopers = assignees.data ?? [];
 
-  // The current assignee is matched by id: the row shows their Vala ID, not
-  // their name, so comparing names never left them out of the choices.
-  // The delivery overview holds open work only; completed tasks come from the
-  // full task list, so the Completed tab shows real finished work.
-  const allTasks = useAllDeveloperTasks();
-  const valaIdOf = new Map(developers.map((d) => [d.id, d.valaId]));
-  const completedTasks = (allTasks.data ?? [])
-    .filter((t) => t.status === 'completed' || t.status === 'delivered')
-    .map((t) => ({
-      id: taskCode(t.id),
-      uuid: t.id,
-      project: t.title,
-      module: '',
-      priority: t.priority,
-      deadline: t.completedAt ? formatDate(t.completedAt, DAY) : '—',
-      dependency: 'None',
-      status: 'completed',
-      assignee: t.developerId ? (valaIdOf.get(t.developerId) ?? null) : null,
-      assigneeId: t.developerId,
-    }));
+  // PHASE4-WIRED: focus notifications on the exact canonical task in this list.
+  useEffect(() => {
+    if (!focusTaskId || tasks.isLoading) return;
+    if (activeTab !== "all") {
+      setActiveTab("all");
+      return;
+    }
+    document.getElementById(`manager-task-${focusTaskId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [activeTab, focusTaskId, tasks.isLoading]);
 
-  const moveTask = async (taskId: string, currentId: string | null) => {
-    const choices = developers.filter((d) => d.id !== currentId);
-    if (!choices.length) { toast.error(t('devmanager.tasks.no_other_developer')); return; }
+  const visibleTasks = taskRows.filter((task) => activeTab === "all" || task.status === activeTab);
+
+  const cancelTask = async (taskId: string, pause = false) => {
     const answer = await prompt.ask({
-      title: t('devmanager.tasks.assign_prompt'),
-      choiceLabel: t('devmanager.prompt.developer'),
-      choices: choices.map((d) => ({
-        value: d.id,
-        label: t('devmanager.prompt.developer_option', { name: d.fullName, count: d.activeTasks }),
-      })),
-      reasonLabel: t('devmanager.tasks.move_reason'),
-      minLength: 5,
-      confirmLabel: t('devmanager.common.assign'),
+      title: pause ? t("devmanager.tasks.pause") : t("devmanager.tasks.close"),
+      reasonLabel: t("devmanager.prompt.reason"),
+      minLength: 1,
+      confirmLabel: t("devmanager.tasks.close"),
     });
-    if (!answer) return;
-    const developer = choices.find((d) => d.id === answer.choice);
-    if (!developer) return;
-    const reason = answer.reason?.trim();
-    if (!reason || reason.length < 5) { toast.error(t('devmanager.prompt.reason_too_short')); return; }
-    reassign.mutate({ taskId, newDeveloperId: developer.id, reason });
-  };
-  const escalateTask = async (taskId: string) => {
-    const answer = await prompt.ask({
-      title: t('devmanager.common.escalate_prompt'),
-      reasonLabel: t('devmanager.prompt.reason'),
-      minLength: 5,
-      confirmLabel: t('devmanager.common.escalate'),
-    });
-    if (!answer) return;
-    const reason = answer.reason?.trim();
-    if (!reason || reason.length < 5) { toast.error(t('devmanager.prompt.reason_too_short')); return; }
-    escalate.mutate({ taskId, reason });
+    if (answer?.reason?.trim()) cancel.mutate({ taskId, reason: answer.reason.trim() });
   };
 
-  const filteredTasks = activeTab === 'completed'
-    ? completedTasks
-    : tasks.filter(task => activeTab === 'all' || task.status === activeTab);
-  const listLoading = activeTab === 'completed' ? allTasks.isLoading : overview.isLoading;
-  const listError = activeTab === 'completed' ? allTasks.error : overview.error;
+  const createAssignedTask = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const selectedDeveloper = assignableDevelopers.find((developer) => developer.userId === developerId);
+    if (!selectedDeveloper || !title.trim()) return;
+    const deadlineAt = deadline ? new Date(deadline).toISOString() : null;
+    try {
+      await create.mutateAsync({
+        developerId: selectedDeveloper.userId,
+        title: title.trim(),
+        desc: description.trim() || null,
+        deadlineAt,
+      });
+      setTitle("");
+      setDescription("");
+      setDeadline("");
+    } catch {
+      // The mutation hook reports the server error to the operator.
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">{t('devmanager.tasks.title')}</h1>
-        <p className="text-muted-foreground">{t('devmanager.tasks.subtitle')}</p>
+        <h1 className="text-2xl font-bold">{t("devmanager.tasks.title")}</h1>
+        <p className="text-muted-foreground">{t("devmanager.tasks.subtitle")}</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <UserPlus className="h-5 w-5" />
+            {t("devmanager.tasks.create_title")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="grid gap-3 md:grid-cols-2" onSubmit={(event) => void createAssignedTask(event)}>
+            <label className="space-y-1 text-sm">
+              <span>{t("devmanager.tasks.create_assignee")}</span>
+              <select
+                required
+                value={developerId}
+                onChange={(event) => setDeveloperId(event.target.value)}
+                disabled={assignees.isLoading || assignableDevelopers.length === 0}
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+              >
+                <option value="">
+                  {assignees.isLoading
+                    ? t("devmanager.tasks.developers_loading")
+                    : t("devmanager.tasks.select_developer")}
+                </option>
+                {assignableDevelopers.map((developer) => (
+                  <option key={developer.userId} value={developer.userId}>
+                    {developer.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>{t("devmanager.tasks.create_deadline")}</span>
+              <input
+                type="datetime-local"
+                value={deadline}
+                onChange={(event) => setDeadline(event.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+              />
+            </label>
+            <label className="space-y-1 text-sm md:col-span-2">
+              <span>{t("devmanager.tasks.create_task_name")}</span>
+              <input
+                required
+                maxLength={500}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+              />
+            </label>
+            <label className="space-y-1 text-sm md:col-span-2">
+              <span>{t("devmanager.tasks.create_description")}</span>
+              <textarea
+                rows={3}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2"
+              />
+            </label>
+            {assignees.error && (
+              <p role="alert" className="text-sm text-destructive md:col-span-2">
+                {t("devmanager.tasks.load_error", { error: assignees.error.message })}
+              </p>
+            )}
+            {!assignees.isLoading && !assignees.error && assignableDevelopers.length === 0 && (
+              <p role="status" className="text-sm text-muted-foreground md:col-span-2">
+                {t("devmanager.tasks.no_assignable_developers")}
+              </p>
+            )}
+            <div className="md:col-span-2">
+              <Button type="submit" disabled={create.isPending || !developerId}>
+                {t("devmanager.tasks.create_action")}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TaskFilter)}>
         <TabsList className="h-auto flex-wrap">
-          <TabsTrigger value="all">{t('devmanager.common.all')}</TabsTrigger>
-          <TabsTrigger value="new">{t('devmanager.status.new')}</TabsTrigger>
-          <TabsTrigger value="assigned">{t('devmanager.status.assigned')}</TabsTrigger>
-          <TabsTrigger value="in_progress">{t('devmanager.status.in_progress')}</TabsTrigger>
-          <TabsTrigger value="blocked">{t('devmanager.status.blocked')}</TabsTrigger>
-          <TabsTrigger value="completed">{t('devmanager.status.completed')}</TabsTrigger>
+          <TabsTrigger value="all">{t("devmanager.common.all")}</TabsTrigger>
+          <TabsTrigger value="assigned">{t("devmanager.status.assigned")}</TabsTrigger>
+          <TabsTrigger value="in_progress">{t("devmanager.status.in_progress")}</TabsTrigger>
+          <TabsTrigger value="submitted">{t("devmanager.review.tab_pending")}</TabsTrigger>
+          <TabsTrigger value="rejected">{t("devmanager.review.qa_failed")}</TabsTrigger>
+          <TabsTrigger value="verified">{t("devmanager.review.qa_passed")}</TabsTrigger>
+          <TabsTrigger value="paid">{t("devmanager.payment.paid")}</TabsTrigger>
+          <TabsTrigger value="cancelled">{t("devmanager.tasks.close")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <ListTodo className="h-5 w-5" />
-                {t('devmanager.tasks.task_list')}
+                {t("devmanager.tasks.task_list")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {(listLoading || listError || filteredTasks.length === 0) && (
+                {(tasks.isLoading || tasks.error || visibleTasks.length === 0) && (
                   <p
                     className="text-sm text-muted-foreground"
-                    role={!listLoading && listError ? 'alert' : 'status'}
-                    aria-live={!listLoading && listError ? undefined : 'polite'}
-                    aria-busy={listLoading || undefined}
+                    role={tasks.error ? "alert" : "status"}
+                    aria-live={tasks.error ? undefined : "polite"}
+                    aria-busy={tasks.isLoading || undefined}
                   >
-                    {listLoading
-                      ? t('devmanager.tasks.loading')
-                      : listError
-                        ? t('devmanager.tasks.load_error', { error: (listError as Error).message })
-                        : t('devmanager.tasks.empty')}
+                    {tasks.isLoading
+                      ? t("devmanager.tasks.loading")
+                      : tasks.error
+                        ? t("devmanager.tasks.load_error", { error: tasks.error.message })
+                        : t("devmanager.tasks.empty")}
                   </p>
                 )}
-                {filteredTasks.map((task) => (
+                {visibleTasks.map((task) => (
                   <div
+                    id={`manager-task-${task.id}`}
                     key={task.id}
-                    className={`p-4 rounded-lg border ${task.status === 'blocked' ? 'bg-red-500/5 border-red-500/30' : 'bg-muted/30'}`}
+                    className="rounded-lg border bg-muted/30 p-4"
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono font-medium">{task.id}</span>
-                          {getStatusBadge(task.status, t)}
-                          {getPriorityBadge(task.priority, t)}
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-medium">{task.id.slice(0, 8).toUpperCase()}</span>
+                          <Badge className={statusTone[task.status] ?? ""}>{task.status.replace(/_/g, " ")}</Badge>
+                          <Badge className={paymentTone[task.paymentStatus] ?? ""}>
+                            {t("devmanager.payment.payment_status", { status: task.paymentStatus })}
+                          </Badge>
                         </div>
+                        <h2 className="font-semibold">{task.title}</h2>
                         <p className="text-sm text-muted-foreground">
-                          {task.module
-                            ? t('devmanager.tasks.line_module', {
-                                project: task.project,
-                                module: t('devmanager.tasks.module_promise'),
-                                kind: task.status === 'completed' ? 'completed' : 'deadline',
-                                date: task.deadline,
-                              })
-                            : t('devmanager.tasks.line', {
-                                project: task.project,
-                                kind: task.status === 'completed' ? 'completed' : 'deadline',
-                                date: task.deadline,
-                              })}
+                          {t("devmanager.tasks.assignee")}: {task.developerLabel}
                         </p>
-                        {task.dependency !== 'None' && (
-                          <p className="text-xs text-muted-foreground">{t('devmanager.tasks.depends_on', { dependency: task.dependency })}</p>
-                        )}
                       </div>
-                      <div className="text-right">
-                        {task.assignee ? (
-                          <span className="font-mono text-sm">{task.assignee}</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">{t('devmanager.tasks.unassigned')}</span>
-                        )}
-                      </div>
+                      {task.priority && <Badge variant="outline">{task.priority}</Badge>}
                     </div>
 
-                    {task.status !== 'completed' && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button size="sm" variant="outline" disabled={reassign.isPending} onClick={() => void moveTask(task.uuid, task.assigneeId)}>
-                        <UserPlus className="h-4 w-4 mr-1" />
-                        {t('devmanager.common.assign')}
-                      </Button>
-                      <Button size="sm" variant="outline" disabled={reassign.isPending || !task.assignee} onClick={() => void moveTask(task.uuid, task.assigneeId)}>
-                        <RefreshCw className="h-4 w-4 mr-1" />
-                        {t('devmanager.tasks.reassign')}
-                      </Button>
-                      {/* AUDIT-FIX: Disable task actions that have no server mutation. */}
-                      <span title={t('devmanager.common.not_implemented')}>
-                        <Button size="sm" variant="outline" disabled>
-                          <Pause className="h-4 w-4 mr-1" />
-                          {t('devmanager.tasks.pause')}
-                        </Button>
+                    <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        {t("devmanager.tasks.deadline")}: {task.deadlineAt ? formatDate(task.deadlineAt) : "—"}
                       </span>
-                      <Button size="sm" variant="outline" disabled={escalate.isPending} onClick={() => void escalateTask(task.uuid)}>
-                        <AlertTriangle className="h-4 w-4 mr-1" />
-                        {t('devmanager.common.escalate')}
-                      </Button>
-                      <span title={t('devmanager.common.not_implemented')}>
-                        <Button size="sm" variant="outline" disabled>
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          {t('devmanager.tasks.close')}
-                        </Button>
-                      </span>
+                      <span>{t("devmanager.payment.due_at")}: {task.dueAt ? formatDate(task.dueAt) : "—"}</span>
+                      <span>{t("devmanager.payment.verified_at")}: {task.verifiedAt ? formatDate(task.verifiedAt) : "—"}</span>
+                      <span>{t("devmanager.payment.paid_at")}: {task.paidAt ? formatDate(task.paidAt) : "—"}</span>
                     </div>
+                    {task.submissionNotes && (
+                      <p className="mt-3 whitespace-pre-wrap text-sm">{task.submissionNotes}</p>
                     )}
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(task.status === "assigned" || task.status === "in_progress") && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={cancel.isPending}
+                          onClick={() => void cancelTask(task.id)}
+                        >
+                          <XCircle className="mr-1 h-4 w-4" />
+                          {t("devmanager.tasks.close")}
+                        </Button>
+                      )}
+                      {task.status === "in_progress" && (
+                        <span title={t("devmanager.tasks.pause_notice")}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={cancel.isPending}
+                            onClick={() => void cancelTask(task.id, true)}
+                          >
+                            <Pause className="mr-1 h-4 w-4" />
+                            {t("devmanager.tasks.pause")}
+                          </Button>
+                        </span>
+                      )}
+                      {task.status === "rejected" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={reopen.isPending}
+                          onClick={() => reopen.mutate({ taskId: task.id })}
+                        >
+                          <RotateCcw className="mr-1 h-4 w-4" />
+                          {t("devmanager.tasks.reopen")}
+                        </Button>
+                      )}
+                      {task.status !== "paid" && task.status !== "cancelled" && (
+                        <>
+                          <span title={t("devmanager.tasks.canonical_action_unavailable")}>
+                            <Button size="sm" variant="outline" disabled>
+                              <RefreshCw className="mr-1 h-4 w-4" />
+                              {t("devmanager.tasks.reassign")}
+                            </Button>
+                          </span>
+                          <span title={t("devmanager.tasks.canonical_action_unavailable")}>
+                            <Button size="sm" variant="outline" disabled>
+                              <AlertTriangle className="mr-1 h-4 w-4" />
+                              {t("devmanager.common.escalate")}
+                            </Button>
+                          </span>
+                        </>
+                      )}
+                      {task.status === "verified" && (
+                        <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <CheckCircle className="h-4 w-4" />
+                          {task.dueAt
+                            ? t("devmanager.payment.payment_due_date", { date: formatDate(task.dueAt) })
+                            : t("devmanager.payment.payment_status", { status: task.paymentStatus })}
+                        </p>
+                      )}
+                      {task.status === "paid" && (
+                        <p className="flex items-center gap-1 text-sm text-emerald-600">
+                          <CheckCircle className="h-4 w-4" />
+                          {t("devmanager.payment.paid_at")}: {task.paidAt ? formatDate(task.paidAt) : "—"}
+                        </p>
+                      )}
+                      {task.status === "submitted" && (
+                        <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <AlertTriangle className="h-4 w-4" />
+                          {t("devmanager.review.tab_pending")}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

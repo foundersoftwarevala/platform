@@ -59,6 +59,24 @@ export const getDeliveryOverview = createServerFn({ method: "GET" }).handler(
   },
 );
 
+// PHASE4-WIRED: the task-management screens now receive canonical task rows.
+export const getCanonicalTasks = createServerFn({ method: "GET" }).handler(
+  async (): Promise<import("./tasks/types").CanonicalTaskDTO[]> => {
+    const callerId = await requireDevManager();
+    const { loadCanonicalTasks } = await import("./dev-manager.server");
+    return loadCanonicalTasks(callerId);
+  },
+);
+
+// PHASE4-WIRED: assignment options are loaded from the canonical task database.
+export const getCanonicalTaskAssignees = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ userId: string; label: string }[]> => {
+    const callerId = await requireDevManager();
+    const { loadCanonicalTaskAssignees } = await import("./dev-manager.server");
+    return loadCanonicalTaskAssignees(callerId);
+  },
+);
+
 export const reassignTask = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
@@ -163,10 +181,10 @@ export const getAuditTrail = createServerFn({ method: "GET" })
 
 export const getDeveloperRegistry = createServerFn({ method: "GET" }).handler(
   async (): Promise<RegistryDeveloperDTO[]> => {
-    await requireDevManager();
+    const callerId = await requireDevManager();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { loadDeveloperRegistry } = await import("./dev-manager.server");
-    return loadDeveloperRegistry(supabaseAdmin);
+    return loadDeveloperRegistry(supabaseAdmin, callerId);
   },
 );
 
