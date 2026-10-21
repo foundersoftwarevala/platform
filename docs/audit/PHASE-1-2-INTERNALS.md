@@ -51,7 +51,7 @@ This diagnostic is outside the Phase 1/2 files changed here.
 Command:
 
 ```powershell
-$files = git diff --name-only HEAD~3..HEAD -- '*.ts' '*.tsx'
+$files = git diff --name-only e72394f^..f5512bb -- '*.ts' '*.tsx'
 npx.cmd eslint $files --rule 'prettier/prettier: off'
 ```
 
