@@ -663,7 +663,7 @@ export function AuthorProductsWorkspace({
             </div>
           </details>
 
-          {editing && editableStates.has(editing.moderation_status) && (
+          {editing && getAuthorProductActions(editing.moderation_status).canEdit && (
             <ProductFiles productId={editing.id} />
           )}
 
