@@ -127,4 +127,44 @@ describe("Marketplace Media Library", () => {
       ),
     );
   });
+
+  it("offers a retry after a library load failure and then shows the empty state", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: "Media endpoint unavailable" }, 502))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...mediaResponse,
+          total: 0,
+          matched: 0,
+          assets: [],
+          permissions: { ...mediaResponse.permissions, export: false },
+        }),
+      );
+    render(<MediaLibrary />);
+
+    expect(await screen.findByText("Media endpoint unavailable")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Nothing matches that.")).toBeTruthy();
+  });
+
+  it("shows export network failures and leaves Export available to retry", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...mediaResponse,
+          permissions: { ...mediaResponse.permissions, export: true },
+        }),
+      )
+      .mockRejectedValueOnce(new Error("Network unavailable"));
+    render(<MediaLibrary />);
+
+    const exportButton = await screen.findByRole("button", { name: "Export" });
+    fireEvent.click(exportButton);
+
+    expect(await screen.findByText("Export failed: Network unavailable")).toBeTruthy();
+    expect(exportButton.hasAttribute("disabled")).toBe(false);
+  });
 });

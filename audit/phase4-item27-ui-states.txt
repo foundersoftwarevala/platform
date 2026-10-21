@@ -1,0 +1,34 @@
+Item 27 | PARTIALLY FIXED
+
+Scope: loading, empty, error, retry, and mutation states in the Author
+Products workspace and the Marketplace Media / Product Media screens touched
+in this local-only task.
+
+Change:
+- Media loading failures remain visible with a retry action; successful empty
+  results have an explicit empty state.
+- Signed image preview shows loading, errors, and retry after signing or image
+  load failures.
+- CSV export network errors now produce a visible message; the Export control
+  is re-enabled so the operator can retry.
+- Author product/file views retain their existing loading, empty, API error,
+  retry, upload-pending, and download-pending states.
+- No upload UI is offered by the Marketplace Media Library because its API
+  advertises upload unavailable; see `phase4-item2-media-upload.txt`.
+
+Validation:
+- `npm.cmd exec vitest -- run src/components/dashboard/AuthorProductsWorkspace.test.tsx src/routes/api/author/-product-files.test.ts src/components/marketplace-manager/sections/MediaLibrary.test.tsx src/lib/marketplace/__tests__/author-product-form.test.ts src/lib/marketplace/__tests__/author-product-lifecycle.test.ts --reporter=dot`
+  — 29 tests passed across 5 files.
+- Scoped ESLint with the repository's existing Prettier rule disabled — passed.
+- Prettier check for the new media tests — passed.
+- `npm.cmd run build` — passed (`BUILD_EXIT=0`, Vite build completed).
+- `git diff --check` — passed.
+
+Limitations:
+- This verifies local UI and mocked/fixture API contracts only. It does not
+  verify production sessions, live storage, or browser accessibility across
+  every role.
+- Other dashboard modules not touched by this work were not audited for
+  loading/error/retry state.
+
+Live acceptance: BLOCKED — no SSH access, pending key registration.

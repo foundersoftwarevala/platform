@@ -196,6 +196,7 @@ export function MediaLibrary() {
 
   const exportCsv = useCallback(async () => {
     setBusy("export");
+    setNote(null);
     try {
       const response = await fetch("/api/marketplace/media?format=csv", { headers: await authHeaders() });
       if (!response.ok) {
@@ -212,6 +213,8 @@ export function MediaLibrary() {
       link.remove();
       URL.revokeObjectURL(href);
       setNote("Media metadata exported. No storage credential or signed link is included.");
+    } catch (cause) {
+      setNote(cause instanceof Error ? `Export failed: ${cause.message}` : "Media metadata could not be exported.");
     } finally {
       setBusy(null);
     }
