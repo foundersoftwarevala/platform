@@ -116,7 +116,8 @@ export const MODULE_SOURCES: Record<string, Record<string, ModuleSource>> = {
     timer: route("/task-manager", "Task Manager"),
     ai: aiChat,
     performance: route("/dev-manager", "Dev Manager"),
-    wallet: none("No developer wallet exists on the platform yet."),
+    // PHASE5-WALLET: the developer dashboard renders its audited wallet screen.
+    wallet: plain(),
     chat: route("/chat", "Connect Chat"),
     settings: none("There is no account settings screen for developers yet."),
   },
