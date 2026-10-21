@@ -40,7 +40,7 @@ BEGIN
         required_column.name;
     END IF;
   END LOOP;
-END
+END;
 $preflight$;
 
 ALTER TABLE public.audit_logs
@@ -93,7 +93,7 @@ BEGIN
     RAISE EXCEPTION 'public.audit_logs.actor_id contains % values not present in auth.users',
       invalid_actor_count;
   END IF;
-END
+END;
 $actor_fk_preflight$;
 
 DO $actor_fk$
@@ -125,7 +125,7 @@ BEGIN
       FOREIGN KEY (actor_id) REFERENCES auth.users(id)
       ON DELETE SET NULL;
   END IF;
-END
+END;
 $actor_fk$;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
