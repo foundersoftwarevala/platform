@@ -39,6 +39,18 @@ export const CHAT_MESSAGES = {
   "chat.header.my_profile": "My profile",
   "chat.sign_out": "Sign out",
 
+  // Required chat consent
+  "chat.consent.title": "Consent to use chat",
+  "chat.consent.description":
+    "Chat cannot be opened until you explicitly agree to the following data use.",
+  "chat.consent.storage": "I consent to message storage in the platform database.",
+  "chat.consent.ai_review": "I consent to AI review of chat messages when AI is enabled.",
+  "chat.consent.accept": "I consent and continue",
+  "chat.consent.leave": "Not now",
+  "chat.consent.load_error": "Consent status could not be checked.",
+  "chat.consent.save_error": "Your consent could not be saved.",
+  "chat.consent.retry": "Try again",
+
   // Workspace notifications
   "chat.handoff_escalated": "Moved to a human agent — Sales & Support has been notified.",
   "chat.handoff_requested": "Sales & Support has been notified.",
@@ -137,6 +149,8 @@ export const CHAT_MESSAGES = {
   "chat.composer.attachment": ["Attachment", "shown for a replied-to message that has only files"],
   "chat.composer.cancel_reply": "Cancel reply",
   "chat.composer.upload_ready": ["ready", "status of a file that finished uploading"],
+  "chat.composer.file_checked": "File type allowed by chat policy",
+  "chat.composer.file_rejected": "{name} was blocked by chat file policy.",
   "chat.composer.remove_file": "Remove {name}",
   "chat.composer.mention": "Mention a participant",
   "chat.composer.attach_files": "Attach files",

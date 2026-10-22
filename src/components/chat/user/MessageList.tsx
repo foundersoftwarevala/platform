@@ -29,7 +29,6 @@ interface MessageListProps {
   pending: PendingMessage[];
   userId: string;
   profilesById: Map<string, Profile>;
-  typingUsers: string[];
   connection: ConnectionState;
   canReact: boolean;
   canReply: boolean;
@@ -155,7 +154,6 @@ export function MessageList(props: MessageListProps) {
     pending,
     userId,
     profilesById,
-    typingUsers,
     connection,
     canReact,
     canReply,
@@ -230,7 +228,7 @@ export function MessageList(props: MessageListProps) {
   useEffect(() => {
     const el = scrollRef.current;
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
-  }, [all.length, typingUsers.length]);
+  }, [all.length]);
 
   useEffect(() => {
     if (!highlightId) return;
@@ -730,19 +728,6 @@ export function MessageList(props: MessageListProps) {
         ),
       )}
 
-      {typingUsers.length > 0 ? (
-        <div
-          className="flex items-center gap-2 pl-9 pt-1 text-xs text-muted-foreground"
-          role="status"
-        >
-          <span className="flex gap-1">
-            <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:0ms]" />
-            <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:150ms]" />
-            <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:300ms]" />
-          </span>
-          {t("chat.messages.typing", { names: typingUsers.join(", "), count: typingUsers.length })}
-        </div>
-      ) : null}
     </div>
   );
 }

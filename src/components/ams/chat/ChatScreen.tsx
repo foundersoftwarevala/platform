@@ -3,15 +3,25 @@ import {
   MessageSquare, Search, Send, Paperclip, Smile, Mic, Phone, Video,
   MoreVertical, Shield, CheckCheck, Globe, Sparkles, Inbox, Users,
   Hash, Star, Pin, Archive, Bell, Plus, X, ChevronRight, IdCard,
-  Languages, Bot, Filter, Settings2, Lock, ChevronLeft,
+  Languages, Filter, Settings2, Lock, ChevronLeft,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useDialogA11y } from "@/hooks/use-dialog-a11y";
 import { playSound } from "@/lib/ams/ui-sound";
 import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import { cn } from "@/lib/utils";
-
+import { useTranslation } from "@/lib/i18n/use-translation";
+import { ChatConsentDialog } from "@/components/chat/user/ChatConsentDialog";
+import {
+  createConversation as createChatConversation,
+  fetchConversations as fetchChatConversations,
+  fetchMessages as fetchChatMessages,
+  fetchMyChatConsent,
+  insertMessage as insertChatMessage,
+  saveMyChatConsent,
+} from "@/services/chat/chat-service";
+import type { ChatConsentState } from "@/lib/chat/consent.server";
+import type { ChatMessage, ChatMessageCursor } from "@/services/chat/types";
 import { notBuilt } from "@/lib/ui/not-built";
 
 /*
@@ -31,34 +41,6 @@ type Conversation = {
   updated_at: string;
   member: boolean;
 };
-type ConversationRowData = {
-  id: string;
-  subject: string;
-  kind: string;
-  last_message_at: string;
-  conversation_participants: { user_id: string; role_label: string | null }[] | null;
-};
-const MESSAGE_COLUMNS = "id,conversation_id,sender_id,body,created_at";
-const CONVERSATION_COLUMNS =
-  "id,subject,kind,last_message_at,conversation_participants(user_id,role_label)";
-
-function toConversation(row: ConversationRowData, userId: string): Conversation {
-  const members = row.conversation_participants ?? [];
-  return {
-    id: row.id,
-    title: row.subject,
-    module: row.kind,
-    allowed_roles: Array.from(
-      new Set(members.map((p) => p.role_label).filter((r): r is string => !!r)),
-    ),
-    updated_at: row.last_message_at,
-    member: members.some((p) => p.user_id === userId),
-  };
-}
-
-function toMessage(row: Omit<Message, "metadata">): Message {
-  return { ...row, metadata: {} };
-}
 type Message = {
   id: string;
   conversation_id: string;
@@ -68,6 +50,17 @@ type Message = {
   metadata: Record<string, unknown>;
 };
 
+function toChatScreenMessage(message: ChatMessage): Message {
+  return {
+    id: message.id,
+    conversation_id: message.conversation_id,
+    sender_id: message.sender_id,
+    body: message.body,
+    created_at: message.created_at,
+    metadata: {},
+  };
+}
+
 const ROLE_FILTERS = [
   "All", "user", "admin", "super_admin", "vendor", "reseller", "affiliate",
   "influencer", "creator", "author", "developer", "seo", "support", "franchise",
@@ -76,23 +69,30 @@ const ROLE_FILTERS = [
 const ALL_POST_ROLES = ROLE_FILTERS.slice(1);
 
 export function ChatScreen() {
+  const { t } = useTranslation();
   const [me, setMe] = useState<{ id: string; email: string | null } | null>(null);
   const [myRole, setMyRole] = useState<string>("user");
+  const [consent, setConsent] = useState<ChatConsentState | null>(null);
+  const [consentLoading, setConsentLoading] = useState(true);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<ConvId | null>(null);
   const [filter, setFilter] = useState("All");
   const [query, setQuery] = useState("");
   const [composer, setComposer] = useState("");
   const [messagesByConv, setMessagesByConv] = useState<Record<ConvId, Message[]>>({});
-  const [typingByConv, setTypingByConv] = useState<Record<ConvId, string[]>>({});
   const [showNew, setShowNew] = useState(false);
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messageCursor, setMessageCursor] = useState<ChatMessageCursor | null>(null);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const activeChannelRef = useRef<RealtimeChannel | null>(null);
-  const typingSentAtRef = useRef<number>(0);
+  const prependScrollHeight = useRef<number | null>(null);
+  const loadedOlderMessages = useRef(false);
+  const activeConversationIdRef = useRef<ConvId | null>(activeId);
+  activeConversationIdRef.current = activeId;
+  const hasConsent = consent?.messageStorage === true && consent.aiReview === true;
 
   // Bootstrap: current user + role
   useEffect(() => {
@@ -113,31 +113,55 @@ export function ChatScreen() {
     return () => { mounted = false; };
   }, []);
 
-  // Load conversations + subscribe to inbox-level realtime
-  const loadConversations = useCallback(async () => {
-    if (!me) return;
-    // The inbox is the conversations this person belongs to. A chat manager can
-    // read every conversation, so membership is resolved first rather than
-    // listing whatever row-level security happens to allow.
-    const { data: memberships, error: memberError } = await supabase
-      .from("conversation_participants")
-      .select("conversation_id")
-      .eq("user_id", me.id);
-    if (memberError) { setLoadingInbox(false); setError(memberError.message); return; }
-    const ids = (memberships ?? []).map((m) => m.conversation_id as string);
-    if (ids.length === 0) { setLoadingInbox(false); setConversations([]); return; }
-    const { data, error } = await supabase
-      .from("conversations")
-      .select(CONVERSATION_COLUMNS)
-      .in("id", ids)
-      .order("last_message_at", { ascending: false });
-    setLoadingInbox(false);
-    if (error) { setError(error.message); return; }
-    setConversations(((data ?? []) as unknown as ConversationRowData[]).map((row) => toConversation(row, me.id)));
-  }, [me]);
-
   useEffect(() => {
     if (!me) return;
+    let mounted = true;
+    setConsentLoading(true);
+    void fetchMyChatConsent()
+      .then((state) => {
+        if (mounted) setConsent(state);
+      })
+      .catch((reason: unknown) => {
+        if (mounted) {
+          setError(reason instanceof Error ? reason.message : t("chat.consent.load_error"));
+        }
+      })
+      .finally(() => {
+        if (mounted) setConsentLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [me, t]);
+
+  // Load conversations + subscribe to inbox-level realtime
+  const loadConversations = useCallback(async () => {
+    if (!me || !hasConsent) return;
+    try {
+      const rows = await fetchChatConversations(me.id);
+      setConversations(
+        rows.map((row) => ({
+          id: row.id,
+          title: row.subject,
+          module: row.kind,
+          allowed_roles: Array.from(
+            new Set(row.participants.map((participant) => participant.role_label).filter(
+              (role): role is string => Boolean(role),
+            )),
+          ),
+          updated_at: row.last_message_at,
+          member: row.membership !== null,
+        })),
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t("chat.manager.load_failed"));
+    } finally {
+      setLoadingInbox(false);
+    }
+  }, [hasConsent, me, t]);
+
+  useEffect(() => {
+    if (!me || !hasConsent) return;
     loadConversations();
     // Conversation, membership and message changes are announced on the
     // notification stream; a reconnect ("open") means something may have been
@@ -148,94 +172,101 @@ export function ChatScreen() {
       }
     });
     return () => { stop(); };
-  }, [me, loadConversations]);
+  }, [me, hasConsent, loadConversations]);
 
   // Load messages + subscribe to realtime for active conversation
   useEffect(() => {
-    if (!activeId || !me) return;
+    if (!activeId || !me || !hasConsent) return;
     let cancelled = false;
+    loadedOlderMessages.current = false;
+    prependScrollHeight.current = null;
+    setMessageCursor(null);
     setLoadingMessages(true);
 
     const loadMessages = async () => {
-      const { data, error } = await supabase
-        .from("messages")
-        .select(MESSAGE_COLUMNS)
-        .eq("conversation_id", activeId)
-        .order("created_at", { ascending: true });
-      if (cancelled) return;
-      setLoadingMessages(false);
-      if (error) { setError(error.message); return; }
-      const loaded = ((data ?? []) as Omit<Message, "metadata">[]).map(toMessage);
-      setMessagesByConv((prev) => {
-        // Keep any message still being sent from this tab.
-        const pending = (prev[activeId] ?? []).filter((m) => m.id.startsWith("tmp-"));
-        return { ...prev, [activeId]: [...loaded, ...pending] };
-      });
+      try {
+        const page = await fetchChatMessages(activeId, me.id, null);
+        if (cancelled) return;
+        const loaded = page.messages.map(toChatScreenMessage);
+        if (!loadedOlderMessages.current) setMessageCursor(page.nextCursor);
+        setMessagesByConv((prev) => {
+          const current = prev[activeId] ?? [];
+          const byId = new Map<string, Message>();
+          for (const message of [...loaded, ...current]) byId.set(message.id, message);
+          return {
+            ...prev,
+            [activeId]: [...byId.values()].sort(
+              (left, right) =>
+                left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id),
+            ),
+          };
+        });
+      } catch (reason) {
+        if (!cancelled) {
+          setError(reason instanceof Error ? reason.message : t("chat.manager.load_failed"));
+        }
+      } finally {
+        if (!cancelled) setLoadingMessages(false);
+      }
     };
     void loadMessages();
 
-    // A new message arrives as a chat.message event carrying its id; it is read
-    // back under the viewer's own permissions.
+    // The event carries identifiers only; reload the server-authorized page.
     const stopStream = subscribeNotificationStream((e) => {
       if (e.type === "open") { void loadMessages(); return; }
       if (e.type !== "notification" || e.event !== "chat.message") return;
-      if (e.conversation_id !== activeId || !e.id) return;
-      const messageId = e.id;
-      void (async () => {
-        const { data, error } = await supabase
-          .from("messages")
-          .select(MESSAGE_COLUMNS)
-          .eq("id", messageId)
-          .maybeSingle();
-        if (cancelled || error || !data) return;
-        const m = toMessage(data as Omit<Message, "metadata">);
-        setMessagesByConv((prev) => {
-          const list = prev[activeId] ?? [];
-          if (list.some((x) => x.id === m.id)) return prev;
-          if (m.sender_id !== me.id) playSound("message");
-          return { ...prev, [activeId]: [...list, m] };
-        });
-      })();
+      if (e.conversation_id !== activeId) return;
+      if (e.sender_id && e.sender_id !== me.id) playSound("message");
+      void loadMessages();
     });
-
-    const ch = supabase
-      .channel(`conv:${activeId}`)
-      .on("broadcast", { event: "typing" }, ({ payload }) => {
-        const { userId, label } = payload as { userId: string; label: string };
-        if (userId === me.id) return;
-        setTypingByConv((prev) => {
-          const list = prev[activeId] ?? [];
-          if (list.includes(label)) return prev;
-          return { ...prev, [activeId]: [...list, label] };
-        });
-        // clear after 3s of no signal
-        window.setTimeout(() => {
-          setTypingByConv((prev) => ({
-            ...prev,
-            [activeId]: (prev[activeId] ?? []).filter((x) => x !== label),
-          }));
-        }, 3000);
-      })
-      .subscribe();
-    activeChannelRef.current = ch;
 
     return () => {
       cancelled = true;
       stopStream();
-      supabase.removeChannel(ch);
-      activeChannelRef.current = null;
     };
-  }, [activeId, me]);
+  }, [activeId, hasConsent, me, t]);
 
   const active = useMemo(
     () => conversations.find((c) => c.id === activeId) || null,
     [conversations, activeId],
   );
   const messages = active ? messagesByConv[active.id] ?? [] : [];
-  const typing = active ? typingByConv[active.id] ?? [] : [];
 
-  // Posting is decided by the database: a member of the conversation may post,
-  // anyone else (including an admin who is not a member) may not.
+  async function loadEarlierMessages() {
+    if (!active || !me || !messageCursor || loadingEarlier) return;
+    const conversationId = active.id;
+    setLoadingEarlier(true);
+    try {
+      const page = await fetchChatMessages(conversationId, me.id, messageCursor);
+      if (activeConversationIdRef.current !== conversationId) return;
+      const older = page.messages.map(toChatScreenMessage);
+      if (older.length > 0 && scrollerRef.current) {
+        prependScrollHeight.current = scrollerRef.current.scrollHeight;
+      }
+      setMessagesByConv((prev) => {
+        const current = prev[active.id] ?? [];
+        const byId = new Map<string, Message>();
+        for (const message of [...older, ...current]) byId.set(message.id, message);
+        return {
+          ...prev,
+          [active.id]: [...byId.values()].sort(
+            (left, right) =>
+              left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id),
+          ),
+        };
+      });
+      loadedOlderMessages.current = true;
+      setMessageCursor(page.nextCursor);
+    } catch (reason) {
+      if (activeConversationIdRef.current === conversationId) {
+        setError(reason instanceof Error ? reason.message : t("chat.manager.load_failed"));
+      }
+    } finally {
+      if (activeConversationIdRef.current === conversationId) setLoadingEarlier(false);
+    }
+  }
+
+  // The server checks participation and permission before posting.
   const canPostHere = useMemo(() => {
     if (!active) return false;
     return active.member;
@@ -250,8 +281,14 @@ export function ChatScreen() {
   }, [conversations, filter, query]);
 
   useEffect(() => {
+    if (prependScrollHeight.current !== null && scrollerRef.current) {
+      scrollerRef.current.scrollTop +=
+        scrollerRef.current.scrollHeight - prependScrollHeight.current;
+      prependScrollHeight.current = null;
+      return;
+    }
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length, activeId, typing.length]);
+  }, [messages.length, activeId]);
 
   async function send() {
     const text = composer.trim();
@@ -268,53 +305,44 @@ export function ChatScreen() {
     };
     setMessagesByConv((prev) => ({ ...prev, [active.id]: [...(prev[active.id] ?? []), optimistic] }));
     setComposer("");
-    const { data, error } = await supabase
-      .from("messages")
-      .insert({ conversation_id: active.id, sender_id: me.id, body: text, kind: "text" })
-      .select(MESSAGE_COLUMNS)
-      .single();
-    setSending(false);
-    if (error) {
+    try {
+      const saved = await insertChatMessage({
+        conversationId: active.id,
+        senderId: me.id,
+        body: text,
+        clientRef: crypto.randomUUID(),
+      });
+      setSending(false);
+      playSound("save");
+      const savedMessage: Message = { ...saved, metadata: {} };
+      setMessagesByConv((prev) => {
+        const list = prev[active.id] ?? [];
+        // The live stream may already have delivered the saved message.
+        return {
+          ...prev,
+          [active.id]: list.some((message) => message.id === savedMessage.id)
+            ? list.filter((message) => message.id !== optimistic.id)
+            : list.map((message) => (message.id === optimistic.id ? savedMessage : message)),
+        };
+      });
+    } catch (reason) {
+      setSending(false);
       setMessagesByConv((prev) => ({
         ...prev,
         [active.id]: (prev[active.id] ?? []).filter((m) => m.id !== optimistic.id),
       }));
-      setError(error.message.includes("row-level security")
-        ? "You do not have permission to post in this channel."
-        : error.message);
+      setError(reason instanceof Error ? reason.message : "Message could not be sent.");
       setComposer(text);
       playSound("error");
-      return;
     }
-    playSound("save");
-    const saved = toMessage(data as Omit<Message, "metadata">);
-    setMessagesByConv((prev) => {
-      const list = prev[active.id] ?? [];
-      // The live stream may already have delivered the saved message.
-      return {
-        ...prev,
-        [active.id]: list.some((m) => m.id === saved.id)
-          ? list.filter((m) => m.id !== optimistic.id)
-          : list.map((m) => (m.id === optimistic.id ? saved : m)),
-      };
-    });
   }
 
   function handleComposerChange(v: string) {
     setComposer(v);
-    if (!active || !me || !activeChannelRef.current) return;
-    const now = Date.now();
-    if (now - typingSentAtRef.current < 1500) return;
-    typingSentAtRef.current = now;
-    activeChannelRef.current.send({
-      type: "broadcast",
-      event: "typing",
-      payload: { userId: me.id, label: me.email ?? "Someone" },
-    });
   }
 
   async function startConversation(title: string, allowedRoles: string[]) {
-    if (!me) return;
+    if (!me || !hasConsent) return;
     setShowNew(false);
     setError(null);
     // A channel is a platform conversation in the AMS department; its creator
@@ -322,28 +350,39 @@ export function ChatScreen() {
     // roles picked in the dialog cannot be stored: who may post is decided by
     // membership.
     void allowedRoles;
-    const { data: conv, error: convErr } = await supabase
-      .from("conversations")
-      .insert({ subject: title, kind: "channel", created_by: me.id })
-      .select("id,subject,kind,last_message_at")
-      .single();
-    if (convErr || !conv) { setError(convErr?.message ?? "Failed to create channel"); return; }
-    const { error: partErr } = await supabase
-      .from("conversation_participants")
-      .insert({ conversation_id: conv.id, user_id: me.id, role_label: myRole });
-    if (partErr) { setError(partErr.message); return; }
-    const created = toConversation(
-      { ...(conv as Omit<ConversationRowData, "conversation_participants">), conversation_participants: [{ user_id: me.id, role_label: myRole }] },
-      me.id,
-    );
-    setConversations((c) => [created, ...c.filter((x) => x.id !== created.id)]);
-    setActiveId(created.id);
+    try {
+      const id = await createChatConversation({
+        subject: title,
+        kind: "channel",
+        createdBy: me.id,
+        participantIds: [me.id],
+      });
+      const created: Conversation = {
+        id,
+        title,
+        module: "channel",
+        allowed_roles: [myRole],
+        updated_at: new Date().toISOString(),
+        member: true,
+      };
+      setConversations((current) => [created, ...current.filter((conversation) => conversation.id !== id)]);
+      setActiveId(id);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t("chat.links.failed"));
+    }
   }
 
   if (!me) {
     return (
       <div className="gold-frame grid h-[420px] place-items-center rounded-2xl text-sm text-muted-foreground">
         <div className="flex items-center gap-2"><Lock className="h-4 w-4 text-[#d4a14a]" /> Sign in to access secure chat</div>
+      </div>
+    );
+  }
+  if (consentLoading) {
+    return (
+      <div className="gold-frame grid h-[420px] place-items-center rounded-2xl text-sm text-muted-foreground" role="status">
+        {t("chat.loading")}
       </div>
     );
   }
@@ -375,7 +414,6 @@ export function ChatScreen() {
           <div className="flex items-center gap-2">
             <Pill icon={Shield} label="RLS enforced" />
             <Pill icon={Globe} label="Realtime" />
-            <Pill icon={Bot} label="Typing indicators" />
           </div>
         </div>
       </div>
@@ -485,7 +523,7 @@ export function ChatScreen() {
                       </span>
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
-                      <Shield className="h-3 w-3 text-emerald-400" /> Module {active.module} · realtime enabled
+                      <Shield className="h-3 w-3 text-emerald-400" /> Module {active.module}
                     </div>
                   </div>
                 </div>
@@ -508,6 +546,20 @@ export function ChatScreen() {
                 <div className="pointer-events-none absolute inset-0 opacity-[0.04]"
                   style={{ backgroundImage: "radial-gradient(circle at 20% 20%, #f5d77a 0%, transparent 40%), radial-gradient(circle at 80% 80%, #d4a14a 0%, transparent 40%)" }}
                 />
+                {messageCursor && messages.length > 0 ? (
+                  <div className="relative mb-3 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => void loadEarlierMessages()}
+                      disabled={loadingEarlier}
+                      className="rounded-full border border-gold/60 px-3 py-1.5 text-xs text-[#f5d77a] transition-colors hover:bg-[oklch(0.78_0.14_82/0.1)] disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {loadingEarlier
+                        ? t("chat.messages.loading_earlier")
+                        : t("chat.messages.load_earlier")}
+                    </button>
+                  </div>
+                ) : null}
                 {loadingMessages && messages.length === 0 ? (
                   <MessagesSkeleton />
                 ) : messages.length === 0 ? (
@@ -515,7 +567,6 @@ export function ChatScreen() {
                 ) : (
                   <div className="relative space-y-3">
                     {messages.map((m) => <MessageBubble key={m.id} m={m} mine={m.sender_id === me.id} />)}
-                    {typing.length > 0 && <TypingBubble labels={typing} />}
                   </div>
                 )}
               </div>
@@ -595,6 +646,14 @@ export function ChatScreen() {
       </div>
 
       {showNew && <NewConversationModal onClose={() => setShowNew(false)} onStart={startConversation} />}
+      {!hasConsent ? (
+        <ChatConsentDialog
+          onAccept={async () => {
+            setConsent(await saveMyChatConsent(true));
+          }}
+          onLeave={() => window.location.assign("/")}
+        />
+      ) : null}
     </div>
   );
 }
@@ -708,23 +767,6 @@ function MessagesSkeleton() {
       <span className="sr-only">Loading messages…</span>
     </div>
   );
-}
-
-function TypingBubble({ labels }: { labels: string[] }) {
-  return (
-    <div className="flex justify-start" role="status" aria-live="polite" aria-atomic="true">
-      <span className="sr-only">{labels.join(", ")} {labels.length === 1 ? "is" : "are"} typing</span>
-      <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-gold bg-[oklch(0.16_0.03_250)] px-4 py-2.5 text-xs text-muted-foreground">
-        <span className="truncate" aria-hidden="true">{labels.join(", ")} typing</span>
-        <span className="inline-flex gap-0.5">
-          <Dot delay="0ms" /><Dot delay="150ms" /><Dot delay="300ms" />
-        </span>
-      </div>
-    </div>
-  );
-}
-function Dot({ delay }: { delay: string }) {
-  return <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-[#f5d77a]" style={{ animationDelay: delay }} />;
 }
 
 function EmptyInbox({ onNew }: { onNew: () => void }) {

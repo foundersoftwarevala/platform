@@ -23,7 +23,6 @@ import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { useMyPermissions, useMyProfile, useSupabaseSession } from "@/hooks/use-session";
 import {
-  MESSAGE_PAGE,
   useConversationRealtime,
   useConversations,
   useMessageActions,
@@ -32,7 +31,7 @@ import {
   useSendMessage,
 } from "@/hooks/use-chat";
 import { usePreferences, playCue } from "@/hooks/use-preferences";
-import { fetchProfiles, setFavorite, setMuted, updatePresence } from "@/services/chat/chat-service";
+import { fetchProfiles, setFavorite, setMuted } from "@/services/chat/chat-service";
 import type { ChatMessage, Profile } from "@/services/chat/types";
 import { generateAiReply, requestHumanHandoff, setConversationAi } from "@/lib/chat/ai.functions";
 import { openSupportConversation } from "@/lib/chat/support.functions";
@@ -48,6 +47,8 @@ import { UserAvatar } from "./media";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { LanguageSelector } from "@/components/i18n/LanguageSelector";
+import { ChatConsentDialog } from "./ChatConsentDialog";
+import { getUserChatConsent, setUserChatConsent } from "@/lib/chat/user-data.functions";
 import "./chat-workspace.css";
 
 export function ChatWorkspace() {
@@ -55,6 +56,16 @@ export function ChatWorkspace() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { userId, loading: sessionLoading } = useSupabaseSession();
+  const readConsent = useServerFn(getUserChatConsent);
+  const saveConsent = useServerFn(setUserChatConsent);
+  const consentQuery = useQuery({
+    queryKey: ["chat-consent", userId],
+    enabled: !!userId,
+    staleTime: Infinity,
+    queryFn: () => readConsent(),
+  });
+  const hasChatConsent =
+    consentQuery.data?.messageStorage === true && consentQuery.data.aiReview === true;
   const { data: myProfile } = useMyProfile(userId);
   const { can, roles } = useMyPermissions(userId);
   const { prefs, update } = usePreferences();
@@ -76,7 +87,7 @@ export function ChatWorkspace() {
     if (!sessionLoading && !userId) window.location.assign("/login?redirect=%2Fchat");
   }, [sessionLoading, userId]);
 
-  const conversationsQuery = useConversations(userId);
+  const conversationsQuery = useConversations(userId, hasChatConsent);
   const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
 
   useEffect(() => {
@@ -95,10 +106,15 @@ export function ChatWorkspace() {
   }, [activeId, conversations]);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
-  const [messageLimit, setMessageLimit] = useState(MESSAGE_PAGE);
-  useEffect(() => setMessageLimit(MESSAGE_PAGE), [activeId]);
-  const messagesQuery = useMessages(activeId, userId, messageLimit);
-  const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data]);
+  const messagesQuery = useMessages(activeId, userId, hasChatConsent);
+  const messages = useMemo(
+    () =>
+      (messagesQuery.data?.pages.flatMap((page) => page.messages) ?? []).sort(
+        (a, b) =>
+          a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
+      ),
+    [messagesQuery.data],
+  );
 
   const participantIds = useMemo(() => {
     const ids = new Set<string>();
@@ -117,14 +133,11 @@ export function ChatWorkspace() {
     [profilesQuery.data],
   );
 
-  // Sent to other participants as the typing/presence name, so it stays language-neutral.
-  const displayName = myProfile?.display_name ?? "Member";
   const shownName = myProfile?.display_name ?? t("chat.member");
   const onIncoming = useCallback(() => playCue("incoming", prefs.sound), [prefs.sound]);
-  const { connection, typingUsers, onlineUsers, broadcastTyping } = useConversationRealtime({
-    conversationId: activeId,
+  const { connection } = useConversationRealtime({
+    conversationId: hasChatConsent ? activeId : null,
     userId,
-    displayName,
     onIncomingMessage: onIncoming,
   });
 
@@ -134,20 +147,6 @@ export function ChatWorkspace() {
   );
   const actions = useMessageActions(activeId, userId);
   useReadReceipts(activeId, userId, messages);
-
-  // Presence heartbeat.
-  useEffect(() => {
-    if (!userId) return;
-    void updatePresence(userId, "online");
-    const timer = window.setInterval(() => void updatePresence(userId, "online"), 45_000);
-    const onHide = () => void updatePresence(userId, document.hidden ? "away" : "online");
-    document.addEventListener("visibilitychange", onHide);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onHide);
-      void updatePresence(userId, "offline");
-    };
-  }, [userId]);
 
   const searchResults = useMemo(() => {
     const clean = term.trim().toLowerCase();
@@ -178,6 +177,7 @@ export function ChatWorkspace() {
   const canRunConversations =
     can("conversation.manage") || can("chat.assign") || can("chat.manage");
   const startConversation = useCallback(async () => {
+    if (!hasChatConsent) return;
     if (canRunConversations) {
       setNewOpen(true);
       return;
@@ -193,7 +193,7 @@ export function ChatWorkspace() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("chat.start_support_failed"));
     }
-  }, [canRunConversations, openSupport, queryClient, userId, t]);
+  }, [canRunConversations, hasChatConsent, openSupport, queryClient, userId, t]);
 
   /** Runs the real AI turn on the server; failures never break the sent message. */
   const runAiTurn = useCallback(
@@ -255,6 +255,25 @@ export function ChatWorkspace() {
     );
   }
   if (!userId) return null;
+  if (consentQuery.isPending) {
+    return (
+      <div className="grid h-screen place-items-center bg-background text-sm text-muted-foreground">
+        {t("chat.loading")}
+      </div>
+    );
+  }
+  if (consentQuery.isError) {
+    return (
+      <main className="grid h-screen place-items-center bg-background px-4">
+        <div className="max-w-sm text-center">
+          <p className="text-sm text-destructive">{t("chat.consent.load_error")}</p>
+          <Button className="mt-3" onClick={() => void consentQuery.refetch()}>
+            {t("chat.consent.retry")}
+          </Button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -342,9 +361,7 @@ export function ChatWorkspace() {
                   )}
                 />
                 {t("chat.header.connection", { state: connection })}
-                {active
-                  ? ` · ${t("chat.header.online_count", { count: onlineUsers.length })} · ${t("chat.members_count", { count: active.participants.length })}`
-                  : ""}
+                {active ? ` · ${t("chat.members_count", { count: active.participants.length })}` : ""}
                 {aiThinking ? ` · ${t("chat.header.ai_typing")}` : ""}
               </p>
             </div>
@@ -571,16 +588,15 @@ export function ChatWorkspace() {
                 pending={pending}
                 userId={userId}
                 profilesById={profilesById}
-                typingUsers={typingUsers}
                 connection={connection}
                 canReact={can("message.react")}
                 canReply={can("message.send")}
                 canBookmark={can("message.bookmark")}
                 canDownload={can("attachment.download")}
                 canSeeOriginal={can("chat.manage")}
-                hasEarlier={messages.length >= messageLimit}
-                loadingEarlier={messagesQuery.isFetching && messagesQuery.isPlaceholderData}
-                onLoadEarlier={() => setMessageLimit((current) => current + MESSAGE_PAGE)}
+                loadingEarlier={messagesQuery.isFetchingNextPage}
+                hasEarlier={messagesQuery.hasNextPage}
+                onLoadEarlier={() => void messagesQuery.fetchNextPage()}
                 translateTarget={prefs.language}
                 autoTranslate={prefs.autoTranslate}
                 density={prefs.density}
@@ -595,7 +611,7 @@ export function ChatWorkspace() {
                 onDiscard={discard}
               />
               <Composer
-                canSend={can("message.send")}
+                canSend={hasChatConsent && can("message.send")}
                 canUpload={can("attachment.upload")}
                 canMention={can("message.send")}
                 participants={active.participants}
@@ -608,7 +624,6 @@ export function ChatWorkspace() {
                 onCancelUpload={cancelUpload}
                 onCancelReply={() => setReplyTo(null)}
                 onSend={onSend}
-                onTyping={broadcastTyping}
               />
             </>
           ) : (
@@ -669,6 +684,15 @@ export function ChatWorkspace() {
               void queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
               setActiveId(id);
             }}
+          />
+        ) : null}
+        {!hasChatConsent ? (
+          <ChatConsentDialog
+            onAccept={async () => {
+              const consent = await saveConsent({ data: { granted: true } });
+              queryClient.setQueryData(["chat-consent", userId], consent);
+            }}
+            onLeave={() => navigate({ to: "/" })}
           />
         ) : null}
         <PreferencesDialog

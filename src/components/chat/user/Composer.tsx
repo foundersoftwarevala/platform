@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileIcon, Loader2, Paperclip, Reply, SendHorizontal, Smile, X } from "lucide-react";
+import {
+  FileIcon,
+  Loader2,
+  LockKeyhole,
+  Paperclip,
+  Reply,
+  SendHorizontal,
+  Smile,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
@@ -7,6 +16,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ChatMessage, DraftAttachment, Participant, Profile } from "@/services/chat/types";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { chatFileRejection } from "@/services/chat/file-policy";
+import { toast } from "sonner";
 
 const EMOJIS = [
   "😀",
@@ -65,7 +76,6 @@ interface ComposerProps {
   onCancelUpload: (id: string) => void;
   onCancelReply: () => void;
   onSend: (body: string, mentions: string[]) => Promise<unknown>;
-  onTyping: (typing: boolean) => void;
 }
 
 /** Slim, compact message composer with mentions, attachments and emoji. */
@@ -84,7 +94,6 @@ export function Composer(props: ComposerProps) {
     onCancelUpload,
     onCancelReply,
     onSend,
-    onTyping,
   } = props;
   const { t } = useTranslation();
   const [text, setText] = useState("");
@@ -93,7 +102,6 @@ export function Composer(props: ComposerProps) {
   const [mentionIndex, setMentionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const typingTimer = useRef<number | null>(null);
 
   const mentionCandidates = useMemo(() => {
     if (!canMention) return [];
@@ -130,12 +138,6 @@ export function Composer(props: ComposerProps) {
     }
   };
 
-  const notifyTyping = () => {
-    onTyping(true);
-    if (typingTimer.current) window.clearTimeout(typingTimer.current);
-    typingTimer.current = window.setTimeout(() => onTyping(false), 2500);
-  };
-
   const insertMention = (profile: Profile) => {
     const el = textareaRef.current;
     const caret = el?.selectionStart ?? text.length;
@@ -167,7 +169,6 @@ export function Composer(props: ComposerProps) {
     const mentions = resolveMentions(body);
     setText("");
     setMentionOpen(false);
-    onTyping(false);
     textareaRef.current?.focus();
     await onSend(body, mentions);
   };
@@ -229,6 +230,10 @@ export function Composer(props: ComposerProps) {
             >
               <FileIcon className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-xs">{u.file.name}</span>
+              <LockKeyhole
+                className="size-3.5 shrink-0 text-emerald-600"
+                aria-label={t("chat.composer.file_checked")}
+              />
               {u.state === "uploading" ? (
                 <span className="flex w-24 items-center gap-1.5">
                   <Progress value={u.progress} className="h-1" />
@@ -295,7 +300,13 @@ export function Composer(props: ComposerProps) {
                 aria-label={t("chat.composer.attach_files")}
                 onChange={(e) => {
                   const files = Array.from(e.target.files ?? []);
-                  if (files.length > 0) onQueueFiles(files);
+                  const accepted: File[] = [];
+                  for (const file of files) {
+                    const rejection = chatFileRejection(file.name, file.type);
+                    if (rejection) toast.error(t("chat.composer.file_rejected", { name: file.name }));
+                    else accepted.push(file);
+                  }
+                  if (accepted.length > 0) onQueueFiles(accepted);
                   e.target.value = "";
                 }}
               />
@@ -366,7 +377,6 @@ export function Composer(props: ComposerProps) {
             onChange={(e) => {
               setText(e.target.value);
               detectMention(e.target.value, e.target.selectionStart);
-              notifyTyping();
             }}
             onKeyDown={onKeyDown}
             className="max-h-24 min-h-[36px] w-0 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-5 outline-none placeholder:text-muted-foreground/70 disabled:cursor-not-allowed disabled:opacity-60"
