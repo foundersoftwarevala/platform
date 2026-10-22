@@ -8,13 +8,14 @@
  */
 
 /**
- * The roles the Control Panel page admits: its own four, and the platform
+ * The roles the Control Panel page admits: its own staff roles, and the platform
  * operators RequireRole always lets through. The API checks the same list, so
  * the page and the figures behind it cannot disagree about who is let in.
  */
 export const COCKPIT_ROLES = [
-  "developer",
+  // AUDIT-FIX: Keep developer accounts out of operator-only cockpit data.
   "finance",
+  "finance_manager",
   "support",
   "sales_support_manager",
   "boss",
@@ -22,7 +23,6 @@ export const COCKPIT_ROLES = [
   "admin",
   "super_admin",
   "founder",
-  "owner",
 ] as const;
 
 type Money = Record<string, number>;

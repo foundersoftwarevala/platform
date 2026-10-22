@@ -21,9 +21,10 @@ import { RequireRole } from "@/components/auth/RequireRole";
 
 /** Path prefix -> the app_roles allowed there, on top of platform operators. */
 const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
+  // Keep the route allowlist aligned with the Control Panel API role check.
   {
     prefix: "/control-panel",
-    roles: ["developer", "finance", "support", "sales_support_manager"],
+    roles: ["finance", "support", "sales_support_manager", "finance_manager"],
     label: "Control Panel",
   },
   { prefix: "/boss", roles: [], label: "Boss Console" },
