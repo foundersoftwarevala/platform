@@ -100,6 +100,11 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
     label: "Support workspace",
   },
   {
+    prefix: "/dashboard/bidding",
+    roles: ["developer"],
+    label: "Task bidding",
+  },
+  {
     prefix: "/sales-support-manager",
     roles: ["sales", "support", "sales_support_manager"],
     label: "Sales Support Manager",

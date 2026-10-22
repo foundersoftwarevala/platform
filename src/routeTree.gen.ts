@@ -190,6 +190,7 @@ import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as ControlPanelFinanceRouteImport } from './routes/control-panel.finance'
 import { Route as DashboardRoleRouteImport } from './routes/dashboard.$role'
+import { Route as DashboardBiddingRouteImport } from './routes/dashboard.bidding'
 import { Route as DashboardSalesRouteImport } from './routes/dashboard.sales'
 import { Route as DashboardSupportRouteImport } from './routes/dashboard.support'
 import { Route as DemoRouteImport } from './routes/demo.'
@@ -1323,6 +1324,11 @@ const ControlPanelFinanceRoute = ControlPanelFinanceRouteImport.update({
 const DashboardRoleRoute = DashboardRoleRouteImport.update({
   id: '/dashboard/$role',
   path: '/dashboard/$role',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardBiddingRoute = DashboardBiddingRouteImport.update({
+  id: '/dashboard/bidding',
+  path: '/dashboard/bidding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardSalesRoute = DashboardSalesRouteImport.update({
@@ -2572,6 +2578,7 @@ export interface FileRoutesByFullPath {
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/dashboard/bidding': typeof DashboardBiddingRoute
   '/dashboard/sales': typeof DashboardSalesRoute
   '/dashboard/support': typeof DashboardSupportRoute
   '/demo/$slug': typeof DemoSlugRoute
@@ -2952,6 +2959,7 @@ export interface FileRoutesByTo {
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/dashboard/bidding': typeof DashboardBiddingRoute
   '/dashboard/sales': typeof DashboardSalesRoute
   '/dashboard/support': typeof DashboardSupportRoute
   '/demo/$slug': typeof DemoSlugRoute
@@ -3344,6 +3352,7 @@ export interface FileRoutesById {
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/dashboard/bidding': typeof DashboardBiddingRoute
   '/dashboard/sales': typeof DashboardSalesRoute
   '/dashboard/support': typeof DashboardSupportRoute
   '/demo/$slug': typeof DemoSlugRoute
@@ -3737,6 +3746,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/control-panel/finance'
     | '/dashboard/$role'
+    | '/dashboard/bidding'
     | '/dashboard/sales'
     | '/dashboard/support'
     | '/demo/$slug'
@@ -4117,6 +4127,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/control-panel/finance'
     | '/dashboard/$role'
+    | '/dashboard/bidding'
     | '/dashboard/sales'
     | '/dashboard/support'
     | '/demo/$slug'
@@ -4508,6 +4519,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/control-panel/finance'
     | '/dashboard/$role'
+    | '/dashboard/bidding'
     | '/dashboard/sales'
     | '/dashboard/support'
     | '/demo/$slug'
@@ -4800,6 +4812,7 @@ export interface RootRouteChildren {
   ApplyRoleRoute: typeof ApplyRoleRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
+  DashboardBiddingRoute: typeof DashboardBiddingRoute
   DashboardSalesRoute: typeof DashboardSalesRoute
   DashboardSupportRoute: typeof DashboardSupportRoute
   DemoSlugRoute: typeof DemoSlugRoute
@@ -6186,6 +6199,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard/$role'
       fullPath: '/dashboard/$role'
       preLoaderRoute: typeof DashboardRoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/bidding': {
+      id: '/dashboard/bidding'
+      path: '/dashboard/bidding'
+      fullPath: '/dashboard/bidding'
+      preLoaderRoute: typeof DashboardBiddingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/sales': {
@@ -8262,6 +8282,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApplyRoleRoute: ApplyRoleRoute,
   BlogSlugRoute: BlogSlugRoute,
   DashboardRoleRoute: DashboardRoleRoute,
+  DashboardBiddingRoute: DashboardBiddingRoute,
   DashboardSalesRoute: DashboardSalesRoute,
   DashboardSupportRoute: DashboardSupportRoute,
   DemoSlugRoute: DemoSlugRoute,

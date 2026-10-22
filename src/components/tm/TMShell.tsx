@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Bell, CheckCheck, Menu, Search } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
+import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { ChatAppButton } from "@/components/chat/ChatAppButton";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,10 @@ import { TMSettings } from "./screens/TMSettings";
 
 export function TMShell() {
   useRealtimeTasks();
+  const { roles } = useAuth();
+  const canAccessBidding = roles.some((role) =>
+    ["developer", "admin", "boss", "boss_owner", "founder", "super_admin"].includes(String(role)),
+  );
   const [screen, setScreen] = useState<TMScreen>("task_dashboard");
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useTMSidebarState();
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
@@ -147,6 +153,14 @@ export function TMShell() {
           </button>
           <p className="min-w-0 truncate text-sm font-medium text-foreground">{activeLabel}</p>
           <div className="flex-1" />
+          {canAccessBidding && (
+            <Link
+              to="/dashboard/bidding"
+              className="hidden h-9 items-center rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+            >
+              Bidding
+            </Link>
+          )}
           <button
             className="icon3d hidden h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground sm:grid"
             onClick={() => setScreen("task_inbox")}
