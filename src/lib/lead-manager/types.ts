@@ -3,6 +3,8 @@ import type { Database } from "@/integrations/supabase/types";
 export type LeadStatus =
   | "new"
   | "contacted"
+  | "qualified"
+  | "proposal"
   | "interested"
   | "follow_up"
   | "negotiation"
@@ -76,6 +78,8 @@ export type AuditLog = Tables["lead_audit_logs"]["Row"];
 export const PIPELINE_STAGES: { id: LeadStatus; label: string }[] = [
   { id: "new", label: "New" },
   { id: "contacted", label: "Contacted" },
+  { id: "qualified", label: "Qualified" },
+  { id: "proposal", label: "Proposal" },
   { id: "interested", label: "Interested" },
   { id: "follow_up", label: "Follow-Up" },
   { id: "negotiation", label: "Negotiation" },
@@ -86,6 +90,8 @@ export const PIPELINE_STAGES: { id: LeadStatus; label: string }[] = [
 export const STATUS_LABEL: Record<LeadStatus, string> = {
   new: "New",
   contacted: "Contacted",
+  qualified: "Qualified",
+  proposal: "Proposal",
   interested: "Interested",
   follow_up: "Follow-Up",
   negotiation: "Negotiation",

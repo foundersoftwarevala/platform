@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { leadApi } from "./api";
+import {
+  canAssignLeadRecords,
+  getAssignableLeadAgents,
+  getLeadActivityRecords,
+} from "./core.functions";
+import type { LeadSourceType, LeadStatus } from "./types";
 
 export const leadKeys = {
   leads: (filters?: unknown) => ["lm", "leads", filters ?? {}] as const,
@@ -16,11 +22,16 @@ export const leadKeys = {
   settings: ["lm", "settings"] as const,
   audit: ["lm", "audit"] as const,
   currentAgent: ["lm", "current-agent"] as const,
+  canAssign: ["lm", "can-assign"] as const,
+  assignableAgents: ["lm", "assignable-agents"] as const,
+  activities: (id: string) => ["lm", "activities", id] as const,
   notes: (id: string) => ["lm", "notes", id] as const,
   comms: (id: string) => ["lm", "comms", id] as const,
 };
 
-export const useLeads = (filters: { status?: string; source?: string; search?: string } = {}) =>
+export const useLeads = (
+  filters: { status?: LeadStatus; source?: LeadSourceType; search?: string } = {},
+) =>
   useQuery({ queryKey: leadKeys.leads(filters), queryFn: () => leadApi.listLeads(filters) });
 
 /**
@@ -36,6 +47,31 @@ export const useCurrentAgent = () =>
     queryKey: leadKeys.currentAgent,
     queryFn: () => leadApi.currentAgent(),
     staleTime: 5 * 60 * 1000,
+  });
+
+export const useCanAssignLeads = () =>
+  useQuery({
+    queryKey: leadKeys.canAssign,
+    queryFn: () => canAssignLeadRecords(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+export const useAssignableLeadAgents = (enabled: boolean) =>
+  useQuery({
+    queryKey: leadKeys.assignableAgents,
+    queryFn: () => getAssignableLeadAgents(),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+
+export const useLeadActivities = (id: string | null) =>
+  useQuery({
+    queryKey: leadKeys.activities(id ?? ""),
+    queryFn: () => {
+      if (!id) return Promise.resolve([]);
+      return getLeadActivityRecords({ data: { leadId: id } });
+    },
+    enabled: Boolean(id),
   });
 
 export const useAgents = () =>

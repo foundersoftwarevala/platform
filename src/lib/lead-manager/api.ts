@@ -1,5 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Agent, LeadInsert, LeadStatus, LeadUpdate } from "./types";
+import type { Agent, LeadInsert, LeadSourceType, LeadStatus, LeadUpdate } from "./types";
+import {
+  assignLeadRecord,
+  getLeadRecords,
+  createLeadRecord,
+  updateLeadRecordStatus,
+} from "./core.functions";
 
 /** Records an immutable audit entry for every privileged Lead Manager action. */
 export async function writeAudit(entry: {
@@ -161,8 +167,8 @@ export function rescoreFromRecord(lead: {
 export const leadApi = {
   async listLeads(
     filters: {
-      status?: string;
-      source?: string;
+      status?: LeadStatus;
+      source?: LeadSourceType;
       search?: string;
       limit?: number;
       offset?: number;
@@ -170,38 +176,16 @@ export const leadApi = {
   ) {
     // The default page is what a screen shows. An export asks for pages
     // explicitly and walks to the end rather than accepting this first one.
-    const limit = filters.limit ?? 200;
-    const offset = filters.offset ?? 0;
-    let query = supabase
-      .from("leads")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (filters.status && filters.status !== "all")
-      query = query.eq("status", filters.status as LeadStatus);
-    if (filters.source && filters.source !== "all")
-      query = query.eq("source", filters.source as never);
-    if (filters.search) {
-      // The search term is pasted into a PostgREST `or` expression, where a
-      // comma separates conditions, brackets group them, and * is the wildcard.
-      // Typed straight in, a search for "Acme, Ltd" split into two conditions
-      // and a stray bracket made the whole filter unparseable - the list either
-      // returned the wrong rows or failed outright. Those characters are
-      // removed, and the % and _ that ilike reads as wildcards with them, so a
-      // search for "50%" looks for "50" rather than for everything.
-      const term = filters.search
-        .replace(/[(),*%_\\"']/g, " ")
-        .trim()
-        .slice(0, 120);
-      if (term) {
-        query = query.or(
-          ["name", "email", "company", "city"].map((c) => `${c}.ilike.%${term}%`).join(","),
-        );
-      }
-    }
-
-    return unwrap(await query);
+    const { rows } = await getLeadRecords({
+      data: {
+        search: filters.search,
+        status: filters.status,
+        source: filters.source,
+        limit: filters.limit,
+        offset: filters.offset,
+      },
+    });
+    return rows;
   },
 
   async getLead(id: string) {
@@ -308,7 +292,7 @@ export const leadApi = {
 
     /** Every deal_value for one set of leads, to the last page. */
     const sumDealValue = async (onlyWon: boolean): Promise<number> => {
-      const PAGE = 1000;
+      const PAGE = 200;
       let from = 0;
       let sum = 0;
       for (;;) {
@@ -562,7 +546,9 @@ export const leadApi = {
    * This pages to the end. The caller passes the same filters the screen is
    * showing, so what is exported is what was asked for - all of it.
    */
-  async fetchLeadsForExport(filters: { status?: string; source?: string; search?: string } = {}) {
+  async fetchLeadsForExport(
+    filters: { status?: LeadStatus; source?: LeadSourceType; search?: string } = {},
+  ) {
     const PAGE = 1000;
     const all: Awaited<ReturnType<typeof leadApi.listLeads>> = [];
     for (let from = 0; ; from += PAGE) {
@@ -663,12 +649,20 @@ export const leadApi = {
   },
 
   async createLead(payload: LeadInsert) {
-    const lead = unwrap(await supabase.from("leads").insert(payload).select().single());
-    await writeAudit({
-      lead_id: lead.id,
-      action: "Lead Created",
-      action_type: "create",
-      details: `Created ${lead.name} from ${lead.sub_source}`,
+    const lead = await createLeadRecord({
+      data: {
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
+        company: payload.company,
+        city: payload.city,
+        state: payload.state,
+        source: payload.source ?? "manual",
+        sub_source: payload.sub_source ?? "Manual Entry",
+        priority: payload.priority ?? "medium",
+        deal_value: Number(payload.deal_value ?? 0),
+        requirements: payload.requirements,
+      },
     });
     return lead;
   },
@@ -695,6 +689,12 @@ export const leadApi = {
     auditAction = "Lead Edited",
     actor?: { name?: string; role?: string },
   ) {
+    const protectedFields = ["status", "assigned_agent_id", "assigned_at", "assigned_to"];
+    const protectedField = protectedFields.find((field) => field in updates);
+    if (protectedField) {
+      throw new Error(`${protectedField} must be changed through its authorized Lead Manager action.`);
+    }
+
     // Before, so the trail can say what it was and not only what it became.
     let before: Record<string, unknown> | null = null;
     try {
@@ -733,53 +733,10 @@ export const leadApi = {
     return lead;
   },
 
-  async deleteLead(id: string, name: string) {
-    if (unwrap(await supabase.from("leads").delete().eq("id", id).select("id")).length === 0) {
-      throw new Error("Lead could not be deleted");
-    }
-    await writeAudit({
-      lead_id: id,
-      action: "Lead Deleted",
-      action_type: "delete",
-      details: `Deleted lead ${name}`,
-    });
-  },
-
   async assignLead(leadId: string, agentId: string, reason = "Manual assignment") {
-    const previous = await leadApi.getLead(leadId);
-    const lead = unwrap(
-      await supabase
-        .from("leads")
-        .update({ assigned_agent_id: agentId, assigned_at: new Date().toISOString() })
-        .eq("id", leadId)
-        .select()
-        .single(),
-    );
-    const { error: assignmentError } = await supabase.from("lead_assignments").insert({
-      lead_id: leadId,
-      agent_id: agentId,
-      previous_agent_id: previous.assigned_agent_id,
-      reason,
-      auto_assigned: false,
-      assignment_score: lead.ai_score,
+    return assignLeadRecord({
+      data: { leadId, agentId, note: reason },
     });
-    if (assignmentError) {
-      await supabase
-        .from("leads")
-        .update({
-          assigned_agent_id: previous.assigned_agent_id,
-          assigned_at: previous.assigned_at,
-        })
-        .eq("id", leadId);
-      throw new Error(assignmentError.message);
-    }
-    await writeAudit({
-      lead_id: leadId,
-      action: previous.assigned_agent_id ? "Lead Reassigned" : "Lead Assigned",
-      action_type: "update",
-      details: reason,
-    });
-    return lead;
   },
 
   /**
@@ -801,11 +758,7 @@ export const leadApi = {
    * past.
    */
   async changeStatus(leadId: string, status: LeadStatus, reason?: string) {
-    const updates: LeadUpdate = { status };
-    updates.closed_at = status === "won" || status === "lost" ? new Date().toISOString() : null;
-    if (status === "lost" && reason) updates.lost_reason = reason;
-    if (status === "spam" && reason) updates.spam_reason = reason;
-    return leadApi.updateLead(leadId, updates, `Status → ${status}`);
+    return updateLeadRecordStatus({ data: { leadId, status, note: reason } });
   },
 
   async logCommunication(payload: {
@@ -1178,13 +1131,14 @@ export const leadApi = {
   },
 
   async resolveDuplicate(leadId: string, keep: boolean) {
-    return leadApi.updateLead(
-      leadId,
-      keep
-        ? { is_duplicate: false, duplicate_of: null, duplicate_score: 0 }
-        : { status: "spam", spam_reason: "Confirmed duplicate" },
-      keep ? "Duplicate Dismissed" : "Duplicate Merged",
-    );
+    if (keep) {
+      return leadApi.updateLead(
+        leadId,
+        { is_duplicate: false, duplicate_of: null, duplicate_score: 0 },
+        "Duplicate Dismissed",
+      );
+    }
+    return leadApi.changeStatus(leadId, "spam", "Confirmed duplicate");
   },
 
   async updateSettingText(key: string, value: string) {
