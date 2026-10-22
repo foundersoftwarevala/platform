@@ -90,6 +90,16 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/product-demo-manager", roles: [...DEMO_ROUTE_ROLES], label: "Product Demo Manager" },
   { prefix: "/sales-crm", roles: ["sales", "sales_support_manager"], label: "Sales CRM" },
   {
+    prefix: "/dashboard/sales",
+    roles: ["sales", "sales_support_manager", "finance_manager"],
+    label: "Sales workspace",
+  },
+  {
+    prefix: "/dashboard/support",
+    roles: ["support", "sales_support_manager", "finance_manager"],
+    label: "Support workspace",
+  },
+  {
     prefix: "/sales-support-manager",
     roles: ["sales", "support", "sales_support_manager"],
     label: "Sales Support Manager",
@@ -111,14 +121,18 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   // Managing the films is a different surface and stays protected: Marketplace
   // Manager -> Growth -> Vala TV (ValaTvSection), behind the
   // /marketplace-manager prefix above.
-  // /support gates itself, with <RequireRole role="support"> inside the route.
-  // Naming it here as well is what this gate is for - the route-by-route
-  // wrapping is the arrangement that leaves gaps - and it is what lets the
-  // sitemap ask one question, of one list, about whether a page is public.
-  // The wrapper inside the route stays; the two agree, so nothing changes for
-  // anyone who is allowed in.
-  { prefix: "/support", roles: ["support"], label: "Support Operations" },
-  { prefix: "/chat-manager", roles: ["support", "sales_support_manager"], label: "Chat Manager" },
+  // /support also keeps its route-level guard; both layers admit the same
+  // Support and Sales/Support management roles.
+  {
+    prefix: "/support",
+    roles: ["support", "sales_support_manager", "finance_manager"],
+    label: "Support Operations",
+  },
+  {
+    prefix: "/chat-manager",
+    roles: ["support", "sales_support_manager", "finance_manager"],
+    label: "Chat Manager",
+  },
   { prefix: "/admin", roles: [], label: "Admin" },
   // Languages, the translation engine, memory, glossary and review.
   { prefix: "/language-manager", roles: [], label: "Language Manager" },

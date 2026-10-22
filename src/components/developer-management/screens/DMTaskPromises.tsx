@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   breakPromise,
   getManagedTaskPromises,
-  setTaskPromiseFine,
 } from "@/lib/tasks/promises.functions";
 
 export function DMTaskPromises({
@@ -23,7 +22,6 @@ export function DMTaskPromises({
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"pending" | "broken">("pending");
   const fetchPromises = useServerFn(getManagedTaskPromises);
-  const configureFine = useServerFn(setTaskPromiseFine);
   const breakTaskPromise = useServerFn(breakPromise);
   const queryKey = ["managed-task-promises", status] as const;
   const query = useQuery({
@@ -31,25 +29,11 @@ export function DMTaskPromises({
     queryFn: () => fetchPromises({ data: { status } }),
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["managed-task-promises"] });
-  const fineMutation = useMutation({
-    mutationFn: (data: { promiseId: string; fineCents: string }) => configureFine({ data }),
-    onSuccess: refresh,
-  });
   const breakMutation = useMutation({
     mutationFn: (data: { promiseId: string; reason: string }) => breakTaskPromise({ data }),
     onSuccess: refresh,
   });
-  const error = query.error ?? fineMutation.error ?? breakMutation.error;
-
-  function saveFine(event: FormEvent<HTMLFormElement>, promiseId: string) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    fineMutation.mutate(
-      { promiseId, fineCents: String(data.get("fineCents") ?? "") },
-      { onSuccess: () => form.reset() },
-    );
-  }
+  const error = query.error ?? breakMutation.error;
 
   function submitBreak(event: FormEvent<HTMLFormElement>, promiseId: string) {
     event.preventDefault();
@@ -146,9 +130,16 @@ export function DMTaskPromises({
                   </p>
                 )}
                 <p className="text-sm">
-                  {t("devmanager.promises.fine_value", {
-                    amount: formatWalletAmount(promise.fineCents, "INR"),
-                  })}
+                  {promise.status === "pending"
+                    ? t("devmanager.promises.fine_policy")
+                    : promise.finePercentage
+                      ? t("devmanager.promises.fine_tier_value", {
+                          percentage: promise.finePercentage,
+                          amount: formatWalletAmount(promise.fineCents, "INR"),
+                        })
+                      : t("devmanager.promises.fine_legacy_value", {
+                          amount: formatWalletAmount(promise.fineCents, "INR"),
+                        })}
                   {promise.fineAppliedAt
                     ? ` · ${t("devmanager.promises.fine_applied", {
                         date: formatDate(promise.fineAppliedAt),
@@ -156,24 +147,7 @@ export function DMTaskPromises({
                     : ""}
                 </p>
                 {promise.status === "pending" && (
-                  <div className="grid gap-3 border-t pt-3 md:grid-cols-2">
-                    <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => saveFine(event, promise.id)}>
-                      <label className="grid gap-1 text-xs">
-                        {t("devmanager.promises.fine_cents")}
-                        <input
-                          className="h-9 rounded-md border bg-background px-2"
-                          name="fineCents"
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          defaultValue={promise.fineCents}
-                          required
-                        />
-                      </label>
-                      <Button type="submit" variant="outline" disabled={fineMutation.isPending}>
-                        {t("devmanager.promises.save_fine")}
-                      </Button>
-                    </form>
+                  <div className="border-t pt-3">
                     <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => submitBreak(event, promise.id)}>
                       <label className="grid min-w-48 flex-1 gap-1 text-xs">
                         {t("devmanager.promises.break_reason")}

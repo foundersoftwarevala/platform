@@ -29,6 +29,8 @@ type TaskPromiseRow = {
   status: TaskPromiseStatus;
   promised_at: Date | string;
   deadline_at: Date | string;
+  fine_percentage: string | number | null;
+  fine_amount: string | number | null;
   fine_cents: string | number;
   fine_applied_at: Date | string | null;
   note: string | null;
@@ -63,6 +65,8 @@ function toPromiseDTO(row: TaskPromiseRow): TaskPromiseDTO {
     status: row.status,
     promisedAt: toIso(row.promised_at)!,
     deadlineAt: toIso(row.deadline_at)!,
+    finePercentage: row.fine_percentage === null ? null : String(row.fine_percentage),
+    fineAmount: row.fine_amount === null ? null : String(row.fine_amount),
     fineCents: String(row.fine_cents),
     fineAppliedAt: toIso(row.fine_applied_at),
     note: row.note,
@@ -118,7 +122,8 @@ export const getMyTaskPromiseData = createServerFn({ method: "GET" }).handler(as
     `;
     const promises = await tx<TaskPromiseRow[]>`
       select p.id, p.task_id, t.title as task_title, p.developer_id,
-             p.status, p.promised_at, p.deadline_at, p.fine_cents,
+             p.status, p.promised_at, p.deadline_at, p.fine_percentage,
+             p.fine_amount, p.fine_cents,
              p.fine_applied_at, p.note, p.break_reason
         from public.task_promises p
         join public.tasks t on t.id = p.task_id
@@ -169,7 +174,8 @@ export const makePromise = createServerFn({ method: "POST" })
           ${deadline.toISOString()}::timestamptz, ${data.note?.trim() || null}
         )
         returning id, task_id, ''::text as task_title, developer_id, status,
-                  promised_at, deadline_at, fine_cents, fine_applied_at, note,
+                  promised_at, deadline_at, fine_percentage, fine_amount,
+                  fine_cents, fine_applied_at, note,
                   break_reason
       `;
       if (!row) throw new Error("Task promise creation returned no row.");
@@ -184,7 +190,8 @@ export const fulfillPromise = createServerFn({ method: "POST" })
     return actor.run(async (tx) => {
       const [promise] = await tx<TaskPromiseRow[]>`
         select p.id, p.task_id, t.title as task_title, p.developer_id,
-               p.status, p.promised_at, p.deadline_at, p.fine_cents,
+               p.status, p.promised_at, p.deadline_at, p.fine_percentage,
+               p.fine_amount, p.fine_cents,
                p.fine_applied_at, p.note, p.break_reason
           from public.task_promises p
           join public.tasks t on t.id = p.task_id
@@ -210,7 +217,8 @@ export const fulfillPromise = createServerFn({ method: "POST" })
          where id = ${promise.id}::uuid
            and status = 'pending'
         returning id, task_id, ''::text as task_title, developer_id, status,
-                  promised_at, deadline_at, fine_cents, fine_applied_at, note,
+                  promised_at, deadline_at, fine_percentage, fine_amount,
+                  fine_cents, fine_applied_at, note,
                   break_reason
       `;
       if (!updated) throw new Error("Task promise fulfillment returned no row.");
@@ -227,7 +235,8 @@ export const getManagedTaskPromises = createServerFn({ method: "GET" })
     return actor.run(async (tx): Promise<ManagedTaskPromiseDTO[]> => {
       const rows = await tx<TaskPromiseRow[]>`
         select p.id, p.task_id, t.title as task_title, p.developer_id,
-               p.status, p.promised_at, p.deadline_at, p.fine_cents,
+               p.status, p.promised_at, p.deadline_at, p.fine_percentage,
+               p.fine_amount, p.fine_cents,
                p.fine_applied_at, p.note, p.break_reason,
                t.status::text as task_status
           from public.task_promises p
@@ -239,30 +248,6 @@ export const getManagedTaskPromises = createServerFn({ method: "GET" })
         ...toPromiseDTO(row),
         taskStatus: row.task_status ?? "unknown",
       }));
-    });
-  });
-
-export const setTaskPromiseFine = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
-    z.object({
-      promiseId: z.string().uuid(),
-      fineCents: z.string().regex(/^\d+$/).max(18),
-    }).parse(input),
-  )
-  .handler(async ({ data }) => {
-    const actor = await requireActor("manager");
-    return actor.run(async (tx) => {
-      const [row] = await tx<TaskPromiseRow[]>`
-        update public.task_promises
-           set fine_cents = ${data.fineCents}::bigint
-         where id = ${data.promiseId}::uuid
-           and status = 'pending'
-        returning id, task_id, ''::text as task_title, developer_id, status,
-                  promised_at, deadline_at, fine_cents, fine_applied_at, note,
-                  break_reason
-      `;
-      if (!row) throw new Error("Only a pending task promise can have its fine configured.");
-      return toPromiseDTO(row);
     });
   });
 

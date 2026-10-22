@@ -187,14 +187,23 @@ function DeveloperPromiseRow({
           {t("devmanager.promises.deadline_value", { date: formatDate(promise.deadlineAt) })}
         </p>
         {promise.note && <p className="text-sm">{promise.note}</p>}
-        <p className="text-xs text-muted-foreground">
-          {t("devmanager.promises.fine_value", {
-            amount: formatWalletAmount(promise.fineCents, "INR"),
-          })}
-          {promise.fineAppliedAt
-            ? ` · ${t("devmanager.promises.fine_applied", { date: formatDate(promise.fineAppliedAt) })}`
-            : ""}
-        </p>
+        {promise.status !== "fulfilled" && (
+          <p className="text-xs text-muted-foreground">
+            {promise.status === "pending"
+              ? t("devmanager.promises.fine_policy")
+              : promise.finePercentage
+                ? t("devmanager.promises.fine_tier_value", {
+                    percentage: promise.finePercentage,
+                    amount: formatWalletAmount(promise.fineCents, "INR"),
+                  })
+                : t("devmanager.promises.fine_legacy_value", {
+                    amount: formatWalletAmount(promise.fineCents, "INR"),
+                  })}
+            {promise.fineAppliedAt
+              ? ` · ${t("devmanager.promises.fine_applied", { date: formatDate(promise.fineAppliedAt) })}`
+              : ""}
+          </p>
+        )}
       </div>
       <span className="rounded-full bg-muted px-3 py-1 text-xs">
         {t("devmanager.promises.status", { status: promise.status })}

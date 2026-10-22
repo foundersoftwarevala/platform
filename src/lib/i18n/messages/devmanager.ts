@@ -29,6 +29,11 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.promises.deadline_value": "Deadline: {date}",
   "devmanager.promises.fine_value": "Fine: {amount}",
   "devmanager.promises.fine_applied": "applied {date}",
+  "devmanager.promises.fine_policy":
+    "If broken: 5% for the first breach, 7% for the second, then 10%; calculated from the task amount.",
+  "devmanager.promises.fine_tier_value": "Fine: {percentage}% ({amount})",
+  "devmanager.promises.fine_legacy_value":
+    "Recorded fine: {amount}; historical percentage was not recorded.",
   "devmanager.promises.status": "Status: {status}",
   "devmanager.promises.action_failed": "The promise action could not be completed.",
   "devmanager.promises.manager_title": "Task Promises",
@@ -39,8 +44,6 @@ export const DEVMANAGER_MESSAGES = {
   "devmanager.promises.broken": "Broken",
   "devmanager.promises.manager_list_title": "Promise Queue",
   "devmanager.promises.developer_value": "Developer {id}",
-  "devmanager.promises.fine_cents": "Fine (cents)",
-  "devmanager.promises.save_fine": ["Save fine", "button to configure a pending promise fine"],
   "devmanager.promises.break_reason": "Break reason",
   "devmanager.promises.break_reason_value": "Reason: {reason}",
   "devmanager.promises.break": ["Break promise", "button to record a broken promise"],

@@ -190,6 +190,8 @@ import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as ControlPanelFinanceRouteImport } from './routes/control-panel.finance'
 import { Route as DashboardRoleRouteImport } from './routes/dashboard.$role'
+import { Route as DashboardSalesRouteImport } from './routes/dashboard.sales'
+import { Route as DashboardSupportRouteImport } from './routes/dashboard.support'
 import { Route as DemoRouteImport } from './routes/demo.'
 import { Route as DemoSlugRouteImport } from './routes/demo.$slug'
 import { Route as LeadManagerIndexRouteImport } from './routes/lead-manager.index'
@@ -1321,6 +1323,16 @@ const ControlPanelFinanceRoute = ControlPanelFinanceRouteImport.update({
 const DashboardRoleRoute = DashboardRoleRouteImport.update({
   id: '/dashboard/$role',
   path: '/dashboard/$role',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardSalesRoute = DashboardSalesRouteImport.update({
+  id: '/dashboard/sales',
+  path: '/dashboard/sales',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardSupportRoute = DashboardSupportRouteImport.update({
+  id: '/dashboard/support',
+  path: '/dashboard/support',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DemoRoute = DemoRouteImport.update({
@@ -2560,6 +2572,8 @@ export interface FileRoutesByFullPath {
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/dashboard/sales': typeof DashboardSalesRoute
+  '/dashboard/support': typeof DashboardSupportRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
@@ -2938,6 +2952,8 @@ export interface FileRoutesByTo {
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/dashboard/sales': typeof DashboardSalesRoute
+  '/dashboard/support': typeof DashboardSupportRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
@@ -3328,6 +3344,8 @@ export interface FileRoutesById {
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/dashboard/sales': typeof DashboardSalesRoute
+  '/dashboard/support': typeof DashboardSupportRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
@@ -3719,6 +3737,8 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/control-panel/finance'
     | '/dashboard/$role'
+    | '/dashboard/sales'
+    | '/dashboard/support'
     | '/demo/$slug'
     | '/legal/$slug'
     | '/manager/$section'
@@ -4097,6 +4117,8 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/control-panel/finance'
     | '/dashboard/$role'
+    | '/dashboard/sales'
+    | '/dashboard/support'
     | '/demo/$slug'
     | '/legal/$slug'
     | '/manager/$section'
@@ -4486,6 +4508,8 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/control-panel/finance'
     | '/dashboard/$role'
+    | '/dashboard/sales'
+    | '/dashboard/support'
     | '/demo/$slug'
     | '/legal/$slug'
     | '/manager/$section'
@@ -4776,6 +4800,8 @@ export interface RootRouteChildren {
   ApplyRoleRoute: typeof ApplyRoleRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
+  DashboardSalesRoute: typeof DashboardSalesRoute
+  DashboardSupportRoute: typeof DashboardSupportRoute
   DemoSlugRoute: typeof DemoSlugRoute
   LegalSlugRoute: typeof LegalSlugRoute
   PaymentFailRoute: typeof PaymentFailRoute
@@ -6160,6 +6186,20 @@ declare module '@tanstack/react-router' {
       path: '/dashboard/$role'
       fullPath: '/dashboard/$role'
       preLoaderRoute: typeof DashboardRoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/sales': {
+      id: '/dashboard/sales'
+      path: '/dashboard/sales'
+      fullPath: '/dashboard/sales'
+      preLoaderRoute: typeof DashboardSalesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/support': {
+      id: '/dashboard/support'
+      path: '/dashboard/support'
+      fullPath: '/dashboard/support'
+      preLoaderRoute: typeof DashboardSupportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/demo/': {
@@ -8222,6 +8262,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApplyRoleRoute: ApplyRoleRoute,
   BlogSlugRoute: BlogSlugRoute,
   DashboardRoleRoute: DashboardRoleRoute,
+  DashboardSalesRoute: DashboardSalesRoute,
+  DashboardSupportRoute: DashboardSupportRoute,
   DemoSlugRoute: DemoSlugRoute,
   LegalSlugRoute: LegalSlugRoute,
   PaymentFailRoute: PaymentFailRoute,

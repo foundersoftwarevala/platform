@@ -1,22 +1,131 @@
 # Phase 16 — Production cutover to `sv_platform`
 
-## Current outcome: blocked before production changes
+## Final outcome: deployed to `sv_platform` (2026-10-22)
 
-The requested production target is confirmed as VPS database `sv_platform`;
-Supabase remains in use for Authentication and Media/Storage. The database
-backup and rollback-only migration rehearsal passed. **No migration, app
-configuration, cron, build, deployment, restart, or production data change has
-been made.** `softwarevala` was not queried or modified during this follow-up.
+**Deployment status: PASS for the requested app cutover and smoke checks.**
+The VPS checkout is clean on `main` at
+`35b9cac807d12fec2a841b6ed27491b609daeab0`. The selected 15 migration files
+listed below were applied to `sv_platform` in one transaction ending in
+`COMMIT`. The database named `softwarevala` was not queried or modified.
 
-The cutover is not safe to complete yet: the currently running application is
-an older release with legacy API modules whose compatibility with the latest
-migration contracts is unverified, and the task migration makes legacy task
-tables read-only without copying their existing rows. The SEO gate tables are
-present in `sv_platform`, but their data parity with the currently configured
-direct-Postgres target has not been verified. Assist signaling's required
-`assist_signal_tickets` table is missing. Applying the security migrations or
-changing the runtime target before those code/data dependencies are resolved
-risks breaking live workflows.
+| Check | Verified result |
+|---|---|
+| Runtime direct-Postgres target | `VPS_DATABASE_URL` and `I18N_DATABASE_URL` resolve to local `sv_platform`; a direct identity query returned `sv_platform`. |
+| Supabase Auth and Storage | Browser `VITE_SUPABASE_URL` is the hosted project. Auth `/health` and Storage `/status` returned HTTP 200 against Supabase; CORS preflight allowed the site origin. Server-side `SUPABASE_URL` remains the local PostgREST gateway. |
+| Production build and deploy | `scripts/ops/sv-deploy.sh` passed its staged build, manifest check, locale/session smoke checks, and live homepage check. The latest rollback build is `/var/www/softwarevala/.output.prev-20261022-145817`. |
+| Live app | `softwarevala-staging` is online in PM2 (PID `4061226`) and owns `127.0.0.1:3000`. Local and public homepage checks returned HTTP 200; the live Hindi language-pack route returned `source=vps-postgresql`, `count=4077`. |
+| PM2 persistence | The PM2 startup dump was saved and its `VPS_DATABASE_URL` path was verified as `/sv_platform`. The unrelated language worker was not restarted. |
+| Cron automation | Payment (hourly) and deadline (every 15 minutes) jobs are installed in root's crontab. Promise fines are **not installed**: `PROMISE_CRON_ACTOR_ID` is missing, and the database requires a real manager/finance actor for an auditable fine. |
+| Protected configuration | `/var/www/softwarevala/.env` remains mode `0600`. Pre-change copies and the Vala AI snapshot are under `/root/sv-seo-backup/main-cutover-20261022T144535Z/`. |
+
+The browser URL was changed from `https://softwarevala.net` to the hosted
+Supabase project endpoint after public requests through the Cloudflare-proxied
+site URL returned HTTP 403. Direct hosted Auth/Storage requests and the
+site-origin CORS preflight returned HTTP 200. The Auth/Storage project and
+public key were preserved.
+
+### Migrations applied
+
+These 15 reviewed files were applied atomically to `sv_platform`:
+
+- `20261108T141000_server_agent_read_only_enrollment.sql`
+- `20261108T143000_server_alert_delivery_outbox.sql`
+- `20261108T144000_server_subscription_lifecycle_and_invoices.sql`
+- `20261108T145200_marketplace_author_product_files.sql`
+- `20261108T145300_audit_logs_truth_columns.sql`
+- `20261108T145400_tasks_fresh.sql`
+- `20261108T145500_tasks_notifications_deadlines.sql`
+- `20261108T150000_developer_wallets.sql`
+- `20261108T151000_task_promises.sql`
+- `20261108T151100_task_promise_auto_fulfill.sql`
+- `20261108T152000_assist_system_real.sql`
+- `20261108T153000_chat_consent_cursor_hardening.sql`
+- `20261108T154000_ams_core_real.sql`
+- `20261108T155000_affiliate_dashboard_payouts.sql`
+- `20261108T160000_lead_manager_assignment_security.sql`
+
+The migration log is `/root/sv-platform-cutover-apply.log`; its final result
+is `COMMIT`. The transaction also restored `service_role` DML on legacy
+`tm_tasks` and `developer_tasks` for server compatibility. Read-only
+privilege checks confirmed `authenticated` and `anon` cannot update
+`tm_tasks`; RLS is enabled on `tasks` and `assist_signal_tickets`. The app's
+`sv_app` connection successfully assumed `service_role` in a read-only task
+transaction, matching the server implementation.
+
+### Cron installation
+
+The root crontab was preserved and extended with these two working entries:
+
+```cron
+0 * * * * umask 077; cd /var/www/softwarevala && /usr/bin/node --env-file=/var/www/softwarevala/.env scripts/payment-cron.mjs >> /var/log/payment-cron.log 2>&1
+*/15 * * * * umask 077; cd /var/www/softwarevala && /usr/bin/node --env-file=/var/www/softwarevala/.env scripts/deadline-cron.mjs >> /var/log/deadline-cron.log 2>&1
+```
+
+`--env-file` supplies `VPS_DATABASE_URL` to Node; the shared cron DB helper
+then forces the database path to `sv_platform`. The cron service is active.
+Both log files are root-owned mode `0600`. The manual payment-script test
+completed successfully against `sv_platform`: **0 tasks changed** (the
+read-only preflight found zero eligible tasks, so no payment state was
+modified). The deadline script was also run manually with the same Node
+`.env` loading as cron and completed successfully. Its function uses an
+advisory lock and only creates a warning/overdue audit event and notifications
+when an eligible in-progress task is due; none were present in this check.
+Crontab verification found exactly one payment entry and one
+deadline entry, and confirmed all prior root crontab lines remain. The prior
+crontab is backed up at
+`/root/sv-seo-backup/main-cutover-20261022T144535Z/crontab.before-task-jobs`.
+
+The promise/fine entry was deliberately **not** added. `scripts/promise-cron.mjs`
+requires `PROMISE_CRON_ACTOR_ID`; no value is configured in
+`/var/www/softwarevala/.env` or `/etc/softwarevala/task-cron.env` (the latter
+does not exist). The database routine rejects missing actors and requires a
+real manager or finance role, and its fine operation can debit a developer
+wallet. A read-only role check found authorized manager/finance accounts but
+no automation-named account; no human identity was guessed or used as a
+system actor. The promise script was not manually run because its mandatory
+actor precondition is missing. The read-only preflight found zero currently
+overdue promises. Install this job only after the owner provisions and
+authorizes a dedicated auditable manager/finance automation actor and
+configures its UUID securely.
+
+### Limits and unresolved compatibility
+
+- This was a reviewed 15-file batch, **not** a verified application of every
+  repository migration. The ledger is incomplete and still reports latest
+  version `20261004181500`; no claim is made that all 390 repository files
+  have been reconciled or applied.
+- The canonical `tasks` and `assist_signal_tickets` tables exist, but each
+  contains zero rows. Existing `tm_tasks` (30 rows) and `developer_tasks`
+  (10 rows) were preserved and not copied into `tasks`; the legacy UI/data
+  workflow was not fully exercised.
+- Catalog checks found `affiliate_applications` and `affiliate_clicks`, but
+  did not find relations named `affiliates`, `affiliate_referrals`, or
+  `affiliate_payouts`. This deployment does not establish that the affiliate
+  module's full requested data model is complete.
+- `audit_logs` has 136 rows with `hash IS NULL`. The append-only and
+  hash-chain triggers exist, but historical rows are not demonstrated to be
+  tamper-evident.
+- Payment and deadline cron jobs are installed; promise fines remain blocked
+  on the missing approved actor described above. `/api/health` still returns
+  404. The homepage, language route, and Auth/Storage endpoints passed; this
+  is not an end-to-end acceptance of every authenticated business workflow.
+- The production build passed. TypeScript and ESLint were not rerun because no
+  repository source code changed in this deployment step.
+
+Backup evidence:
+
+- PostgreSQL pre-migration dump:
+  `/var/lib/postgresql/sv-platform-backups/cutover-20261022T144318Z/sv_platform.dump`
+  (SHA-256 `5c36bda747cfb55d90227fbd12dfc67c72ddbc292fd904631200d9d0e3074f74`).
+- Vala AI SQLite backup:
+  `/var/lib/vala-ai/backups/vala-20261022T144535Z.db`
+  (SHA-256 `aa9148b88fc5e9d2b82d79414f2b5fc05a521a5518e2289891c873c89baaec0d`).
+
+## Pre-cutover assessment (historical)
+
+The following section records checks made before the authorized migration and
+deployment. Its “blocked / not performed” statements are historical and are
+superseded by the final outcome above.
 
 ## Verified target, backup, and rehearsal
 

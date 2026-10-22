@@ -27,7 +27,7 @@ export const Route = createFileRoute("/support")({
     ],
   }),
   component: () => (
-    <RequireRole role="support">
+    <RequireRole role={["support", "sales_support_manager", "finance_manager"]}>
       <SupportDashboard />
     </RequireRole>
   ),

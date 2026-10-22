@@ -8,6 +8,8 @@ export interface TaskPromiseDTO {
   status: TaskPromiseStatus;
   promisedAt: string;
   deadlineAt: string;
+  finePercentage: string | null;
+  fineAmount: string | null;
   fineCents: string;
   fineAppliedAt: string | null;
   note: string | null;

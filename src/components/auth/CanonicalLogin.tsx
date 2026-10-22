@@ -23,11 +23,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Where each app_role lands after sign-in. Every partner role lands on its own
- * /dashboard/<role> (the route gate DASHBOARD_ROLE_REQUIREMENT admits exactly
- * that role). A developer's own work is /dashboard/developer - Product & API
- * Manager is an operator console. A franchise owner's own workspace is
- * /dashboard/franchise (/franchise-manager admits finance/support staff only),
- * and a customer's is their purchases page (/support admits support staff only).
+ * /dashboard/<role> (the route gate admits that role). Sales and Support have
+ * their own secured workspaces; a franchise owner lands on their own dashboard.
  */
 const ROLE_DESTINATIONS: Record<string, string> = {
   admin: "/control-panel",
@@ -39,8 +36,10 @@ const ROLE_DESTINATIONS: Record<string, string> = {
   finance: "/manager/finance",
   franchise: "/dashboard/franchise",
   employee: "/manager/people",
-  sales: "/sales-support-manager?section=sales",
-  support: "/support",
+  sales: "/dashboard/sales",
+  sales_support_manager: "/dashboard/sales",
+  finance_manager: "/dashboard/sales",
+  support: "/dashboard/support",
   marketing: "/marketing",
   developer: "/dashboard/developer",
   customer: "/account/purchases",
@@ -62,6 +61,8 @@ const ROLE_PRIORITY = [
   "founder",
   "super_admin",
   "admin",
+  "sales_support_manager",
+  "finance_manager",
   "developer",
   "finance",
   "support",
