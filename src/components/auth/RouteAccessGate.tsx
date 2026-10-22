@@ -89,6 +89,11 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/product-demo-manager", roles: [...DEMO_ROUTE_ROLES], label: "Product Demo Manager" },
   { prefix: "/sales-crm", roles: ["sales", "sales_support_manager"], label: "Sales CRM" },
   {
+    prefix: "/dashboard/bidding",
+    roles: ["developer"],
+    label: "Task bidding",
+  },
+  {
     prefix: "/sales-support-manager",
     roles: ["sales", "support", "sales_support_manager"],
     label: "Sales Support Manager",

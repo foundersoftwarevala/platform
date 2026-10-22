@@ -188,6 +188,7 @@ import { Route as ApplyRoleRouteImport } from './routes/apply.$role'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as DashboardRoleRouteImport } from './routes/dashboard.$role'
+import { Route as DashboardBiddingRouteImport } from './routes/dashboard.bidding'
 import { Route as DemoRouteImport } from './routes/demo.'
 import { Route as DemoSlugRouteImport } from './routes/demo.$slug'
 import { Route as LeadManagerIndexRouteImport } from './routes/lead-manager.index'
@@ -1298,6 +1299,11 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
 const DashboardRoleRoute = DashboardRoleRouteImport.update({
   id: '/dashboard/$role',
   path: '/dashboard/$role',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardBiddingRoute = DashboardBiddingRouteImport.update({
+  id: '/dashboard/bidding',
+  path: '/dashboard/bidding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DemoRoute = DemoRouteImport.update({
@@ -2481,6 +2487,7 @@ export interface FileRoutesByFullPath {
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/dashboard/bidding': typeof DashboardBiddingRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
@@ -2847,6 +2854,7 @@ export interface FileRoutesByTo {
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/dashboard/bidding': typeof DashboardBiddingRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
@@ -3225,6 +3233,7 @@ export interface FileRoutesById {
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/dashboard/$role': typeof DashboardRoleRoute
+  '/dashboard/bidding': typeof DashboardBiddingRoute
   '/demo/$slug': typeof DemoSlugRoute
   '/legal/$slug': typeof LegalSlugRoute
   '/manager/$section': typeof ManagerSectionRoute
@@ -3604,6 +3613,7 @@ export interface FileRouteTypes {
     | '/apply/$role'
     | '/blog/$slug'
     | '/dashboard/$role'
+    | '/dashboard/bidding'
     | '/demo/$slug'
     | '/legal/$slug'
     | '/manager/$section'
@@ -3970,6 +3980,7 @@ export interface FileRouteTypes {
     | '/apply/$role'
     | '/blog/$slug'
     | '/dashboard/$role'
+    | '/dashboard/bidding'
     | '/demo/$slug'
     | '/legal/$slug'
     | '/manager/$section'
@@ -4347,6 +4358,7 @@ export interface FileRouteTypes {
     | '/apply/$role'
     | '/blog/$slug'
     | '/dashboard/$role'
+    | '/dashboard/bidding'
     | '/demo/$slug'
     | '/legal/$slug'
     | '/manager/$section'
@@ -4626,6 +4638,7 @@ export interface RootRouteChildren {
   ApplyRoleRoute: typeof ApplyRoleRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
+  DashboardBiddingRoute: typeof DashboardBiddingRoute
   DemoSlugRoute: typeof DemoSlugRoute
   LegalSlugRoute: typeof LegalSlugRoute
   PaymentFailRoute: typeof PaymentFailRoute
@@ -5987,6 +6000,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard/$role'
       fullPath: '/dashboard/$role'
       preLoaderRoute: typeof DashboardRoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/bidding': {
+      id: '/dashboard/bidding'
+      path: '/dashboard/bidding'
+      fullPath: '/dashboard/bidding'
+      preLoaderRoute: typeof DashboardBiddingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/demo/': {
@@ -7953,6 +7973,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApplyRoleRoute: ApplyRoleRoute,
   BlogSlugRoute: BlogSlugRoute,
   DashboardRoleRoute: DashboardRoleRoute,
+  DashboardBiddingRoute: DashboardBiddingRoute,
   DemoSlugRoute: DemoSlugRoute,
   LegalSlugRoute: LegalSlugRoute,
   PaymentFailRoute: PaymentFailRoute,
