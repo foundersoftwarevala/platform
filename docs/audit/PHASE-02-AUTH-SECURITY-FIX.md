@@ -32,6 +32,7 @@
 - [`security-migration.test.ts`](../../src/lib/auth/security-migration.test.ts) checks signup role, super-admin-only policy, and task column grant contracts.
 - Focused Vitest: **5 tests passed across 2 files**.
 - Focused ESLint with the repository’s existing Prettier-rule exception: **passed with 0 errors and 1 existing React Fast Refresh warning** in `RouteAccessGate.tsx`.
+- Full native TypeScript check on the local source tree: **passed**. The guarded production build for the scoped release also passed.
 - The migration includes PostgreSQL postcondition assertions for the effective function definition, dropped bootstrap trigger, role-policy write scope, exact task column privileges, and retained service-role access. These assertions passed during the production apply and a subsequent rollback-only rerun.
 - Focused release-candidate Vitest: **5 tests passed across 2 files**. ESLint passed with **0 errors** and one pre-existing React Fast Refresh warning.
 
