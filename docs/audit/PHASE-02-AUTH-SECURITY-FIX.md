@@ -33,14 +33,18 @@
 - Focused Vitest: **5 tests passed across 2 files**.
 - Focused ESLint with the repository’s existing Prettier-rule exception: **passed with 0 errors and 1 existing React Fast Refresh warning** in `RouteAccessGate.tsx`.
 - The migration includes PostgreSQL postcondition assertions for the effective function definition, dropped bootstrap trigger, role-policy write scope, exact task column privileges, and retained service-role access. These assertions passed during the production apply and a subsequent rollback-only rerun.
+- Focused release-candidate Vitest: **5 tests passed across 2 files**. ESLint passed with **0 errors** and one pre-existing React Fast Refresh warning.
 
 ## Production change and verification
 
 - Connected as the local PostgreSQL administrator and asserted `current_database() = 'sv_platform'` before applying the migration.
 - Migration applied within a single transaction and committed; its postconditions passed. A second run inside `BEGIN … ROLLBACK` passed, confirming repeatability without persisting a second application.
+- After deployment, a read-only production check returned `sv_platform | bootstrap-trigger-absent=true | developer-task-table-update=false | developer_id-update=false | status-update=true | signup-role-metadata-reference-absent=true`.
 - No signup, role promotion, task update, or business-row test was performed. No rows were inserted, updated, or deleted by the migration.
 - Production backup: `/root/sv-seo-backup/auth-security-20261022T232329Z/`. The directory is mode `0700`; the custom-format dump covers `user_roles` and `developer_tasks`, was validated by `pg_restore -l`, and has SHA-256 `e85af799f9f791c8897ddc11ded6c34831f8e9b9948ac442b98f98d6a48d56b6`. A targeted rollback SQL script and pre-change function/policy snapshots are retained alongside it.
-- Production app build/restart and live HTTP verification: **pending** at time of this report update.
+- Scoped release branch `deploy/auth-security-fixes-20261022` was pushed at application commit `7446ad710c7af9eba3351d94193733ea90658a90`, based on the currently deployed release rather than unrelated `main` changes.
+- The app's `VPS_DATABASE_URL` resolves to `/sv_platform`. The guarded deployment script built the candidate, passed its port-3011 homepage, native-language, session, and locale smoke checks, then swapped the build and started PM2 process `softwarevala-staging`.
+- Post-deploy verification: PM2 reports `softwarevala-staging` **online** (PID `167483`); it is the process holding port 3000. `http://127.0.0.1:3000/` returned **HTTP 200**, **239,002 bytes**. The pre-swap candidate homepage returned HTTP 200 and 194,054 bytes. The previous build is retained at `/var/www/softwarevala/.output.prev-20261022-233038`.
 - The separate `softwarevala` database was not targeted.
 
 ## Verification boundaries and follow-up
