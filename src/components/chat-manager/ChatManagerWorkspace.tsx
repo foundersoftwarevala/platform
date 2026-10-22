@@ -161,7 +161,7 @@ function ChatManagerContent() {
   const overview = useQuery({
     queryKey: ["chat-manager", "overview"],
     queryFn: () => fetchOverview(),
-    refetchInterval: 60_000,
+    refetchInterval: realtimeState === "live" ? false : 60_000,
   });
   const [activeLabel, setActiveLabel] = useState(() =>
     typeof window !== "undefined" &&
@@ -183,6 +183,8 @@ function ChatManagerContent() {
           void queryClient.invalidateQueries({ queryKey: ["chat-manager"] });
         } else if (event.type === "unavailable") {
           setRealtimeState("unavailable");
+        } else if (event.type === "reconnecting") {
+          setRealtimeState("connecting");
         } else if (event.event?.startsWith("chat.")) {
           void queryClient.invalidateQueries({ queryKey: ["chat-manager"] });
         }
@@ -467,7 +469,7 @@ function ChatManagerContent() {
               <ActiveSection />
             </div>
             <footer className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.08] pt-4 text-[11px] text-slate-500">
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2" data-no-translate>
                 {overview.error ? (
                   <>
                     <AlertTriangle className="h-3.5 w-3.5 text-rose-300" />
@@ -476,12 +478,12 @@ function ChatManagerContent() {
                 ) : realtimeState === "live" ? (
                   <>
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    Live chat events refresh this workspace
+                    Realtime: LIVE
                   </>
                 ) : (
                   <>
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                    Realtime: NOT AVAILABLE
+                    {realtimeState === "connecting" ? "Realtime: CONNECTING" : "Realtime: OFFLINE"}
                   </>
                 )}
               </span>

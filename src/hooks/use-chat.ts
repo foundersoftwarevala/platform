@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   acknowledgeMessages,
   fetchConversations,
@@ -14,11 +13,16 @@ import {
 } from "@/services/chat/chat-service";
 import { uploadToSignedPath } from "@/services/chat/upload";
 import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
-import { mediaKindFor, type ChatMessage, type DraftAttachment } from "@/services/chat/types";
+import {
+  mediaKindFor,
+  type ChatMessage,
+  type ChatMessageCursor,
+  type DraftAttachment,
+} from "@/services/chat/types";
 
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "offline";
 
-export function useConversations(userId: string | null) {
+export function useConversations(userId: string | null, enabled = true) {
   const queryClient = useQueryClient();
   // The conversation list follows chat changes live. They arrive on the
   // platform's notification stream: the /realtime socket below goes to the
@@ -34,116 +38,65 @@ export function useConversations(userId: string | null) {
   }, [userId, queryClient]);
   return useQuery({
     queryKey: ["conversations", userId],
-    enabled: !!userId,
+    enabled: !!userId && enabled,
     queryFn: () => fetchConversations(userId!),
   });
 }
 
-export const MESSAGE_PAGE = 100;
+export const MESSAGE_PAGE = 50;
 
 export function useMessages(
   conversationId: string | null,
   userId: string | null,
-  limit = MESSAGE_PAGE,
+  enabled = true,
 ) {
-  return useQuery({
-    queryKey: ["messages", conversationId, limit],
-    enabled: !!conversationId && !!userId,
-    queryFn: () => fetchMessages(conversationId!, userId!, limit),
-    // Showing the earlier page while a larger one loads avoids a blank list.
-    placeholderData: (previous) => previous,
+  return useInfiniteQuery({
+    queryKey: ["messages", conversationId],
+    enabled: !!conversationId && !!userId && enabled,
+    initialPageParam: null as ChatMessageCursor | null,
+    queryFn: ({ pageParam }) => fetchMessages(conversationId!, userId!, pageParam, MESSAGE_PAGE),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 }
 
-/** Realtime pipe for one conversation: messages, reactions, receipts, typing and presence. */
+/** Authenticated realtime pipe for messages in one authorized conversation. */
 export function useConversationRealtime(options: {
   conversationId: string | null;
   userId: string | null;
-  displayName: string;
   onIncomingMessage?: (senderId: string) => void;
 }) {
-  const { conversationId, userId, displayName, onIncomingMessage } = options;
+  const { conversationId, userId, onIncomingMessage } = options;
   const queryClient = useQueryClient();
   const [connection, setConnection] = useState<ConnectionState>("connecting");
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const incomingRef = useRef(onIncomingMessage);
   incomingRef.current = onIncomingMessage;
 
   useEffect(() => {
     if (!conversationId || !userId) return;
     setConnection("connecting");
-    const channel = supabase.channel(`conversation:${conversationId}`, {
-      config: { presence: { key: userId } },
-    });
-    channelRef.current = channel;
 
     const refresh = () => {
       void queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
       void queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
     };
 
-    channel
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const row = payload.new as { sender_id: string };
-          if (row.sender_id !== userId) incomingRef.current?.(row.sender_id);
-          refresh();
-        },
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "message_receipts" }, refresh)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "message_attachments" },
-        refresh,
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () =>
-        queryClient.invalidateQueries({ queryKey: ["conversations", userId] }),
-      )
-      .on("broadcast", { event: "typing" }, ({ payload }) => {
-        const who = payload as { userId: string; name: string; typing: boolean };
-        if (who.userId === userId) return;
-        setTypingUsers((prev) =>
-          who.typing
-            ? Array.from(new Set([...prev, who.name]))
-            : prev.filter((n) => n !== who.name),
-        );
-        if (who.typing) {
-          window.setTimeout(
-            () => setTypingUsers((prev) => prev.filter((n) => n !== who.name)),
-            4000,
-          );
-        }
-      })
-      .on("presence", { event: "sync" }, () => {
-        setOnlineUsers(Object.keys(channel.presenceState()));
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setConnection("live");
-          void channel.track({ userId, name: displayName, at: new Date().toISOString() });
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          setConnection("reconnecting");
-        } else if (status === "CLOSED") {
-          setConnection("offline");
-        }
-      });
-
-    // Messages, reactions, receipts and attachments of this conversation, live,
-    // from the platform's notification stream (see useConversations). The
-    // channel above still carries typing and presence, which do not depend on
-    // database writes.
+    // Chat data lives in the VPS database, not the hosted Realtime database.
+    // Its authenticated notification stream is the source for live messages.
+    // Do not join public hosted-project channels for private conversation IDs.
     const unsubscribe = subscribeNotificationStream((e) => {
-      if (e.type === "open") return refresh();
+      if (e.type === "open") {
+        setConnection("live");
+        refresh();
+        return;
+      }
+      if (e.type === "reconnecting") {
+        setConnection("reconnecting");
+        return;
+      }
+      if (e.type === "unavailable") {
+        setConnection("offline");
+        return;
+      }
       if (
         e.type !== "notification" ||
         e.conversation_id !== conversationId ||
@@ -155,27 +108,10 @@ export function useConversationRealtime(options: {
       refresh();
     });
 
-    return () => {
-      unsubscribe();
-      void supabase.removeChannel(channel);
-      channelRef.current = null;
-      setTypingUsers([]);
-    };
-  }, [conversationId, userId, displayName, queryClient]);
+    return unsubscribe;
+  }, [conversationId, userId, queryClient]);
 
-  const broadcastTyping = useCallback(
-    (typing: boolean) => {
-      if (!channelRef.current || !userId) return;
-      void channelRef.current.send({
-        type: "broadcast",
-        event: "typing",
-        payload: { userId, name: displayName, typing },
-      });
-    },
-    [userId, displayName],
-  );
-
-  return { connection, typingUsers, onlineUsers, broadcastTyping };
+  return { connection };
 }
 
 export interface PendingMessage extends ChatMessage {
@@ -269,6 +205,7 @@ export function useSendMessage(conversationId: string | null, userId: string | n
             conversationId,
             messageId: message.id,
             fileName: draft.file.name,
+            mimeType: draft.file.type,
             sizeBytes: draft.file.size,
           });
           const path = slot.path;

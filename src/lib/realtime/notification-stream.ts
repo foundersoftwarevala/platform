@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type StreamEvent =
   | { type: "open" }
+  | { type: "reconnecting" }
   | { type: "unavailable" }
   | { type: "notification"; id: string | null; event: string | null; ledger_id: string | null; conversation_id: string | null; sender_id: string | null };
 
@@ -138,6 +139,7 @@ async function connect() {
     controller = null;
     // 1s, 2s, 4s ... up to 30s between attempts.
     attempt += 1;
+    emit({ type: "reconnecting" });
     scheduleRetry(Math.min(30_000, 1000 * 2 ** Math.min(attempt - 1, 5)));
   }
 }
