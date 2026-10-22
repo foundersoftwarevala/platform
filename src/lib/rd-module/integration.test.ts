@@ -41,8 +41,12 @@ describe("complete source-module integration", () => {
     );
     expect(source("src/routes/control-panel.tsx")).toContain('rd_manager: "/rd-manager"');
     const route = source("src/routes/rd-manager.tsx");
-    expect(route).toContain("<RequireRole");
-    expect(route).toContain("<Outlet");
+    expect(route).toContain("ResearchModule");
+    const layout = source("src/components/rd-module/ResearchModule.tsx");
+    expect(layout).toContain("<RequireRole");
+    expect(layout).toContain("<Outlet");
+    expect(layout).toContain('"/rd-manager/start"');
+    expect(layout).toContain('"/rd-manager/track"');
   });
   it("keeps all five source route surfaces without replacing the storefront", () => {
     for (const path of ["index", "lab", "pro-manager", "start", "track"]) {
@@ -52,19 +56,33 @@ describe("complete source-module integration", () => {
     expect(source("src/routes/rd-manager.index.tsx")).not.toContain('type="password"');
     expect(source("src/lib/rd-module/rd-gate.functions.ts")).not.toContain("RD_MANAGER_PASSWORD");
   });
-  it("guards every imported server function, not only the page", () => {
+  it("guards internal server functions and exposes only the four public intake functions", () => {
+    const publicIntake = new Set([
+      "submitOpportunity",
+      "createAttachmentUploads",
+      "uploadOpportunityAttachment",
+      "trackOpportunity",
+    ]);
+    const foundPublic: string[] = [];
     for (const file of readdirSync(join(root, "src/lib/rd-module")).filter(
       (file) => file.endsWith(".functions.ts") && file !== "auth.functions.ts",
     )) {
       const text = source(`src/lib/rd-module/${file}`);
-      const declarations = [...text.matchAll(/createServerFn\(\{ method: "(?:GET|POST)" \}\)/g)];
+      const declarations = [
+        ...text.matchAll(/export const (\w+) = createServerFn\(\{ method: "(?:GET|POST)" \}\)/g),
+      ];
       expect(declarations.length, file).toBeGreaterThan(0);
       for (const declaration of declarations) {
+        if (file === "rd-opportunities.functions.ts" && publicIntake.has(declaration[1])) {
+          foundPublic.push(declaration[1]);
+          continue;
+        }
         expect(text.slice(declaration.index! + declaration[0].length).trimStart(), file).toMatch(
           /^\.middleware\(\[rdOperator\]\)/,
         );
       }
     }
+    expect(new Set(foundPublic)).toEqual(publicIntake);
   });
   it("includes every functional component, hook, library and route in the mapping", () => {
     const manifest = JSON.parse(source("docs/rd-module/source-manifest.json")) as {

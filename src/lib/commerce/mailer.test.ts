@@ -1,51 +1,78 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { queue } from "./mailer";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { sendQueued } from "./mailer";
 
-afterEach(() => {
-  vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
+beforeEach(() => {
+  vi.stubEnv("SUPABASE_URL", "https://db.fixture.invalid");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "fixture-key");
+  vi.stubEnv("RESEND_API_KEY", "");
+  vi.stubEnv("SMTP_RELAY_URL", "");
+  vi.stubEnv("SMTP_RELAY_TOKEN", "");
+  vi.stubGlobal("fetch", vi.fn());
 });
-
-describe("mail queue idempotency", () => {
-  it("does not require the new column for existing unkeyed messages", async () => {
-    vi.stubEnv("SUPABASE_URL", "https://database.example");
-    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-key");
-    const fetchMock = vi.fn().mockResolvedValue(Response.json([{ id: "mail-1" }], { status: 201 }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      queue({ to: "owner@example.test", subject: "Alert", html: "<p>Alert</p>" }),
-    ).resolves.toBe("mail-1");
-
-    const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
-    expect(url.searchParams.has("on_conflict")).toBe(false);
-    expect(JSON.parse(String(init.body))).not.toHaveProperty("idempotency_key");
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+const row = {
+  id: "email-fixture",
+  to_email: "applicant@fixture.invalid",
+  subject: "Application decision",
+  body_html: "<p>Shortlisted</p>",
+  body_text: "Shortlisted",
+  attempts: 0,
+  updated_at: "2026-10-16T00:00:00Z",
+  created_at: "2026-10-16T00:00:00Z",
+};
+describe("application decision email delivery", () => {
+  it("does not claim delivery or drain mail without a provider", async () => {
+    expect(await sendQueued(1, { id: "application", kind: "employee" })).toMatchObject({
+      sent: 0,
+      attempted: 0,
+      reason: "no email provider configured",
+    });
+    expect(fetch).not.toHaveBeenCalled();
   });
-
-  it("returns the prior outbox row when the same keyed message is retried", async () => {
-    vi.stubEnv("SUPABASE_URL", "https://database.example");
-    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-key");
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json([], { status: 201 }))
-      .mockResolvedValueOnce(Response.json([{ id: "mail-existing" }]));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      queue({
-        to: "owner@example.test",
-        subject: "Alert",
-        html: "<p>Alert</p>",
-        idempotencyKey: "aa44a251-742a-4a95-a256-45d735812809",
-      }),
-    ).resolves.toBe("mail-existing");
-
-    const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
-    expect(url.searchParams.get("on_conflict")).toBe("idempotency_key");
-    expect(new Headers(init.headers).get("prefer")).toContain("resolution=ignore-duplicates");
-    expect(JSON.parse(String(init.body)).idempotency_key).toBe(
-      "aa44a251-742a-4a95-a256-45d735812809",
+  it("only attempts the current application's queue, never unrelated backlog", async () => {
+    vi.stubEnv("RESEND_API_KEY", "fixture-provider");
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(Response.json([row]))
+      .mockResolvedValueOnce(Response.json({ id: "provider-fixture" }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    expect(await sendQueued(1, { id: "application", kind: "employee" })).toMatchObject({
+      attempted: 1,
+      sent: 1,
+    });
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    const params = new URL(String(url)).searchParams;
+    expect(params.get("context->>application_id")).toBe("eq.application");
+    expect(params.get("context->>application_kind")).toBe("eq.employee");
+    const [, patch] = vi.mocked(fetch).mock.calls[2];
+    expect(JSON.parse(String(patch?.body))).toMatchObject({ status: "sent", attempts: 1 });
+  });
+  it("keeps provider failures pending with the real reason", async () => {
+    vi.stubEnv("RESEND_API_KEY", "fixture-provider");
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(Response.json([row]))
+      .mockResolvedValueOnce(new Response("Provider unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    expect(await sendQueued(1, { id: "application", kind: "employee" })).toMatchObject({
+      sent: 0,
+      retrying: 1,
+    });
+    const [, patch] = vi.mocked(fetch).mock.calls[2];
+    expect(JSON.parse(String(patch?.body))).toMatchObject({
+      status: "pending",
+      last_error: "Provider unavailable",
+    });
+  });
+  it("does not report success when recording the delivery outcome fails", async () => {
+    vi.stubEnv("RESEND_API_KEY", "fixture-provider");
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(Response.json([row]))
+      .mockResolvedValueOnce(Response.json({ id: "provider-fixture" }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await expect(sendQueued(1, { id: "application", kind: "employee" })).rejects.toThrow(
+      /verify before retrying/,
     );
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

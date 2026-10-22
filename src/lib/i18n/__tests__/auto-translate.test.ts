@@ -4,6 +4,7 @@ import {
   applyTranslations,
   currentOriginal,
   isTranslatableText,
+  resolveOriginal,
   restoreOriginals,
   uniqueStrings,
   inTranslationViewport,
@@ -165,5 +166,40 @@ describe("applying and restoring", () => {
       },
     ];
     expect(uniqueStrings(targets)).toEqual(["Apply Now", "Language"]);
+  });
+});
+
+describe("the page changing a node it already translated", () => {
+  it("keeps the English while the node shows the original or the translation", () => {
+    const node = textNode("Pending");
+    const originals = new WeakMap<object, Map<string, string>>();
+    applyTranslations([{ kind: "text", node, original: "Pending" }], () => "लंबित", originals);
+    expect(resolveOriginal(originals.get(node), "text", "लंबित")).toBe("Pending");
+    expect(resolveOriginal(originals.get(node), "text", "Pending")).toBe("Pending");
+  });
+
+  it("takes a new value from the page as the new English", () => {
+    const node = textNode("Pending");
+    const originals = new WeakMap<object, Map<string, string>>();
+    applyTranslations([{ kind: "text", node, original: "Pending" }], () => "लंबित", originals);
+    // React reuses the text node: "Pending" becomes "Paid".
+    node.nodeValue = "Paid";
+    const original = resolveOriginal(originals.get(node), "text", "Paid");
+    expect(original).toBe("Paid");
+    // The translation of the old value is never written back over the new one.
+    const table: Record<string, string> = { Pending: "लंबित", Paid: "भुगतान हो गया" };
+    applyTranslations([{ kind: "text", node, original: original! }], (s) => table[s], originals);
+    expect(node.nodeValue).toBe("भुगतान हो गया");
+  });
+
+  it("drops a slot whose new value is not text to translate", () => {
+    const node = textNode("Pending");
+    const originals = new WeakMap<object, Map<string, string>>();
+    applyTranslations([{ kind: "text", node, original: "Pending" }], () => "लंबित", originals);
+    expect(resolveOriginal(originals.get(node), "text", "42")).toBeNull();
+  });
+
+  it("collects nothing new from text it has never seen in another script", () => {
+    expect(resolveOriginal(undefined, "text", "भुगतान हो गया")).toBeNull();
   });
 });

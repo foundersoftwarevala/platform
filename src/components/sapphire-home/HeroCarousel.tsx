@@ -127,9 +127,15 @@ const HeroCarousel = () => {
                 <ShoppingCart className="w-5 h-5" />
                 {product.cta_secondary}
               </a>
-            </motion.div>
-          </div>
+            <a
+              href="/request-software"
+              className="sv-btn sv-btn-hero-glass !h-14 !rounded-2xl !px-8 !text-base"
+            >
+              Request Your Software
+            </a>
+          </motion.div>
         </div>
+      </div>
 
       <button data-no-3d aria-label="Previous slide" onClick={prev} className="sv-icon-btn absolute left-4 top-1/2 -translate-y-1/2 z-20 !h-12 !w-12">
         <ChevronLeft className="w-6 h-6" />

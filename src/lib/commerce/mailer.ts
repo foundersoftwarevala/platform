@@ -185,7 +185,9 @@ async function deliver(message: Message): Promise<{ sent: boolean; detail: strin
  * Queue a message and try to send it straight away.
  * The return value says what really happened, never more.
  */
-export async function send(message: Message): Promise<{ queued: boolean; sent: boolean; reason: string }> {
+export async function send(
+  message: Message,
+): Promise<{ queued: boolean; sent: boolean; reason: string }> {
   const result = await deliver(message);
   const id = await queue(
     message,
@@ -226,12 +228,28 @@ export const MAX_ATTEMPTS = 8;
  * for ever. It is kept, with its last error, so it can be inspected and
  * requeued by hand.
  */
-export async function sendQueued(limit = 25): Promise<{
-  attempted: number; sent: number; retrying: number; failed: number; reason?: string;
+export async function sendQueued(
+  limit = 25,
+  application?: {
+    id: string;
+    kind: string;
+  },
+): Promise<{
+  attempted: number;
+  sent: number;
+  retrying: number;
+  failed: number;
+  reason?: string;
 }> {
   if (!url()) return { attempted: 0, sent: 0, retrying: 0, failed: 0, reason: "not configured" };
   if (!providerConfigured()) {
-    return { attempted: 0, sent: 0, retrying: 0, failed: 0, reason: "no email provider configured" };
+    return {
+      attempted: 0,
+      sent: 0,
+      retrying: 0,
+      failed: 0,
+      reason: "no email provider configured",
+    };
   }
 
   // attempts and updated_at were not selected before, which is why the counter
@@ -239,16 +257,25 @@ export async function sendQueued(limit = 25): Promise<{
   const response = await fetch(
     `${url()}/rest/v1/email_outbox` +
       `?select=id,to_email,subject,body_html,body_text,attempts,updated_at,created_at` +
-      `&status=eq.pending&order=created_at.asc&limit=${limit * 4}`,
+      `&status=eq.pending&order=created_at.asc&limit=${limit * 4}` +
+      (application
+        ? `&context->>application_id=eq.${encodeURIComponent(application.id)}` +
+          `&context->>application_kind=eq.${encodeURIComponent(application.kind)}`
+        : ""),
     { headers: admin() },
   );
   if (!response.ok) {
     return { attempted: 0, sent: 0, retrying: 0, failed: 0, reason: "could not read the queue" };
   }
   const rows = (await response.json()) as {
-    id: string; to_email: string; subject: string; body_html: string;
-    body_text: string | null; attempts: number | null;
-    updated_at: string | null; created_at: string;
+    id: string;
+    to_email: string;
+    subject: string;
+    body_html: string;
+    body_text: string | null;
+    attempts: number | null;
+    updated_at: string | null;
+    created_at: string;
   }[];
 
   const now = Date.now();
@@ -277,21 +304,28 @@ export async function sendQueued(limit = 25): Promise<{
     const exhausted = !result.sent && attempts >= MAX_ATTEMPTS;
     const status = result.sent ? "sent" : exhausted ? "failed" : "pending";
 
-    await fetch(`${url()}/rest/v1/email_outbox?id=eq.${encodeURIComponent(row.id)}`, {
-      method: "PATCH",
-      headers: { ...admin(), Prefer: "return=minimal" },
-      body: JSON.stringify({
-        status,
-        attempts,
-        last_error: result.sent
-          ? null
-          : exhausted
-            ? `gave up after ${attempts} attempts: ${result.detail}`
-            : result.detail,
-        sent_at: result.sent ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      }),
-    });
+    const recorded = await fetch(
+      `${url()}/rest/v1/email_outbox?id=eq.${encodeURIComponent(row.id)}`,
+      {
+        method: "PATCH",
+        headers: { ...admin(), Prefer: "return=minimal" },
+        body: JSON.stringify({
+          status,
+          attempts,
+          last_error: result.sent
+            ? null
+            : exhausted
+              ? `gave up after ${attempts} attempts: ${result.detail}`
+              : result.detail,
+          sent_at: result.sent ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        }),
+      },
+    );
+    if (!recorded.ok) {
+      console.error("[mail] delivery state could not be recorded", row.id, recorded.status);
+      throw new Error("Email delivery state could not be recorded; verify before retrying.");
+    }
 
     if (result.sent) sent++;
     else if (exhausted) {
@@ -310,14 +344,11 @@ export async function sendQueued(limit = 25): Promise<{
  */
 export async function requeueFailed(limit = 100): Promise<{ requeued: number }> {
   if (!url()) return { requeued: 0 };
-  const response = await fetch(
-    `${url()}/rest/v1/email_outbox?status=eq.failed&limit=${limit}`,
-    {
-      method: "PATCH",
-      headers: { ...admin(), Prefer: "return=representation" },
-      body: JSON.stringify({ status: "pending", attempts: 0, updated_at: new Date().toISOString() }),
-    },
-  );
+  const response = await fetch(`${url()}/rest/v1/email_outbox?status=eq.failed&limit=${limit}`, {
+    method: "PATCH",
+    headers: { ...admin(), Prefer: "return=representation" },
+    body: JSON.stringify({ status: "pending", attempts: 0, updated_at: new Date().toISOString() }),
+  });
   if (!response.ok) return { requeued: 0 };
   return { requeued: ((await response.json()) as unknown[]).length };
 }
@@ -330,14 +361,16 @@ export async function requeueFailed(limit = 100): Promise<{ requeued: number }> 
 export async function operatorRecipients(): Promise<string[]> {
   const configured = process.env.LEADS_NOTIFY_EMAIL?.trim();
   if (configured) {
-    return configured.split(",").map((address) => address.trim()).filter(Boolean);
+    return configured
+      .split(",")
+      .map((address) => address.trim())
+      .filter(Boolean);
   }
   if (!url()) return [];
   try {
-    const roles = await fetch(
-      `${url()}/rest/v1/user_roles?select=user_id&role=eq.boss`,
-      { headers: admin() },
-    );
+    const roles = await fetch(`${url()}/rest/v1/user_roles?select=user_id&role=eq.boss`, {
+      headers: admin(),
+    });
     if (!roles.ok) return [];
     const ids = ((await roles.json()) as { user_id: string }[])
       .map((row) => row.user_id)
@@ -400,8 +433,14 @@ export function leadAcknowledgementEmail(
 
 /** What an operator gets, so a lead is not left sitting unseen in a table. */
 export function leadNotificationEmail(input: {
-  name: string; email: string; phone: string; productName: string | null;
-  action: string; sourcePage: string | null; requirements: string; leadId: string | null;
+  name: string;
+  email: string;
+  phone: string;
+  productName: string | null;
+  action: string;
+  sourcePage: string | null;
+  requirements: string;
+  leadId: string | null;
 }): Message {
   const { name, email, phone, productName, action, sourcePage, requirements, leadId } = input;
   const rows: [string, string][] = [
@@ -415,8 +454,8 @@ export function leadNotificationEmail(input: {
   return {
     to: "",
     subject: `New lead: ${name}${productName ? ` — ${productName}` : ""}`,
-    text: rows.map(([k, v]) => `${k}: ${v}`).join("\n") +
-      (requirements ? `\n\n${requirements}` : ""),
+    text:
+      rows.map(([k, v]) => `${k}: ${v}`).join("\n") + (requirements ? `\n\n${requirements}` : ""),
     html: `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">
   <h1 style="margin:0 0 16px;font-size:18px">New lead</h1>
   <table style="border-collapse:collapse;font-size:14px">

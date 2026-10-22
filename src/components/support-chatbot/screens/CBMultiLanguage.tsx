@@ -12,14 +12,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Languages, Plus, Sparkles } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useBotLanguages, useUpdateRow, useInsertRow } from '@/hooks/useSalesSupportData';
+import { SUPPORTED_LANGUAGES, resolveLanguage } from '@/lib/i18n/registry';
+import { useTranslation } from '@/lib/i18n/use-translation';
 
 export const CBMultiLanguage: React.FC = () => {
+  const { t } = useTranslation();
   const { data: languages, isLoading } = useBotLanguages();
   const updateLanguage = useUpdateRow('bot_languages');
   const insertLanguage = useInsertRow('bot_languages');
   const [fallbackLang, setFallbackLang] = useState('en');
+  const [adding, setAdding] = useState('');
 
   const languagesList = languages ?? [];
+  // The bot's languages are chosen from the platform registry
+  // (src/lib/i18n/registry.ts); bot_languages only keeps the bot's own
+  // settings for each, keyed by the registry code.
+  const configured = new Set(
+    languagesList.map((l) => resolveLanguage(l.code)?.code ?? l.code),
+  );
+  const addable = [...SUPPORTED_LANGUAGES]
+    .filter((l) => !configured.has(l.code))
+    .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
 
   const toggleLanguage = (id: string, enabled: boolean) => {
     updateLanguage.mutate(
@@ -32,10 +45,15 @@ export const CBMultiLanguage: React.FC = () => {
   };
 
   const handleAddLanguage = () => {
+    const language = SUPPORTED_LANGUAGES.find((l) => l.code === adding);
+    if (!language) return;
     insertLanguage.mutate(
-      { name: 'New Language', code: 'xx', is_enabled: false, coverage: 0, conversations: 0 },
+      { name: language.name, code: language.code, is_enabled: false, coverage: 0, conversations: 0 },
       {
-        onSuccess: () => toast({ title: 'Language added' }),
+        onSuccess: () => {
+          setAdding('');
+          toast({ title: 'Language added' });
+        },
         onError: (e) => toast({ title: 'Add failed', description: String(e), variant: 'destructive' }),
       },
     );
@@ -51,10 +69,28 @@ export const CBMultiLanguage: React.FC = () => {
           <h1 className="text-2xl font-bold text-foreground">Language Support</h1>
           <p className="text-muted-foreground text-sm mt-1">Configure multi-language chatbot responses</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAddLanguage}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Language
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={adding} onValueChange={setAdding}>
+            <SelectTrigger className="w-56" aria-label={t("languages.choose_to_add")}>
+              <SelectValue placeholder={t("languages.choose_to_add")} />
+            </SelectTrigger>
+            <SelectContent>
+              {addable.map((l) => (
+                <SelectItem key={l.code} value={l.code}>
+                  {l.name} · {l.nativeName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            className="bg-blue-600 hover:bg-blue-700"
+            onClick={handleAddLanguage}
+            disabled={!adding || insertLanguage.isPending}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Language
+          </Button>
+        </div>
       </div>
 
       {/* Quick Stats */}

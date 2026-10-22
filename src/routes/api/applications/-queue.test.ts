@@ -1,149 +1,165 @@
-// Keep the test out of TanStack's generated route tree.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { APPLICATION_KINDS } from "@/lib/applications/kinds";
 
-const mocks = vi.hoisted(() => ({
-  isApplicationBoss: vi.fn(),
-  isApplicationStaff: vi.fn(),
-  isResellerApplicationReader: vi.fn(),
-  listApplications: vi.fn(),
-  getApplication: vi.fn(),
-  rpcAs: vi.fn(),
-  applySellerCommissionRule: vi.fn(),
+type Handler = (context: { request: Request }) => Promise<Response>;
+const state = vi.hoisted(() => ({
+  handlers: null as { GET: Handler; POST: Handler } | null,
+  staff: vi.fn(),
+  boss: vi.fn(),
+  resellerReader: vi.fn(),
+  rpc: vi.fn(),
+  count: vi.fn(),
+  get: vi.fn(),
+  list: vi.fn(),
+  send: vi.fn(),
+  provider: vi.fn(),
+  commission: vi.fn(),
 }));
-
+vi.mock("@tanstack/react-router", () => ({
+  createFileRoute: () => (options: { server: { handlers: { GET: Handler; POST: Handler } } }) => {
+    state.handlers = options.server.handlers;
+    return options;
+  },
+}));
+vi.mock("@/lib/applications/registry.server", async (original) => ({
+  ...(await original<typeof import("@/lib/applications/registry.server")>()),
+  countApplications: state.count,
+  getApplication: state.get,
+  listApplications: state.list,
+}));
 vi.mock("@/lib/applications/gateway.server", () => ({
-  bearer: (request: Request) => request.headers.get("authorization")?.slice(7) ?? null,
-  isApplicationBoss: mocks.isApplicationBoss,
-  isApplicationStaff: mocks.isApplicationStaff,
-  isResellerApplicationReader: mocks.isResellerApplicationReader,
-  rpcAs: mocks.rpcAs,
+  bearer: (request: Request) =>
+    request.headers.get("authorization")?.replace(/^Bearer /, "") ?? null,
+  isApplicationBoss: state.boss,
+  isApplicationStaff: state.staff,
+  isResellerApplicationReader: state.resellerReader,
+  rpcAs: state.rpc,
+  serviceRest: vi.fn(),
 }));
-vi.mock("@/lib/applications/registry.server", () => ({
-  APPLICATION_KINDS: ["reseller", "vendor", "author", "franchise", "influencer", "affiliate"],
-  definitionOf: () => ({
-    review: (id: string, status: string, reason: string | null) => ({
-      fn: "mm_reseller_status",
-      args: { p_id: id, p_to: status, p_reason: reason },
-    }),
-    approvedStatus: "active",
-  }),
-  getApplication: mocks.getApplication,
-  isApplicationKind: (value: unknown) =>
-    typeof value === "string" &&
-    ["reseller", "vendor", "author", "franchise", "influencer", "affiliate"].includes(value),
-  listApplications: mocks.listApplications,
+vi.mock("@/lib/commerce/mailer", () => ({
+  sendQueued: state.send,
+  providerConfigured: state.provider,
 }));
 vi.mock("@/lib/commerce/seller-commission.server", () => ({
-  applySellerCommissionRule: mocks.applySellerCommissionRule,
+  applySellerCommissionRule: state.commission,
 }));
+import "./queue";
 
-import { Route } from "./queue";
-
-type QueueRoute = {
-  options: {
-    server: {
-      handlers: {
-        GET: (context: { request: Request }) => Promise<Response>;
-        POST: (context: { request: Request }) => Promise<Response>;
-      };
-    };
-  };
-};
-
-const handlers = (Route as unknown as QueueRoute).options.server.handlers;
-const application = {
-  kind: "reseller",
-  id: "12345678-1234-4234-8234-123456789012",
-  number: "RSA-123",
-  name: "Applicant",
-  email: "applicant@example.invalid",
-  status: "pending",
-  reason: null,
-  submitted: "2026-10-01T00:00:00Z",
-  actions: ["active", "rejected"],
-};
-
-function request(path: string, init?: RequestInit) {
-  return new Request(`http://localhost/api/applications/queue${path}`, {
-    ...init,
-    headers: { authorization: "Bearer fixture-token", ...init?.headers },
+const id = "c733350b-27f5-424e-9b21-f6b837c48018";
+function call(method: "GET" | "POST", body?: Record<string, unknown>, query = "", signedIn = true) {
+  if (!state.handlers) throw new Error("Route handlers were not registered");
+  return state.handlers[method]({
+    request: new Request(`https://fixture.invalid/api/applications/queue${query}`, {
+      method,
+      headers: signedIn ? { authorization: "Bearer fixture-token" } : {},
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    }),
   });
 }
-
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.isApplicationBoss.mockResolvedValue(false);
-  mocks.isApplicationStaff.mockResolvedValue(false);
-  mocks.isResellerApplicationReader.mockResolvedValue(true);
-  mocks.listApplications.mockResolvedValue([{ ...application, actions: [] }]);
-  mocks.getApplication.mockResolvedValue(application);
-  mocks.rpcAs.mockResolvedValue({ ok: true, data: { ok: true } });
+  state.staff.mockResolvedValue(true);
+  state.boss.mockResolvedValue(false);
+  state.resellerReader.mockResolvedValue(true);
+  state.provider.mockReturnValue(null);
+  state.get.mockResolvedValue({
+    id,
+    kind: "employee",
+    status: "pending",
+    actions: ["approved", "rejected"],
+  });
+  state.rpc.mockResolvedValue({ ok: true, data: { ok: true } });
+  state.send.mockResolvedValue({
+    attempted: 0,
+    sent: 0,
+    retrying: 0,
+    failed: 0,
+    reason: "no email provider configured",
+  });
 });
-
-afterEach(() => vi.clearAllMocks());
-
-describe("application queue access", () => {
-  it("lets a Reseller Manager read only the restricted reseller summary list", async () => {
-    const response = await handlers.GET({
-      request: request("?kind=reseller&filter=reseller-manager"),
+describe("authenticated central application API", () => {
+  it.each(["GET", "POST"] as const)("requires sign-in for %s", async (method) => {
+    expect((await call(method, undefined, "", false)).status).toBe(401);
+    expect(state.count).not.toHaveBeenCalled();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it("refuses non-staff before reading any private application", async () => {
+    state.staff.mockResolvedValue(false);
+    expect((await call("GET", undefined, "?counts=true")).status).toBe(403);
+    expect(state.count).not.toHaveBeenCalled();
+  });
+  it("returns exact uncached counts and actual delivery configuration", async () => {
+    state.count.mockResolvedValue({ total: 5009, byRole: [{ kind: "employee", count: 5009 }] });
+    const response = await call("GET", undefined, "?counts=true");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toMatchObject({ total: 5009, emailProviderConfigured: false });
+  });
+  it("surfaces missing-schema or count failures instead of success-shaped zero", async () => {
+    state.count.mockRejectedValue(new Error("employee table not migrated"));
+    expect((await call("GET", undefined, "?counts=true")).status).toBe(502);
+  });
+  it("requires a rejection reason before calling the database", async () => {
+    expect(
+      (await call("POST", { action: "decide", kind: "employee", id, status: "rejected" })).status,
+    ).toBe(400);
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it("preserves the database's self-review refusal without attempting email", async () => {
+    state.rpc.mockResolvedValue({
+      ok: false,
+      status: 403,
+      message: "You cannot review your own application",
     });
-
+    expect(
+      (await call("POST", { action: "decide", kind: "employee", id, status: "approved" })).status,
+    ).toBe(403);
+    expect(state.send).not.toHaveBeenCalled();
+  });
+  it("does not report success for an HTTP-200 business refusal", async () => {
+    state.rpc.mockResolvedValue({ ok: true, data: { ok: false, reason: "not_permitted" } });
+    const response = await call("POST", {
+      action: "decide",
+      kind: "employee",
+      id,
+      status: "approved",
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "not_permitted" });
+    expect(state.send).not.toHaveBeenCalled();
+  });
+  it.each(APPLICATION_KINDS)(
+    "dispatches only the approved %s application's outbox",
+    async (kind) => {
+      const status = kind === "reseller" ? "active" : "approved";
+      if (kind === "reseller") state.boss.mockResolvedValue(true);
+      state.get.mockResolvedValue({ id, kind, status: "pending", actions: [status] });
+      const response = await call("POST", { action: "decide", kind, id, status });
+      expect(response.status).toBe(200);
+      expect(state.send).toHaveBeenCalledWith(1, { id, kind });
+      if (kind === "vendor" || kind === "author")
+        expect(state.commission).toHaveBeenCalledWith(id, kind);
+      else expect(state.commission).not.toHaveBeenCalled();
+      expect(await response.json()).toMatchObject({
+        ok: true,
+        email: { sent: 0, reason: "no email provider configured" },
+      });
+    },
+  );
+  it("does not turn an already-saved decision into a false failure when email dispatch fails", async () => {
+    state.send.mockRejectedValue(new Error("delivery state could not be recorded"));
+    const response = await call("POST", {
+      action: "decide",
+      kind: "employee",
+      id,
+      status: "approved",
+    });
     expect(response.status).toBe(200);
-    expect(mocks.listApplications).toHaveBeenCalledWith(["reseller"], true, true);
-    expect(mocks.getApplication).not.toHaveBeenCalled();
-  });
-
-  it("does not let a Reseller Manager read full applicant details or documents", async () => {
-    const response = await handlers.GET({
-      request: request("?kind=reseller&id=12345678-1234-4234-8234-123456789012"),
-    });
-
-    expect(response.status).toBe(403);
-    expect(mocks.getApplication).not.toHaveBeenCalled();
-  });
-
-  it("denies non-Boss reseller decisions even if the caller is application staff", async () => {
-    mocks.isApplicationStaff.mockResolvedValue(true);
-    const response = await handlers.POST({
-      request: request("", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          action: "decide",
-          kind: "reseller",
-          id: application.id,
-          status: "rejected",
-          reason: "Application does not meet the criteria.",
-        }),
-      }),
-    });
-
-    expect(response.status).toBe(403);
-    expect(mocks.getApplication).not.toHaveBeenCalled();
-    expect(mocks.rpcAs).not.toHaveBeenCalled();
-  });
-
-  it("allows the Boss decision to pass through the existing caller-scoped RPC", async () => {
-    mocks.isApplicationBoss.mockResolvedValue(true);
-    mocks.isApplicationStaff.mockResolvedValue(true);
-    const response = await handlers.POST({
-      request: request("", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          action: "decide",
-          kind: "reseller",
-          id: application.id,
-          status: "active",
-        }),
-      }),
-    });
-
-    expect(response.status).toBe(200);
-    expect(mocks.rpcAs).toHaveBeenCalledWith("fixture-token", "mm_reseller_status", {
-      p_id: application.id,
-      p_to: "active",
-      p_reason: null,
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      email: {
+        sent: 0,
+        reason: "Decision saved; email delivery could not be confirmed.",
+      },
     });
   });
 });

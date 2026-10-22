@@ -51,6 +51,7 @@ import { Route as PromiseTrackerRouteImport } from './routes/promise-tracker'
 import { Route as RdManagerRouteImport } from './routes/rd-manager'
 import { Route as ReadyRouteImport } from './routes/ready'
 import { Route as RefundPolicyRouteImport } from './routes/refund-policy'
+import { Route as RequestSoftwareRouteImport } from './routes/request-software'
 import { Route as ResellerManagerRouteImport } from './routes/reseller-manager'
 import { Route as SalesCrmRouteImport } from './routes/sales-crm'
 import { Route as SalesSupportManagerRouteImport } from './routes/sales-support-manager'
@@ -182,6 +183,7 @@ import { Route as AmsXpRouteImport } from './routes/ams.xp'
 import { Route as AmsXpCrystalVaultRouteImport } from './routes/ams.xp-crystal-vault'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiMarketplaceProductCountrySeoWorkerRouteImport } from './routes/api/marketplace-product-country-seo-worker'
+import { Route as ApiRdRequestRouteImport } from './routes/api/rd-request'
 import { Route as ApplyIndexRouteImport } from './routes/apply.index'
 import { Route as ApplyRoleRouteImport } from './routes/apply.$role'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
@@ -603,6 +605,11 @@ const ReadyRoute = ReadyRouteImport.update({
 const RefundPolicyRoute = RefundPolicyRouteImport.update({
   id: '/refund-policy',
   path: '/refund-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RequestSoftwareRoute = RequestSoftwareRouteImport.update({
+  id: '/request-software',
+  path: '/request-software',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResellerManagerRoute = ResellerManagerRouteImport.update({
@@ -1281,6 +1288,11 @@ const ApiMarketplaceProductCountrySeoWorkerRoute =
     path: '/api/marketplace-product-country-seo-worker',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiRdRequestRoute = ApiRdRequestRouteImport.update({
+  id: '/api/rd-request',
+  path: '/api/rd-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApplyIndexRoute = ApplyIndexRouteImport.update({
   id: '/apply/',
   path: '/apply/',
@@ -2414,6 +2426,7 @@ export interface FileRoutesByFullPath {
   '/rd-manager': typeof RdManagerRouteWithChildren
   '/ready': typeof ReadyRoute
   '/refund-policy': typeof RefundPolicyRoute
+  '/request-software': typeof RequestSoftwareRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2542,6 +2555,7 @@ export interface FileRoutesByFullPath {
   '/ams/xp-crystal-vault': typeof AmsXpCrystalVaultRoute
   '/api/chat': typeof ApiChatRoute
   '/api/marketplace-product-country-seo-worker': typeof ApiMarketplaceProductCountrySeoWorkerRoute
+  '/api/rd-request': typeof ApiRdRequestRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
@@ -2792,6 +2806,7 @@ export interface FileRoutesByTo {
   '/product-demo-manager': typeof ProductDemoManagerRoute
   '/ready': typeof ReadyRoute
   '/refund-policy': typeof RefundPolicyRoute
+  '/request-software': typeof RequestSoftwareRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -2918,6 +2933,7 @@ export interface FileRoutesByTo {
   '/ams/xp-crystal-vault': typeof AmsXpCrystalVaultRoute
   '/api/chat': typeof ApiChatRoute
   '/api/marketplace-product-country-seo-worker': typeof ApiMarketplaceProductCountrySeoWorkerRoute
+  '/api/rd-request': typeof ApiRdRequestRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
@@ -3178,6 +3194,7 @@ export interface FileRoutesById {
   '/rd-manager': typeof RdManagerRouteWithChildren
   '/ready': typeof ReadyRoute
   '/refund-policy': typeof RefundPolicyRoute
+  '/request-software': typeof RequestSoftwareRoute
   '/reseller-manager': typeof ResellerManagerRoute
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
@@ -3306,6 +3323,7 @@ export interface FileRoutesById {
   '/ams/xp-crystal-vault': typeof AmsXpCrystalVaultRoute
   '/api/chat': typeof ApiChatRoute
   '/api/marketplace-product-country-seo-worker': typeof ApiMarketplaceProductCountrySeoWorkerRoute
+  '/api/rd-request': typeof ApiRdRequestRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
@@ -3567,6 +3585,7 @@ export interface FileRouteTypes {
     | '/rd-manager'
     | '/ready'
     | '/refund-policy'
+    | '/request-software'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -3695,6 +3714,7 @@ export interface FileRouteTypes {
     | '/ams/xp-crystal-vault'
     | '/api/chat'
     | '/api/marketplace-product-country-seo-worker'
+    | '/api/rd-request'
     | '/apply/$role'
     | '/blog/$slug'
     | '/control-panel/finance'
@@ -3945,6 +3965,7 @@ export interface FileRouteTypes {
     | '/product-demo-manager'
     | '/ready'
     | '/refund-policy'
+    | '/request-software'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -4071,6 +4092,7 @@ export interface FileRouteTypes {
     | '/ams/xp-crystal-vault'
     | '/api/chat'
     | '/api/marketplace-product-country-seo-worker'
+    | '/api/rd-request'
     | '/apply/$role'
     | '/blog/$slug'
     | '/control-panel/finance'
@@ -4330,6 +4352,7 @@ export interface FileRouteTypes {
     | '/rd-manager'
     | '/ready'
     | '/refund-policy'
+    | '/request-software'
     | '/reseller-manager'
     | '/sales-crm'
     | '/sales-support-manager'
@@ -4458,6 +4481,7 @@ export interface FileRouteTypes {
     | '/ams/xp-crystal-vault'
     | '/api/chat'
     | '/api/marketplace-product-country-seo-worker'
+    | '/api/rd-request'
     | '/apply/$role'
     | '/blog/$slug'
     | '/control-panel/finance'
@@ -4718,6 +4742,7 @@ export interface RootRouteChildren {
   RdManagerRoute: typeof RdManagerRouteWithChildren
   ReadyRoute: typeof ReadyRoute
   RefundPolicyRoute: typeof RefundPolicyRoute
+  RequestSoftwareRoute: typeof RequestSoftwareRoute
   ResellerManagerRoute: typeof ResellerManagerRoute
   SalesCrmRoute: typeof SalesCrmRoute
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
@@ -4747,6 +4772,7 @@ export interface RootRouteChildren {
   AiRecommendRoute: typeof AiRecommendRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiMarketplaceProductCountrySeoWorkerRoute: typeof ApiMarketplaceProductCountrySeoWorkerRoute
+  ApiRdRequestRoute: typeof ApiRdRequestRoute
   ApplyRoleRoute: typeof ApplyRoleRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
@@ -5161,6 +5187,13 @@ declare module '@tanstack/react-router' {
       path: '/refund-policy'
       fullPath: '/refund-policy'
       preLoaderRoute: typeof RefundPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/request-software': {
+      id: '/request-software'
+      path: '/request-software'
+      fullPath: '/request-software'
+      preLoaderRoute: typeof RequestSoftwareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reseller-manager': {
@@ -6078,6 +6111,13 @@ declare module '@tanstack/react-router' {
       path: '/api/marketplace-product-country-seo-worker'
       fullPath: '/api/marketplace-product-country-seo-worker'
       preLoaderRoute: typeof ApiMarketplaceProductCountrySeoWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rd-request': {
+      id: '/api/rd-request'
+      path: '/api/rd-request'
+      fullPath: '/api/rd-request'
+      preLoaderRoute: typeof ApiRdRequestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/apply/': {
@@ -8147,6 +8187,7 @@ const rootRouteChildren: RootRouteChildren = {
   RdManagerRoute: RdManagerRouteWithChildren,
   ReadyRoute: ReadyRoute,
   RefundPolicyRoute: RefundPolicyRoute,
+  RequestSoftwareRoute: RequestSoftwareRoute,
   ResellerManagerRoute: ResellerManagerRoute,
   SalesCrmRoute: SalesCrmRoute,
   SalesSupportManagerRoute: SalesSupportManagerRoute,
@@ -8177,6 +8218,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiMarketplaceProductCountrySeoWorkerRoute:
     ApiMarketplaceProductCountrySeoWorkerRoute,
+  ApiRdRequestRoute: ApiRdRequestRoute,
   ApplyRoleRoute: ApplyRoleRoute,
   BlogSlugRoute: BlogSlugRoute,
   DashboardRoleRoute: DashboardRoleRoute,

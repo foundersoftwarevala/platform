@@ -54,6 +54,18 @@ export async function engineStatus(): Promise<Record<string, unknown>> {
   return translationEngineStatus();
 }
 
+/** A list of failed translation jobs for the admin review screen. */
+export async function failedJobs() {
+  const client = await database();
+  const rows = await client`
+    select id, status, source_text, target_language, error_message, attempts, updated_at
+    from public.marketplace_translations
+    where status = 'rejected' or status = 'needs_review'
+    order by updated_at desc
+    limit 200`;
+  return { jobs: [...rows], total: rows.length };
+}
+
 /** The engine's own counters (Prometheus text from its /metrics), as name -> value. */
 async function engineCounters(): Promise<Record<string, number> | null> {
   return translationEngineCounters();

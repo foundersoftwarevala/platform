@@ -139,9 +139,10 @@ export async function enqueueJobs(
     });
   }
   for (let i = 0; i < rows.length; i += 2000) {
+    // Prevent postgres.js from encoding the already serialized payload a second time.
     const [row] = await client<{ queued: number }[]>`
       select public.i18n_enqueue_translation_jobs(
-        ${JSON.stringify(rows.slice(i, i + 2000))}::jsonb
+        ${JSON.stringify(rows.slice(i, i + 2000))}::text::jsonb
       ) as queued`;
     if (!row) throw new Error("The database did not return an enqueue result.");
     inserted += Number(row.queued);

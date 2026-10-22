@@ -66,6 +66,27 @@ export function extractPlaceholders(text: string): string[] {
   return [...found].sort();
 }
 
+/** The prose of a message: for an ICU message, the text of its branches without the syntax. */
+function proseOf(text: string): string {
+  if (!ICU_BLOCK.test(text)) return text;
+  let nodes: ReturnType<typeof parseMessage>;
+  try {
+    nodes = parseMessage(text);
+  } catch {
+    return text;
+  }
+  const parts: string[] = [];
+  const walk = (list: typeof nodes) => {
+    for (const node of list) {
+      if (typeof node === "string") parts.push(node);
+      else if (node.kind !== "simple" && node.kind !== "pound")
+        for (const branch of node.options.values()) walk(branch);
+    }
+  };
+  walk(nodes);
+  return parts.join(" ");
+}
+
 const SCRIPT_TEST: Record<string, RegExp> = {
   Latn: /\p{Script=Latin}/u,
   Cyrl: /\p{Script=Cyrillic}/u,
@@ -107,6 +128,45 @@ function wordCount(text: string): number {
   return text.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length;
 }
 
+/** Letters and digits of a word, for comparing words across punctuation. */
+function bare(word: string): string {
+  return word.replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+/** A word kept as it is in any language: a coined name ("EduNex") or an acronym ("SEO"). */
+const NAME_LIKE = /^(?:\p{Lu}[\p{L}\d]*\p{Lu}[\p{L}\d]*|\p{Lu}{2,}\d*)$/u;
+
+/**
+ * Whether at least half the letters of a translation are in the target
+ * script, leaving out what it keeps from the English on purpose: placeholders,
+ * links, protected glossary terms and name-like words of the source. Short
+ * remainders are not judged.
+ */
+function mostlyInScript(
+  source: string,
+  translated: string,
+  script: RegExp,
+  keptTerms: readonly string[],
+): boolean {
+  const kept = new Set(
+    [
+      ...source.split(/\s+/).filter((word) => NAME_LIKE.test(bare(word))),
+      ...keptTerms.flatMap((t) => t.split(/\s+/)),
+    ]
+      .map(bare)
+      .filter(Boolean),
+  );
+  const rest = proseOf(translated)
+    .replace(PLACEHOLDER, " ")
+    .split(/\s+/)
+    .filter((word) => !kept.has(bare(word)))
+    .join(" ");
+  const letters = rest.match(/\p{L}/gu) ?? [];
+  if (letters.length < 4) return true;
+  const inScript = letters.filter((letter) => script.test(letter)).length;
+  return inScript * 2 >= letters.length;
+}
+
 function sameMultiset(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
@@ -117,6 +177,8 @@ export function assessTranslation(input: {
   target: LanguageDefinition;
   /** Protected-term tokens that did not survive. */
   lostTokens?: string[];
+  /** Text the translation keeps from the source on purpose (locked glossary terms). */
+  keptTerms?: readonly string[];
   /** Terminology problems from checkTerminology. */
   terminologyIssues?: string[];
   engineConfidence?: number | null;
@@ -139,6 +201,15 @@ export function assessTranslation(input: {
   if (translated && sourceLetters >= 3) {
     const expected = SCRIPT_TEST[input.target.script];
     if (expected && !expected.test(translated)) errors.push("wrong_script");
+    else if (
+      expected &&
+      input.target.script !== "Latn" &&
+      !mostlyInScript(source, translated, expected, input.keptTerms ?? [])
+    ) {
+      // One letter of the target script is not a translation: "Apply now अभी"
+      // is English with a word added.
+      errors.push("wrong_script");
+    }
   }
 
   if (translated && !input.sourceUnknown && translated === source && sourceLetters >= 3) {
@@ -157,7 +228,12 @@ export function assessTranslation(input: {
   if ((source.match(/\n/g) ?? []).length !== (translated.match(/\n/g) ?? []).length) {
     warnings.push("line_breaks");
   }
-  for (const issue of input.terminologyIssues ?? []) warnings.push(issue);
+  for (const issue of input.terminologyIssues ?? []) {
+    // A term an operator forbade must not reach a reader; a missing preferred
+    // term only lowers the score.
+    if (issue.startsWith("glossary_forbidden:")) errors.push(issue);
+    else warnings.push(issue);
+  }
 
   const base =
     typeof input.engineConfidence === "number"

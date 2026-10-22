@@ -20,6 +20,7 @@ import {
   getAuditTrail,
   getDeliveryOverview,
   getDeveloperRegistry,
+  generateDeveloperInsight,
   setDeveloperStatus,
   reassignTask,
   updateEscalation,
@@ -142,7 +143,6 @@ export function useDeliveryOverview() {
     staleTime: 15_000,
   });
 
-
   // Realtime notifications: task + escalation + note changes push a refresh.
   useEffect(() => {
     const channel = supabase
@@ -150,9 +150,13 @@ export function useDeliveryOverview() {
       .on("postgres_changes", { event: "*", schema: "public", table: "developer_tasks" }, () => {
         void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "developer_task_internal_notes" }, () => {
-        void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "developer_task_internal_notes" },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
+        },
+      )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "developer_task_escalations" },
@@ -169,9 +173,13 @@ export function useDeliveryOverview() {
           void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
         },
       )
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "developer_task_escalations" }, () => {
-        void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
-      })
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "developer_task_escalations" },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
+        },
+      )
       .subscribe();
 
     return () => {
@@ -289,6 +297,14 @@ export function useDeveloperRegistry() {
   });
 }
 
+export function useGenerateDeveloperInsight() {
+  const generate = useServerFn(generateDeveloperInsight);
+  return useMutation({
+    mutationFn: (input: { kind: "skill_match" | "delay_prediction"; language: string }) =>
+      generate({ data: input }),
+  });
+}
+
 /** Audited suspend / reactivate / exit for a developer. */
 export function useSetDeveloperStatus() {
   const mutate = useServerFn(setDeveloperStatus);
@@ -300,12 +316,19 @@ export function useSetDeveloperStatus() {
       reason: string;
     }) => mutate({ data: { ...input, actor: hostActor() } }),
     onSuccess: (_r, vars) => {
-      toast({ title: `Developer ${vars.status}`, description: "Change recorded in the audit trail." });
+      toast({
+        title: `Developer ${vars.status}`,
+        description: "Change recorded in the audit trail.",
+      });
       void queryClient.invalidateQueries({ queryKey: REGISTRY_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
     },
     onError: (error) =>
-      toast({ title: "Status change failed", description: describeError(error), variant: "destructive" }),
+      toast({
+        title: "Status change failed",
+        description: describeError(error),
+        variant: "destructive",
+      }),
   });
 }
 
@@ -359,6 +382,7 @@ export function useCodeSubmissions() {
       }));
     },
     staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 }
 
@@ -370,16 +394,26 @@ export function useCodeSubmissions() {
 export function useReviewSubmission() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; decision: "approved" | "changes_requested"; notes: string }) => {
-      const { error } = await supabase.rpc("review_developer_submission" as never, {
-        _submission_id: input.id,
-        _decision: input.decision,
-        _notes: input.notes,
-      } as never);
+    mutationFn: async (input: {
+      id: string;
+      decision: "approved" | "changes_requested";
+      notes: string;
+    }) => {
+      const { error } = await supabase.rpc(
+        "review_developer_submission" as never,
+        {
+          _submission_id: input.id,
+          _decision: input.decision,
+          _notes: input.notes,
+        } as never,
+      );
       if (error) throw new Error(error.message);
     },
     onSuccess: (_r, vars) => {
-      toast({ title: vars.decision === "approved" ? "Submission approved" : "Changes requested", variant: "success" });
+      toast({
+        title: vars.decision === "approved" ? "Submission approved" : "Changes requested",
+        variant: "success",
+      });
       void queryClient.invalidateQueries({ queryKey: SUBMISSIONS_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: DELIVERY_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: DEV_TASKS_QUERY_KEY });
@@ -412,7 +446,9 @@ export function useAllDeveloperTasks() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("developer_tasks" as never)
-        .select("id, title, category, status, developer_id, estimated_hours, task_amount, completed_at, deadline, tech_stack, priority")
+        .select(
+          "id, title, category, status, developer_id, estimated_hours, task_amount, completed_at, deadline, tech_stack, priority",
+        )
         .order("created_at", { ascending: false })
         .limit(5000);
       if (error) throw new Error(error.message);
@@ -432,6 +468,7 @@ export function useAllDeveloperTasks() {
       }));
     },
     staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 }
 
@@ -453,7 +490,9 @@ export function useDeveloperActivity(limit = 10) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("developer_activity_logs" as never)
-        .select("id, developer_id, ip_address, device_info, activity_type, description, created_at, developers(vala_id, full_name)")
+        .select(
+          "id, developer_id, ip_address, device_info, activity_type, description, created_at, developers(vala_id, full_name)",
+        )
         .order("created_at", { ascending: false })
         .limit(limit);
       if (error) throw new Error(error.message);
@@ -462,7 +501,12 @@ export function useDeveloperActivity(limit = 10) {
         id: r.id,
         developerId: r.developer_id,
         ip: r.ip_address == null ? null : String(r.ip_address),
-        device: r.device_info == null ? null : typeof r.device_info === "string" ? r.device_info : JSON.stringify(r.device_info),
+        device:
+          r.device_info == null
+            ? null
+            : typeof r.device_info === "string"
+              ? r.device_info
+              : JSON.stringify(r.device_info),
         developer: r.developers?.vala_id || r.developers?.full_name || "—",
         type: r.activity_type ?? "",
         description: r.description ?? "",
@@ -470,6 +514,7 @@ export function useDeveloperActivity(limit = 10) {
       }));
     },
     staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 }
 
@@ -481,10 +526,18 @@ export function useCompleteOnboarding() {
     mutationFn: (input: { developerId: string; note: string }) =>
       mutate({ data: { ...input, actor: hostActor() } }),
     onSuccess: () => {
-      toast({ title: "Onboarding approved", description: "Recorded in the audit trail.", variant: "success" });
+      toast({
+        title: "Onboarding approved",
+        description: "Recorded in the audit trail.",
+        variant: "success",
+      });
       void queryClient.invalidateQueries({ queryKey: REGISTRY_QUERY_KEY });
     },
     onError: (error) =>
-      toast({ title: "Approval failed", description: describeError(error), variant: "destructive" }),
+      toast({
+        title: "Approval failed",
+        description: describeError(error),
+        variant: "destructive",
+      }),
   });
 }

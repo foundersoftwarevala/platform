@@ -1,5 +1,4 @@
 
-!.vscode/extensions.json
 # Editor directories and files
 # Logs
 # Wrangler / Cloudflare
@@ -26,6 +25,8 @@
 .tanstack/**
 .vinxi
 .vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 .wrangler/
 dist
 dist-ssr

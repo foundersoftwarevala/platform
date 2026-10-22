@@ -1,6 +1,13 @@
 import { getRole } from "./config";
 import { documentFields } from "./documents";
 import { serviceRest } from "./gateway.server";
+import {
+  APPLICATION_KINDS,
+  OPEN_STATUSES,
+  type ApplicationCounts,
+  type ApplicationKind,
+} from "./kinds";
+export { APPLICATION_KINDS, OPEN_STATUSES, isApplicationKind, type ApplicationKind } from "./kinds";
 
 /**
  * Every application submitted through /apply/<role>, one shape for all of them.
@@ -10,20 +17,6 @@ import { serviceRest } from "./gateway.server";
  * one way to decide them, so the Control Panel can manage every application
  * from a single queue while each role's Manager keeps its own account view.
  */
-
-export const APPLICATION_KINDS = [
-  "reseller",
-  "vendor",
-  "author",
-  "franchise",
-  "influencer",
-  "affiliate",
-] as const;
-export type ApplicationKind = (typeof APPLICATION_KINDS)[number];
-
-export function isApplicationKind(value: unknown): value is ApplicationKind {
-  return typeof value === "string" && (APPLICATION_KINDS as readonly string[]).includes(value);
-}
 
 type Row = Record<string, unknown>;
 
@@ -91,6 +84,27 @@ const seller = (kind: "vendor" | "author"): Definition => ({
 });
 
 const DEFINITIONS: Record<ApplicationKind, Definition> = {
+  employee: {
+    table: "employee_applications",
+    owner: "applicant_user_id",
+    select: "id,application_number,full_name,email,status,review_notes,application,created_at",
+    number: (r) => text(r.application_number),
+    name: (r) => text(r.full_name),
+    email: (r) => text(r.email),
+    reason: (r) => (r.review_notes == null ? null : text(r.review_notes)),
+    submitted: (r) => text(r.created_at),
+    answers: (r) => (r.application as Row | null) ?? {},
+    transitions: {
+      pending: ["in_review", "approved", "rejected"],
+      in_review: ["approved", "rejected"],
+    },
+    review: (id, status, reason) => ({
+      fn: "review_employee_application",
+      args: { p_id: id, p_status: status, p_reason: reason },
+    }),
+    audit: { table: "marketplace_audit_logs", entity: "employee_application" },
+    approvedStatus: "approved",
+  },
   reseller: {
     table: "resellers",
     owner: "user_id",
@@ -209,9 +223,6 @@ export function definitionOf(kind: ApplicationKind): Definition {
   return DEFINITIONS[kind];
 }
 
-/** Statuses that still wait for a decision. */
-export const OPEN_STATUSES = ["pending", "in_review"];
-
 function summarise(kind: ApplicationKind, r: Row): ApplicationSummary {
   const d = DEFINITIONS[kind];
   const status = text(r.status);
@@ -231,9 +242,8 @@ function summarise(kind: ApplicationKind, r: Row): ApplicationSummary {
 /**
  * Applications of one kind, or of every kind, newest first.
  *
- * `open` keeps to the ones still waiting for a decision. The cap is per kind
- * and generous: the queue is the working set, not an archive, and a limit that
- * silently hid applications would be worse than a long list.
+ * Open applications are paged until exhausted; historical views retain their
+ * existing 1,000-row per-role bound.
  */
 export async function listApplications(
   kinds: ApplicationKind[],
@@ -260,17 +270,25 @@ export async function listApplications(
       ]
         .filter(Boolean)
         .join("&");
-      const response = await serviceRest(
-        `${d.table}?select=${d.select}${filters ? `&${filters}` : ""}&order=created_at.desc&limit=1000`,
-      );
-      if (!response.ok)
-        throw new Error(`${kind} applications could not be read (${response.status})`);
-      const rows = (await response.json()) as Row[];
+      const rows: Row[] = [];
+      let offset = 0;
+      for (;;) {
+        const response = await serviceRest(
+          `${d.table}?select=${d.select}${filters ? `&${filters}` : ""}&order=created_at.desc,id.desc&limit=1000&offset=${offset}`,
+        );
+        if (!response.ok)
+          throw new Error(`${kind} applications could not be read (${response.status})`);
+        const page = (await response.json()) as Row[];
+        rows.push(...page);
+        if (page.length < 1000 || !open) break;
+        offset += page.length;
+      }
       // Resellers, sellers and affiliates an operator created directly - or who
       // joined before the form existed - have no application: they are
       // accounts, not applicants, and stay in their own Manager. Franchise and
       // influencer tables hold nothing but applications.
-      const holdsOnlyApplications = kind === "franchise" || kind === "influencer";
+      const holdsOnlyApplications =
+        kind === "franchise" || kind === "influencer" || kind === "employee";
       return rows
         .filter(
           (r) =>
@@ -287,18 +305,12 @@ export async function listApplications(
   return results.flat().sort((a, b) => (a.submitted < b.submitted ? 1 : -1));
 }
 
-export async function countApplications(): Promise<{
-  total: number;
-  byRole: { kind: ApplicationKind | "employee"; count: number }[];
-}> {
-  const kinds = [...APPLICATION_KINDS, "employee"] as const;
+export async function countApplications(): Promise<ApplicationCounts> {
   const byRole = await Promise.all(
-    kinds.map(async (kind) => {
-      const table =
-        kind === "employee" ? "employee_applications" : DEFINITIONS[kind].table;
-      const scope = kind === "employee" ? undefined : DEFINITIONS[kind].scope;
+    APPLICATION_KINDS.map(async (kind) => {
+      const definition = DEFINITIONS[kind];
       const response = await serviceRest(
-        `${table}?select=id&status=in.(${OPEN_STATUSES.join(",")})${scope ? `&${scope}` : ""}`,
+        `${definition.table}?select=id&status=in.(${OPEN_STATUSES.join(",")})${definition.scope ? `&${definition.scope}` : ""}`,
         { method: "HEAD", headers: { Prefer: "count=exact" } },
       );
       if (!response.ok)

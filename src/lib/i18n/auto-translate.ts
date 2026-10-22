@@ -116,6 +116,57 @@ export function currentOriginal(
   return original ?? current;
 }
 
+/**
+ * Backwards-compatible alias for the historical helper name used by older tests.
+ * The legacy call shape accepts a saved map, the slot name and the current text;
+ * the newer runtime path keeps the original WeakMap + key + slot + current form.
+ */
+function resolveLegacyOriginal(
+  saved: Map<string, string> | undefined,
+  slot: string,
+  current?: string,
+): string | null {
+  if (!saved) return null;
+  const original = saved.get(slot);
+  const applied = saved.get(`${slot}:applied`);
+  if (original === undefined) return null;
+  if (current === undefined) return original;
+  if (current === original || current === applied) return original;
+  if (original !== undefined && applied !== undefined && current !== applied && current !== original) {
+    if (!isTranslatableText(current)) {
+      saved.delete(slot);
+      saved.delete(`${slot}:applied`);
+      return null;
+    }
+    saved.delete(slot);
+    saved.delete(`${slot}:applied`);
+    return current;
+  }
+  return original;
+}
+
+export function resolveOriginal(
+  originals: WeakMap<object, Map<string, string>> | Map<string, string> | undefined,
+  keyOrSlot: object | string,
+  slotOrCurrent?: string,
+  current?: string,
+): string | null {
+  if (typeof keyOrSlot === "string") {
+    const saved = originals as Map<string, string> | undefined;
+    return resolveLegacyOriginal(saved, keyOrSlot, slotOrCurrent === undefined ? undefined : slotOrCurrent);
+  }
+  if (current !== undefined) {
+    return currentOriginal(
+      originals as WeakMap<object, Map<string, string>>,
+      keyOrSlot,
+      slotOrCurrent!,
+      current,
+    );
+  }
+  const saved = originals as Map<string, string> | undefined;
+  return resolveLegacyOriginal(saved, slotOrCurrent ?? "");
+}
+
 /** Everything on the page that can be translated, with its English text. */
 export function collectTargets(
   root: ParentNode & Node,

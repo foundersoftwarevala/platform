@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import "@/styles/marketplace-home.css";
 import { getRole, type Field } from "@/lib/applications/config";
+import { APPLICATION_KINDS } from "@/lib/applications/kinds";
 import { checkDocument, DOCUMENT_ACCEPT } from "@/lib/applications/documents";
 import { partnerHashtags, partnerSeo, partnerStructuredData } from "@/lib/seo/partner-opportunity";
 import { absoluteUrl } from "@/lib/seo/site-url";
@@ -37,9 +38,7 @@ type Submitted = {
 };
 
 /** Roles whose application reaches a server table and a manager workflow. */
-const ONLINE_ROLES: ReadonlySet<string> = new Set([
-  "reseller", "vendor", "author", "franchise", "influencer", "affiliate",
-]);
+const ONLINE_ROLES: ReadonlySet<string> = new Set(APPLICATION_KINDS);
 
 /**
  * Every role goes to the same server path, which checks the form's fields,
@@ -179,7 +178,10 @@ function FieldInput({
   const id = `f_${field.name}`;
   return (
     <div className={field.half ? "sm:col-span-1" : "sm:col-span-2"}>
-      <label htmlFor={id} className="mb-1.5 block text-[11.5px] font-semibold tracking-wide text-white/70">
+      <label
+        htmlFor={id}
+        className="mb-1.5 block text-[11.5px] font-semibold tracking-wide text-white/70"
+      >
         {field.label}
         {field.required && <span className="ml-1 text-rose-300">*</span>}
       </label>
@@ -304,8 +306,13 @@ function ApplyRolePage() {
     return (
       <div className="mpc-home flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <h1 className="text-2xl font-black">Application not found</h1>
-        <p className="text-sm text-white/60">That role does not exist. Pick one of the available applications.</p>
-        <Link to="/apply" className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-5 py-2.5 text-[13px] font-bold">
+        <p className="text-sm text-white/60">
+          That role does not exist. Pick one of the available applications.
+        </p>
+        <Link
+          to="/apply"
+          className="rounded-full bg-gradient-to-r from-cyan-400 to-blue-600 px-5 py-2.5 text-[13px] font-bold"
+        >
           View all applications
         </Link>
       </div>
@@ -368,13 +375,22 @@ function ApplyRolePage() {
             </p>
           )}
           <p className="mt-3 text-[13px] text-white/60">{t("apply.number")}</p>
-          <p className="mt-1 font-mono text-2xl font-black tracking-wider text-cyan-200" data-application-number>
+          <p
+            className="mt-1 font-mono text-2xl font-black tracking-wider text-cyan-200"
+            data-application-number
+          >
             {application.number}
           </p>
-          <p className="mt-3 text-[13.5px] leading-relaxed text-white/65" data-application-status={application.status}>
+          <p
+            className="mt-3 text-[13.5px] leading-relaxed text-white/65"
+            data-application-status={application.status}
+          >
             {t("apply.status", { status: application.status })}{" "}
             {role.key === "reseller" ? t("reseller.apply.next") : t("apply.next")}
           </p>
+          {role.key === "employee" && (
+            <p className="mt-3 text-[13.5px] text-white/65">{t("apply.queue.employee_notice")}</p>
+          )}
           {application.uploads.length > 0 && (
             <div
               className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-left"
@@ -428,7 +444,10 @@ function ApplyRolePage() {
             </div>
           )}
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link to="/" className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-[13px] font-bold">
+            <Link
+              to="/"
+              className="rounded-full border border-white/20 bg-white/5 px-5 py-2.5 text-[13px] font-bold"
+            >
               {t("apply.home")}
             </Link>
           </div>
@@ -449,16 +468,27 @@ function ApplyRolePage() {
           <ArrowLeft className="h-3.5 w-3.5" /> All applications
         </button>
 
-        <header className={`overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-br ${role.accent} p-[1px]`}>
+        <header
+          className={`overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-br ${role.accent} p-[1px]`}
+        >
           <div className="rounded-[calc(1.5rem-1px)] bg-[#0a1526]/85 px-6 py-7 backdrop-blur-xl">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.18em] text-white/80">
               <BadgeCheck className="h-3 w-3" /> Role application
             </span>
             <h1 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">{role.label}</h1>
-            <p className="mt-2 max-w-2xl text-[14px] text-white/70">{role.tagline}. {role.blurb}</p>
+            <p className="mt-2 max-w-2xl text-[14px] text-white/70">
+              {role.tagline}. {role.blurb}
+            </p>
+            {role.key === "employee" && (
+              <p className="mt-3 text-[13.5px] text-white/65">{t("apply.queue.employee_notice")}</p>
+            )}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <InfoCard icon={CreditCard} title="Application fee" body={`${role.fee} — ${role.feeNote}`} />
+              <InfoCard
+                icon={CreditCard}
+                title="Application fee"
+                body={`${role.fee} — ${role.feeNote}`}
+              />
               <InfoCard icon={FileSignature} title="Agreement" body={role.agreement} />
               <InfoCard icon={LayoutDashboard} title="Dashboard access" body={role.dashboard} />
             </div>
@@ -533,7 +563,8 @@ function ApplyRolePage() {
                 onChange={(e) => setAgreed(e.target.checked)}
                 className="mt-0.5 h-4 w-4 accent-cyan-400"
               />
-              I have read and accept the agreement, and confirm all submitted information is accurate.
+              I have read and accept the agreement, and confirm all submitted information is
+              accurate.
             </label>
           </section>
 
@@ -570,7 +601,10 @@ function ApplyRolePage() {
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Submit Application
             </button>
-            <Link to="/" className="rounded-full border border-white/20 bg-white/5 px-6 py-3 text-[13px] font-bold">
+            <Link
+              to="/"
+              className="rounded-full border border-white/20 bg-white/5 px-6 py-3 text-[13px] font-bold"
+            >
               Cancel
             </Link>
           </div>

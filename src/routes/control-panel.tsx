@@ -9,7 +9,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SliderBanner } from "@/components/slider-banner/SliderBanner";
 import { BannerThemeControls } from "@/components/slider-banner/BannerThemeControls";
 
-
 import {
   Activity,
   AlertTriangle,
@@ -116,7 +115,7 @@ const KPI_BOXES: Kpi[] = [
   // LIVE ACTIVITY + APPROVALS
   { id: "live-activity", label: "Live Activity", icon: Zap, source: "Live Activity" },
   { id: "approvals", label: "Pending Approvals", icon: FileCheck, source: "Approvals" },
-  { id: "role-approvals", label: "Role Approvals", icon: BadgeCheck, source: "Approvals" },
+  { id: "role-approvals", label: "Pending Applications", icon: BadgeCheck, source: "Applications" },
   { id: "deploy-approvals", label: "Deployment Requests", icon: Rocket, source: "Approvals" },
   { id: "completed-today", label: "Completed Today", icon: CheckCircle, source: "CEO Overview" },
   // CEO OVERVIEW
@@ -163,7 +162,6 @@ function CockpitBanner() {
     </section>
   );
 }
-
 
 function GuardedIndex() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -233,7 +231,13 @@ function Index({ canManageFinance }: { canManageFinance: boolean }) {
 
   return (
     <TooltipProvider>
-      <div className="dark flex min-h-screen w-full" style={{ background: "radial-gradient(1200px 700px at 18% -10%, #163a72 0%, transparent 60%), radial-gradient(900px 600px at 100% 0%, #0f3a5c 0%, transparent 55%), #070f22" }}>
+      <div
+        className="dark flex min-h-screen w-full"
+        style={{
+          background:
+            "radial-gradient(1200px 700px at 18% -10%, #163a72 0%, transparent 60%), radial-gradient(900px 600px at 100% 0%, #0f3a5c 0%, transparent 55%), #070f22",
+        }}
+      >
         <div
           className="flex-shrink-0 transition-[width] duration-300 ease-out"
           style={{ width: sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH }}
@@ -257,7 +261,6 @@ function Index({ canManageFinance }: { canManageFinance: boolean }) {
                 influencer_dashboard: "influencer",
                 // Both are real RoleKeys with their own dashboard; neither was
                 // reachable from the sidebar that offers them.
-
               };
               const dashRole = ROLE_DASHBOARD_ROUTES[roleId];
               if (dashRole) {
@@ -301,53 +304,52 @@ function Index({ canManageFinance }: { canManageFinance: boolean }) {
                 return;
               }
 
-
               // Every sidebar entry that has a route of its own. Entries handled
               // by the cases above keep their existing behaviour; this only
               // catches the ones that used to fall through to a toast.
               const MODULE_ROUTES: Record<string, string> = {
-                  // AMS Manager is one module: the whole AMS experience with its
-                  // own sidebar, mounted at /ams. The older /ams-manager panel is
-                  // left in place and still works; this entry opens the module.
-                  ams_manager: "/ams",
-                  // The Developer Manager control tower. The entry used to open the
-                  // generic role dashboard because no module existed behind it.
-                  developer_management: "/dev-manager",
-                  rd_manager: "/rd-manager",
-                  // The central task control tower. This entry used to report
-                  // that nothing was built behind it, which was true.
-                  task_management: "/task-manager",
-                  chat_manager: "/chat-manager",
-                  creator_manager: "/creator-manager",
-                  demo_manager: "/demo-manager",
-                  finance_manager: "/control-panel/finance",
-                  franchise_manager: "/franchise-manager",
-                  influencer_manager: "/influencer-manager",
-                  lead_manager: "/lead-manager",
-                  marketplace_manager: "/marketplace-manager",
-                  reseller_manager: "/reseller-manager",
-                  vendor_manager: "/vendor-manager",
-                  application_manager: "/application-manager",
-                  affiliate_manager: "/affiliate-manager",
-                  sales_support_manager: "/sales-support-manager",
-                  seo_manager: "/seo-manager",
-                  // Each of these was falling through to a success toast while
-                  // its module sat at a working address. Verified by request.
-                  boss_owner: "/boss",
-                  vala_ai_management: "/vala-ai",
-                  api_ai_manager: "/ai-api-manager",
-                  marketing_management: "/marketing",
-                  customer_support_management: "/support",
-                  product_manager: "/product-demo-manager",
-                  // The button existed; it pointed at the API usage monitor because
-                  // no Server Manager module existed to open. It does now.
-                  server_manager: "/server-manager",
-                  security: "/manager/security",
-                  settings: "/manager/settings",
-                  home: "/",
-                  // The AI CEO command centre. This entry used to report
-                  // that nothing was built behind it, which was true.
-                  ceo: "/ai-ceo",
+                // AMS Manager is one module: the whole AMS experience with its
+                // own sidebar, mounted at /ams. The older /ams-manager panel is
+                // left in place and still works; this entry opens the module.
+                ams_manager: "/ams",
+                // The Developer Manager control tower. The entry used to open the
+                // generic role dashboard because no module existed behind it.
+                developer_management: "/dev-manager",
+                rd_manager: "/rd-manager",
+                // The central task control tower. This entry used to report
+                // that nothing was built behind it, which was true.
+                task_management: "/task-manager",
+                chat_manager: "/chat-manager",
+                creator_manager: "/creator-manager",
+                demo_manager: "/demo-manager",
+                finance_manager: "/finance-manager",
+                franchise_manager: "/franchise-manager",
+                influencer_manager: "/influencer-manager",
+                lead_manager: "/lead-manager",
+                marketplace_manager: "/marketplace-manager",
+                reseller_manager: "/reseller-manager",
+                vendor_manager: "/vendor-manager",
+                application_manager: "/application-manager",
+                affiliate_manager: "/affiliate-manager",
+                sales_support_manager: "/sales-support-manager",
+                seo_manager: "/seo-manager",
+                // Each of these was falling through to a success toast while
+                // its module sat at a working address. Verified by request.
+                boss_owner: "/boss",
+                vala_ai_management: "/vala-ai",
+                api_ai_manager: "/ai-api-manager",
+                marketing_management: "/marketing",
+                customer_support_management: "/support",
+                product_manager: "/product-demo-manager",
+                // The button existed; it pointed at the API usage monitor because
+                // no Server Manager module existed to open. It does now.
+                server_manager: "/server-manager",
+                security: "/manager/security",
+                settings: "/manager/settings",
+                home: "/",
+                // The AI CEO command centre. This entry used to report
+                // that nothing was built behind it, which was true.
+                ceo: "/ai-ceo",
               };
               const modulePath = MODULE_ROUTES[roleId];
               if (modulePath) {
@@ -387,7 +389,6 @@ function Index({ canManageFinance }: { canManageFinance: boolean }) {
           />
         </div>
 
-
         <main className="flex min-w-0 flex-1 flex-col gap-6 p-5">
           <CockpitBanner />
 
@@ -424,11 +425,19 @@ function Index({ canManageFinance }: { canManageFinance: boolean }) {
                     key={kpi.id}
                     {...kpi}
                     value={tile?.value ?? "—"}
-                    subValues={tile?.subValues ?? [cockpit.isError ? "Could not be read" : "Loading…"]}
+                    subValues={
+                      tile?.subValues ?? [cockpit.isError ? "Could not be read" : "Loading…"]
+                    }
                     status={tile?.status ?? "untracked"}
                     series={tile?.series}
                     trend={tile?.trend}
-                    urgency={tile?.status === "critical" ? "critical" : tile?.status === "warning" ? "medium" : "low"}
+                    urgency={
+                      tile?.status === "critical"
+                        ? "critical"
+                        : tile?.status === "warning"
+                          ? "medium"
+                          : "low"
+                    }
                     lastUpdate={updated ?? undefined}
                     activity={
                       !tile
@@ -440,7 +449,11 @@ function Index({ canManageFinance }: { canManageFinance: boolean }) {
                           : `Updated ${updated}`
                     }
                     isSelected={selectedKpi === kpi.id}
-                    onClick={() => setSelectedKpi(kpi.id === selectedKpi ? null : kpi.id)}
+                    onClick={() => {
+                      if (kpi.id === "role-approvals")
+                        void navigate({ to: "/application-manager" });
+                      else setSelectedKpi(kpi.id === selectedKpi ? null : kpi.id);
+                    }}
                   />
                 );
               })}
@@ -473,7 +486,6 @@ function Index({ canManageFinance }: { canManageFinance: boolean }) {
             </div>
 
             <CommandCenter />
-
           </div>
         </aside>
       </div>
