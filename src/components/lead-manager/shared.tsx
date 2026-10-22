@@ -331,6 +331,8 @@ export function Panel({
 const statusTone: Record<LeadStatus, string> = {
   new: "bg-info/15 text-info border-info/30",
   contacted: "bg-primary/15 text-primary border-primary/30",
+  qualified: "bg-success/15 text-success border-success/30",
+  proposal: "bg-chart-3/15 text-chart-3 border-chart-3/30",
   interested: "bg-chart-5/15 text-chart-5 border-chart-5/30",
   follow_up: "bg-warning/15 text-warning border-warning/30",
   negotiation: "bg-chart-2/15 text-chart-2 border-chart-2/30",

@@ -7,7 +7,6 @@ import {
   Mail,
   MessageCircle,
   Phone,
-  Trash2,
   UserCheck,
   UserCog,
   XCircle,
@@ -31,7 +30,10 @@ import { OpenLinkedConversation } from "@/components/chat/user/ConversationLinks
 import {
   leadKeys,
   useAgents,
+  useAssignableLeadAgents,
+  useCanAssignLeads,
   useCurrentAgent,
+  useLeadActivities,
   useLeadCommunications,
   useLeadNotes,
 } from "@/lib/lead-manager/queries";
@@ -73,6 +75,9 @@ export function LeadDetailSheet({
   // agent is not the same as stopping them ringing the lead.
   const { data: viewer } = useCurrentAgent();
   const reveal = viewer ? viewer.can_unmask : true;
+  const { data: canAssign = false } = useCanAssignLeads();
+  const { data: assignableAgents = [] } = useAssignableLeadAgents(canAssign);
+  const { data: activities = [] } = useLeadActivities(lead?.id ?? null);
   const { data: notes = [] } = useLeadNotes(lead?.id ?? null);
   const { data: comms = [] } = useLeadCommunications(lead?.id ?? null);
 
@@ -294,6 +299,30 @@ export function LeadDetailSheet({
 
             <TabsContent value="activity" className="mt-4 space-y-4">
               <div className="space-y-2">
+                <Label>Persisted activity timeline</Label>
+                {activities.map((activity) => (
+                  <div key={activity.id} className="rounded-md border border-border bg-surface-2 p-3">
+                    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                      <span>
+                        {activity.action.replaceAll("_", " ")} · actor {activity.actor_id}
+                      </span>
+                      <span>{dateTime(activity.created_at)}</span>
+                    </div>
+                    {activity.note ? <p className="mt-1 text-sm">{activity.note}</p> : null}
+                    {activity.before_state?.status || activity.after_state?.status ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Status: {String(activity.before_state?.status ?? "—")} →{" "}
+                        {String(activity.after_state?.status ?? "—")}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+                {activities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No persisted state changes yet.</p>
+                ) : null}
+              </div>
+              <Separator />
+              <div className="space-y-2">
                 <Label>Add note</Label>
                 <Textarea
                   value={note}
@@ -341,24 +370,31 @@ export function LeadDetailSheet({
             </TabsContent>
 
             <TabsContent value="actions" className="mt-4 space-y-5">
-              <div className="space-y-2">
-                <Label>Assign / reassign</Label>
-                <Select
-                  value={lead.assigned_agent_id ?? ""}
-                  onValueChange={(v) => run(() => leadApi.assignLead(lead.id, v), "Lead assigned")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose an agent" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agents.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name} — {a.team} ({a.status})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {canAssign ? (
+                <div className="space-y-2">
+                  <Label>Assign / reassign</Label>
+                  <Select
+                    value={lead.assigned_agent_id ?? ""}
+                    onValueChange={(v) => run(() => leadApi.assignLead(lead.id, v), "Lead assigned")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose an agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignableAgents.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name} — {a.team} ({a.status})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {assignableAgents.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No agent profile is linked to an active sales account.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="space-y-2">
                 <Label>Change stage</Label>
@@ -456,19 +492,9 @@ export function LeadDetailSheet({
               </div>
 
               <Separator />
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() =>
-                  run(() => leadApi.deleteLead(lead.id, lead.name), "Lead deleted").then(
-                    (result) => {
-                      if (result !== undefined) onOpenChange(false);
-                    },
-                  )
-                }
-              >
-                <Trash2 className="size-4" /> Delete lead
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                Lead deletion is disabled. Records are retained for audit history.
+              </p>
             </TabsContent>
 
             <TabsContent value="edit" className="mt-4 space-y-3">
