@@ -407,6 +407,7 @@ export const ROLES: Record<RoleKey, RoleConfig> = {
       { key:"ai", label:"AI Assistant", labelKey:"dashboard.role.developer.module.ai", icon:Brain },
       { key:"performance", label:"Performance", labelKey:"dashboard.role.developer.module.performance", icon:BarChart3 },
       { key:"wallet", label:"Wallet & Payout", labelKey:"dashboard.role.developer.module.wallet", icon:Wallet },
+      { key:"promises", label:"Task Promises", labelKey:"dashboard.role.developer.module.promises", icon:Handshake },
       { key:"chat", label:"Team Chat", labelKey:"dashboard.role.developer.module.chat", icon:MessageSquare },
       { key:"settings", label:"Settings", labelKey:"dashboard.role.developer.module.settings", icon:SettingsIcon },
       ACHV, AMS, AMSC,

@@ -5,6 +5,7 @@ import { AMSWorkspace } from "@/components/dashboard/AMSWorkspace";
 import { AMSCenterWorkspace } from "@/components/dashboard/AMSCenterWorkspace";
 import { AuthorProductsWorkspace } from "@/components/dashboard/AuthorProductsWorkspace";
 import { DMWallet } from "@/components/developer-management/screens/DMWallet";
+import { DMPromises } from "@/components/developer-management/screens/DMPromises";
 
 export function ModulePage({
   role,
@@ -23,5 +24,6 @@ export function ModulePage({
     return <AuthorProductsWorkspace role={role} onBack={onBack} />;
   }
   if (role.key === "developer" && moduleKey === "wallet") return <DMWallet />;
+  if (role.key === "developer" && moduleKey === "promises") return <DMPromises />;
   return <CrudWorkspace role={role} moduleKey={moduleKey} onBack={onBack} />;
 }

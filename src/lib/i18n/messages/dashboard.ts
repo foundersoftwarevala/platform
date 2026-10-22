@@ -259,6 +259,7 @@ export const DASHBOARD_MESSAGES = {
   "dashboard.role.developer.module.ai": ["AI Assistant", "developer module"],
   "dashboard.role.developer.module.performance": ["Performance", "developer module"],
   "dashboard.role.developer.module.wallet": ["Wallet & Payout", "developer module"],
+  "dashboard.role.developer.module.promises": ["Task Promises", "developer module"],
   "dashboard.role.developer.module.chat": ["Team Chat", "developer module"],
   "dashboard.role.developer.module.settings": ["Settings", "developer module"],
   "dashboard.role.developer.kpi.tasks_open": ["Open Tasks", "developer figure"],
