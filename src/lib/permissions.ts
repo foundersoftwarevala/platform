@@ -45,7 +45,7 @@ const EXTRA_SURFACES: Record<RoleKey, string[]> = {
   admin: ["ai-chat", "pricing", "center:*"],
   author: ["ai-chat"],
   vendor: ["ai-chat"],
-  affiliate: ["ai-chat", "referrals"],
+  affiliate: ["referrals", "commissions", "payouts"],
   influencer: ["ai-chat"],
   franchise: ["ai-chat"],
   seo: ["ai-chat"],

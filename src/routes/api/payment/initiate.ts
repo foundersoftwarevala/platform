@@ -8,6 +8,7 @@ import { languageOf } from "@/lib/i18n/server-translate.server";
 import {
   REFERRAL_COOKIE, attributeOrder, attributionForSession, readCookie, rest,
 } from "@/lib/affiliate/core";
+import { isAffiliateSelfReferral } from "@/lib/affiliate/core.server";
 
 /**
  * Start a payment.
@@ -263,52 +264,49 @@ export const Route = createFileRoute("/api/payment/initiate")({
           if (sessionKey) {
             const attribution = await attributionForSession(sessionKey);
             if (attribution) {
-              // An affiliate buying through their own link is recorded and
-              // flagged rather than quietly credited, so a person can decide.
-              let selfReferral = false;
+              let affiliateSelfReferral = false;
               if (attribution.affiliatePartnerId) {
-                const partner = await rest(
-                  `marketplace_affiliate_partners?select=user_id` +
-                    `&id=eq.${encodeURIComponent(attribution.affiliatePartnerId)}&limit=1`,
+                affiliateSelfReferral = await isAffiliateSelfReferral(
+                  attribution.affiliatePartnerId,
+                  user.id,
                 );
-                if (partner.ok) {
-                  const rows = (await partner.json()) as { user_id: string | null }[];
-                  selfReferral = rows[0]?.user_id === user.id;
-                }
               }
-              // The same for a reseller. The database already refuses the
-              // commission (reseller_commissions_for_order); the attribution is
-              // flagged here so the order shows why.
-              if (!selfReferral && attribution.resellerId) {
+              let resellerSelfReferral = false;
+              if (!affiliateSelfReferral && attribution.resellerId) {
                 const reseller = await rest(
                   `resellers?select=user_id&id=eq.${encodeURIComponent(attribution.resellerId)}&limit=1`,
                 );
                 if (reseller.ok) {
                   const rows = (await reseller.json()) as { user_id: string | null }[];
-                  selfReferral = rows[0]?.user_id === user.id;
+                  resellerSelfReferral = rows[0]?.user_id === user.id;
                 }
               }
-              const attributed = await attributeOrder(orderId, attribution, {
-                buyer_id: user.id,
-                order_total: orderTotal,
-                currency: orderCurrency,
-                self_referral: selfReferral,
-                risk: selfReferral ? "REVIEW" : "NORMAL",
-                risk_reason: selfReferral
-                  ? attribution.affiliatePartnerId
-                    ? "buyer owns the referring affiliate account"
-                    : "buyer owns the referring reseller account"
-                  : null,
-                stamped_at: "payment_initiate",
-              });
-              await logPaymentEvent(orderId, "referral_attributed", {
-                created: attributed.created,
-                reason: attributed.reason ?? null,
-                affiliate_partner_id: attribution.affiliatePartnerId ?? null,
-                influencer_profile_id: attribution.influencerProfileId ?? null,
-                reseller_id: attribution.resellerId ?? null,
-                self_referral: selfReferral,
-              });
+              if (affiliateSelfReferral) {
+                await logPaymentEvent(orderId, "referral_attribution_blocked", {
+                  reason: "buyer owns the referring affiliate account",
+                  affiliate_partner_id: attribution.affiliatePartnerId,
+                });
+              } else {
+                const attributed = await attributeOrder(orderId, attribution, {
+                  buyer_id: user.id,
+                  order_total: orderTotal,
+                  currency: orderCurrency,
+                  self_referral: resellerSelfReferral,
+                  risk: resellerSelfReferral ? "REVIEW" : "NORMAL",
+                  risk_reason: resellerSelfReferral
+                    ? "buyer owns the referring reseller account"
+                    : null,
+                  stamped_at: "payment_initiate",
+                });
+                await logPaymentEvent(orderId, "referral_attributed", {
+                  created: attributed.created,
+                  reason: attributed.reason ?? null,
+                  affiliate_partner_id: attribution.affiliatePartnerId ?? null,
+                  influencer_profile_id: attribution.influencerProfileId ?? null,
+                  reseller_id: attribution.resellerId ?? null,
+                  self_referral: resellerSelfReferral,
+                });
+              }
             }
           }
         } catch (error) {

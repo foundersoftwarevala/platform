@@ -8,6 +8,7 @@ import {
   readCookie,
   rest,
 } from "@/lib/affiliate/core";
+import { isAffiliateSelfReferral } from "@/lib/affiliate/core.server";
 
 /**
  * Attach the affiliate attribution to an order.
@@ -85,16 +86,19 @@ export const Route = createFileRoute("/api/affiliate/attribute")({
           return Response.json({ attributed: false, reason: "no attribution inside the window" });
         }
 
-        // Self-referral: an affiliate buying through their own link. Recorded,
-        // not silently credited — the flag lets a human decide.
-        let selfReferral = false;
         if (attribution.affiliatePartnerId) {
-          const partner = await rest(
-            `marketplace_affiliate_partners?select=user_id&id=eq.${encodeURIComponent(attribution.affiliatePartnerId)}&limit=1`,
-          );
-          if (partner.ok) {
-            const rows = (await partner.json()) as { user_id: string | null }[];
-            selfReferral = rows[0]?.user_id === user.id;
+          let selfReferral: boolean;
+          try {
+            selfReferral = await isAffiliateSelfReferral(attribution.affiliatePartnerId, user.id);
+          } catch (error) {
+            console.error("[affiliate/attribute] ownership verification failed", error);
+            return Response.json({ error: "Could not verify referral ownership" }, { status: 503 });
+          }
+          if (selfReferral) {
+            return Response.json(
+              { attributed: false, selfReferral: true, reason: "self-referral is not eligible" },
+              { status: 409 },
+            );
           }
         }
 
@@ -102,16 +106,11 @@ export const Route = createFileRoute("/api/affiliate/attribute")({
           buyer_id: user.id,
           order_total: order.total,
           currency: order.currency,
-          self_referral: selfReferral,
-          risk: selfReferral ? "REVIEW" : "NORMAL",
-          risk_reason: selfReferral ? "buyer owns the referring affiliate account" : null,
         });
 
         return Response.json({
           attributed: result.created,
           reason: result.reason ?? null,
-          selfReferral,
-          risk: selfReferral ? "REVIEW" : "NORMAL",
         });
       },
     },

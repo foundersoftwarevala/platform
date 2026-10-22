@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import {
-  ATTRIBUTION_WINDOW_DAYS,
   currentUser,
   generateUniqueCode,
   partnerForUser,
@@ -9,6 +8,7 @@ import {
   rest,
 } from "@/lib/affiliate/core";
 import { bearer } from "@/lib/applications/gateway.server";
+import { getAffiliateDashboard, requestAffiliatePayout } from "@/lib/affiliate/core.server";
 import { submitApplication } from "@/lib/applications/submit.server";
 
 /**
@@ -30,50 +30,17 @@ export const Route = createFileRoute("/api/affiliate/account")({
       GET: async ({ request }) => {
         const gate = await requireAffiliate(request, { allowPending: true });
         if (!gate.ok) return gate.response;
-        const partnerId = gate.partner.id;
-
-        const codesResponse = await rest(
-          `marketplace_referral_codes?select=id,code,active,created_at` +
-            `&affiliate_partner_id=eq.${encodeURIComponent(partnerId)}&order=created_at.desc&limit=200`,
-        );
-        const codes = codesResponse.ok
-          ? ((await codesResponse.json()) as { id: string; code: string; active: boolean }[])
-          : [];
-
-        // Per-link performance, counted from the sessions actually recorded.
-        const links = await Promise.all(
-          codes.map(async (c) => {
-            const sessionsResponse = await rest(
-              `marketplace_referral_sessions?select=id,metadata,converted_order_id,first_seen_at` +
-                `&referral_code_id=eq.${encodeURIComponent(c.id)}&limit=2000`,
-            );
-            const sessions = sessionsResponse.ok
-              ? ((await sessionsResponse.json()) as
-                  { metadata: Record<string, unknown> | null; converted_order_id: string | null }[])
-              : [];
-            const clicks = sessions.reduce((sum, s) => sum + Number(s.metadata?.clicks ?? 1), 0);
-            const conversions = sessions.filter((s) => s.converted_order_id).length;
-            return {
-              ...c,
-              url: `/?ref=${c.code}`,
-              clicks,
-              visitors: sessions.length,
-              conversions,
-              conversionRate: sessions.length ? Math.round((conversions / sessions.length) * 1000) / 10 : 0,
-            };
-          }),
-        );
-
-        return Response.json({
-          partner: {
-            id: partnerId,
-            display_name: gate.partner.display_name,
-            status: gate.partner.status,
-            created_at: gate.partner.created_at,
-          },
-          attributionWindowDays: ATTRIBUTION_WINDOW_DAYS,
-          links,
-        });
+        const token = bearer(request);
+        if (!token) return Response.json({ error: "Please sign in" }, { status: 401 });
+        try {
+          return Response.json(await getAffiliateDashboard(token));
+        } catch (error) {
+          console.error("[affiliate/account] dashboard read failed", error);
+          return Response.json(
+            { error: error instanceof Error ? error.message : "Could not load affiliate records" },
+            { status: 502 },
+          );
+        }
       },
 
       POST: async ({ request }) => {
@@ -132,12 +99,38 @@ export const Route = createFileRoute("/api/affiliate/account")({
         const gate = await requireAffiliate(request);
         if (!gate.ok) return gate.response;
 
+        if (action === "request-payout") {
+          const token = bearer(request);
+          const amount = typeof body.amount === "number" ? body.amount : Number(body.amount);
+          const currency = typeof body.currency === "string" ? body.currency : "";
+          if (!token || !Number.isFinite(amount) || amount <= 0 || !currency) {
+            return Response.json({ error: "A positive amount and currency are required" }, { status: 400 });
+          }
+          try {
+            const payout = await requestAffiliatePayout(token, amount, currency);
+            return Response.json({ ok: true, payout }, { status: 201 });
+          } catch (error) {
+            console.error("[affiliate/account] payout request failed", error);
+            return Response.json(
+              { error: error instanceof Error ? error.message : "Could not request payout" },
+              { status: 400 },
+            );
+          }
+        }
+
         // ------------------------------------------------------ create link
         if (action === "create-link") {
           const countResponse = await rest(
             `marketplace_referral_codes?select=id&affiliate_partner_id=eq.${encodeURIComponent(gate.partner.id)}&limit=200`,
           );
-          const count = countResponse.ok ? ((await countResponse.json()) as unknown[]).length : 0;
+          if (!countResponse.ok) {
+            return Response.json({ error: "Could not check your referral-link limit" }, { status: 502 });
+          }
+          const countRows: unknown = await countResponse.json();
+          if (!Array.isArray(countRows)) {
+            return Response.json({ error: "Referral-link count response was invalid" }, { status: 502 });
+          }
+          const count = countRows.length;
           if (count >= 50) {
             return Response.json(
               { error: "You already have 50 links. Deactivate one before creating another." },
@@ -161,8 +154,22 @@ export const Route = createFileRoute("/api/affiliate/account")({
           if (!created.ok) {
             return Response.json({ error: "Could not create the link" }, { status: 502 });
           }
-          const rows = (await created.json()) as { id: string; code: string }[];
-          return Response.json({ ok: true, link: { ...rows[0], url: `/?ref=${rows[0].code}` } }, { status: 201 });
+          const rows: unknown = await created.json();
+          const firstRow: unknown = Array.isArray(rows) ? rows[0] : null;
+          if (
+            typeof firstRow !== "object" ||
+            firstRow === null ||
+            !("id" in firstRow) ||
+            !("code" in firstRow) ||
+            typeof firstRow.id !== "string" ||
+            typeof firstRow.code !== "string"
+          ) {
+            return Response.json({ error: "Referral-link creation returned an invalid record" }, { status: 502 });
+          }
+          return Response.json(
+            { ok: true, link: { id: firstRow.id, code: firstRow.code, url: `/?ref=${firstRow.code}` } },
+            { status: 201 },
+          );
         }
 
         // ------------------------------------------------------ toggle link
@@ -175,7 +182,11 @@ export const Route = createFileRoute("/api/affiliate/account")({
             `marketplace_referral_codes?select=id&id=eq.${encodeURIComponent(linkId)}` +
               `&affiliate_partner_id=eq.${encodeURIComponent(gate.partner.id)}&limit=1`,
           );
-          if (!owned.ok || ((await owned.json()) as unknown[]).length === 0) {
+          if (!owned.ok) {
+            return Response.json({ error: "Could not verify referral-link ownership" }, { status: 502 });
+          }
+          const ownedRows: unknown = await owned.json();
+          if (!Array.isArray(ownedRows) || ownedRows.length === 0) {
             return Response.json({ error: "That link does not belong to this affiliate" }, { status: 403 });
           }
           const patched = await rest(`marketplace_referral_codes?id=eq.${encodeURIComponent(linkId)}`, {

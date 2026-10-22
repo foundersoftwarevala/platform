@@ -66,6 +66,11 @@ const InfluencerReferralLinks = lazy(() =>
     default: m.InfluencerReferralLinks,
   })),
 );
+const AffiliateWorkspace = lazy(() =>
+  import("@/components/affiliate/AffiliateWorkspace").then((m) => ({
+    default: m.AffiliateWorkspace,
+  })),
+);
 const ResellerReferralLinks = lazy(() =>
   import("@/components/reseller/ResellerReferralLinks").then((m) => ({
     default: m.ResellerReferralLinks,
@@ -322,22 +327,40 @@ function DashboardPage() {
   // A reseller's own clients, leads, licences, sales and commissions, scoped
   // to them on the server (useResellerOverview).
   const resellerMetrics = useResellerMetrics(role);
+  const affiliateDashboard = useQuery({
+    queryKey: ["affiliate-dashboard"],
+    queryFn: () => import("@/lib/affiliate/client").then((module) => module.fetchAffiliateDashboard()),
+    enabled: role === "affiliate",
+    staleTime: 30_000,
+  });
   // A developer's own open and completed tasks and open bugs, counted on the
   // server (getDeveloperMetrics).
   const developerMetrics = useDeveloperMetrics(role);
   // Never undefined: a role with no metrics source of its own (affiliate,
   // franchise, seo, admin, dev-manager, promise-tracker) gets an empty map, so
   // every card reads "not tracked yet" instead of a generated number.
+  const affiliateMetricValues: Record<string, number | null> = affiliateDashboard.data
+    ? {
+        clicks: affiliateDashboard.data.links.reduce((total, link) => total + link.clicks, 0),
+        conversions: affiliateDashboard.data.links.reduce((total, link) => total + link.conversions, 0),
+        commissions: affiliateDashboard.data.commissions.filter((commission) => commission.status === "pending").length,
+        payouts: affiliateDashboard.data.payouts.filter((payout) =>
+          ["requested", "approved", "processing"].includes(payout.status),
+        ).length,
+      }
+    : {};
   const metricValues: Record<string, number | null> =
     sellerMetrics.values ??
     influencerMetrics.values ??
     resellerMetrics.values ??
     developerMetrics.values ??
+    (role === "affiliate" ? affiliateMetricValues : undefined) ??
     {};
   const metricsLoading =
     (isSellerRole(role) && sellerAccess.isLoading) ||
     sellerMetrics.loading ||
-    influencerMetrics.loading;
+    influencerMetrics.loading ||
+    (role === "affiliate" && affiliateDashboard.isLoading);
   const openModule = useCallback(
     (key: string | null) => {
       // A module whose job another module on this dashboard does (an "AI"
@@ -497,11 +520,12 @@ function DashboardPage() {
                 </Suspense>
               </ModuleBoundary>
             </ModuleFocusScope>
-          ) : activeModule === "referrals" && role === "affiliate" ? (
+          ) : role === "affiliate" &&
+            ["referrals", "clicks", "conversions", "commissions", "payouts"].includes(activeModule ?? "") ? (
             <ModuleFocusScope label={activeLabel ?? "Module"} onEscape={closeModule}>
               <ModuleBoundary onReset={closeModule}>
                 <Suspense fallback={<ModuleFallback />}>
-                  <ResellerReferralLinks endpoint="/api/affiliate/account" />
+                  <AffiliateWorkspace onBack={closeModule} />
                 </Suspense>
               </ModuleBoundary>
             </ModuleFocusScope>
