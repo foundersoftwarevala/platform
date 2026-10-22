@@ -13,6 +13,7 @@ import { SourceNote } from "@/components/ai-ceo/ops/shared";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AyraLiveFeedChat } from "@/components/ai-ceo/AyraLiveFeedChat";
 import { useAyraCapabilities, useAyraOrders, type AyraOrder } from "@/hooks/useAyra";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
@@ -124,6 +125,8 @@ const AICEOAyra = () => {
         subtitle={t("ceo.ayra_subtitle")}
         status={`${connected} ${t("ceo.ayra_connected")} · ${notConnected} ${t("ceo.ayra_not_connected")}`}
       />
+
+      <AyraLiveFeedChat />
 
       {degraded.length > 0 && <DegradedNotice sources={degraded} />}
 

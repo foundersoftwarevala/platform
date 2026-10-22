@@ -376,6 +376,35 @@ export const CEO_MESSAGES = {
   "ceo.ayra_no_orders_title": ["No order has been given yet", "shown when AYRA has no orders"],
   "ceo.ayra_no_orders_body":
     "Orders are kept with the Founder's own words, because a paraphrase is not an instruction. Natural-language intake is not built yet, so nothing here is simulated to fill the list.",
+  "ceo.ayra_live_feed": ["Live Feed", "heading over current task and promise alerts"],
+  "ceo.ayra_alert_count": [
+    "{count, plural, one {# alert} other {# alerts}}",
+    "count of current system alerts",
+  ],
+  "ceo.ayra_feed_loading": "Loading verified system alerts…",
+  "ceo.ayra_feed_failed": "Live system data could not be loaded.",
+  "ceo.ayra_retry": ["Retry", "button to retry loading the Ayra live feed"],
+  "ceo.ayra_feed_empty": "No current deadline or promise alerts.",
+  "ceo.ayra_overdue_task": ["Overdue task", "label for an overdue in-progress task"],
+  "ceo.ayra_broken_promise": ["Broken promise", "label for a broken developer promise"],
+  "ceo.ayra_developer_task": [
+    "Developer {developer} · task {task}",
+    "identifiers shown for a developer and task in an alert",
+  ],
+  "ceo.ayra_feed_counts":
+    "Counts as of {date} · {active} active tasks · {broken} broken promises · {pending} unpaid tasks",
+  "ceo.ayra_ask": ["Ask Ayra", "heading over the read-only Ayra chat"],
+  "ceo.ayra_chat_description":
+    "Read-only answers from task, wallet, promise, and payment records.",
+  "ceo.ayra_chat_empty": "Ask about platform health, a developer, finances, or a task.",
+  "ceo.ayra_you": ["You", "label for the signed-in user's Ayra chat message"],
+  "ceo.ayra_thinking": "Ayra is checking records; the local model may take a moment…",
+  "ceo.ayra_chat_failed": "Ayra could not complete the inspection: {error}",
+  "ceo.ayra_question_placeholder": "What is the status of the platform?",
+  "ceo.ayra_question_label": ["Ask Ayra a read-only question", "accessible label for Ayra chat input"],
+  "ceo.ayra_send": ["Ask", "button that sends a question to Ayra"],
+  "ceo.ayra_inspected": "Inspected: {tools}",
+  "ceo.ayra_feed_data_error": "Unknown error",
 
   // Morning AI: the operational day.
   "ceo.morning_title": ["Morning AI", "heading of the daily operational orchestrator"],

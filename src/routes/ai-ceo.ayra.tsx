@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { RequireRole } from "@/components/auth/RequireRole";
 import AICEOAyra from "@/components/ai-ceo/sections/AICEOAyra";
 
 export const Route = createFileRoute("/ai-ceo/ayra")({
@@ -14,5 +15,13 @@ export const Route = createFileRoute("/ai-ceo/ayra")({
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
-  component: AICEOAyra,
+  component: AyraPage,
 });
+
+function AyraPage() {
+  return (
+    <RequireRole role={["boss", "admin"]} allowOperators={false}>
+      <AICEOAyra />
+    </RequireRole>
+  );
+}
