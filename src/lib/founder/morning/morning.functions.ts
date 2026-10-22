@@ -37,11 +37,12 @@ async function requireExecutive(): Promise<string> {
   if (!user?.id) throw new Error("Sign-in required");
 
   const db = await admin();
-  const [{ data: isBoss }, { data: isAdmin }] = await Promise.all([
+  const [{ data: isBoss }, { data: isBossOwner }, { data: isAdmin }] = await Promise.all([
     db.rpc("has_role", { _user_id: user.id, _role: "boss" }),
+    db.rpc("has_role", { _user_id: user.id, _role: "boss_owner" }),
     db.rpc("has_role", { _user_id: user.id, _role: "admin" }),
   ]);
-  if (!isBoss && !isAdmin) throw new Error("Executive permission required");
+  if (!isBoss && !isBossOwner && !isAdmin) throw new Error("Executive permission required");
   return user.id;
 }
 

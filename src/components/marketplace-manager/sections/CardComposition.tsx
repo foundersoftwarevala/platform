@@ -7,7 +7,8 @@ import { Card, EmptyHint, PageHeader, StatCard } from "../ui";
 import {
   getCardFields, setCardField, reorderCardFields, type CardField,
 } from "@/lib/marketplace-manager/cards.functions";
-import { DemoCard, toDemo, type CatalogCard } from "@/components/marketplace-home/HomeIndex";
+import { DemoCard, toDemo } from "@/components/sapphire-home/HomeIndex";
+import type { CatalogCard } from "@/lib/marketplace/catalog-card";
 
 /**
  * Card composition — the screen that already existed, now connected.
@@ -278,8 +279,8 @@ export function CardComposition() {
           {sample ? (
             <div className="w-full max-w-[330px]">
               <DemoCard
-                demo={toDemo(sample, 0)}
-                index={0}
+                demo={toDemo(sample)}
+                demoNumber={null}
                 isFavorite={false}
                 onToggleFavorite={() => {}}
               />

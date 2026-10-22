@@ -127,6 +127,12 @@ export const Route = createFileRoute("/api/internal/author-review")({
         const currentResponse = await rest(
           `marketplace_products?select=id,seller_id,moderation_status,name&id=eq.${encodeURIComponent(productId)}&limit=1`,
         );
+        if (!currentResponse.ok) {
+          return Response.json(
+            { error: "Could not read the product being reviewed" },
+            { status: 502 },
+          );
+        }
         const current = (
           (await currentResponse.json()) as {
             seller_id: string | null;
@@ -147,6 +153,23 @@ export const Route = createFileRoute("/api/internal/author-review")({
         if (!allowed.includes(decision)) {
           return Response.json(
             { error: `A product that is "${from}" cannot be moved to "${decision}"`, allowed },
+            { status: 409 },
+          );
+        }
+
+        const sellerResponse = await rest(
+          `marketplace_sellers?select=owner_user_id&id=eq.${encodeURIComponent(current.seller_id)}&limit=1`,
+        );
+        if (!sellerResponse.ok) {
+          return Response.json(
+            { error: "Could not resolve the author to notify" },
+            { status: 502 },
+          );
+        }
+        const seller = ((await sellerResponse.json()) as { owner_user_id: string | null }[])[0];
+        if (!seller?.owner_user_id) {
+          return Response.json(
+            { error: "The author account has no notification recipient" },
             { status: 409 },
           );
         }
@@ -175,19 +198,67 @@ export const Route = createFileRoute("/api/internal/author-review")({
           return Response.json({ error: "Could not record the decision" }, { status: 502 });
         }
 
-        // Tell the author. A decision they never hear about is not a decision.
-        await rest("notifications", {
-          method: "POST",
-          headers: { Prefer: "return=minimal" },
-          body: JSON.stringify({
-            title: `Your product "${current.name}" is now ${decision.replace(/_/g, " ")}`,
-            body: String(body.reason ?? "").trim() || null,
-            kind: "author_review",
-          }),
-        }).catch(() => undefined);
+        const notificationBody = {
+          p_event: `marketplace.author_review.${productId}.${decision}`,
+          p_title: `Your product "${current.name}" is now ${decision.replace(/_/g, " ")}`,
+          p_message: String(body.reason ?? "").trim(),
+          p_user: seller.owner_user_id,
+          p_action_url: "/dashboard/author?module=products",
+          p_action_label: "View products",
+          p_dedupe_minutes: 0,
+          p_severity: decision === "approved" || decision === "published" ? "success" : "warning",
+        };
+        let notification: { ok: boolean; reason?: string } = {
+          ok: false,
+          reason: "Notification delivery could not be verified",
+        };
+        try {
+          const response = await rest("rpc/mm_notify", {
+            method: "POST",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify(notificationBody),
+          });
+          if (!response.ok) {
+            console.error("[author review] notification failed", response.status);
+            notification = {
+              ok: false,
+              reason: `Notification request failed (${response.status})`,
+            };
+          } else {
+            const result = (await response.json()) as {
+              ok?: boolean;
+              delivered?: number;
+              deduplicated?: boolean;
+              reason?: string;
+            };
+            notification =
+              result.ok && ((result.delivered ?? 0) > 0 || result.deduplicated)
+                ? { ok: true }
+                : {
+                    ok: false,
+                    reason: result.reason ?? "No notification recipient accepted the event",
+                  };
+            if (!notification.ok) {
+              console.error(
+                "[author review] notification was not delivered",
+                result.reason ?? "no delivery",
+              );
+            }
+          }
+        } catch (error) {
+          console.error("[author review] notification request errored", error);
+          notification = { ok: false, reason: "Notification request errored" };
+        }
 
         const rows = (await patched.json()) as unknown[];
-        return Response.json({ ok: true, productId, from, to: decision, product: rows[0] });
+        return Response.json({
+          ok: true,
+          productId,
+          from,
+          to: decision,
+          product: rows[0],
+          notification,
+        });
       },
     },
   },

@@ -7,26 +7,8 @@ import { absoluteUrl } from "@/lib/seo/site-url";
 import { getPublicHomeSeo } from "@/lib/i18n/public-seo.functions";
 
 export const Route = createFileRoute("/")({
-  /**
-   * The catalogue's real size, for the title and description below.
-   *
-   * It read "147 Software Solutions ... across 20 master categories" while the
-   * catalogue held 7,357 visible products across 91 categories - written by hand
-   * when it was true and wrong ever since, in the first line a search engine
-   * reads. It is counted in SQL now so it cannot drift again.
-   *
-   * The loader cannot fail the page: getCatalogueHeadline returns null on any
-   * problem and gives up after a second and a half, and the copy below then
-   * carries no number rather than a wrong one. This page has real visitors on
-   * it, and no piece of metadata is worth a blank screen.
-   */
-  /*
-   * Alongside it, two more reads the page's own sections quote: the live-demo
-   * count (getHomeStats) and the published Vala TV films (the storefront
-   * chrome). Each is settled on its own and capped at a second and a half, so
-   * none of them can fail or stall the page - a missing answer only means that
-   * section shows no number, or does not render.
-   */
+  // Database counts feed the visible catalogue badge and descriptive metadata.
+  // Each read is independently bounded; a failed count is omitted, never guessed.
   loader: async ({ context }) => {
     const [{ getCatalogueHeadline }, { getHomeStats }, { getStorefrontChrome }] = await Promise.all(
       [
@@ -47,7 +29,7 @@ export const Route = createFileRoute("/")({
     ]);
     const seo = await getPublicHomeSeo({
       data: {
-        products: headline?.products ?? null,
+        products: stats?.products ?? null,
         categories: headline?.visibleCategories ?? null,
         liveDemos: stats?.liveDemos ?? null,
         bootstrap: context.languageBootstrap,
@@ -57,17 +39,12 @@ export const Route = createFileRoute("/")({
   },
   head: ({ loaderData }) => {
     const headline = loaderData?.headline ?? null;
-    const count = headline ? headline.products.toLocaleString("en-IN") : null;
     const categories = headline ? headline.visibleCategories : null;
-    const title =
-      loaderData?.seo.title ??
-      (count
-        ? `Software Vala — ${count} Software Solutions Marketplace`
-        : "Software Vala — Software Solutions Marketplace");
+    const title = "Software Vala - The Name of Trust";
     const description =
       loaderData?.seo.description ??
-      (count
-        ? `Browse ${count} ready-to-deploy software solutions across ${categories} categories with live demos, full source code and lifetime access.`
+      (categories
+        ? `Browse ready-to-deploy software solutions across ${categories} categories with live demos, full source code and lifetime access.`
         : "Browse ready-to-deploy software solutions with live demos, full source code and lifetime access.");
 
     return {

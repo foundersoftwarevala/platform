@@ -52,6 +52,8 @@ export type CardSlot = {
   h1: string;
   metaTitle: string;
   metaDescription: string;
+  seoMetaTitle?: string | null;
+  seoMetaDescription?: string | null;
   primaryKeyword: string | null;
   h2s: string[];
   keywords: string[];
@@ -193,13 +195,30 @@ export async function readCardSlot(
   // The tenant, read through the same card definition every other public list
   // uses, so a slot shows a product exactly as the catalogue records it.
   let product: CatalogCard | null = null;
+  let seoMetaTitle: string | null = null;
+  let seoMetaDescription: string | null = null;
   if (slot.current_product_id) {
-    const rows = await get(
-      `marketplace_products?select=${CARD_FIELDS}` +
-        `&id=eq.${encodeURIComponent(String(slot.current_product_id))}` +
-        `&visible=eq.true&content_status=eq.published&limit=1`,
-    );
+    const productId = String(slot.current_product_id);
+    const [rows, seoRows] = await Promise.all([
+      get(
+        `marketplace_products?select=${CARD_FIELDS}` +
+          `&id=eq.${encodeURIComponent(productId)}` +
+          `&visible=eq.true&content_status=eq.published&limit=1`,
+      ),
+      slot.country_code
+        ? get(
+            `marketplace_product_country_seo?select=meta_title,meta_description` +
+              `&product_id=eq.${encodeURIComponent(productId)}` +
+              `&country_code=eq.${encodeURIComponent(String(slot.country_code))}` +
+              `&generation_status=eq.completed&limit=1`,
+          )
+        : Promise.resolve([]),
+    ]);
     if (rows[0]) product = toCard(rows[0]);
+    if (product && seoRows[0]) {
+      seoMetaTitle = str(seoRows[0].meta_title);
+      seoMetaDescription = str(seoRows[0].meta_description);
+    }
   }
 
   const [countryRows, categoryRows] = await Promise.all([
@@ -274,6 +293,8 @@ export async function readCardSlot(
     metaDescription: slot.meta_description_template
       ? fill(String(slot.meta_description_template), values)
       : fallback.metaDescription,
+    seoMetaTitle,
+    seoMetaDescription,
     primaryKeyword: str(slot.primary_keyword) ?? fallback.primaryKeyword,
     h2s: (storedH2s.length ? storedH2s : fallback.h2s).map((h) => fill(h, values)),
     keywords: storedKeywords,

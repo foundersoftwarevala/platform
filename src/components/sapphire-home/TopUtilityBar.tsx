@@ -82,46 +82,17 @@ function PanelHead({ icon: Icon, title, note }: { icon: LucideIcon; title: strin
 /* 1. Apply Now                                                        */
 /* ------------------------------------------------------------------ */
 
-const APPLY_ROLES: { key: string; label: string; blurb: string }[] = [
-  { key: "vendor", label: "Become Vendor", blurb: "List your own software products" },
-  { key: "author", label: "Become Author", blurb: "Publish code, docs and templates" },
-  { key: "reseller", label: "Become Reseller", blurb: "Sell our catalog, keep the margin" },
-  { key: "affiliate", label: "Become Affiliate", blurb: "Earn per referred sale" },
-  { key: "franchise", label: "Become Franchise", blurb: "Run Software Vala in your city" },
-  { key: "influencer", label: "Become Influencer", blurb: "Collaborate on campaigns" },
-  { key: "employee", label: "Become Employee", blurb: "Full-time openings" },
-];
-
-function ApplyNow({ t, roles }: { t: (s: string) => string; roles?: BarItem[] }) {
+function ApplyNow({ t }: { t: (s: string) => string }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className={TRIGGER} aria-label={t("Apply Now")}>
-        <Rocket className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
-        {t("Apply Now")}
-        <span className="text-[9px] opacity-70">▼</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="kr-panel w-64 border-white/10 bg-[#0b1a30]/95 text-white backdrop-blur-xl">
-        <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-white/50">
-          {t("Role applications")}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-white/10" />
-        {(roles ?? APPLY_ROLES).map((r, i) => (
-          <DropdownMenuItem
-            key={r.key}
-            asChild
-            className="kr-item cursor-pointer focus:bg-white/10"
-            style={{ animationDelay: `${i * 28}ms` }}
-          >
-            <Link to="/apply/$role" params={{ role: r.key }}>
-              <div className="flex w-full flex-col">
-                <span className="text-[12.5px] font-semibold">{r.label}</span>
-                <span className="text-[10.5px] text-white/50">{r.blurb}</span>
-              </div>
-            </Link>
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Link
+      to="/apply/$role"
+      params={{ role: "reseller" }}
+      className={TRIGGER}
+      aria-label={t("Apply Now")}
+    >
+      <Rocket className="h-3.5 w-3.5 text-amber-200 transition-transform duration-300 group-hover:-translate-y-0.5" />
+      {t("Apply Now")}
+    </Link>
   );
 }
 
@@ -1315,10 +1286,6 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
     return map;
   }, [config]);
 
-  const applyRoles = useMemo(
-    () => itemsFor(byKey.get("apply-now"), APPLY_ROLES),
-    [byKey],
-  );
   const dashboardRoles = useMemo(
     () => itemsFor(byKey.get("dashboards"), DASHBOARD_ROLES),
     [byKey],
@@ -1326,7 +1293,7 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
 
   const items = useMemo(
     () => [
-      <ApplyNow key="apply" t={t} roles={applyRoles} />,
+      <ApplyNow key="apply" t={t} />,
       <LanguagePicker key="lang" lang={lang} apply={apply} busy={busy} t={t} />,
       <CalendarTool key="cal" t={t} />,
       <CalculatorTool key="calc" t={t} />,
@@ -1338,7 +1305,7 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
       <Favorites key="fav" count={favoritesCount} t={t} />,
       <AiChat key="ai" t={t} />,
     ],
-    [lang, t, apply, busy, favoritesCount, applyRoles, dashboardRoles],
+    [lang, t, apply, busy, favoritesCount, dashboardRoles],
   );
 
   // With no configuration loaded the header renders exactly as it always has.

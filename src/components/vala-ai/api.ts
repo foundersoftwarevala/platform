@@ -79,7 +79,7 @@ export function useAction<TBody, TOut = unknown>(
 }
 
 // ---- types mirrored from the server ---------------------------------------
-export type Role = "owner" | "operator" | "viewer";
+export type Role = "boss" | "operator" | "viewer";
 export type Operator = {
   id: string;
   email: string;

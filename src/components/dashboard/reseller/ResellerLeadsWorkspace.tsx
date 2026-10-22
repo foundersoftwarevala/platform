@@ -9,11 +9,17 @@ import { type CrudRecord } from "@/lib/crud-store";
 import { useResellerLeads, type LeadStage } from "@/lib/useResellerLeads";
 import { useServerFn } from "@/lib/serverFn";
 import {
+  addResellerLeadProposal,
+  addResellerLeadQuote,
+  addResellerLeadTask,
   addResellerLeadFollowUp,
+  listResellerLeadProposals,
+  listResellerLeadQuotes,
+  listResellerLeadTasks,
   listResellerLeadFollowUps,
+  setResellerLeadTaskDone,
   setResellerLeadFollowUpDone,
 } from "@/lib/reseller-dashboard.functions";
-import { LocalOnlyNotice } from "./LocalOnlyNotice";
 
 type Stage = LeadStage;
 
@@ -256,10 +262,10 @@ function LeadDetail({
       <div className="p-5">
         {tab === "source"    && <SourceTab rec={rec} onPatch={onPatch} />}
         {tab === "followup"  && <FollowUpsTab leadId={rec.id} kind="followup" placeholder="Email re-engagement, call back Tue 3pm…" icon={CalendarClock} title="Follow-up" />}
-        {tab === "tasks"     && <ListTab placeholder="Prepare demo, send pricing sheet…" icon={ListChecks} title="Task" items={[]} unavailable="Lead tasks are not stored yet: the platform has no task list for leads, so nothing typed here would be kept. Use Follow-up for anything with a date." />}
+        {tab === "tasks"     && <LeadTasksTab leadId={rec.id} />}
         {tab === "meetings"  && <FollowUpsTab leadId={rec.id} kind="meeting" placeholder="Discovery call · 30 min · Tue 4pm" icon={Video} title="Meeting" />}
-        {tab === "quotes"    && <QuoteTab />}
-        {tab === "proposals" && <ProposalTab />}
+        {tab === "quotes"    && <QuoteTab leadId={rec.id} />}
+        {tab === "proposals" && <ProposalTab leadId={rec.id} />}
       </div>
     </div>
   );
@@ -358,7 +364,7 @@ function FollowUpsTab({
 }
 
 function ListTab({
-  placeholder, icon: I, title, items, loading, loadError, onAdd, onToggle, unavailable,
+  placeholder, icon: I, title, items, loading, loadError, onAdd, onToggle,
 }: {
   placeholder: string; icon: React.ComponentType<{ className?: string }>; title: string;
   items: ListItem[];
@@ -366,8 +372,6 @@ function ListTab({
   loadError?: string | null;
   onAdd?: (text: string, date: string) => Promise<unknown>;
   onToggle?: (id: string, done: boolean) => Promise<unknown>;
-  /** Set when nothing stores this list: the reason, shown instead of a fake save. */
-  unavailable?: string;
 }) {
   const [text, setText] = useState(""); const [date, setDate] = useState("");
   const [busy, setBusy] = useState(false);
@@ -392,11 +396,10 @@ function ListTab({
   }
   return (
     <div className="space-y-3">
-      {unavailable && <LocalOnlyNotice text={unavailable} />}
       <div className="rounded-xl border border-border bg-surface p-3 grid sm:grid-cols-[1fr_180px_auto] gap-2 items-end">
         <Field label={title} value={text} onChange={setText} placeholder={placeholder} />
         <Field label="Date" value={date} onChange={setDate} type="date" />
-        <button onClick={() => void add()} disabled={!!unavailable || busy || !onAdd} title={unavailable}
+        <button onClick={() => void add()} disabled={busy || !onAdd}
           className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Add</button>
       </div>
       {loading ? <Empty icon={I} text="Loading…" />
@@ -416,42 +419,125 @@ function ListTab({
   );
 }
 
-// Quotes and proposals for a lead have no table on the platform yet. The forms
-// stay, but they say so and save nothing, instead of reporting a save.
-const QUOTES_UNAVAILABLE =
-  "Quotes are not stored yet: the platform has no quote record for leads, so nothing entered here would be kept.";
-const PROPOSALS_UNAVAILABLE =
-  "Proposals are not stored yet: the platform has no proposal record for leads, so nothing written here would be kept.";
+function LeadTasksTab({ leadId }: { leadId: string }) {
+  const queryClient = useQueryClient();
+  const list = useServerFn(listResellerLeadTasks);
+  const add = useServerFn(addResellerLeadTask);
+  const setDone = useServerFn(setResellerLeadTaskDone);
+  const key = ["reseller", "lead-tasks", leadId];
+  const query = useQuery({ queryKey: key, queryFn: () => list({ data: { leadId } }) });
+  const addMutation = useMutation({
+    mutationFn: (value: { title: string; due: string }) =>
+      add({ data: { leadId, title: value.title, due: value.due } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+  });
+  const toggleMutation = useMutation({
+    mutationFn: (value: { id: string; done: boolean }) => setDone({ data: value }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+  });
+  const items: ListItem[] = (query.data ?? []).map((task) => ({
+    id: task.id,
+    text: task.title,
+    date: task.due_at?.slice(0, 10) ?? "—",
+    done: task.status === "completed",
+  }));
+  return (
+    <ListTab
+      placeholder="Prepare demo, send pricing sheet…"
+      icon={ListChecks}
+      title="Task"
+      items={items}
+      loading={query.isLoading}
+      loadError={query.error instanceof Error ? query.error.message : null}
+      onAdd={(title, due) => addMutation.mutateAsync({ title, due })}
+      onToggle={(id, done) => toggleMutation.mutateAsync({ id, done })}
+    />
+  );
+}
 
-function QuoteTab() {
-  const quotes: { id: string; product: string; amount: number; date: string; status: string }[] = [];
-  const [v, setV] = useState({ product: "", amount: 0, status: "sent" });
+type LeadQuote = {
+  id: string; product: string; amount: number; currency: string;
+  status: string; created_at: string;
+};
+
+function QuoteTab({ leadId }: { leadId: string }) {
+  const queryClient = useQueryClient();
+  const list = useServerFn(listResellerLeadQuotes);
+  const add = useServerFn(addResellerLeadQuote);
+  const key = ["reseller", "lead-quotes", leadId];
+  const query = useQuery({ queryKey: key, queryFn: () => list({ data: { leadId } }) });
+  const [v, setV] = useState({ product: "", amount: 0, status: "sent" as "draft" | "sent" | "accepted" | "declined" });
+  const mutation = useMutation({
+    mutationFn: () => add({ data: { leadId, ...v, currency: "USD" } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+  });
+  async function save() {
+    try {
+      await mutation.mutateAsync();
+      setV({ product: "", amount: 0, status: "sent" });
+      toast.success("Quote saved");
+    } catch (error) {
+      toast.error(reason(error, "The quote was not saved."));
+    }
+  }
   return (
     <div className="space-y-3">
-      <LocalOnlyNotice text={QUOTES_UNAVAILABLE} />
       <div className="rounded-xl border border-border bg-surface p-3 grid sm:grid-cols-[1fr_140px_140px_auto] gap-2 items-end">
         <Field label="Product / line" value={v.product} onChange={(x) => setV({ ...v, product: x })} />
         <Field label="Amount" value={String(v.amount)} onChange={(x) => setV({ ...v, amount: Number(x) || 0 })} type="number" />
         <div>
           <label className="text-[11px] uppercase tracking-wider text-muted-foreground">Status</label>
-          <select value={v.status} onChange={(e) => setV({ ...v, status: e.target.value })}
+          <select value={v.status} onChange={(e) => setV({ ...v, status: e.target.value as typeof v.status })}
             className="mt-1 w-full rounded-lg bg-surface border border-border px-2 py-2 text-xs">
             <option value="draft">Draft</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="declined">Declined</option>
           </select>
         </div>
-        <button disabled title={QUOTES_UNAVAILABLE} className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Add quote</button>
+        <button onClick={() => void save()} disabled={mutation.isPending || !v.product.trim()}
+          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Add quote</button>
       </div>
-      {quotes.length === 0 ? <Empty icon={ClipboardList} text="No quotes yet." /> : null}
+      {query.isLoading ? <Empty icon={ClipboardList} text="Loading…" />
+        : query.error ? <Empty icon={ClipboardList} text={reason(query.error, "Quotes could not be loaded.")} />
+        : (query.data ?? []).length === 0 ? <Empty icon={ClipboardList} text="No quotes yet." />
+        : <ul className="divide-y divide-border rounded-xl border border-border overflow-hidden">
+          {(query.data as LeadQuote[]).map((quote) => (
+            <li key={quote.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-xs">
+              <span className="flex-1 font-medium">{quote.product}</span>
+              <span>{quote.currency} {Number(quote.amount).toLocaleString()}</span>
+              <span className="capitalize text-muted-foreground">{quote.status}</span>
+              <span className="text-muted-foreground">{new Date(quote.created_at).toLocaleDateString()}</span>
+            </li>
+          ))}
+        </ul>}
     </div>
   );
 }
 
-function ProposalTab() {
+type LeadProposal = { id: string; title: string; body: string; status: string; created_at: string };
+
+function ProposalTab({ leadId }: { leadId: string }) {
+  const queryClient = useQueryClient();
+  const list = useServerFn(listResellerLeadProposals);
+  const add = useServerFn(addResellerLeadProposal);
+  const key = ["reseller", "lead-proposals", leadId];
+  const query = useQuery({ queryKey: key, queryFn: () => list({ data: { leadId } }) });
   const [title, setTitle] = useState("");
   const [body, setBody]   = useState("");
+  const mutation = useMutation({
+    mutationFn: () => add({ data: { leadId, title, body } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+  });
+  async function save() {
+    try {
+      await mutation.mutateAsync();
+      setTitle("");
+      setBody("");
+      toast.success("Proposal saved");
+    } catch (error) {
+      toast.error(reason(error, "The proposal was not saved."));
+    }
+  }
   return (
     <div className="space-y-3">
-      <LocalOnlyNotice text={PROPOSALS_UNAVAILABLE} />
       <Field label="Proposal title" value={title} onChange={setTitle} placeholder="SalesIQ Pro — 12-month engagement" />
       <div>
         <label className="text-[11px] uppercase tracking-wider text-muted-foreground">Proposal body</label>
@@ -460,9 +546,23 @@ function ProposalTab() {
           className="mt-1 w-full rounded-lg bg-surface border border-border p-3 text-sm outline-none focus:ring-2 focus:ring-ring resize-y" />
       </div>
       <div className="flex justify-end gap-2">
-        <button disabled title={PROPOSALS_UNAVAILABLE}
+        <button onClick={() => void save()} disabled={mutation.isPending || !title.trim() || !body.trim()}
           className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Save proposal</button>
       </div>
+      {query.isLoading ? <Empty icon={FileText} text="Loading…" />
+        : query.error ? <Empty icon={FileText} text={reason(query.error, "Proposals could not be loaded.")} />
+        : (query.data ?? []).length === 0 ? <Empty icon={FileText} text="No proposals yet." />
+        : <ul className="space-y-2">
+          {(query.data as LeadProposal[]).map((proposal) => (
+            <li key={proposal.id} className="rounded-xl border border-border bg-surface p-3">
+              <div className="flex flex-wrap justify-between gap-2 text-xs">
+                <span className="font-semibold">{proposal.title}</span>
+                <span className="text-muted-foreground">{new Date(proposal.created_at).toLocaleDateString()}</span>
+              </div>
+              <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">{proposal.body}</p>
+            </li>
+          ))}
+        </ul>}
     </div>
   );
 }

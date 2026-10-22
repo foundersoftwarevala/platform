@@ -4,12 +4,13 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useServerDashboard } from '@/hooks/useServerRealtime';
+import { useServerDashboard } from '@/hooks/useServerDashboard';
+import { ServerHealthBadge } from '../layout/ServerHealthBadge';
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '../layout/PageShell';
 
 const SMOverview = () => {
-  const { summary, loading, refresh } = useServerDashboard(5000);
+  const { summary, loading, error: summaryError, refresh } = useServerDashboard(5000);
   const [recentAlerts, setRecentAlerts] = useState<Array<{
     id: string;
     message: string;
@@ -60,18 +61,18 @@ const SMOverview = () => {
 
 
   const stats = [
-    { label: 'Total Servers', value: summary.total_servers.toString(), icon: Server, color: 'text-primary' },
-    { label: 'Online', value: summary.online.toString(), icon: Activity, color: 'text-accent-emerald' },
-    { label: 'Offline', value: summary.offline.toString(), icon: WifiOff, color: 'text-destructive' },
-    { label: 'Warnings', value: summary.warnings.toString(), icon: AlertTriangle, color: 'text-accent-amber' },
-    { label: 'Critical Alerts', value: summary.critical_alerts.toString(), icon: AlertTriangle, color: 'text-destructive' },
+    { label: 'Total Servers', value: summary.total_servers?.toString() ?? '—', icon: Server, color: 'text-primary' },
+    { label: 'Online', value: summary.online?.toString() ?? '—', icon: Activity, color: 'text-muted-foreground' },
+    { label: 'Offline', value: summary.offline?.toString() ?? '—', icon: WifiOff, color: 'text-muted-foreground' },
+    { label: 'Warnings', value: summary.warnings?.toString() ?? '—', icon: AlertTriangle, color: 'text-accent-amber' },
+    { label: 'Critical Alerts', value: summary.critical_alerts?.toString() ?? '—', icon: AlertTriangle, color: 'text-destructive' },
   ];
 
   const resourceData = [
-    { label: 'CPU', value: summary.avg_cpu, color: 'bg-primary' },
-    { label: 'RAM', value: summary.avg_ram, color: 'bg-accent-pink' },
-    { label: 'Network In', value: Math.min(100, summary.network_throughput.in / 10), color: 'bg-accent-emerald' },
-    { label: 'Network Out', value: Math.min(100, summary.network_throughput.out / 5), color: 'bg-accent-amber' },
+    { label: 'CPU', value: summary.avg_cpu, rate: null, color: 'bg-primary' },
+    { label: 'RAM', value: summary.avg_ram, rate: null, color: 'bg-accent-pink' },
+    { label: 'Network In', value: null, rate: summary.network_throughput.in, color: 'bg-accent-emerald' },
+    { label: 'Network Out', value: null, rate: summary.network_throughput.out, color: 'bg-accent-amber' },
   ];
 
   const getSeverityColor = (severity: string) => {
@@ -85,10 +86,11 @@ const SMOverview = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Live Overview"
-        subtitle="Real-time infrastructure health across all monitored servers"
+        title="Server Overview"
+        subtitle="Server profiles are visible; live health and resource telemetry require an enrolled agent."
         action={
           <div className="flex flex-wrap items-center gap-3">
+            <ServerHealthBadge lastSeen={summary.last_seen} />
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               {isAutoRefresh ? (
                 <Wifi className="w-4 h-4 text-accent-emerald animate-pulse" aria-hidden="true" />
@@ -122,6 +124,12 @@ const SMOverview = () => {
           </div>
         }
       />
+
+      {summaryError && (
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          Server health is unknown because status data could not be loaded.
+        </div>
+      )}
 
       {lastUpdate && (
         <p className="text-xs text-muted-foreground" aria-live="polite">
@@ -160,17 +168,21 @@ const SMOverview = () => {
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-foreground">{res.label}</span>
                 <span className={`text-sm font-bold ${
-                  res.value > 80 ? 'text-destructive' : res.value > 60 ? 'text-accent-amber' : 'text-accent-emerald'
+                  res.value === null ? 'text-muted-foreground' : res.value > 80 ? 'text-destructive' : res.value > 60 ? 'text-accent-amber' : 'text-accent-emerald'
                 }`}>
-                  {loading ? '...' : `${Math.round(res.value)}%`}
+                  {loading ? '...' : res.rate !== null
+                    ? `${res.rate.toFixed(2)} Mbps`
+                    : res.value === null ? '—' : `${Math.round(res.value)}%`}
                 </span>
               </div>
-              <div className="h-4 bg-surface rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${res.color} rounded-full transition-all duration-500`}
-                  style={{ width: `${Math.min(100, res.value)}%` }}
-                />
-              </div>
+              {res.value !== null && (
+                <div className="h-4 bg-surface rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${res.color} rounded-full transition-all duration-500`}
+                    style={{ width: `${Math.min(100, res.value)}%` }}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -194,10 +206,7 @@ const SMOverview = () => {
           <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
             <BellOff className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
             <p className="text-sm font-medium text-foreground">No active alerts</p>
-            <p className="max-w-sm text-xs text-muted-foreground">
-              Every monitored server is within its thresholds. Adjust thresholds in Settings → Monitoring
-              to change when alerts are raised.
-            </p>
+            <p className="max-w-sm text-xs text-muted-foreground">No active alerts are recorded.</p>
           </div>
         ) : (
 

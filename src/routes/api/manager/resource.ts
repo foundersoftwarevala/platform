@@ -7,6 +7,7 @@ import {
   productCreationReview,
   productReviewFields,
 } from "@/lib/marketplace/product-safety";
+import { resolveResellerCustomerOwnerId } from "@/lib/reseller-manager/customer-owner.server";
 
 /**
  * The Marketplace Manager's window onto the real marketplace.
@@ -479,6 +480,7 @@ const RESOURCES: Record<string, Resource> = {
       "name",
       "code",
       "email",
+      "owner_user_id",
       "phone",
       "region",
       "tier",
@@ -1761,6 +1763,7 @@ const RESOURCES: Record<string, Resource> = {
       "owner_name",
       "business_name",
       "email",
+      "owner_user_id",
       "phone",
       "status",
       "territory",
@@ -1809,7 +1812,7 @@ const RESOURCES: Record<string, Resource> = {
       "commission_rate",
       "royalty_rate",
     ],
-    required: ["name"],
+    required: ["code", "name", "owner_name", "email", "phone"],
     // The directory wall was built calling these three something else. The
     // screen keeps its own words and the table keeps its own columns.
     rename: { name: "franchise", commission_rate: "commission", total_sales: "revenue_mtd" },
@@ -1859,10 +1862,23 @@ const RESOURCES: Record<string, Resource> = {
     ],
     editable: ["name", "company", "value", "stage", "source", "notes"],
     searchable: ["name", "company", "stage", "source"],
-    creatable: ["name", "company", "value", "stage", "source", "notes"],
-    required: ["name"],
+    creatable: ["franchise_id", "name", "company", "value", "stage", "source", "notes"],
+    required: ["franchise_id", "name"],
     order: "created_at.desc",
     label: "Franchise leads",
+  },
+
+  franchise_product_assignments: {
+    table: "franchise_product_assignments",
+    select: ["id", "franchise_id", "product_id", "active", "created_at"],
+    editable: ["active"],
+    searchable: [],
+    order: "created_at.desc",
+    label: "Franchise product assignments",
+    creatable: ["franchise_id", "product_id"],
+    required: ["franchise_id", "product_id"],
+    createDefaults: { active: true },
+    archive: { active: false },
   },
 
   franchise_branches: {
@@ -4417,6 +4433,32 @@ export const Route = createFileRoute("/api/manager/resource")({
           values[key] = value;
         }
 
+        if (resource.table === "crm_customers") {
+          const resellerId = body.values?.reseller_id;
+          if (typeof resellerId !== "string" || !UUID.test(resellerId)) {
+            return Response.json(
+              { error: "Choose the reseller who owns this customer." },
+              { status: 400 },
+            );
+          }
+          try {
+            const ownerId = await resolveResellerCustomerOwnerId(resellerId, url(), admin());
+            if (!ownerId) {
+              return Response.json(
+                { error: "The assigned reseller could not be linked to a customer owner." },
+                { status: 422 },
+              );
+            }
+            values.owner_id = ownerId;
+          } catch (error) {
+            console.error("[manager] reseller customer owner lookup threw", error);
+            return Response.json(
+              { error: "Could not resolve the assigned reseller's customer owner." },
+              { status: 502 },
+            );
+          }
+        }
+
         const missing = (resource.required ?? []).filter(
           (column) => values[column] === undefined || values[column] === "",
         );
@@ -4429,6 +4471,43 @@ export const Route = createFileRoute("/api/manager/resource")({
             { status: 400 },
           );
         }
+        try {
+          if (resource.table === "franchises") {
+            values.email = String(values.email).trim();
+            const ownerResponse = await fetch(`${url()}/rest/v1/rpc/franchise_owner_id_for_email`, {
+              method: "POST",
+              headers: { ...admin(), "Content-Type": "application/json" },
+              body: JSON.stringify({ p_email: values.email }),
+            });
+            if (!ownerResponse.ok) {
+              const detail = await ownerResponse.text();
+              console.error(
+                "[manager] franchise owner lookup failed",
+                ownerResponse.status,
+                detail,
+              );
+              return Response.json(
+                { error: "Could not verify the franchise owner account" },
+                { status: 502 },
+              );
+            }
+            const ownerId: unknown = await ownerResponse.json();
+            if (typeof ownerId !== "string" || !UUID.test(ownerId)) {
+              return Response.json(
+                { error: "No existing account matches this franchise contact email" },
+                { status: 422 },
+              );
+            }
+            values.owner_user_id = ownerId;
+          }
+        } catch (error) {
+          console.error("[manager] franchise owner lookup threw", error);
+          return Response.json(
+            { error: "Could not verify the franchise owner account" },
+            { status: 502 },
+          );
+        }
+
         const review =
           resource.table === "marketplace_products"
             ? productCreationReview(String(values.name ?? ""))
@@ -4459,7 +4538,10 @@ export const Route = createFileRoute("/api/manager/resource")({
           const rows = (await response.json()) as Record<string, unknown>[];
           if (review && !rows[0]?.id) {
             console.error("[manager] product create returned no id");
-            return Response.json({ error: "Product creation could not be verified" }, { status: 502 });
+            return Response.json(
+              { error: "Product creation could not be verified" },
+              { status: 502 },
+            );
           }
           if (review) logProductReview(review, "manager products", String(rows[0].id));
           // The storefront caches what this table holds; empty them so the saved

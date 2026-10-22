@@ -41,6 +41,7 @@ export function ProductsAdmin() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const listFn = useServerFn(listProductsAdminPage);
+  const categoriesFn = useServerFn(listCategoriesAdmin);
   const upsertFn = useServerFn(upsertProduct);
   const deleteFn = useServerFn(deleteProduct);
 
@@ -62,6 +63,16 @@ export function ProductsAdmin() {
       (await listFn({ data: { page, pageSize, search: term } })) as unknown as {
         rows: Product[]; total: number; ok: boolean; error?: string;
       },
+  });
+  const {
+    data: categories = [],
+    isLoading: categoriesLoading,
+    isError: categoriesIsError,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useQuery<Category[]>({
+    queryKey: ["mp_categories_admin"],
+    queryFn: async () => (await categoriesFn()) as unknown as Category[],
   });
   const data: Product[] = paged?.rows ?? [];
   const total = paged?.total ?? 0;
@@ -177,6 +188,10 @@ export function ProductsAdmin() {
       {editing && (
         <ProductEditor
           value={editing}
+          categories={categories}
+          categoriesLoading={categoriesLoading}
+          categoriesError={categoriesIsError ? categoriesError : null}
+          onRetryCategories={() => void refetchCategories()}
           onCancel={() => setEditing(null)}
           onSave={(v) => upsertMut.mutate(v)}
           saving={upsertMut.isPending}
@@ -187,16 +202,23 @@ export function ProductsAdmin() {
 }
 
 function ProductEditor({
-  value, onCancel, onSave, saving,
+  value, categories, categoriesLoading, categoriesError, onRetryCategories, onCancel, onSave, saving,
 }: {
   value: Partial<Product>;
+  categories: Category[];
+  categoriesLoading: boolean;
+  categoriesError: unknown;
+  onRetryCategories: () => void;
   onCancel: () => void;
-  onSave: (v: Partial<Product>) => void;
+  onSave: (v: Partial<Product> & { publish_on_create?: boolean }) => void;
   saving: boolean;
 }) {
   const { t } = useTranslation();
   const [v, setV] = useState<Partial<Product>>(value);
+  const [publishOnCreate, setPublishOnCreate] = useState(!value.id);
   const set = <K extends keyof Product>(k: K, val: Product[K]) => setV((p) => ({ ...p, [k]: val }));
+  const selectableCategories = categories.filter((category) => !category.is_hidden || category.id === v.category_id);
+  const categoryIsValid = categories.some((category) => category.id === v.category_id);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
@@ -209,6 +231,20 @@ function ProductEditor({
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t("storeadmin.catalog.field_name")}><input className={inp} value={v.name ?? ""} onChange={(e) => set("name", e.target.value)} /></Field>
           <Field label={t("storeadmin.catalog.field_slug")}><input className={inp} value={v.slug ?? ""} onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-"))} /></Field>
+          <Field label={`${t("storeadmin.catalog.field_category")} *`}>
+            <select
+              aria-label={t("storeadmin.catalog.field_category")}
+              required
+              className={inp}
+              value={v.category_id ?? ""}
+              onChange={(e) => set("category_id", e.target.value || null)}
+            >
+              <option value="">{t("storeadmin.catalog.choose_category")}</option>
+              {selectableCategories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+          </Field>
           <Field label={t("storeadmin.catalog.field_industry_label")}><input className={inp} value={v.industry_label ?? ""} onChange={(e) => set("industry_label", e.target.value)} /></Field>
           <Field label={t("storeadmin.catalog.field_icon")}><input className={inp} value={v.icon ?? ""} onChange={(e) => set("icon", e.target.value)} /></Field>
           <Field label={t("storeadmin.catalog.field_price_label")}><input className={inp} value={v.price_label ?? ""} onChange={(e) => set("price_label", e.target.value)} placeholder={t("storeadmin.catalog.price_label_placeholder")}/></Field>
@@ -226,7 +262,32 @@ function ProductEditor({
           <Field label={t("storeadmin.catalog.field_sort_order")}><input type="number" className={inp} value={v.sort_order ?? 0} onChange={(e) => set("sort_order", Number(e.target.value))} /></Field>
         </div>
 
+        {categoriesLoading && (
+          <p className="mt-3 text-xs text-muted-foreground">{t("storeadmin.catalog.loading_categories")}</p>
+        )}
+        {categoriesError != null && (
+          <div className="mt-3">
+            <LoadFailure
+              error={categoriesError}
+              what={t("storeadmin.catalog.what_categories")}
+              onRetry={onRetryCategories}
+            />
+          </div>
+        )}
+        {!categoriesLoading && !categoriesError && selectableCategories.length === 0 && (
+          <p role="alert" className="mt-3 text-xs text-destructive">
+            {t("storeadmin.catalog.categories_required")}
+          </p>
+        )}
+
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {!v.id && (
+            <Toggle
+              label={t("storeadmin.catalog.toggle_publish_on_create")}
+              v={publishOnCreate}
+              onChange={setPublishOnCreate}
+            />
+          )}
           <Toggle label={t("storeadmin.catalog.toggle_visible")} v={!!v.visible} onChange={(x) => set("visible", x)} />
           <Toggle label={t("storeadmin.catalog.toggle_featured")} v={!!v.is_featured} onChange={(x) => set("is_featured", x)} />
           <Toggle label={t("storeadmin.catalog.toggle_trending")} v={!!v.is_trending} onChange={(x) => set("is_trending", x)} />
@@ -237,7 +298,11 @@ function ProductEditor({
 
         <div className="mt-6 flex justify-end gap-2">
           <PillButton variant="ghost" onClick={onCancel}>{t("storeadmin.catalog.cancel")}</PillButton>
-          <PillButton variant="primary" onClick={() => onSave(v)}>
+          <PillButton
+            variant="primary"
+            disabled={saving || categoriesLoading || !!categoriesError || !categoryIsValid}
+            onClick={() => onSave({ ...v, ...(!v.id ? { publish_on_create: publishOnCreate } : {}) })}
+          >
             <span className="inline-flex items-center gap-1.5">
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin"/> : <Save className="h-3.5 w-3.5"/>} {t("storeadmin.catalog.save")}
             </span>

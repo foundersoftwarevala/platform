@@ -294,4 +294,26 @@ export const SEO_MESSAGES = {
   "seo.submissions": ["Submissions", "URL batches sent to IndexNow"],
   "seo.urls_in_the_newest": ["URLs in the newest", "URLs in the most recent submission"],
   "seo.nothing_submitted_to_indexnow": "Nothing has been submitted to IndexNow yet.",
+
+  // Reseller country SEO.
+  "seo.reseller_seo": "Reseller SEO",
+  "seo.reseller_country_seo_title": "Reseller SEO — 100 countries",
+  "seo.reseller_country_seo_description":
+    "Queue localized meta titles, descriptions, and blog snippets for review. Each country draft preserves every supplied master hashtag exactly, appends the country's ISO alpha-2 code to each local-language hashtag, and contains exactly 80 total. The existing background worker processes no more than five countries per tick and saves completed output as an SEO content draft; it never publishes automatically.",
+  "seo.reseller_country_seo_queued":
+    "Queued country drafts: {count}. The background worker processes up to five at a time.",
+  "seo.reseller_country_seo_already_complete":
+    "{completed} country drafts are already complete; {inProgress} are in progress.",
+  "seo.reseller_country_seo_queue_failed": "Reseller SEO drafts could not be queued.",
+  "seo.reseller_country_seo_queueing": "Queueing countries…",
+  "seo.reseller_country_seo_queue_button": "Queue or retry all 100 countries",
+  "seo.reseller_country_seo_loading_progress": "Loading progress…",
+  "seo.reseller_country_seo_progress_failed": "Country draft progress could not be loaded.",
+  "seo.reseller_country_seo_progress_title": "Draft generation progress",
+  "seo.reseller_country_seo_completed_count": "{completed} / {total} completed",
+  "seo.reseller_country_seo_progress_aria_label": "Reseller country SEO drafts completed",
+  "seo.reseller_country_seo_queued_label": "Queued",
+  "seo.reseller_country_seo_processing": "Processing",
+  "seo.reseller_country_seo_retry_wait": "Retry wait",
+  "seo.reseller_country_seo_completed": "Completed",
 } as const;

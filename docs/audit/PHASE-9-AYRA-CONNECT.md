@@ -30,9 +30,16 @@ complete.
 - The exact read-only system prompt and Ollama tool-call loop are in
   [`core.server.ts`](../../src/lib/ayra/core.server.ts#L15) and
   [`core.server.ts`](../../src/lib/ayra/core.server.ts#L211).
-- Requests use the fixed local `ollama-local` endpoint from
+- By default, requests use the local `ollama-local` endpoint from
   [`ai-local-services.server.ts`](../../src/lib/ai-local-services.server.ts).
-  Set `AYRA_OLLAMA_MODEL` in the server environment to the installed model
+  Set `AYRA_OLLAMA_URL` to a Cloudflare Access-protected HTTPS base URL or
+  endpoint, or an HTTP loopback/RFC1918/IPv6 ULA VPN address; public HTTP is
+  rejected. Remote HTTPS endpoints require both
+  `AYRA_OLLAMA_ACCESS_CLIENT_ID` and `AYRA_OLLAMA_ACCESS_CLIENT_SECRET`; they
+  are sent only to HTTPS endpoints. Private-network endpoints may omit them.
+  Cloudflare Access policy must also protect the tunnel; a public tunnel
+  without Access is not considered secure.
+- Set `AYRA_OLLAMA_MODEL` in the server environment to the installed model
   name, and use an Ollama model that supports the OpenAI-compatible tool-call
   format. The name is intentionally required rather than guessed. Requests
   time out after 120 seconds; request failures are surfaced to the UI.

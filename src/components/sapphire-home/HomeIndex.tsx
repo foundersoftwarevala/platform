@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { catalogueSlug } from "@/data/catalogue";
 import { useSavedProducts } from "@/lib/useSavedProducts";
@@ -126,11 +126,12 @@ import { catalogueSlugForShelf } from "@/lib/marketplace/home-category-map";
 import { demoNumbersForCards, marketplaceDemoHref } from "@/lib/marketplace/demo-link";
 import { fetchCountryRail, railCardToDemo, shelfColour } from "@/lib/marketplace/country-rail";
 import { RAIL_COUNTRIES } from "@/lib/marketplace/rail-countries";
+import type { CatalogCard } from "@/lib/marketplace/catalog-card";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { useCatalogueCounts } from "@/components/sapphire-home/useCatalogueCounts";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content/constants";
 
-interface Demo {
+export interface Demo {
   id: string;
   name: string;
   category: string;
@@ -156,6 +157,37 @@ interface Demo {
   /** The permanent card-slot page the catalogue product occupies, when it has one. */
   slotUrl?: string;
 }
+
+type MarketplaceCategory = { title: string; slug: string };
+
+const CARD_TONE_HUES: Record<string, number> = {
+  amber: 38,
+  blue: 218,
+  cyan: 190,
+  emerald: 155,
+  fuchsia: 292,
+  gray: 220,
+  green: 145,
+  indigo: 245,
+  lime: 95,
+  orange: 24,
+  pink: 330,
+  purple: 275,
+  red: 4,
+  rose: 350,
+  slate: 220,
+  sky: 198,
+  teal: 175,
+  violet: 265,
+  yellow: 50,
+};
+
+function cardToneHue(color: string): number {
+  const hue = color.match(/^from-([a-z]+)-/)?.[1];
+  return hue && Object.hasOwn(CARD_TONE_HUES, hue) ? CARD_TONE_HUES[hue] : CARD_TONE_HUES.cyan;
+}
+
+type CardToneStyle = CSSProperties & { "--sv-card-tone-h": number };
 
 // Exported so a card's product page can be built from it on the server
 // (lib/marketplace/home-catalogue.server.ts).
@@ -3479,7 +3511,7 @@ export const allDemos: Demo[] = [
   ...extraDemos,
 ];
 
-// Master Categories for filtering (55 rows — matches actual data values)
+// The shelves retain their authored grouping; the filter below reads live rows.
 const masterCategories = ["All", ...allMasterCategories55];
 
 /**
@@ -3506,6 +3538,16 @@ const CATALOGUE_SHELF_COLOUR: Record<string, string> = {
   "Restaurant POS": "from-orange-600 to-red-600",
   "School Management": "from-teal-500 to-cyan-600",
 };
+
+export function toDemo(card: CatalogCard): Demo {
+  const shelf = card.industry ?? "Software";
+  return railCardToDemo(
+    card,
+    shelf,
+    CATALOGUE_SHELF_COLOUR[shelf] ?? shelfColour(undefined),
+  );
+}
+
 const PRODUCTS_PER_ROW = 80;
 
 /**
@@ -3607,6 +3649,20 @@ const Index = () => {
   const counts = useCatalogueCounts();
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryOptions, setCategoryOptions] = useState<MarketplaceCategory[]>([]);
+  const [categoryLoadError, setCategoryLoadError] = useState(false);
+  const [searchResults, setSearchResults] = useState<Demo[]>([]);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchNextOffset, setSearchNextOffset] = useState(0);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState(false);
+  const [searchRevision, setSearchRevision] = useState(0);
+  const selectedCategory = activeCategory === "All" ? "" : activeCategory;
+  const showDatabaseResults = Boolean(searchQuery.trim() || selectedCategory);
+  const selectedCategoryName =
+    categoryOptions.find((category) => category.slug === selectedCategory)?.title ?? "";
+
   // How many real catalogue products each shelf has added. A shelf that has
   // added none is padded exactly as it was before, so a page where the
   // catalogue cannot be reached is the page that shipped yesterday.
@@ -3620,19 +3676,140 @@ const Index = () => {
   // they are kept in this browser as before and carried up on the next sign-in.
   const { favorites, toggle: toggleFavorite } = useSavedProducts();
 
-  const filteredDemos = allDemos.filter((demo) => {
-    const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
-    const matchesSearch =
-      demo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      demo.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      demo.masterCategory.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  useEffect(() => {
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/marketplace/rows", { signal: controller.signal });
+        if (!response.ok) throw new Error(`Category request failed (${response.status})`);
+        const payload = (await response.json()) as { rows?: { title?: unknown; slug?: unknown }[] };
+        if (!Array.isArray(payload.rows)) throw new Error("Category response is invalid");
+        setCategoryOptions(
+          payload.rows
+            .filter(
+              (row): row is { title: string; slug: string } =>
+                typeof row.title === "string" &&
+                row.title.length > 0 &&
+                typeof row.slug === "string" &&
+                row.slug.length > 0,
+            )
+            .map(({ title, slug }) => ({ title, slug })),
+        );
+        setCategoryLoadError(false);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error("[marketplace home] category filter failed", error);
+        setCategoryLoadError(true);
+      }
+    })();
+    return () => controller.abort();
+  }, []);
 
-  // Count demos per master category
-  const getCategoryCount = (category: string) => {
-    if (category === "All") return allDemos.length;
-    return allDemos.filter((d) => d.masterCategory === category).length;
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query && !selectedCategory) {
+      setSearchResults([]);
+      setSearchTotal(0);
+      setSearchNextOffset(0);
+      setSearchHasMore(false);
+      setSearchError(false);
+      setSearchLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setSearchResults([]);
+    setSearchTotal(0);
+    setSearchNextOffset(0);
+    setSearchHasMore(false);
+    setSearchError(false);
+    setSearchLoading(true);
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const params = new URLSearchParams({ format: "cards", limit: "40" });
+          if (query) params.set("q", query);
+          if (selectedCategory) params.set("category", selectedCategory);
+          const response = await fetch(`/api/marketplace/search?${params}`, {
+            signal: controller.signal,
+          });
+          if (!response.ok) throw new Error(`Product search failed (${response.status})`);
+          const payload = (await response.json()) as {
+            cards?: CatalogCard[];
+            total?: number;
+            offset?: number;
+            hasMore?: boolean;
+          };
+          const cards = payload.cards;
+          if (
+            !Array.isArray(cards) ||
+            typeof payload.total !== "number" ||
+            typeof payload.offset !== "number" ||
+            typeof payload.hasMore !== "boolean"
+          ) {
+            throw new Error("Product search response is invalid");
+          }
+          setSearchResults(cards.map(toDemo));
+          setSearchTotal(payload.total);
+          setSearchNextOffset(payload.offset + cards.length);
+          setSearchHasMore(payload.hasMore);
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          console.error("[marketplace home] product search failed", error);
+          setSearchError(true);
+        } finally {
+          if (!controller.signal.aborted) setSearchLoading(false);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchQuery, selectedCategory, searchRevision]);
+
+  const loadMoreSearchResults = async () => {
+    if (searchLoading || !searchHasMore) return;
+    setSearchLoading(true);
+    setSearchError(false);
+    try {
+      const params = new URLSearchParams({
+        format: "cards",
+        limit: "40",
+        offset: String(searchNextOffset),
+      });
+      const query = searchQuery.trim();
+      if (query) params.set("q", query);
+      if (selectedCategory) params.set("category", selectedCategory);
+      const response = await fetch(`/api/marketplace/search?${params}`);
+      if (!response.ok) throw new Error(`Product search page failed (${response.status})`);
+      const payload = (await response.json()) as {
+        cards?: CatalogCard[];
+        total?: number;
+        offset?: number;
+        hasMore?: boolean;
+      };
+      const cards = payload.cards;
+      if (
+        !Array.isArray(cards) ||
+        typeof payload.total !== "number" ||
+        typeof payload.offset !== "number" ||
+        typeof payload.hasMore !== "boolean"
+      ) {
+        throw new Error("Product search response is invalid");
+      }
+      setSearchResults((current) => [...current, ...cards.map(toDemo)]);
+      setSearchTotal(payload.total);
+      setSearchNextOffset(payload.offset + cards.length);
+      setSearchHasMore(payload.hasMore);
+    } catch (error) {
+      console.error("[marketplace home] more search results failed", error);
+      setSearchError(true);
+    } finally {
+      setSearchLoading(false);
+    }
   };
 
   return (
@@ -3676,61 +3853,136 @@ const Index = () => {
         {/* Category Slider (auto-scroll) */}
         <CategorySlider />
 
-        {/* Category Filter - Master Categories */}
+        {/* Catalogue search and category filter */}
         <div className="bg-[#0d1e36]/80 backdrop-blur-sm border-b border-cyan-500/20 py-4 px-4 sticky top-0 z-40">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center gap-4 mb-4">
+            <div className="mb-4 flex flex-wrap items-center gap-4">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                 <Input
                   placeholder="Search software..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search the product catalogue"
                   className="pl-10 bg-[#1a2d4a] border-cyan-500/30 text-white placeholder:text-gray-400"
                 />
               </div>
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
-                {filteredDemos.length} Products
-              </Badge>
+              <select
+                aria-label="Filter by category"
+                value={activeCategory}
+                onChange={(event) => setActiveCategory(event.target.value)}
+                disabled={categoryOptions.length === 0}
+                className="min-w-48 rounded-md border border-cyan-500/30 bg-[#1a2d4a] px-3 py-2 text-sm text-white disabled:opacity-60"
+              >
+                <option value="All">All categories</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.slug} value={category.slug}>
+                    {category.title}
+                  </option>
+                ))}
+              </select>
+              {counts.products !== null && (
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                  {counts.format(counts.products)} Products
+                </Badge>
+              )}
             </div>
+            {categoryLoadError && (
+              <p role="alert" className="text-sm text-amber-300">
+                Categories could not be loaded. Search remains available.
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Netflix-style product rows */}
+        {/* Catalogue search/filter results and the authored browsing shelves */}
         <section className="py-8 px-4">
           <div className="max-w-7xl mx-auto">
-            {/* Group by Master Category when "All" is selected */}
-            {activeCategory === "All" ? (
+            {showDatabaseResults ? (
+              <div aria-live="polite">
+                <h2 className="mb-4 text-xl font-bold text-white">
+                  {searchQuery.trim()
+                    ? t("marketplace.search.results", { query: searchQuery.trim() })
+                    : selectedCategoryName}
+                  {!searchLoading && ` · ${searchTotal.toLocaleString()}`}
+                </h2>
+                {searchLoading && searchResults.length === 0 && (
+                  <p role="status" className="mb-4 text-sm text-white/65">
+                    {t("marketplace.search.searching")}
+                  </p>
+                )}
+                {searchError && (
+                  <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm text-amber-300">
+                    <span>{t("marketplace.search.failed")}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSearchRevision((revision) => revision + 1)}
+                    >
+                      {t("marketplace.search.retry")}
+                    </Button>
+                  </div>
+                )}
+                {searchResults.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {searchResults.map((demo) => (
+                        <DemoCard
+                          key={demo.id}
+                          demo={demo}
+                          demoNumber={null}
+                          isFavorite={favorites.includes(catalogueSlug(demo.name))}
+                          onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
+                        />
+                      ))}
+                    </div>
+                    {(searchHasMore || searchLoading) && (
+                      <div className="mt-8 flex justify-center">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={searchLoading}
+                          onClick={() => void loadMoreSearchResults()}
+                        >
+                          {searchLoading
+                            ? t("marketplace.search.searching")
+                            : `Load more (${searchResults.length.toLocaleString()} of ${searchTotal.toLocaleString()})`}
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  !searchLoading &&
+                  !searchError && (
+                    <p className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-sm text-white/70">
+                      {t("marketplace.search.none", {
+                        query: searchQuery.trim() || selectedCategoryName,
+                      })}
+                    </p>
+                  )
+                )}
+              </div>
+            ) : (
               masterCategories.slice(1).map((masterCat) => {
-                const categoryDemos = filteredDemos.filter((d) => d.masterCategory === masterCat);
-                // A shelf with no static entries is shown only when the
-                // catalogue fills it: not while searching (the country cards
-                // are not searched), not without a catalogue row, and not once
-                // its row has come back empty.
+                const categoryDemos = allDemos.filter((demo) => demo.masterCategory === masterCat);
                 if (
                   categoryDemos.length === 0 &&
-                  (searchQuery.trim() ||
-                    !catalogueSlugForShelf(masterCat) ||
-                    addedByShelf[masterCat] === 0)
+                  (!catalogueSlugForShelf(masterCat) || addedByShelf[masterCat] === 0)
                 ) {
                   return null;
                 }
-                // The shelf's own cards are repeated only as far as the real
-                // catalogue cards do not already fill the rail: a country card
-                // takes the place of a duplicate, never of a real one.
                 const added = addedByShelf[masterCat] ?? 0;
-                const rowDemos = searchQuery.trim()
-                  ? categoryDemos
-                  : fillProductRail(categoryDemos, Math.max(PRODUCTS_PER_ROW - added, 0));
+                const rowDemos = fillProductRail(
+                  categoryDemos,
+                  Math.max(PRODUCTS_PER_ROW - added, 0),
+                );
                 const demoNumbers = demoNumbersForCards(rowDemos);
 
                 return (
-                  // The rail repeats its cards to fill the row; the count says
-                  // how many different products it holds, not how many tiles.
                   <ProductCarouselRow
                     key={masterCat}
                     title={masterCat}
-                    count={new Set(rowDemos.map((d) => d.id)).size + added}
+                    count={new Set(rowDemos.map((demo) => demo.id)).size + added}
                   >
                     {rowDemos.map((demo, index) => (
                       <DemoCard
@@ -3741,45 +3993,22 @@ const Index = () => {
                         onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
                       />
                     ))}
-                    {!searchQuery.trim() && (
-                      <CountryRailCards
-                        shelf={masterCat}
-                        colour={
-                          categoryDemos.length
-                            ? shelfColour(categoryDemos)
-                            : (CATALOGUE_SHELF_COLOUR[masterCat] ?? shelfColour(undefined))
-                        }
-                        already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
-                        demoNumberOffset={demoNumbers.filter((number) => number !== null).length}
-                        favorites={favorites}
-                        onToggleFavorite={toggleFavorite}
-                        onLoaded={noteAdded}
-                      />
-                    )}
+                    <CountryRailCards
+                      shelf={masterCat}
+                      colour={
+                        categoryDemos.length
+                          ? shelfColour(categoryDemos)
+                          : (CATALOGUE_SHELF_COLOUR[masterCat] ?? shelfColour(undefined))
+                      }
+                      already={categoryDemos.map((demo) => catalogueSlug(demo.name)).join(",")}
+                      demoNumberOffset={demoNumbers.filter((number) => number !== null).length}
+                      favorites={favorites}
+                      onToggleFavorite={toggleFavorite}
+                      onLoaded={noteAdded}
+                    />
                   </ProductCarouselRow>
                 );
               })
-            ) : (
-              <ProductCarouselRow
-                title={activeCategory}
-                count={new Set(filteredDemos.map((d) => d.id)).size}
-              >
-                {(() => {
-                  const rowDemos = searchQuery.trim()
-                    ? filteredDemos
-                    : fillProductRail(filteredDemos);
-                  const demoNumbers = demoNumbersForCards(rowDemos);
-                  return rowDemos.map((demo, index) => (
-                    <DemoCard
-                      key={`${activeCategory}-${demo.id}-${index}`}
-                      demo={demo}
-                      demoNumber={demoNumbers[index]}
-                      isFavorite={favorites.includes(catalogueSlug(demo.name))}
-                      onToggleFavorite={() => toggleFavorite(catalogueSlug(demo.name))}
-                    />
-                  ));
-                })()}
-              </ProductCarouselRow>
             )}
           </div>
         </section>
@@ -3900,7 +4129,7 @@ const slotParams = (slotUrl: string | undefined) => {
   return { category: match[1], country: match[2] };
 };
 
-const DemoCard = memo(
+export const DemoCard = memo(
   ({
     demo,
     demoNumber,
@@ -3937,9 +4166,7 @@ const DemoCard = memo(
     // still go to the product and its demo.
     const slot = slotParams(demo.slotUrl);
     const openCard = () =>
-      slot
-        ? void navigate({ to: "/marketplace/$category/$country", params: slot })
-        : openProduct();
+      slot ? void navigate({ to: "/marketplace/$category/$country", params: slot }) : openProduct();
     const [activeTab, setActiveTab] = useState<"features" | "tech">("features");
     const [leadAction, setLeadAction] = useState<LeadAction | null>(null);
 
@@ -3953,6 +4180,12 @@ const DemoCard = memo(
           productId={demo.id}
         />
         <Card
+          data-card-tone={demo.color.match(/^from-([a-z]+)-/)?.[1] ?? "cyan"}
+          style={
+            {
+              "--sv-card-tone-h": cardToneHue(demo.color),
+            } as CardToneStyle
+          }
           className="sv-card group h-full overflow-hidden border-cyan-500/20 bg-gradient-to-br from-[#1a2d4a] to-[#0d1e36]"
           onClick={(event) => {
             // Anything with its own destination keeps it.
@@ -3971,9 +4204,11 @@ const DemoCard = memo(
                 </div>
                 <div className="flex gap-2 items-center">
                   {demo.status === "COMING_SOON" && (
+                    !demo.id.startsWith("catalogue-") && (
                     <Badge className="bg-yellow-500/90 text-black font-bold text-xs animate-pulse">
                       COMING SOON
                     </Badge>
+                    )
                   )}
                   {demo.status === "ACTIVE" && (
                     <Badge className="bg-emerald-500/90 text-white font-bold text-xs flex items-center gap-1">
@@ -4137,6 +4372,13 @@ const DemoCard = memo(
                       <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
                     </Button>
                   </>
+                ) : demo.id.startsWith("catalogue-") ? (
+                  <Button
+                    className="sv-btn sv-btn-emerald flex-1"
+                    onClick={() => openProduct({ buy: 1 })}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" /> Buy Now
+                  </Button>
                 ) : (
                   <>
                     <Button className="sv-btn sv-btn-coming flex-1" disabled>

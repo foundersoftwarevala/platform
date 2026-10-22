@@ -79,6 +79,11 @@ function fixture() {
           credentialFingerprint: unused,
           isEncryptedAiCredential: unused,
         };
+      if (name === "./ai-local-services.server")
+        return {
+          getLocalAiService: () => null,
+          isConfiguredLocalAiService: () => false,
+        };
       if (name === "./managed-api-endpoints.server")
         return { assertManagedProviderEndpoint: unused };
       if (name === "./ai-gateway.server") return { aiComplete: unused };

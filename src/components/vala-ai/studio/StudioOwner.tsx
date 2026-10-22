@@ -67,7 +67,7 @@ const NAV: [string, typeof Home, boolean?][] = [
 
 export function StudioOwner() {
   const { dashboard, error, ownerData } = useStudioManagement();
-  const isOwner = useCan("owner");
+  const isOwner = useCan("boss");
   const STATS = [
     [
       "People",

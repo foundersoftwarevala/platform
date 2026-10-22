@@ -22,10 +22,10 @@ process.env.VALA_AI_DATA_DIR = join(root, "data");
 process.env.VALA_AI_WORKER = "off";
 const source = join(root, "source repo");
 
-const owner: Operator = { id: "u-owner", email: "owner@test.local", name: "owner", role: "owner" };
+const owner: Operator = { id: "u-owner", email: "owner@test.local", name: "owner", role: "boss" };
 const operator: Operator = { id: "u-op", email: "op@test.local", name: "op", role: "operator" };
 const viewer: Operator = { id: "u-view", email: "view@test.local", name: "view", role: "viewer" };
-const who: Record<string, Operator> = { owner, operator, viewer };
+const who: Record<string, Operator> = { boss: owner, operator, viewer };
 const resolve = async (req: Request) => who[req.headers.get("x-test-caller") ?? ""] ?? null;
 const get = async (as: string, path: string) => {
   const res = await handleApi(
@@ -116,13 +116,13 @@ describe("server layout is visible to owners only", () => {
         relative_path: value.relative_path,
       });
     }
-    expect(redactForRole(value, "owner")).toEqual(value);
+    expect(redactForRole(value, "boss")).toEqual(value);
   });
 
   it("owners see the paths and the runner", async () => {
-    const status = await get("owner", "/status");
+    const status = await get("boss", "/status");
     expect(JSON.parse(status.text).dataDir).toBe(dataDir());
-    const detail = JSON.parse((await get("owner", `/projects/${projectId}`)).text);
+    const detail = JSON.parse((await get("boss", `/projects/${projectId}`)).text);
     expect(detail.workspace.path).toContain(dataDir());
     expect(detail.project.source_path).toBe(source);
   });

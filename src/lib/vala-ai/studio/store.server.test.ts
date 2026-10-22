@@ -14,7 +14,7 @@ const owner: Operator = {
   id: "owner",
   email: "owner@example.invalid",
   name: "Owner",
-  role: "owner",
+  role: "boss",
 };
 beforeEach(() => {
   closeDb();

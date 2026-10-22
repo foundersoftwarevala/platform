@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { useServerFn } from "@/lib/serverFn";
 import { listResellerPaymentRails } from "@/lib/reseller-dashboard.functions";
+import { activeMembershipDiscount } from "@/lib/commerce/reseller-membership";
 
 /**
  * Reseller dashboard → Membership & Plans.
@@ -55,6 +56,7 @@ type Membership = {
   starts_at: string | null;
   expires_at: string | null;
 };
+type ResellerIdentity = { id: string; status: string; approved_at: string | null };
 type PurchaseResult = {
   order?: Order;
   invoice?: { invoice_no: string; total: number };
@@ -70,6 +72,11 @@ export function ResellerMembershipPlans() {
   const [method, setMethod] = useState<string>("");
   const [reference, setReference] = useState("");
   const [proofUrl, setProofUrl] = useState("");
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   // One key per plan for this visit: pressing "Purchase" twice, or a retry
   // after a dropped connection, returns the same order.
   const [purchaseKeys, setPurchaseKeys] = useState<Record<string, string>>({});
@@ -95,15 +102,15 @@ export function ResellerMembershipPlans() {
       if (!uid) return null;
       const { data, error } = (await supabase
         .from("resellers" as never)
-        .select("id")
+        .select("id,status,approved_at")
         .eq("user_id" as never, uid as never)
         .neq("status" as never, "terminated" as never)
-        .limit(1)) as { data: { id: string }[] | null; error: Error | null };
+        .limit(1)) as { data: ResellerIdentity[] | null; error: Error | null };
       if (error) throw error;
-      return data?.[0]?.id ?? null;
+      return data?.[0] ?? null;
     },
   });
-  const resellerId = self.data ?? null;
+  const resellerId = self.data?.id ?? null;
   const rails = useQuery({
     queryKey: ["reseller-membership-rails"],
     queryFn: () => listRails(),
@@ -138,11 +145,10 @@ export function ResellerMembershipPlans() {
         .from("reseller_memberships" as never)
         // Only the live reseller record's membership: a terminated record's
         // history is kept but is not the reseller's current membership.
-        .select("id, plan_code, status, starts_at, expires_at, resellers!inner(status)")
+        .select("id, plan_code, status, starts_at, expires_at")
         .eq("reseller_id" as never, resellerId as never)
-        .eq("status", "active")
-        .neq("resellers.status" as never, "terminated")
-        .order("activated_at", { ascending: false })
+        .in("status", ["active", "expired", "renewal_due"])
+        .order("starts_at", { ascending: false, nullsFirst: false })
         .limit(1)) as { data: Membership[] | null; error: Error | null };
       if (error) throw error;
       return data?.[0] ?? null;
@@ -203,6 +209,22 @@ export function ResellerMembershipPlans() {
     return <div className="p-6 text-sm text-destructive">{t("reseller.plans.load_failed")}</div>;
 
   const planName = (id: string) => plans.data?.find((p) => p.id === id)?.name ?? "Plan";
+  const currentPlan = plans.data?.find((plan) => plan.code === membership.data?.plan_code);
+  const currentDiscount = membership.data && self.data
+    ? activeMembershipDiscount(
+        {
+          resellerStatus: self.data.status,
+          approvedAt: self.data.approved_at,
+          membershipStatus: membership.data.status,
+          startsAt: membership.data.starts_at,
+          expiresAt: membership.data.expires_at,
+          discountPercent: currentPlan?.profit_percent ?? 0,
+        },
+        clock,
+      )
+    : 0;
+  const dateTime = (value: string | null) =>
+    value ? new Date(value).toLocaleString() : "—";
   const payable = (orders.data ?? []).filter(
     (o) => o.status === "pending" || o.status === "processing",
   );
@@ -223,15 +245,24 @@ export function ResellerMembershipPlans() {
         data-current-membership={membership.data?.plan_code ?? "none"}
       >
         {membership.data ? (
-          <p>
-            {t("reseller.plans.current", {
-              plan: membership.data.plan_code,
-              status: membership.data.status,
-              date: membership.data.expires_at
-                ? new Date(membership.data.expires_at).toLocaleDateString()
-                : "—",
-            })}
-          </p>
+          <div className="space-y-1">
+            <p className="font-semibold">
+              {t("reseller.plans.current", {
+                plan: currentPlan?.name ?? membership.data.plan_code,
+                status: currentDiscount > 0 ? "active" : "expired or not yet active",
+                date: dateTime(membership.data.expires_at),
+              })}
+            </p>
+            <p className="text-muted-foreground">
+              {t("reseller.plans.period", {
+                start: dateTime(membership.data.starts_at),
+                end: dateTime(membership.data.expires_at),
+              })}
+            </p>
+            <p data-current-discount={currentDiscount}>
+              {t("reseller.plans.customer_discount", { percent: currentDiscount })}
+            </p>
+          </div>
         ) : (
           <p className="text-muted-foreground">{t("reseller.plans.none")}</p>
         )}

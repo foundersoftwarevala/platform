@@ -215,7 +215,7 @@ export const entities = {
         name: "content_type",
         label: "Content type",
         type: "select",
-        options: ["blog", "landing", "product", "case-study", "guide"],
+        options: ["blog", "landing", "product", "case-study", "guide", "reseller-country-seo"],
         default: "blog",
       },
       { name: "target_keyword", label: "Target keyword" },

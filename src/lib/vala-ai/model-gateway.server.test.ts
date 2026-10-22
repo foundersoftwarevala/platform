@@ -37,7 +37,7 @@ import { runStepSafely } from "./worker.server.ts";
 const root = mkdtempSync(join(tmpdir(), "vala-gateway-"));
 process.env.VALA_AI_DATA_DIR = join(root, "data");
 process.env.VALA_AI_WORKER = "off";
-const owner: Operator = { id: "u-owner", email: "o@test.local", name: "o", role: "owner" };
+const owner: Operator = { id: "u-owner", email: "o@test.local", name: "o", role: "boss" };
 const operator: Operator = { id: "u-op", email: "op@test.local", name: "op", role: "operator" };
 const aiComplete = vi.mocked(gateway.aiComplete);
 const resolveAiTarget = vi.mocked(gateway.resolveAiTarget);

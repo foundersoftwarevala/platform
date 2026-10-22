@@ -52,6 +52,7 @@ export type Message = {
   subject: string;
   html: string;
   text?: string;
+  idempotencyKey?: string;
   /** Ties the message to what caused it, so a failure can be traced. */
   context?: Record<string, unknown>;
 };
@@ -86,9 +87,16 @@ export async function queue(
 ): Promise<string | null> {
   if (!url()) return null;
   try {
-    const response = await fetch(`${url()}/rest/v1/email_outbox`, {
+    const endpoint = new URL(`${url()}/rest/v1/email_outbox`);
+    if (message.idempotencyKey) endpoint.searchParams.set("on_conflict", "idempotency_key");
+    const response = await fetch(endpoint, {
       method: "POST",
-      headers: { ...admin(), Prefer: "return=representation" },
+      headers: {
+        ...admin(),
+        Prefer: message.idempotencyKey
+          ? "resolution=ignore-duplicates,return=representation"
+          : "return=representation",
+      },
       body: JSON.stringify({
         to_email: message.to,
         subject: message.subject,
@@ -99,6 +107,7 @@ export async function queue(
         last_error: error ?? null,
         context: message.context ?? {},
         order_id: (message.context?.order_id as string | undefined) ?? null,
+        ...(message.idempotencyKey ? { idempotency_key: message.idempotencyKey } : {}),
       }),
     });
     if (!response.ok) {
@@ -106,7 +115,21 @@ export async function queue(
       return null;
     }
     const rows = (await response.json()) as { id: string }[];
-    return rows[0]?.id ?? null;
+    if (rows[0]?.id || !message.idempotencyKey) return rows[0]?.id ?? null;
+
+    const existingResponse = await fetch(
+      `${url()}/rest/v1/email_outbox?select=id&idempotency_key=eq.${encodeURIComponent(message.idempotencyKey)}&limit=1`,
+      { headers: admin() },
+    );
+    if (!existingResponse.ok) {
+      console.error(
+        "[mail] could not find an idempotently queued message",
+        existingResponse.status,
+      );
+      return null;
+    }
+    const existingRows = (await existingResponse.json()) as { id: string }[];
+    return existingRows[0]?.id ?? null;
   } catch (problem) {
     console.error("[mail] queue threw", problem);
     return null;

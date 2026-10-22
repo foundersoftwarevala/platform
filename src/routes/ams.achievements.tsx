@@ -1,24 +1,22 @@
-import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Trophy } from "lucide-react";
+import { LockKeyhole, Trophy } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
-import { useAmsCatalogue, countBy } from "@/hooks/useAmsCatalogue";
+import { getUserAMSProfile } from "@/lib/ams/core.functions";
 
 /**
- * The achievement catalogue, read from the database.
- *
- * This screen shipped with hand-written KPI figures and invented rows. Every
- * number below is counted from the database, and an empty catalogue reads as
- * empty rather than as a table of examples.
+ * Shows the signed-in user's actual unlocked achievements and available
+ * achievements from the canonical AMS catalogue.
  */
 export const Route = createFileRoute("/ams/achievements")({
   head: () => ({
     meta: [
       { title: "Achievement Engine — AMS" },
-      { name: "description", content: "Every achievement that can be earned, its rarity and how many people have unlocked it." },
+      { name: "description", content: "Your unlocked achievements and available AMS badges." },
       { property: "og:title", content: "Achievement Engine — AMS" },
-      { property: "og:description", content: "Every achievement that can be earned, its rarity and how many people have unlocked it." },
+      { property: "og:description", content: "Your unlocked achievements and available AMS badges." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -26,70 +24,75 @@ export const Route = createFileRoute("/ams/achievements")({
   component: Page,
 });
 
-const TONE: Record<string, "success" | "info" | "warn"> = {
-  active: "success",
-  draft: "warn",
-  inactive: "info",
-};
-
-function chip(status: string) {
+function chip(unlocked: boolean) {
   return (
-    <StatusChip tone={TONE[status] ?? "info"}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+    <StatusChip tone={unlocked ? "success" : "muted"}>
+      {unlocked ? "Unlocked" : "Locked"}
     </StatusChip>
   );
 }
 
 function Page() {
-  const catalogue = useAmsCatalogue();
-  const rows = useMemo(() => catalogue.data?.achievements ?? [], [catalogue.data]);
-  const byRarity = useMemo(() => countBy(rows, (r) => r.rarity), [rows]);
-  const unlocked = rows.reduce((sum, r) => sum + r.holders, 0);
+  const fetchProfile = useServerFn(getUserAMSProfile);
+  const profileQuery = useQuery({
+    queryKey: ["ams", "core-profile"],
+    queryFn: () => fetchProfile({ data: {} }),
+    staleTime: 30_000,
+  });
+  const achievements = profileQuery.data?.achievements ?? [];
+  const unlocked = achievements.filter((achievement) => achievement.unlocked).length;
+  const rarityCounts = achievements.reduce<Record<string, number>>((counts, achievement) => {
+    counts[achievement.type] = (counts[achievement.type] ?? 0) + 1;
+    return counts;
+  }, {});
 
   return (
     <EngineDashboard
-      kicker="AMS Manager"
-      title="Achievement Engine"
+      kicker="Developer AMS"
+      title="My Achievements"
       description={
-        catalogue.isLoading
-          ? "Reading the achievement catalogue…"
-          : rows.length
-            ? `${rows.length} achievements, ${unlocked} unlocked across the platform.`
-            : "No achievements have been defined yet — the catalogue is empty."
+        profileQuery.isPending
+          ? "Loading your achievement record…"
+          : profileQuery.isError
+            ? "Your achievement record is unavailable."
+            : `${unlocked} of ${achievements.length} available achievements unlocked.`
       }
-      primaryAction="New Achievement"
       kpis={[
-        { label: "Achievements", value: rows.length },
-        { label: "Common", value: byRarity.common ?? 0 },
-        { label: "Rare", value: byRarity.rare ?? 0 },
-        { label: "Epic", value: byRarity.epic ?? 0 },
-        { label: "Legendary", value: byRarity.legendary ?? 0 },
+        { label: "Available", value: achievements.length },
         { label: "Unlocked", value: unlocked },
+        { label: "Locked", value: achievements.length - unlocked },
+        { label: "Common", value: rarityCounts.common ?? 0 },
+        { label: "Rare", value: rarityCounts.rare ?? 0 },
+        { label: "Epic+", value: (rarityCounts.epic ?? 0) + (rarityCounts.legendary ?? 0) + (rarityCounts.mythic ?? 0) },
       ]}
-      filters={[{ label: "Rarity", values: ["Common", "Rare", "Epic", "Legendary", "Mythic"] }]}
+      filters={[
+        { label: "Type", key: "type", values: [] },
+        { label: "Status", key: "status", values: ["Unlocked", "Locked"] },
+      ]}
       columns={[
-        { key: "name", label: "Achievement" },
-        { key: "rarity", label: "Rarity" },
-        { key: "holders", label: "Unlocked by", align: "right" },
+        { key: "title", label: "Achievement" },
+        { key: "type", label: "Type" },
+        { key: "xp", label: "XP reward", align: "right" },
         { key: "status", label: "Status" },
       ]}
-      rows={rows.map((a) => ({
-        id: a.id,
-        name: (
+      rows={achievements.map((achievement) => ({
+        id: achievement.id,
+        title: (
           <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-primary" />
-            <span className="font-medium">{a.name}</span>
+            {achievement.unlocked
+              ? <Trophy className="h-4 w-4 text-primary" />
+              : <LockKeyhole className="h-4 w-4 text-muted-foreground" />}
+            <span className="font-medium">{achievement.title}</span>
           </div>
         ),
-        rarity: <span className="capitalize">{a.rarity}</span>,
-        holders: a.holders.toLocaleString(),
-        status: chip(a.status),
+        type: <span className="capitalize">{achievement.type}</span>,
+        xp: achievement.xpReward.toLocaleString(),
+        status: chip(achievement.unlocked),
       }))}
-      emptyLabel={
-        catalogue.isLoading
-          ? "Reading the achievement catalogue…"
-          : "No achievements defined yet. Nothing can be earned until the catalogue has entries."
-      }
+      loading={profileQuery.isPending}
+      error={profileQuery.isError ? profileQuery.error.message : null}
+      onRetry={() => void profileQuery.refetch()}
+      emptyLabel="No achievements are available for this account."
     />
   );
 }

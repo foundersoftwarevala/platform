@@ -52,7 +52,7 @@ async function configuration() {
 export const loadStudioManagementFn = createServerFn({ method: "GET" })
   .middleware([studioViewer])
   .handler(async ({ context }) => {
-    const owner = context.studioOperator.role === "owner";
+    const owner = context.studioOperator.role === "boss";
     const { all } = await import("../db.server");
     const { modelStatus } = await import("../model.server");
     const model = await modelStatus();

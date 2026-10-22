@@ -8,18 +8,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database as DB } from '@/integrations/supabase/types';
 import { smQuery, smMutate } from '@/lib/sm-data';
 import { PageHeader } from '../layout/PageShell';
+import { ServerHealthBadge } from '../layout/ServerHealthBadge';
 
 type InsightRow = DB['public']['Tables']['server_ai_insights']['Row'];
 
 interface ServerLite {
   id: string;
   server_name: string;
-  health_score: number;
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -46,7 +46,8 @@ const SMAIHealthSuggestions = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'applied' | 'dismissed'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'acknowledged' | 'dismissed'>('all');
+  const [guideInsight, setGuideInsight] = useState<InsightRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,7 +60,7 @@ const SMAIHealthSuggestions = () => {
             .select('*')
             .order('created_at', { ascending: false }),
         ),
-        smQuery('servers', () => supabase.from('server_instances').select('id, server_name, health_score')),
+        smQuery('servers', () => supabase.from('server_instances').select('id, server_name')),
       ]);
 
       if (insightRows === null || serverRows === null) {
@@ -78,23 +79,20 @@ const SMAIHealthSuggestions = () => {
     void load();
   }, [load]);
 
-  const updateStatus = async (insight: InsightRow, status: 'applied' | 'dismissed') => {
+  const updateStatus = async (insight: InsightRow, status: 'acknowledged' | 'dismissed') => {
     setBusyId(insight.id);
     try {
       const ok = await smMutate(
-        `${status === 'applied' ? 'Apply' : 'Dismiss'} recommendation`,
+        `${status === 'acknowledged' ? 'Acknowledge' : 'Dismiss'} recommendation`,
         async () => {
           const { error } = await supabase
             .from('server_ai_insights')
-            .update({
-              status,
-              applied_at: status === 'applied' ? new Date().toISOString() : null,
-            })
+            .update({ status })
             .eq('id', insight.id);
           if (error) return { data: null, error };
 
           const { error: auditError } = await supabase.from('server_audit_logs').insert({
-            action: `${status === 'applied' ? 'Applied' : 'Dismissed'} AI recommendation "${insight.title}"`,
+            action: `${status === 'acknowledged' ? 'Acknowledged' : 'Dismissed'} AI recommendation "${insight.title}"`,
             actor: 'admin',
             result: 'success',
             risk_level: insight.severity === 'critical' ? 'high' : 'medium',
@@ -103,7 +101,7 @@ const SMAIHealthSuggestions = () => {
           });
           return { data: null, error: auditError };
         },
-        status === 'applied' ? 'Recommendation applied' : 'Recommendation dismissed',
+        status === 'acknowledged' ? 'Recommendation acknowledged' : 'Recommendation dismissed',
       );
       if (ok) await load();
     } finally {
@@ -118,31 +116,27 @@ const SMAIHealthSuggestions = () => {
 
   const stats = useMemo(() => {
     const pending = insights.filter((i) => i.status === 'pending').length;
-    const applied = insights.filter((i) => i.status === 'applied').length;
+    const acknowledged = insights.filter((i) => i.status === 'acknowledged').length;
     const critical = insights.filter((i) => i.severity === 'critical' || i.severity === 'high').length;
     const avgConfidence = insights.length
       ? Math.round(insights.reduce((a, i) => a + i.confidence, 0) / insights.length)
       : 0;
-    return { pending, applied, critical, avgConfidence };
+    return { pending, acknowledged, critical, avgConfidence };
   }, [insights]);
-
-  const avgHealth = useMemo(() => {
-    const list = Object.values(servers);
-    return list.length
-      ? Math.round(list.reduce((a, s) => a + Number(s.health_score || 0), 0) / list.length)
-      : 0;
-  }, [servers]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="AI Health Suggestions"
-        subtitle="Recommendations generated from your live infrastructure telemetry"
+        subtitle="Read-only recommendations based on available infrastructure data"
         action={
-          <Button variant="outline" onClick={() => void load()} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            <ServerHealthBadge lastSeen={null} />
+            <Button variant="outline" onClick={() => void load()} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         }
       />
 
@@ -157,8 +151,9 @@ const SMAIHealthSuggestions = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: 'Fleet Health Score', value: `${avgHealth}%`, icon: Server, color: 'text-accent-emerald' },
+          { label: 'Fleet Health Score', value: '—', icon: Server, color: 'text-muted-foreground' },
           { label: 'Pending Suggestions', value: stats.pending, icon: Sparkles, color: 'text-primary' },
+          { label: 'Acknowledged', value: stats.acknowledged, icon: CheckCircle, color: 'text-accent-emerald' },
           { label: 'High Priority', value: stats.critical, icon: AlertTriangle, color: 'text-destructive' },
           { label: 'Avg Confidence', value: `${stats.avgConfidence}%`, icon: Brain, color: 'text-accent-pink' },
         ].map((s) => (
@@ -175,7 +170,7 @@ const SMAIHealthSuggestions = () => {
       </div>
 
       <div className="flex gap-2">
-        {(['all', 'pending', 'applied', 'dismissed'] as const).map((f) => (
+        {(['all', 'pending', 'acknowledged', 'dismissed'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -263,12 +258,17 @@ const SMAIHealthSuggestions = () => {
                     <div className="flex items-center justify-between border-t border-border pt-3">
                       <span className="text-xs text-muted-foreground">
                         Detected {new Date(insight.created_at).toLocaleString()}
-                        {insight.applied_at
-                          ? ` • Applied ${new Date(insight.applied_at).toLocaleString()}`
-                          : ''}
+                        {insight.status === 'applied' ? ' • Legacy applied flag — execution unverified' : ''}
                       </span>
                       {insight.status === 'pending' ? (
                         <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setGuideInsight(insight)}
+                          >
+                            View fix guide
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -281,15 +281,10 @@ const SMAIHealthSuggestions = () => {
                           <Button
                             size="sm"
                             disabled={busyId === insight.id}
-                            onClick={() => void updateStatus(insight, 'applied')}
-                            
+                            onClick={() => void updateStatus(insight, 'acknowledged')}
                           >
-                            {busyId === insight.id ? (
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                              <Zap className="w-4 h-4 mr-2" />
-                            )}
-                            Apply
+                            {busyId === insight.id && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            Acknowledge
                           </Button>
                         </div>
                       ) : (
@@ -303,6 +298,21 @@ const SMAIHealthSuggestions = () => {
           })}
         </div>
       )}
+
+      <Dialog open={guideInsight !== null} onOpenChange={(open) => !open && setGuideInsight(null)}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>{guideInsight?.title ?? 'Fix guide'}</DialogTitle>
+            <DialogDescription>
+              Advisory only. This suggestion does not execute commands or change your server.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-foreground">{guideInsight?.recommendation}</p>
+            {guideInsight?.impact && <p className="text-muted-foreground">Expected impact: {guideInsight.impact}</p>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

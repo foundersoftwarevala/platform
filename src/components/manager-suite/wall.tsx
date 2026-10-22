@@ -21,8 +21,12 @@ export type WallRow = Record<string, any> & { id: string };
 export type WallField = {
   key: string;
   label: string;
-  type: "text" | "textarea" | "number" | "email" | "select";
-  options?: readonly string[];
+  type: "text" | "textarea" | "number" | "email" | "select" | "resource-select";
+  options?: readonly (string | { value: string; label: string })[];
+  optionsResource?: string;
+  optionValue?: string;
+  optionLabel?: string;
+  createOnly?: boolean;
   required?: boolean;
   placeholder?: string;
   defaultValue?: any;
@@ -149,9 +153,14 @@ const TONES: Record<string, string> = {
 
 function toneFor(value: string) {
   const v = String(value ?? "").toLowerCase();
-  if (/(active|approved|verified|paid|resolved|fulfilled|published|platinum|success|live)/.test(v)) return "success";
-  if (/(pending|processing|submitted|review|draft|scheduled|warning|medium|gold)/.test(v)) return "warning";
-  if (/(rejected|failed|expired|blocked|critical|suspended|cancelled|revoked|terminated|high)/.test(v)) return "danger";
+  if (/(active|approved|verified|paid|resolved|fulfilled|published|platinum|success|live)/.test(v))
+    return "success";
+  if (/(pending|processing|submitted|review|draft|scheduled|warning|medium|gold)/.test(v))
+    return "warning";
+  if (
+    /(rejected|failed|expired|blocked|critical|suspended|cancelled|revoked|terminated|high)/.test(v)
+  )
+    return "danger";
   if (/(info|open|new|low|bronze)/.test(v)) return "info";
   if (/(enterprise|premium|diamond)/.test(v)) return "premium";
   return "muted";
@@ -167,6 +176,102 @@ export function StatusPill({ value, children }: { value?: string; children?: Rea
     >
       {label}
     </span>
+  );
+}
+
+function ResourceSelect({
+  field,
+  value,
+  onChange,
+}: {
+  field: WallField;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const base =
+    "w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-[12px] text-foreground outline-none transition focus:border-accent/50 focus-visible:ring-2 focus-visible:ring-accent/40";
+
+  useEffect(() => {
+    let current = true;
+    const timer = setTimeout(() => {
+      void (async () => {
+        setLoading(true);
+        try {
+          const params = new URLSearchParams({
+            resource: field.optionsResource ?? "",
+            limit: "200",
+          });
+          if (search.trim()) params.set("search", search.trim());
+          const response = await fetch(`/api/manager/resource?${params}`, {
+            headers: await authHeaders(),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(
+              payload?.error ?? `Could not load ${field.label.toLowerCase()} options.`,
+            );
+          }
+          const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+          const next = rows.flatMap((row: Record<string, unknown>) => {
+            const optionValue = row[field.optionValue ?? "id"];
+            const optionLabel = row[field.optionLabel ?? "name"];
+            if (typeof optionValue !== "string" || typeof optionLabel !== "string") return [];
+            return [{ value: optionValue, label: optionLabel }];
+          });
+          if (current) {
+            setOptions(next);
+            setError(null);
+          }
+        } catch (cause) {
+          if (current) setError(cause instanceof Error ? cause.message : "Could not load options.");
+        } finally {
+          if (current) setLoading(false);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [field.label, field.optionLabel, field.optionValue, field.optionsResource, search]);
+
+  const selectedMissing = value && !options.some((option) => option.value === value);
+  return (
+    <div className="space-y-2">
+      <input
+        type="search"
+        className={base}
+        value={search}
+        placeholder={`Search ${field.label.toLowerCase()}…`}
+        onChange={(event) => setSearch(event.target.value)}
+        aria-label={`Search ${field.label.toLowerCase()}`}
+      />
+      <select
+        className={base}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={loading && options.length === 0}
+      >
+        <option value="">—</option>
+        {selectedMissing && <option value={value}>Current selection ({value})</option>}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {loading && <span className="text-[10px] text-muted-foreground">Loading options…</span>}
+      {error && (
+        <span role="alert" className="text-[10px] text-destructive">
+          {error}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -188,15 +293,27 @@ function Field({
         {field.required && <span className="ml-1 text-destructive">*</span>}
       </span>
       {field.type === "textarea" ? (
-        <textarea rows={3} className={base} value={value ?? ""} placeholder={field.placeholder ?? ""} onChange={(e) => onChange(e.target.value)} />
+        <textarea
+          rows={3}
+          className={base}
+          value={value ?? ""}
+          placeholder={field.placeholder ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      ) : field.type === "resource-select" ? (
+        <ResourceSelect field={field} value={String(value ?? "")} onChange={onChange} />
       ) : field.type === "select" ? (
         <select className={base} value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
           <option value="">—</option>
-          {(field.options ?? []).map((o) => (
-            <option key={o} value={o}>
-              {cap(o)}
-            </option>
-          ))}
+          {(field.options ?? []).map((option) => {
+            const item =
+              typeof option === "string" ? { value: option, label: cap(option) } : option;
+            return (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            );
+          })}
         </select>
       ) : (
         <input
@@ -204,7 +321,9 @@ function Field({
           className={base}
           value={value ?? ""}
           placeholder={field.placeholder ?? ""}
-          onChange={(e) => onChange(field.type === "number" ? Number(e.target.value) : e.target.value)}
+          onChange={(e) =>
+            onChange(field.type === "number" ? Number(e.target.value) : e.target.value)
+          }
         />
       )}
     </label>
@@ -224,7 +343,8 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
   const noTable = !given.resource;
   const readOnly = noTable || given.readOnly === true;
   const config = useMemo<WallConfig>(
-    () => (readOnly ? { ...given, seed: [], creatable: false, bulkActions: [], rowActions: [] } : given),
+    () =>
+      readOnly ? { ...given, seed: [], creatable: false, bulkActions: [], rowActions: [] } : given,
     [given, readOnly],
   );
   const table = useMemo(() => createTable<WallRow>(`wall:${config.scope}`, []), [config]);
@@ -324,19 +444,21 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
         const response = await fetch(endpoint, {
           method,
           headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-          ...(method === "DELETE"
-            ? {}
-            : { body: JSON.stringify({ resource: remote, ...body }) }),
+          ...(method === "DELETE" ? {} : { body: JSON.stringify({ resource: remote, ...body }) }),
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload?.ok === false) {
-          toast.error(payload?.error ?? payload?.message ?? `That change was not saved (${response.status}).`);
+          toast.error(
+            payload?.error ?? payload?.message ?? `That change was not saved (${response.status}).`,
+          );
           return false;
         }
         await reload();
         return true;
       } catch (cause) {
-        toast.error(cause instanceof Error ? cause.message : "That change did not reach the server.");
+        toast.error(
+          cause instanceof Error ? cause.message : "That change did not reach the server.",
+        );
         return false;
       }
     },
@@ -350,7 +472,13 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
     }
     if (search.trim()) {
       const q = search.toLowerCase();
-      out = out.filter((r) => config.searchFields.some((f) => String(r[f] ?? "").toLowerCase().includes(q)));
+      out = out.filter((r) =>
+        config.searchFields.some((f) =>
+          String(r[f] ?? "")
+            .toLowerCase()
+            .includes(q),
+        ),
+      );
     }
     if (sortKey) {
       out = [...out].sort((a, b) => {
@@ -446,14 +574,14 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
         });
         return;
       }
-      void Promise.all(
-        ids.map((id) => writeRemote("PATCH", { id, changes: patch ?? {} })),
-      ).then((results) => {
-        const done = results.filter(Boolean).length;
-        // Only the rows the server actually changed are counted.
-        if (done) toast.success(`${done} ${config.entity}(s) updated`);
-        setSelected(new Set());
-      });
+      void Promise.all(ids.map((id) => writeRemote("PATCH", { id, changes: patch ?? {} }))).then(
+        (results) => {
+          const done = results.filter(Boolean).length;
+          // Only the rows the server actually changed are counted.
+          if (done) toast.success(`${done} ${config.entity}(s) updated`);
+          setSelected(new Set());
+        },
+      );
       return;
     }
 
@@ -501,14 +629,24 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
     // click must not cancel an order or retire a record. The bulk configs
     // carried a confirmation title and description that nothing ever showed.
     if (action.destructive || action.variant === "destructive") {
-      const question = [action.confirmTitle ?? `${action.label} ${fits.length} ${config.entity}(s)?`, action.confirmDescription]
+      const question = [
+        action.confirmTitle ?? `${action.label} ${fits.length} ${config.entity}(s)?`,
+        action.confirmDescription,
+      ]
         .filter(Boolean)
         .join("\n\n");
       if (!window.confirm(question)) return;
     }
     if (!action.run) {
-      applyPatch(fits.map((r) => r.id), action.patch, action.key === "delete");
-      if (skipped) toast.info(`${skipped} ${config.entity}(s) skipped: ${action.label} does not apply to them.`);
+      applyPatch(
+        fits.map((r) => r.id),
+        action.patch,
+        action.key === "delete",
+      );
+      if (skipped)
+        toast.info(
+          `${skipped} ${config.entity}(s) skipped: ${action.label} does not apply to them.`,
+        );
       return;
     }
 
@@ -528,12 +666,15 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
         if (outcome.ok) done += 1;
         else refused.push(outcome.message ?? `Refused (${outcome.reason ?? "unknown"})`);
       } catch (cause) {
-        refused.push(cause instanceof Error ? cause.message : "That change did not reach the server.");
+        refused.push(
+          cause instanceof Error ? cause.message : "That change did not reach the server.",
+        );
       }
     }
     if (done) toast.success(`${action.label}: ${done} ${config.entity}(s) done`);
     if (refused.length) toast.error([...new Set(refused)].join(" · "));
-    if (skipped) toast.info(`${skipped} ${config.entity}(s) skipped: ${action.label} does not apply to them.`);
+    if (skipped)
+      toast.info(`${skipped} ${config.entity}(s) skipped: ${action.label} does not apply to them.`);
     setSelected(new Set());
     await reload();
   };
@@ -578,7 +719,11 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
               Export
             </PillButton>
             {config.creatable !== false && (
-              <PillButton variant="primary" onClick={openCreate} disabled={Boolean(config.unavailable)}>
+              <PillButton
+                variant="primary"
+                onClick={openCreate}
+                disabled={Boolean(config.unavailable)}
+              >
                 <span className="inline-flex items-center gap-1.5">
                   <Plus className="h-3.5 w-3.5" /> {config.primaryLabel}
                 </span>
@@ -590,7 +735,8 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
 
       {noTable && (
         <div className="mb-4 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          Not connected: no table on the platform holds {config.entity} records yet, so nothing is kept here.
+          Not connected: no table on the platform holds {config.entity} records yet, so nothing is
+          kept here.
         </div>
       )}
 
@@ -656,7 +802,9 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
 
         {selected.size > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-accent">{selected.size} selected</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-accent">
+              {selected.size} selected
+            </span>
             {config.bulkActions.map((b) => (
               <button
                 key={b.key}
@@ -672,7 +820,10 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                 <b.icon className="h-3.5 w-3.5" /> {b.label}
               </button>
             ))}
-            <button onClick={() => setSelected(new Set())} className="ml-auto text-muted-foreground hover:text-foreground">
+            <button
+              onClick={() => setSelected(new Set())}
+              className="ml-auto text-muted-foreground hover:text-foreground"
+            >
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -691,7 +842,9 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                     checked={paged.length > 0 && paged.every((r) => selected.has(r.id))}
                     onChange={() =>
                       setSelected((s) =>
-                        paged.every((r) => s.has(r.id)) ? new Set() : new Set(paged.map((r) => r.id)),
+                        paged.every((r) => s.has(r.id))
+                          ? new Set()
+                          : new Set(paged.map((r) => r.id)),
                       )
                     }
                   />
@@ -699,7 +852,13 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                 {config.columns.map((c) => (
                   <th
                     key={c.key}
-                    aria-sort={sortKey === c.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
+                    aria-sort={
+                      sortKey === c.key
+                        ? sortDir === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : undefined
+                    }
                     className={`px-4 py-3 font-bold ${c.align === "right" ? "text-right" : ""}`}
                   >
                     {/* A button, so the column can be sorted from the keyboard too. */}
@@ -722,7 +881,9 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-background/60 text-accent">
                       <Icon className="h-5 w-5" />
                     </div>
-                    <div className="mt-3 text-sm font-bold">No {config.entity}s match this view</div>
+                    <div className="mt-3 text-sm font-bold">
+                      No {config.entity}s match this view
+                    </div>
                     <div className="mt-1 text-[11px] text-muted-foreground">
                       Adjust filters or create a new {config.entity} to get started.
                     </div>
@@ -745,7 +906,12 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                   className="border-b border-border/60 transition hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
                 >
                   <td className="px-4 py-3">
-                    <input type="checkbox" aria-label="Select this row" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
+                    <input
+                      type="checkbox"
+                      aria-label="Select this row"
+                      checked={selected.has(r.id)}
+                      onChange={() => toggle(r.id)}
+                    />
                   </td>
                   {config.columns.map((c) => (
                     <td
@@ -758,19 +924,23 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                   ))}
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex flex-wrap justify-end gap-1">
-                      {(config.rowActions ?? []).filter((a) => !a.when || a.when(r)).map((a) => (
-                        <button
-                          key={a.key}
-                          onClick={() => void act(a, [r.id])}
-                          disabled={Boolean(blockedReason(a))}
-                          title={blockedReason(a) ?? a.label}
-                          className={`rounded-md border border-border p-1.5 transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-40 ${
-                            a.destructive ? "text-destructive" : "text-muted-foreground hover:text-accent"
-                          }`}
-                        >
-                          {a.icon ? <a.icon className="h-3.5 w-3.5" /> : a.label}
-                        </button>
-                      ))}
+                      {(config.rowActions ?? [])
+                        .filter((a) => !a.when || a.when(r))
+                        .map((a) => (
+                          <button
+                            key={a.key}
+                            onClick={() => void act(a, [r.id])}
+                            disabled={Boolean(blockedReason(a))}
+                            title={blockedReason(a) ?? a.label}
+                            className={`rounded-md border border-border p-1.5 transition hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-40 ${
+                              a.destructive
+                                ? "text-destructive"
+                                : "text-muted-foreground hover:text-accent"
+                            }`}
+                          >
+                            {a.icon ? <a.icon className="h-3.5 w-3.5" /> : a.label}
+                          </button>
+                        ))}
                       {!readOnly && (
                         <>
                           <button
@@ -834,7 +1004,10 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
               <div className="text-sm font-bold">{p.title}</div>
               <ul className="mt-3 space-y-2">
                 {p.items.map((it) => (
-                  <li key={it} className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <li
+                    key={it}
+                    className="flex items-center justify-between text-[11px] text-muted-foreground"
+                  >
                     <span>{it}</span>
                     <span className="font-mono text-foreground">—</span>
                   </li>
@@ -851,18 +1024,28 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
           <div className="h-full w-full max-w-md overflow-y-auto border-l border-border bg-card p-6">
             <div className="mb-5 flex items-start justify-between">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">{config.eyebrow}</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">
+                  {config.eyebrow}
+                </div>
                 <h2 className="mt-1 text-lg font-bold">
                   {editing ? `Edit ${config.entity}` : config.primaryLabel}
                 </h2>
               </div>
-              <button onClick={() => setCreating(false)} className="text-muted-foreground hover:text-foreground">
+              <button
+                onClick={() => setCreating(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="space-y-4">
-              {config.formFields.map((f) => (
-                <Field key={f.key} field={f} value={draft[f.key]} onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))} />
+              {config.formFields.filter((f) => !editing || !f.createOnly).map((f) => (
+                <Field
+                  key={f.key}
+                  field={f}
+                  value={draft[f.key]}
+                  onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))}
+                />
               ))}
             </div>
             <div className="mt-6 flex justify-end gap-2">
@@ -881,13 +1064,22 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
           <div className="h-full w-full max-w-md overflow-y-auto border-l border-border bg-card p-6">
             <div className="mb-5 flex items-start justify-between">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">{config.entity}</div>
-                <h2 className="mt-1 text-lg font-bold">{String(detail[config.primaryField] ?? detail.id)}</h2>
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">
+                  {config.entity}
+                </div>
+                <h2 className="mt-1 text-lg font-bold">
+                  {String(detail[config.primaryField] ?? detail.id)}
+                </h2>
                 {config.subField && (
-                  <div className="text-[11px] text-muted-foreground">{String(detail[config.subField] ?? "")}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {String(detail[config.subField] ?? "")}
+                  </div>
                 )}
               </div>
-              <button onClick={() => setDetail(null)} className="text-muted-foreground hover:text-foreground">
+              <button
+                onClick={() => setDetail(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -898,8 +1090,13 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
                 {Object.entries(detail)
                   .filter(([k]) => k !== "id")
                   .map(([k, v]) => (
-                    <div key={k} className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2 text-[11px]">
-                      <span className="uppercase tracking-wider text-muted-foreground">{k.replace(/_/g, " ")}</span>
+                    <div
+                      key={k}
+                      className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2 text-[11px]"
+                    >
+                      <span className="uppercase tracking-wider text-muted-foreground">
+                        {k.replace(/_/g, " ")}
+                      </span>
                       <span className="font-mono text-foreground">{String(v)}</span>
                     </div>
                   ))}

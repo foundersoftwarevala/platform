@@ -18,7 +18,7 @@ const owner: Operator = {
   id: "jarvis-owner",
   email: "owner@test.local",
   name: "Owner",
-  role: "owner",
+  role: "boss",
 };
 const operator: Operator = { ...owner, id: "jarvis-operator", role: "operator" };
 const viewer: Operator = { ...owner, id: "jarvis-viewer", role: "viewer" };

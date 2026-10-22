@@ -11,7 +11,22 @@ import { AnimatedNumber } from "@/components/ams/effects/AnimatedNumber";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/serverFn";
 import { runAmsAnalysis, type AnalysisKind } from "@/lib/ams/analysis.functions";
-type Data = any; // shape matches getCommandCenter return
+import type { getCommandCenter } from "@/lib/ams/dashboard.functions";
+
+type Data = Awaited<ReturnType<typeof getCommandCenter>>;
+type LeaderboardEntry = Data["leaderboardPreviews"]["global"][number];
+type MissionEntry = Data["missions"]["daily"][number];
+type EngagementEntry = Data["engagement"][keyof Data["engagement"]][number];
+type TimelineEntry = {
+  created_at?: string | null;
+  unlocked_at?: string | null;
+  earned_at?: string | null;
+  achievements?: { name: string | null } | null;
+  badges?: { name: string | null } | null;
+  trophies?: { name: string | null } | null;
+  rewards?: { name: string | null } | null;
+};
+type HeatmapEntry = Pick<TimelineEntry, "created_at" | "unlocked_at" | "earned_at">;
 
 const fmt = new Intl.NumberFormat();
 
@@ -19,9 +34,9 @@ export function Row1Totals({ data }: { data: Data }) {
   const t = data.totals;
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-      <StatCard label="Total XP" value={<AnimatedNumber value={t.xp} />} sub="lifetime" icon={<Zap className="h-5 w-5" />} accent="xp" />
-      <StatCard label="Current Level" value={data.progression.currentLevel?.level_number ?? "—"} sub={data.progression.currentLevel?.name ?? "no levels yet"} icon={<ArrowUpCircle className="h-5 w-5" />} accent="primary" />
-      <StatCard label="Current Rank" value={data.progression.currentRank?.name ?? "—"} sub={data.progression.currentRank ? `#${data.progression.currentRank.rank_number}` : "no ranks yet"} icon={<Crown className="h-5 w-5" />} accent="legendary" />
+      <StatCard label="Highest-role XP" value={<AnimatedNumber value={t.xp} />} sub="highest individual role" icon={<Zap className="h-5 w-5" />} accent="xp" />
+      <StatCard label="Highest-role level" value={data.progression.currentLevel?.level_number ?? "—"} sub={data.progression.currentLevel?.name ?? "no levels yet"} icon={<ArrowUpCircle className="h-5 w-5" />} accent="primary" />
+      <StatCard label="Highest-role rank" value={data.progression.currentRank?.name ?? "—"} sub={data.progression.currentRank ? `#${data.progression.currentRank.rank_number}` : "no ranks yet"} icon={<Crown className="h-5 w-5" />} accent="legendary" />
       <StatCard label="Achievements" value={`${t.achievementsEarned}/${t.achievementsCatalog}`} sub="unlocked / total" icon={<Trophy className="h-5 w-5" />} accent="trophy" />
       <StatCard label="Badges" value={`${t.badgesEarned}/${t.badgesCatalog}`} sub="earned / total" icon={<Shield className="h-5 w-5" />} accent="secondary" />
       <StatCard label="Trophies" value={`${t.trophiesEarned}/${t.trophiesCatalog}`} sub="earned / total" icon={<Award className="h-5 w-5" />} accent="trophy" />
@@ -34,17 +49,17 @@ export function Row2Progress({ data }: { data: Data }) {
   const s = data.streak;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
-      <Card title="XP Progress" icon={<Zap className="h-4 w-4 text-xp" />}>
+      <Card title="Highest-role XP Progress" icon={<Zap className="h-4 w-4 text-xp" />}>
         <div className="text-3xl font-bold tabular-nums text-gradient-primary"><AnimatedNumber value={data.totals.xp} duration={800} /></div>
-        <div className="text-xs text-muted-foreground mt-1">total xp earned</div>
+        <div className="text-xs text-muted-foreground mt-1">XP earned in the highest-XP role</div>
         <div className="mt-3"><ProgressBar pct={p.levelProgressPct} /></div>
       </Card>
-      <Card title="Next Level" icon={<ArrowUpCircle className="h-4 w-4 text-primary" />}>
+      <Card title="Next Highest-role Level" icon={<ArrowUpCircle className="h-4 w-4 text-primary" />}>
         <div className="text-3xl font-bold tabular-nums">{p.nextLevel ? `L${p.nextLevel.level_number}` : "MAX"}</div>
         <div className="text-xs text-muted-foreground mt-1">{p.nextLevel ? `${fmt.format(p.nextLevel.xp_required - data.totals.xp)} XP to ${p.nextLevel.name}` : "Top of progression"}</div>
         <div className="mt-3"><ProgressBar pct={p.levelProgressPct} /></div>
       </Card>
-      <Card title="Rank Progress" icon={<Crown className="h-4 w-4 text-legendary" />}>
+      <Card title="Highest-role Rank Progress" icon={<Crown className="h-4 w-4 text-legendary" />}>
         <div className="text-3xl font-bold tabular-nums">{p.nextRank ? p.nextRank.name : "APEX"}</div>
         <div className="text-xs text-muted-foreground mt-1">{p.nextRank ? `${fmt.format(p.nextRank.min_xp - data.totals.xp)} XP to next rank` : "Highest rank achieved"}</div>
         <div className="mt-3"><ProgressBar pct={p.rankProgressPct} gradient="var(--gradient-trophy)" /></div>
@@ -62,20 +77,27 @@ export function Row2Progress({ data }: { data: Data }) {
 }
 
 export function Row3Collections({ data }: { data: Data }) {
+  const achievementRecords = data.collections.achievements;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-      <Card title="Achievement Progress Map" icon={<Trophy className="h-4 w-4 text-trophy" />} fill>
-        {data.totals.achievementsCatalog === 0 ? (
-          <EmptyHint>No achievements configured yet. Create some in the Achievements page.</EmptyHint>
+      <Card title="Your Achievement Records" icon={<Trophy className="h-4 w-4 text-trophy" />} fill>
+        {achievementRecords.length === 0 ? (
+          <EmptyHint>No personal achievement records have been created.</EmptyHint>
         ) : (
-          <div className="grid grid-cols-8 gap-1.5 mt-2">
-            {Array.from({ length: data.totals.achievementsCatalog }).map((_, i) => {
-              const unlocked = i < data.totals.achievementsEarned;
+          <div className="grid grid-cols-4 gap-2 mt-2">
+            {achievementRecords.map((achievement) => {
+              const unlocked = achievement.unlocked_at !== null;
               return (
-                <div key={i} className={cn(
-                  "aspect-square rounded-md border",
-                  unlocked ? "bg-trophy/30 border-trophy/60 glow-trophy" : "bg-muted/30 border-border"
-                )} />
+                <div
+                  key={achievement.id}
+                  className={cn(
+                    "rounded-md border p-2 text-xs",
+                    unlocked ? "bg-trophy/30 border-trophy/60 glow-trophy" : "bg-muted/30 border-border",
+                  )}
+                >
+                  <span>{achievement.achievements?.name ?? "Achievement name unavailable"}</span>
+                  <span className="mt-1 block text-muted-foreground">{unlocked ? "Unlocked" : "Locked"}</span>
+                </div>
               );
             })}
           </div>
@@ -84,7 +106,7 @@ export function Row3Collections({ data }: { data: Data }) {
       <Card title="Badge Collection" icon={<Shield className="h-4 w-4 text-secondary" />} fill>
         {data.collections.badges.length === 0 ? <EmptyHint>No badges earned yet.</EmptyHint> : (
           <div className="grid grid-cols-6 gap-2 mt-2">
-            {data.collections.badges.slice(0, 18).map((b: any) => (
+            {data.collections.badges.slice(0, 18).map((b) => (
               <RarityChip key={b.id} name={b.badges?.name} rarity={b.badges?.rarity} />
             ))}
           </div>
@@ -93,7 +115,7 @@ export function Row3Collections({ data }: { data: Data }) {
       <Card title="Trophy Collection" icon={<Award className="h-4 w-4 text-trophy" />} fill>
         {data.collections.trophies.length === 0 ? <EmptyHint>No trophies earned yet.</EmptyHint> : (
           <div className="grid grid-cols-4 gap-2 mt-2">
-            {data.collections.trophies.slice(0, 12).map((t: any) => (
+            {data.collections.trophies.slice(0, 12).map((t) => (
               <div key={t.id} className="p-2 rounded-lg surface-card text-center">
                 <Award className={cn("h-6 w-6 mx-auto", tierColor(t.trophies?.tier))} />
                 <div className="text-[10px] mt-1 truncate">{t.trophies?.name}</div>
@@ -107,7 +129,7 @@ export function Row3Collections({ data }: { data: Data }) {
 }
 
 export function Row4Leaderboards({ data }: { data: Data }) {
-  const p = data.leaderboardPreviews ?? { global: [], role: [], territory: [] };
+  const p = data.leaderboardPreviews;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
       <LeaderboardCard title="Global Leaderboard" icon={<BarChart3 className="h-4 w-4 text-primary" />} entries={p.global} hint="No global leaderboard configured yet." />
@@ -140,9 +162,9 @@ export function Row6Engagement({ data }: { data: Data }) {
 }
 
 export function Row7Wallets({ data }: { data: Data }) {
-  const wallets = data.economy.wallets as { kind: string; balance: number }[];
+  const wallets = data.economy.wallets;
   const w = (k: string) => wallets.find((x) => x.kind === k)?.balance ?? 0;
-  const pendingClaims = (data.economy.claims as any[]).filter((c) => c.status === "pending").length;
+  const pendingClaims = data.economy.claims.filter((claim) => claim.status === "pending").length;
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <StatCard label="Rewards Wallet" value={fmt.format(w("rewards"))} sub="redeemable" icon={<Wallet className="h-5 w-5" />} accent="primary" />
@@ -166,9 +188,9 @@ export function Row8Rewards({ data }: { data: Data }) {
       <Card title="Claim Status" icon={<PackageCheck className="h-4 w-4 text-xp" />}>
         {data.economy.claims.length === 0 ? <EmptyHint>No claims yet.</EmptyHint> : (
           <ul className="text-xs space-y-1.5">
-            {data.economy.claims.slice(0, 4).map((c: any) => (
+            {data.economy.claims.slice(0, 4).map((c) => (
               <li key={c.id} className="flex items-center justify-between">
-                <span className="truncate">{c.rewards?.name ?? "Reward"}</span>
+                <span className="truncate">{c.rewards?.name ?? "Reward details unavailable"}</span>
                 <span className={cn("text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded", statusBadge(c.status))}>{c.status}</span>
               </li>
             ))}
@@ -178,7 +200,7 @@ export function Row8Rewards({ data }: { data: Data }) {
       <Card title="Reward History" icon={<History className="h-4 w-4 text-muted-foreground" />}>
         {data.timelines.rewards.length === 0 ? <EmptyHint>No reward history yet.</EmptyHint> : (
           <ul className="text-xs space-y-1.5">
-            {data.timelines.rewards.slice(0, 4).map((r: any, i: number) => (
+            {data.timelines.rewards.slice(0, 4).map((r, i) => (
               <li key={i} className="flex items-center justify-between">
                 <span className="truncate">{r.rewards?.name}</span>
                 <span className="text-muted-foreground">{formatDistanceToNowStrict(new Date(r.created_at))} ago</span>
@@ -231,7 +253,7 @@ function AnalysisCard({ kind, title, copy }: { kind: AnalysisKind; title: string
       <div className="text-xs text-muted-foreground">{copy}</div>
       {analysis.isError && (
         <div role="alert" className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-[11px] text-destructive">
-          {(analysis.error as Error).message}
+          {analysis.error instanceof Error ? analysis.error.message : "Analysis failed."}
         </div>
       )}
       {result && (
@@ -288,16 +310,24 @@ export function Row13Halls({ data }: { data: Data }) {
   );
 }
 
-function HallCard({ title, icon, entries, emptyHint, subtitle }: { title: string; icon: React.ReactNode; entries: any[]; emptyHint: string; subtitle?: string }) {
+function leaderboardDisplayName(entry: unknown): string {
+  const record = entry as {
+    profiles?: { full_name?: string | null; username?: string | null } | null;
+  } | null;
+
+  return record?.profiles?.full_name?.trim() || record?.profiles?.username?.trim() || "Name unavailable";
+}
+
+function HallCard({ title, icon, entries, emptyHint, subtitle }: { title: string; icon: React.ReactNode; entries: LeaderboardEntry[]; emptyHint: string; subtitle?: string }) {
   return (
     <Card title={title} icon={icon}>
       {subtitle && <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{subtitle}</div>}
       {entries.length === 0 ? <EmptyHint>{emptyHint}</EmptyHint> : (
         <ol className="space-y-1.5">
-          {entries.map((e: any) => (
+          {entries.map((e) => (
             <li key={e.user_id} className="flex items-center justify-between text-sm">
               <span className="tabular-nums text-muted-foreground w-6">#{e.rank}</span>
-              <span className="flex-1 truncate ml-2">{e.profiles?.display_name ?? "Anonymous"}</span>
+              <span className="flex-1 truncate ml-2">{leaderboardDisplayName(e)}</span>
               <span className="tabular-nums font-mono text-xs">{fmt.format(e.score)}</span>
             </li>
           ))}
@@ -351,7 +381,7 @@ function statusBadge(s: string) {
   return "bg-warning/15 text-warning";
 }
 
-function LeaderboardCard({ title, icon, entries, hint }: { title: string; icon: React.ReactNode; entries: any[]; hint?: string }) {
+function LeaderboardCard({ title, icon, entries, hint }: { title: string; icon: React.ReactNode; entries: Data["leaderboardPreviews"]["global"]; hint?: string }) {
   return (
     <Card title={title} icon={icon}>
       {entries.length === 0 ? <EmptyHint>{hint}</EmptyHint> : (
@@ -359,7 +389,7 @@ function LeaderboardCard({ title, icon, entries, hint }: { title: string; icon: 
           {entries.map((e) => (
             <li key={e.user_id} className="flex items-center justify-between text-sm">
               <span className="tabular-nums text-muted-foreground w-6">#{e.rank}</span>
-              <span className="flex-1 truncate ml-2">{e.profiles?.display_name ?? "Anonymous"}</span>
+              <span className="flex-1 truncate ml-2">{leaderboardDisplayName(e)}</span>
               <span className="tabular-nums font-mono">{fmt.format(e.score)}</span>
             </li>
           ))}
@@ -369,19 +399,18 @@ function LeaderboardCard({ title, icon, entries, hint }: { title: string; icon: 
   );
 }
 
-function MissionsCard({ title, cadenceLabel, icon, items }: { title: string; cadenceLabel: string; icon: React.ReactNode; items: any[] }) {
+function MissionsCard({ title, cadenceLabel, icon, items }: { title: string; cadenceLabel: string; icon: React.ReactNode; items: MissionEntry[] }) {
   return (
     <Card title={title} icon={icon}>
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{cadenceLabel}</div>
       {items.length === 0 ? <EmptyHint>No active missions. Admins can add some in the Missions page.</EmptyHint> : (
         <ul className="space-y-2">
-          {items.slice(0, 4).map((m: any) => (
+          {items.slice(0, 4).map((m) => (
             <li key={m.id} className="text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate font-medium">{m.name}</span>
                 <span className="text-xs text-xp tabular-nums">+{m.xp_reward}</span>
               </div>
-              <div className="mt-1.5"><ProgressBar pct={0} /></div>
             </li>
           ))}
         </ul>
@@ -390,12 +419,12 @@ function MissionsCard({ title, cadenceLabel, icon, items }: { title: string; cad
   );
 }
 
-function ListCard({ title, icon, items }: { title: string; icon: React.ReactNode; items: any[] }) {
+function ListCard({ title, icon, items }: { title: string; icon: React.ReactNode; items: EngagementEntry[] }) {
   return (
     <Card title={title} icon={icon}>
       {items.length === 0 ? <EmptyHint>Nothing active.</EmptyHint> : (
         <ul className="space-y-1.5">
-          {items.slice(0, 5).map((i: any) => (
+          {items.slice(0, 5).map((i) => (
             <li key={i.id} className="flex items-center justify-between text-sm">
               <span className="truncate">{i.name}</span>
               {"xp_reward" in i && <span className="text-xs text-xp tabular-nums">+{i.xp_reward}</span>}
@@ -407,16 +436,44 @@ function ListCard({ title, icon, items }: { title: string; icon: React.ReactNode
   );
 }
 
-function TimelineCard({ title, icon, items, keyName, dateField }: { title: string; icon: React.ReactNode; items: any[]; keyName: string; dateField: string }) {
+function TimelineCard({
+  title,
+  icon,
+  items,
+  keyName,
+  dateField,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  items: TimelineEntry[];
+  keyName: "achievements" | "badges" | "trophies" | "rewards";
+  dateField: "unlocked_at" | "earned_at" | "created_at";
+}) {
   return (
     <Card title={title} icon={icon}>
       {items.length === 0 ? <EmptyHint>Nothing recent.</EmptyHint> : (
         <ul className="space-y-2">
-          {items.slice(0, 5).map((it: any, i: number) => (
+          {items.slice(0, 5).map((it, i) => (
             <li key={i} className="flex items-center justify-between gap-2 text-sm">
-              <span className="truncate">{it[keyName]?.name ?? "—"}</span>
+              <span className="truncate">
+                {keyName === "achievements"
+                  ? it.achievements?.name ?? "Name unavailable"
+                  : keyName === "badges"
+                    ? it.badges?.name ?? "Name unavailable"
+                    : keyName === "trophies"
+                      ? it.trophies?.name ?? "Name unavailable"
+                      : it.rewards?.name ?? "Name unavailable"}
+              </span>
               <span className="text-[10px] text-muted-foreground shrink-0">
-                {it[dateField] ? `${formatDistanceToNowStrict(new Date(it[dateField]))} ago` : ""}
+                {(() => {
+                  const date =
+                    dateField === "unlocked_at"
+                      ? it.unlocked_at
+                      : dateField === "earned_at"
+                        ? it.earned_at
+                        : it.created_at;
+                  return date ? `${formatDistanceToNowStrict(new Date(date))} ago` : "";
+                })()}
               </span>
             </li>
           ))}
@@ -426,12 +483,20 @@ function TimelineCard({ title, icon, items, keyName, dateField }: { title: strin
   );
 }
 
-function HeatmapCard({ title, data, dateField }: { title: string; data: any[]; dateField: string }) {
+function HeatmapCard({ title, data, dateField }: { title: string; data: HeatmapEntry[]; dateField: "unlocked_at" | "earned_at" | "created_at" }) {
   // 7x12 grid (last ~12 weeks)
   const cells = Array.from({ length: 84 }).map((_, i) => {
     const day = new Date(); day.setDate(day.getDate() - (83 - i));
     const dayKey = day.toISOString().slice(0, 10);
-    const count = data.filter((d) => d[dateField]?.slice(0, 10) === dayKey).length;
+    const count = data.filter((d) => {
+      const date =
+        dateField === "unlocked_at"
+          ? d.unlocked_at
+          : dateField === "earned_at"
+            ? d.earned_at
+            : d.created_at;
+      return date?.slice(0, 10) === dayKey;
+    }).length;
     return { i, count };
   });
   const max = Math.max(1, ...cells.map((c) => c.count));

@@ -2,19 +2,20 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, Menu, Bell, LogOut } from 'lucide-react';
+import { useRouterState } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useServerDashboard } from '@/hooks/useServerRealtime';
+import { useServerDashboard } from '@/hooks/useServerDashboard';
 import ScreenErrorBoundary from './ScreenErrorBoundary';
 import ScreenSkeleton from './ScreenSkeleton';
 import { SMSidebar, useSidebarState } from './layout/SMSidebar';
 import { PageShell } from './layout/PageShell';
 import type { ViewType } from './layout/views';
+import { useNavigate } from '@/hooks/useNavigate';
 
 // Screens are code-split so the initial dashboard payload stays small.
 const SMOverview = lazy(() => import('./screens/SMOverview'));
-const SMServices = lazy(() => import('./screens/SMServices'));
 const SMUptime = lazy(() => import('./screens/SMUptime'));
 const SMIncidents = lazy(() => import('./screens/SMIncidents'));
 const SMBackups = lazy(() => import('./screens/SMBackups'));
@@ -30,7 +31,6 @@ const SMResources = lazy(() => import('./screens/SMResources'));
 const SMNetwork = lazy(() => import('./screens/SMNetwork'));
 const SMDeployments = lazy(() => import('./screens/SMDeployments'));
 const SMExplorePlans = lazy(() => import('./screens/SMExplorePlans'));
-const SMBuyServer = lazy(() => import('./screens/SMBuyServer'));
 const SMBilling = lazy(() => import('./screens/SMBilling'));
 const SMSettings = lazy(() => import('./screens/SMSettings'));
 const SMAddServer = lazy(() => import('./screens/SMAddServer'));
@@ -58,7 +58,6 @@ const SCREENS: Record<ViewType, React.ComponentType> = {
   deployments: SMDeployments,
   maintenance: SMMaintenance,
   plans: SMExplorePlans,
-  buy: SMBuyServer,
   billing: SMBilling,
   reports: SMReports,
   logs: SMLogs,
@@ -66,23 +65,38 @@ const SCREENS: Record<ViewType, React.ComponentType> = {
   settings: SMSettings,
 };
 
-// SMServices remains reachable from the fleet screens.
-void SMServices;
+const isViewType = (value: string): value is ViewType => Object.hasOwn(SCREENS, value);
 
 const ServerManagerDashboard = () => {
-  const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [sessionTime, setSessionTime] = useState('00:00:00');
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebarState();
-  const { summary } = useServerDashboard(10000);
+  const { summary, error: summaryError } = useServerDashboard(10000);
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const routeView = pathname.startsWith('/server-manager/')
+    ? pathname.slice('/server-manager/'.length)
+    : '';
+  const activeView: ViewType = routeView === 'buy'
+    ? 'addserver'
+    : isViewType(routeView)
+      ? routeView
+      : 'dashboard';
 
-  const infraStatus: 'healthy' | 'warning' | 'critical' =
-    summary.critical_alerts > 0 || summary.offline > 0
-      ? 'critical'
-      : summary.warnings > 0
-        ? 'warning'
-        : 'healthy';
+  const infraStatus =
+    summary.health === 'unknown'
+      ? 'unknown'
+      : summary.health === 'offline' ||
+          (summary.critical_alerts !== null && summary.critical_alerts > 0) ||
+          (summary.offline !== null && summary.offline > 0)
+        ? 'critical'
+        : summary.health === 'stale' ||
+            (summary.warnings !== null && summary.warnings > 0)
+          ? 'warning'
+          : 'healthy';
 
-  const alertBadge = summary.critical_alerts + summary.warnings;
+  const alertBadge = summary.critical_alerts === null || summary.warnings === null
+    ? null
+    : summary.critical_alerts + summary.warnings;
 
   useEffect(() => {
     const startTime = Date.now();
@@ -98,7 +112,16 @@ const ServerManagerDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (routeView === 'buy') {
+      navigate('/server-manager/addserver', { replace: true });
+    } else if (routeView && !isViewType(routeView)) {
+      navigate('/server-manager', { replace: true });
+    }
+  }, [navigate, routeView]);
+
   const handleEndSession = async () => {
+    let auditFailed = false;
     try {
       const { error } = await supabase.from('server_audit_logs').insert({
         action: 'secure_logout',
@@ -108,11 +131,21 @@ const ServerManagerDashboard = () => {
         details: `Session duration ${sessionTime}`,
       });
       if (error) throw error;
-      toast.success('Secure session close recorded');
     } catch (error) {
       console.error('[server-manager] session audit failed', error);
-      toast.error('Session recorded locally — audit log write failed');
+      auditFailed = true;
+      toast.error('Could not record the logout audit event. Signing out anyway.');
     }
+
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      console.error('[server-manager] sign out failed', signOutError);
+      toast.error(`Could not end the session: ${signOutError.message}`);
+      return;
+    }
+
+    if (!auditFailed) toast.success('Session ended and audit event recorded');
+    void navigate('/login', { replace: true });
   };
 
   const ActiveScreen = useMemo(() => SCREENS[activeView], [activeView]);
@@ -122,13 +155,15 @@ const ServerManagerDashboard = () => {
       ? 'text-accent-emerald border-accent-emerald/30 bg-accent-emerald/10'
       : infraStatus === 'warning'
         ? 'text-accent-amber border-accent-amber/30 bg-accent-amber/10'
-        : 'text-destructive border-destructive/30 bg-destructive/10';
+        : infraStatus === 'critical'
+          ? 'text-destructive border-destructive/30 bg-destructive/10'
+          : 'text-muted-foreground border-border bg-surface';
 
   return (
     <div className="flex min-h-dvh w-full bg-background text-foreground">
       <SMSidebar
         activeView={activeView}
-        onSelect={setActiveView}
+        onSelect={(view) => navigate(view === 'dashboard' ? '/server-manager' : `/server-manager/${view}`)}
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
         mobileOpen={mobileOpen}
@@ -161,17 +196,17 @@ const ServerManagerDashboard = () => {
               transition={{ duration: 2.4, repeat: Infinity }}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-current" />
-              {infraStatus === 'healthy' ? 'All Systems Healthy' : infraStatus === 'warning' ? 'Warning' : 'Critical'}
+              {infraStatus === 'healthy' ? 'All Systems Healthy' : infraStatus === 'warning' ? 'Warning' : infraStatus === 'critical' ? 'Critical' : 'Status Unknown'}
             </motion.div>
 
             <button
               type="button"
-              onClick={() => setActiveView('alerts')}
-              aria-label={`Alerts (${alertBadge})`}
+              onClick={() => navigate('/server-manager/alerts')}
+              aria-label={alertBadge === null ? 'Alerts (unknown)' : `Alerts (${alertBadge})`}
               className="icon3d relative grid h-9 w-9 place-items-center rounded-xl text-muted-foreground hover:text-foreground"
             >
               <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
-              {alertBadge > 0 && (
+              {alertBadge !== null && alertBadge > 0 && (
                 <span className="absolute -top-1 -right-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground ring-2 ring-background">
                   {alertBadge > 99 ? '99+' : alertBadge}
                 </span>
@@ -183,7 +218,7 @@ const ServerManagerDashboard = () => {
               <span className="font-mono text-xs" aria-label="Session duration">{sessionTime}</span>
             </div>
 
-            <Button variant="outline" size="sm" onClick={handleEndSession}>
+            <Button variant="outline" size="sm" onClick={() => void handleEndSession()}>
               <LogOut className="h-4 w-4 sm:mr-2" aria-hidden="true" />
               <span className="hidden sm:inline">End Session</span>
             </Button>
@@ -191,6 +226,11 @@ const ServerManagerDashboard = () => {
         </header>
 
         <main className="flex-1">
+          {summaryError && (
+            <div role="alert" className="mx-4 mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive sm:mx-6">
+              Server health is unknown because status data could not be loaded.
+            </div>
+          )}
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}

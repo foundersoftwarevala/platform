@@ -5,6 +5,7 @@ import { getLocalAiService } from "@/lib/ai-local-services.server";
 import { withTaskTransaction } from "@/lib/tasks/db.server";
 
 import { recordAyraInspection } from "./audit.server";
+import { resolveAyraOllamaEndpoint } from "./ollama-endpoint.server";
 import {
   getDeveloperStatus,
   getFinancialSummary,
@@ -165,13 +166,20 @@ async function requestOllama(messages: OllamaMessage[]): Promise<z.infer<typeof 
   if (!service) throw new Error("The local Ollama service is not configured.");
   const model = process.env["AYRA_OLLAMA_MODEL"]?.trim();
   if (!model) throw new Error("AYRA_OLLAMA_MODEL must name the installed Ollama model.");
+  const endpoint = resolveAyraOllamaEndpoint(
+    process.env["AYRA_OLLAMA_URL"],
+    service.endpoint,
+    process.env["AYRA_OLLAMA_ACCESS_CLIENT_ID"],
+    process.env["AYRA_OLLAMA_ACCESS_CLIENT_SECRET"],
+  );
 
   let response: Response;
   try {
-    response = await fetch(service.endpoint, {
+    response = await fetch(endpoint.url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...endpoint.headers },
       signal: AbortSignal.timeout(120_000),
+      redirect: "error",
       body: JSON.stringify({
         model,
         messages,

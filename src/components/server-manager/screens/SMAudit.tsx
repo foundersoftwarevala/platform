@@ -128,8 +128,8 @@ const SMAudit = () => {
       </div>
 
       {/* Audit Logs Table */}
-      <div className="bento-card enter-soft !p-0 overflow-hidden">
-        <table className="w-full">
+      <div className="bento-card enter-soft !p-0 overflow-x-auto">
+        <table className="w-full min-w-[800px]">
           <thead>
             <tr className="border-b border-border bg-surface/60 text-xs uppercase tracking-wider text-muted-foreground">
               <th className="text-left px-6 py-4 font-medium">Time</th>

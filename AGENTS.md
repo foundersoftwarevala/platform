@@ -387,10 +387,63 @@ The product in it (`current_product_id`) can change; the URL never does.
   its 20 products that were exact copies of event-management's are
   `visible = false` on both databases; the other 60 (64 on the VPS) are kept.
 - **hreflang** on a slot page lists only occupied sibling slots.
-- **Search Console is not connected.** The `api_services` row is inactive,
-  `GOOGLE_SEARCH_CONSOLE_CREDENTIALS` is not set, and
-  `google-apis-integration.functions.ts` sends no token. No traffic figure in
-  this project comes from Google.
+- **Search Console sync is implemented but not live-connected.** The SEO
+  Manager has an OAuth refresh-token sync, but `GOOGLE_SEARCH_CONSOLE_CREDENTIALS`
+  is not set on the VPS, so live Search Console API access has not been
+  verified. No traffic figure in this project should be claimed as coming
+  from Google until credentials are configured and a sync is verified.
+- **Marketplace product-country SEO generation:** the new
+  `marketplace_product_country_seo` queue is lazily claimed in batches of ten
+  through the AI API Manager; it does not fan out or call AI for the full
+  product-country matrix at once. Completed rows enforce a 60-character title,
+  160-character description, and exactly 35 hashtags ending in `#softwarevala`.
+  Failed rows are requeued in bounded batches of 50. Hashtags are AI
+  suggestions, not verified search-volume or ranking data.
+  Occupied slot pages consume the generated title/description as page metadata.
+  Migration `20261108T115000_marketplace_product_country_seo.sql` was applied
+  transactionally to VPS `sv_platform` on 2026-10-18. The table, indexes, RLS
+  and service-role grants were verified. The Card SEO code was deployed from
+  an isolated candidate based on the previous SEO release; the prior build is
+  retained at `/var/www/softwarevala/.output.prev-20261018-220927`.
+  The SEO Manager reports "Pending API configuration" when a batch failure
+  indicates missing, inactive or rejected AI credentials; affected items stay
+  failed for bounded retry after configuration is corrected. No AI batches
+  have been started; generation only runs when an operator explicitly
+  processes a batch.
+- **SEO phase framework foundation (2026-10-18):** migration
+  `20261108T120000_seo_phase_foundation_tables.sql` was applied
+  transactionally to VPS `sv_platform`. It adds `seo_referring_domains`,
+  `seo_crawl_jobs`, `seo_broken_links`, `seo_redirects`,
+  `seo_core_web_vitals`, `seo_rankings`, and `seo_search_volume`; existing
+  `seo_backlinks`, `seo_competitors`, and `seo_keywords` were retained.
+  Required domain/URL/keyword/status B-tree indexes, RLS, and service-role
+  grants were verified; the new tables deny `anon` and `authenticated` reads.
+  The SEO Manager now has Backlinks & Competitors, Technical SEO, and
+  Keywords & Rankings foundation tabs with empty states. Refresh/Crawl actions
+  only show “API Integration Pending. Connect API to run.” and do not call
+  fetch, AI, Google, or crawl services. Only the scoped SEO candidate was
+  deployed; production smoke checks passed with one online PM2 process.
+  Rollback build: `/var/www/softwarevala/.output.prev-seo-framework-20261018T234148Z`.
+  The schema rollback script is `/root/sv-seo-phase-rollback-ae2c22733c454ed38dd0361575a497e8.sql`;
+  before using it, confirm the new tables contain no data that must be kept.
+- **SEO phase 2 foundation (2026-10-18):** migration
+  `20261108T121000_seo_phase2_local_international_reporting.sql` was applied
+  transactionally to VPS `sv_platform`. It adds
+  `seo_local_listings`, `seo_reviews`, `seo_local_citations`,
+  `seo_hreflang_maps`, `seo_translations`, `seo_country_targets`,
+  `seo_revenue_attribution`, and `seo_custom_dashboards`; the existing
+  `seo_reports` table was extended with nullable `country_code` and `url`.
+  Country, URL, status, and reporting-period B-tree indexes, RLS, and
+  service-role access were verified. The Local SEO, International SEO, and
+  Reporting & Business tabs show empty states; Sync Reviews, Generate
+  Hreflang, and Export Report only show the API-pending toast and make no
+  requests. The isolated SEO candidate was built and deployed; production
+  homepage and SEO Manager route returned HTTP 200 with one online PM2
+  process. Rollback build:
+  `/var/www/softwarevala/.output.prev-seo-phase2-20261019T021411Z`.
+  Schema rollback:
+  `/root/sv-seo-phase2-rollback-39fe310e63964bf7a6c9fa23b47c4e22.sql`;
+  inspect data before considering rollback.
 - `scripts/ops/homepage-lock.mjs` is not run by the build and its baseline is
   stale; it reports many intended changes.
 

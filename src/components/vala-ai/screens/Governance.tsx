@@ -224,7 +224,7 @@ export function Releases() {
 
 export function Approvals() {
   const { translate: t } = useLanguage();
-  const isOwner = useCan("owner");
+  const isOwner = useCan("boss");
   const approvals = useApi<Approval[]>(["approvals"], "/approvals", { refetchInterval: 10_000 });
   const decide = useAction(
     (v: { id: string; approve: boolean; note: string; evidenceReviewed: string[] }) =>

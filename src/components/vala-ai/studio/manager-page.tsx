@@ -12,7 +12,7 @@ export function ManagerPage({ name }: { name: string }) {
   const [readOnly, setReadOnly] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const canEdit = useCan("owner") && !readOnly && !busy;
+  const canEdit = useCan("boss") && !readOnly && !busy;
   const [q, setQ] = useState("");
   const [edit, setEdit] = useState<Row | null>(null);
   const [isNew, setIsNew] = useState(false);

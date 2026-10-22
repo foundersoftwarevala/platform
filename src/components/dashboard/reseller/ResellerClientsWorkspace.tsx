@@ -1,18 +1,21 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft, Plus, Search, UserCheck, Mail, Phone, Building2, MapPin, Star,
   ShoppingCart, FileBadge, StickyNote, FileText, CalendarClock, MessageSquare,
   Paperclip, Pencil, Trash2, Activity, Heart, Inbox,
 } from "lucide-react";
-import { LocalOnlyNotice } from "./LocalOnlyNotice";
 import type { CrudRecord } from "@/lib/crud-store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/serverFn";
+import { supabase } from "@/integrations/supabase/client";
 import {
+  addResellerClientCommunication,
   addResellerClientFollowUp,
   listResellerClientActivity,
   listResellerClientLicences,
+  registerResellerClientDocument,
+  saveResellerClientNotes,
   setResellerClientFollowUpDone,
 } from "@/lib/reseller-dashboard.functions";
 import { useResellerCustomers } from "@/lib/useResellerCustomers";
@@ -216,20 +219,30 @@ function reason(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-// What the platform has no store for. Each tab that offers it says so and
-// saves nothing, instead of reporting a save that never happened.
-const NOTES_UNAVAILABLE =
-  "Client notes are not stored yet: the client record has no notes field, so nothing written here would be kept.";
-const DOCS_UNAVAILABLE =
-  "Client documents are not stored yet: there is no document storage for reseller clients, so no file is uploaded.";
-const LOG_UNAVAILABLE =
-  "Logging a call or email is not stored yet: the client record has no communication log. The timeline below shows what is recorded.";
 const PURCHASE_MANUAL_UNAVAILABLE =
   "Purchases are recorded when the client buys through you on the marketplace; a purchase cannot be typed in by hand.";
 const WEBSITE_UNAVAILABLE = "Not stored yet: the client record has no website field.";
 
+type ClientDocument = {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  storage_path: string;
+  created_at: string;
+};
+type ClientCommunication = {
+  id: string;
+  communication_type: string;
+  content: string;
+  actor_name: string;
+  created_at: string;
+};
 type ClientActivity = {
   clientCreatedAt: string;
+  notes: string;
+  documents: ClientDocument[];
+  communications: ClientCommunication[];
   purchases: { id: string; number: string; products: string[]; amount: number; currency: string; status: string; date: string }[];
   followUps: { id: string; title: string; due_at: string | null; status: string; created_at: string; updated_at: string }[];
 };
@@ -247,6 +260,9 @@ function ClientDetail({
   // placed) and follow-ups (crm_tasks), read from the server.
   const queryClient = useQueryClient();
   const listActivity = useServerFn(listResellerClientActivity);
+  const saveNotes = useServerFn(saveResellerClientNotes);
+  const addCommunication = useServerFn(addResellerClientCommunication);
+  const registerDocument = useServerFn(registerResellerClientDocument);
   const addFollowUp = useServerFn(addResellerClientFollowUp);
   const setFollowUpDone = useServerFn(setResellerClientFollowUpDone);
   const activityKey = ["reseller", "client-activity", record.id];
@@ -254,7 +270,58 @@ function ClientDetail({
     queryKey: activityKey,
     queryFn: () => listActivity({ data: { clientId: record.id } }) as Promise<ClientActivity>,
   });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: activityKey });
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: activityKey });
+    void queryClient.invalidateQueries({ queryKey: ["reseller", "customers"] });
+  };
+  const notesMutation = useMutation({
+    mutationFn: (notes: string) => saveNotes({ data: { clientId: record.id, notes } }),
+    onSuccess: refresh,
+  });
+  const communicationMutation = useMutation({
+    mutationFn: (input: { content: string; kind: "call" | "email" | "meeting" | "other" }) =>
+      addCommunication({ data: { clientId: record.id, ...input } }),
+    onSuccess: refresh,
+  });
+  const documentMutation = useMutation({
+    mutationFn: async (file: File) => {
+      if (file.size > 15 * 1024 * 1024) throw new Error("Documents must be 15 MB or smaller.");
+      const allowedTypes = new Set([
+        "application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ]);
+      if (!allowedTypes.has(file.type)) throw new Error("Choose a PDF, image, text, Word, or Excel document.");
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw new Error(userError.message);
+      if (!userData.user) throw new Error("Please sign in again before uploading a document.");
+      const storagePath = `${userData.user.id}/${record.id}/${crypto.randomUUID()}`;
+      const { error: uploadError } = await supabase.storage
+        .from("reseller-client-documents")
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw new Error(uploadError.message);
+      try {
+        return await registerDocument({
+          data: {
+            clientId: record.id,
+            storagePath,
+            fileName: file.name,
+            mimeType: file.type,
+            fileSize: file.size,
+          },
+        });
+      } catch (error) {
+        const { error: cleanupError } = await supabase.storage
+          .from("reseller-client-documents")
+          .remove([storagePath]);
+        if (cleanupError) console.error("Could not remove an unregistered reseller document", cleanupError);
+        throw error;
+      }
+    },
+    onSuccess: refresh,
+  });
   const addMutation = useMutation({
     mutationFn: (v: { title: string; due: string }) => addFollowUp({ data: { clientId: record.id, title: v.title, due: v.due } }),
     onSuccess: refresh,
@@ -308,8 +375,11 @@ function ClientDetail({
         {tab === "profile"   && <ProfileTab record={record} onPatch={onPatch} />}
         {tab === "purchases" && <PurchasesTab purchases={activity.data?.purchases ?? []} loading={activity.isLoading} loadError={loadError} />}
         {tab === "licenses"  && <LicensesTab licenses={licenses} />}
-        {tab === "notes"     && <><LocalOnlyNotice text={NOTES_UNAVAILABLE} /><NotesTab record={record} /></>}
-        {tab === "documents" && <><LocalOnlyNotice text={DOCS_UNAVAILABLE} /><DocsTab record={record} /></>}
+        {tab === "notes"     && <NotesTab notes={activity.data?.notes ?? ""} onSave={(notes) => notesMutation.mutateAsync(notes)} />}
+        {tab === "documents" && <DocsTab
+          documents={activity.data?.documents ?? []}
+          onUpload={(file) => documentMutation.mutateAsync(file)}
+        />}
         {tab === "followup"  && (
           <FollowupTab
             tasks={activity.data?.followUps ?? []}
@@ -319,7 +389,11 @@ function ClientDetail({
             onToggle={(id, done) => toggleMutation.mutateAsync({ id, done })}
           />
         )}
-        {tab === "timeline"  && <><LocalOnlyNotice text={LOG_UNAVAILABLE} /><TimelineTab activity={activity.data ?? null} loadError={loadError} /></>}
+        {tab === "timeline"  && <TimelineTab
+          activity={activity.data ?? null}
+          loadError={loadError}
+          onLog={(content, kind) => communicationMutation.mutateAsync({ content, kind })}
+        />}
       </div>
     </div>
   );
@@ -446,8 +520,20 @@ function LicensesTab({ licenses }: { licenses: CrudRecord[] }) {
   );
 }
 
-function NotesTab({ record }: { record: CrudRecord }) {
-  const [text, setText] = useState(record.notes);
+function NotesTab({ notes, onSave }: { notes: string; onSave: (notes: string) => Promise<unknown> }) {
+  const [text, setText] = useState(notes);
+  const [saving, setSaving] = useState(false);
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave(text);
+      toast.success("Notes saved");
+    } catch (error) {
+      toast.error(reason(error, "The client notes were not saved."));
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
     <div className="space-y-3">
       <textarea
@@ -458,8 +544,8 @@ function NotesTab({ record }: { record: CrudRecord }) {
         className="w-full rounded-lg bg-surface border border-border p-3 text-sm outline-none focus:ring-2 focus:ring-ring resize-y"
       />
       <div className="flex justify-end">
-        <button disabled title={NOTES_UNAVAILABLE}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">
+        <button onClick={() => void save()} disabled={saving}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-60">
           <StickyNote className="h-3.5 w-3.5" /> Save notes
         </button>
       </div>
@@ -467,25 +553,60 @@ function NotesTab({ record }: { record: CrudRecord }) {
   );
 }
 
-function DocsTab({ record }: { record: CrudRecord }) {
+function DocsTab({ documents, onUpload }: { documents: ClientDocument[]; onUpload: (file: File) => Promise<unknown> }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  async function upload(file?: File) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      await onUpload(file);
+      toast.success("Document uploaded");
+    } catch (error) {
+      toast.error(reason(error, "The document was not uploaded."));
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+  async function openDocument(document: ClientDocument) {
+    const { data, error } = await supabase.storage
+      .from("reseller-client-documents")
+      .createSignedUrl(document.storage_path, 300, { download: document.file_name });
+    if (error || !data?.signedUrl) {
+      toast.error(error?.message ?? "The document could not be opened.");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">{record.attachments.length} document{record.attachments.length === 1 ? "" : "s"}</div>
-        <button disabled title={DOCS_UNAVAILABLE} className="inline-flex items-center gap-1 rounded-lg bg-surface border border-border px-2.5 py-1.5 text-xs hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed">
+        <div className="text-xs text-muted-foreground">{documents.length} document{documents.length === 1 ? "" : "s"}</div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx,.xls,.xlsx"
+          className="hidden"
+          onChange={(event) => void upload(event.currentTarget.files?.[0])}
+        />
+        <button onClick={() => inputRef.current?.click()} disabled={uploading}
+          className="inline-flex items-center gap-1 rounded-lg bg-surface border border-border px-2.5 py-1.5 text-xs hover:bg-surface-2 disabled:opacity-50">
           <Paperclip className="h-3.5 w-3.5" /> Upload
         </button>
       </div>
-      {record.attachments.length === 0 ? (
+      {documents.length === 0 ? (
         <Empty icon={FileText} text="No documents yet. Attach contracts, invoices, NDAs and onboarding kits." />
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border overflow-hidden">
-          {record.attachments.map((a) => (
-            <li key={a.id} className="flex items-center gap-3 px-3 py-2 text-xs">
+          {documents.map((document) => (
+            <li key={document.id} className="flex items-center gap-3 px-3 py-2 text-xs">
               <FileText className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 truncate font-medium">{a.name}</span>
-              <span className="text-muted-foreground">{(a.size / 1024).toFixed(1)} KB</span>
-              <span className="text-muted-foreground">{new Date(a.date).toLocaleDateString()}</span>
+              <button onClick={() => void openDocument(document)} className="flex-1 truncate text-left font-medium hover:underline">
+                {document.file_name}
+              </button>
+              <span className="text-muted-foreground">{(document.file_size / 1024).toFixed(1)} KB</span>
+              <span className="text-muted-foreground">{new Date(document.created_at).toLocaleDateString()}</span>
             </li>
           ))}
         </ul>
@@ -549,9 +670,30 @@ function FollowupTab({
   );
 }
 
-/** What is recorded about the client: when it was added, its follow-ups and its purchases. */
-function TimelineTab({ activity, loadError }: { activity: ClientActivity | null; loadError: string | null }) {
+/** Recorded client activity, purchases, follow-ups and communications. */
+function TimelineTab({
+  activity, loadError, onLog,
+}: {
+  activity: ClientActivity | null;
+  loadError: string | null;
+  onLog: (content: string, kind: "call" | "email" | "meeting" | "other") => Promise<unknown>;
+}) {
   const [text, setText] = useState("");
+  const [kind, setKind] = useState<"call" | "email" | "meeting" | "other">("other");
+  const [saving, setSaving] = useState(false);
+  async function log() {
+    if (!text.trim()) return;
+    setSaving(true);
+    try {
+      await onLog(text.trim(), kind);
+      setText("");
+      toast.success("Communication logged");
+    } catch (error) {
+      toast.error(reason(error, "The communication was not saved."));
+    } finally {
+      setSaving(false);
+    }
+  }
   const merged = activity
     ? [
         { kind: "audit" as const, id: "created", date: activity.clientCreatedAt, text: "Client added", by: "you", detail: "" },
@@ -564,6 +706,14 @@ function TimelineTab({ activity, loadError }: { activity: ClientActivity | null;
           kind: "audit" as const, id: `order-${p.id}`, date: p.date, text: `Order ${p.number}`,
           by: "marketplace", detail: `${p.products.join(", ") || "Order"} · ${p.status.replace(/_/g, " ")}`,
         })),
+        ...activity.communications.map((communication) => ({
+          kind: "audit" as const,
+          id: `communication-${communication.id}`,
+          date: communication.created_at,
+          text: `${communication.communication_type[0]?.toUpperCase() ?? ""}${communication.communication_type.slice(1)} logged`,
+          by: communication.actor_name,
+          detail: communication.content,
+        })),
       ].sort((a, b) => b.date.localeCompare(a.date))
     : [];
   return (
@@ -574,8 +724,13 @@ function TimelineTab({ activity, loadError }: { activity: ClientActivity | null;
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Called, emailed, met for demo…"
             className="mt-1 w-full rounded-lg bg-surface border border-border px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring" />
         </div>
-        <button disabled title={LOG_UNAVAILABLE}
-          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-40 disabled:cursor-not-allowed">Log</button>
+        <select value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}
+          className="rounded-lg bg-surface border border-border px-2 py-2 text-xs">
+          <option value="other">Note</option><option value="call">Call</option>
+          <option value="email">Email</option><option value="meeting">Meeting</option>
+        </select>
+        <button onClick={() => void log()} disabled={saving || !text.trim()}
+          className="rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:opacity-60">Log</button>
       </div>
       {loadError ? <Empty icon={Activity} text={loadError} /> : merged.length === 0 ? <Empty icon={Activity} text="No activity yet." /> : (
         <ol className="relative border-l border-border ml-3 space-y-3">

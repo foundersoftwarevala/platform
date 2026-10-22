@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const EXISTING_LOGIN_URL = "/login";
 
 /** Operators may open every dashboard, which the "admin" dashboard role grants. */
-const OPERATOR_ROLES = new Set(["boss", "boss_owner", "admin", "super_admin", "founder", "owner"]);
+const OPERATOR_ROLES = new Set(["boss", "boss_owner", "admin", "super_admin", "founder"]);
 
 /**
  * The signed-in person's dashboard role, from `user_roles`: "admin" for a
@@ -49,7 +49,7 @@ export async function getHeldRoles(): Promise<Set<string>> {
 
 /**
  * Whether the signed-in account itself would be answered by /api/seller/metrics:
- * it owns a `marketplace_sellers` record that is not suspended (the endpoint's
+ * it owns a pending or approved `marketplace_sellers` record (the endpoint's
  * requireAuthor gate, with pending allowed). The row is the caller's own, which
  * the marketplace_sellers_member_read policy lets them read. A vendor/author
  * role without a seller record, or an operator viewing a seller dashboard,
@@ -82,7 +82,7 @@ export async function ownsActiveSellerRecord(): Promise<boolean> {
     .limit(1);
   if (error) throw error;
   const row = data?.[0];
-  return !!row && row.status !== "suspended";
+  return row?.status === "approved" || row?.status === "pending";
 }
 
 /** Ends the Supabase session. */

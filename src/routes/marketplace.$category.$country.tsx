@@ -74,18 +74,20 @@ export const Route = createFileRoute("/marketplace/$category/$country")({
 
     const canonical = absoluteUrl(slot.slotUrl);
     const occupied = Boolean(slot.product);
+    const metaTitle = slot.seoMetaTitle ?? slot.metaTitle;
+    const metaDescription = slot.seoMetaDescription ?? slot.metaDescription;
 
     const meta: Array<Record<string, string>> = [
-      { title: slot.metaTitle },
-      { name: "description", content: slot.metaDescription },
+      { title: metaTitle },
+      { name: "description", content: metaDescription },
       { name: "geo.placename", content: slot.country },
-      { property: "og:title", content: slot.metaTitle },
-      { property: "og:description", content: slot.metaDescription },
+      { property: "og:title", content: metaTitle },
+      { property: "og:description", content: metaDescription },
       { property: "og:type", content: "website" },
       { property: "og:url", content: canonical },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: slot.metaTitle },
-      { name: "twitter:description", content: slot.metaDescription },
+      { name: "twitter:title", content: metaTitle },
+      { name: "twitter:description", content: metaDescription },
     ];
     if (slot.countryCode) {
       meta.push({ name: "geo.region", content: slot.countryCode });
@@ -392,50 +394,55 @@ function SlotPage() {
 
       {/* ------------------------------ the same card, in every other country */}
       <section className="border-t border-white/10 px-6 py-10">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-white/50">
-          {t("marketplace.slot.other_countries", { category: slot.categoryName })}
-        </h2>
         <p className="mt-2 text-xs text-white/45">
           {t("marketplace.slot.countries_filled", {
             total: slot.countries.length,
             filled: occupiedCountries,
           })}
         </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {slot.countries.map((sibling) => (
-            <Link
-              key={sibling.marker}
-              to="/marketplace/$category/$country"
-              params={{ category: slot.categorySlug, country: sibling.slug }}
-              className={
-                sibling.marker === slot.country
-                  ? "rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-200"
-                  : "rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 hover:bg-white/[0.08]"
-              }
-            >
-              {sibling.marker}
-            </Link>
-          ))}
-        </div>
+        <details className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-white/75 marker:hidden">
+            {t("marketplace.slot.other_countries", { category: slot.categoryName })}
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {slot.countries.map((sibling) => (
+              <Link
+                key={sibling.marker}
+                to="/marketplace/$category/$country"
+                params={{ category: slot.categorySlug, country: sibling.slug }}
+                className={
+                  sibling.marker === slot.country
+                    ? "rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-200"
+                    : "rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 hover:bg-white/[0.08]"
+                }
+              >
+                {sibling.marker}
+              </Link>
+            ))}
+          </div>
+        </details>
       </section>
 
       {/* ------------------------------ every other card, in the same country */}
       <section className="border-t border-white/10 px-6 py-10">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-white/50">
-          {t("marketplace.slot.other_software", { country: slot.country })}
-        </h2>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {slot.categories.map((sibling) => (
-            <Link
-              key={sibling.slug}
-              to="/marketplace/$category/$country"
-              params={{ category: sibling.slug, country: slot.countrySlug }}
-              className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 hover:bg-white/[0.08]"
-            >
-              {sibling.name}
-            </Link>
-          ))}
-        </div>
+        <details className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-white/75 marker:hidden">
+            {t("marketplace.slot.other_software", { country: slot.country })} (
+            {slot.categories.length})
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {slot.categories.map((sibling) => (
+              <Link
+                key={sibling.slug}
+                to="/marketplace/$category/$country"
+                params={{ category: sibling.slug, country: slot.countrySlug }}
+                className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/75 hover:bg-white/[0.08]"
+              >
+                {sibling.name}
+              </Link>
+            ))}
+          </div>
+        </details>
         <Link
           to="/marketplace/country/$country"
           params={{ country: slot.countrySlug }}

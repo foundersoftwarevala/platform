@@ -8,9 +8,6 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 import type { Database, Json } from "@/integrations/supabase/types";
-import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
-import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
-import { LIFETIME_PRICE } from "@/lib/site-content/constants";
 
 // Migration-backed layout RPCs are absent from the cloud-generated metadata.
 type LayoutDatabase = Omit<Database, "public"> & {
@@ -253,82 +250,6 @@ function slugify(value: string) {
   );
 }
 
-/**
- * The home page catalogue as product pages.
- *
- * A card on the home page has to open something. Until an author uploads the
- * product for that slug - at which point the database row is found first and
- * this is never reached - the page is built from the catalogue entry itself.
- */
-function buildHomeCatalogFallback(): PublicProduct[] {
-  return catalogueEntries.map(fallbackFromEntry);
-}
-
-function fallbackFromEntry(entry: CatalogueEntry): PublicProduct {
-  return {
-    id: entry.slug,
-    slug: entry.slug,
-    name: entry.name,
-    category_name: entry.category,
-    industry_label: entry.masterCategory,
-    icon: "Sparkles",
-    price_label: LIFETIME_PRICE,
-    price_period: "lifetime",
-    rating: 0,
-    downloads: 0,
-    downloads_label: null,
-    badge: null,
-    description: entry.description,
-    tags: [entry.masterCategory, entry.category].filter(Boolean),
-    tech_stack: entry.techStack,
-    features: entry.features,
-    content_status: "published",
-    demo_count: 0,
-    demo_urls: [],
-  };
-}
-
-function buildSuppliedCatalogFallback(): PublicProduct[] {
-  return SUPPLIED_DEMOS_16.map((demo) => ({
-    id: demo.slug,
-    slug: demo.slug,
-    name: demo.name,
-    industry_label: demo.masterCategory,
-    icon: demo.iconName ?? "Sparkles",
-    price_label: "₹49,999",
-    price_period: "lifetime",
-    rating: 4.8,
-    downloads: 1200,
-    downloads_label: "1.2K+",
-    badge: "HOT",
-    demo_count: 1,
-    demo_urls: [
-      {
-        id: `${demo.slug}-demo`,
-        demo_name: demo.name,
-        role_name: "Public",
-        status: "active",
-        environment: "production",
-        url: demo.demoUrl,
-      },
-    ],
-  }));
-}
-
-/** The product page for a slug no author has uploaded yet, if there is one. */
-async function findFallbackProduct(slug: string): Promise<PublicProduct | undefined> {
-  const known =
-    buildSuppliedCatalogFallback().find((product) => product.slug === slug) ??
-    buildHomeCatalogFallback().find((product) => product.slug === slug);
-  if (known) return known;
-  // The home page's own card list. Its cards link here by the same slug, but
-  // only the extraDemos part was known to this page, so most of them opened
-  // "Product not found". Read on the server only.
-  const { homeCatalogueEntry } = await import("@/lib/marketplace/home-catalogue.server");
-  const entry = homeCatalogueEntry(slug);
-  return entry ? fallbackFromEntry(entry) : undefined;
-}
-
 function toProduct(r: any): MarketProduct {
   return {
     id: r.id,
@@ -440,7 +361,10 @@ async function loadPublicProductBySlugFromSupabase(sb: any, slug: string) {
     .or(`unpublish_at.is.null,unpublish_at.gt.${nowIso}`)
     .maybeSingle();
 
-  if (!marketplaceResult.error && marketplaceResult.data) {
+  if (marketplaceResult.error) {
+    throw new Error(`Could not read the public product: ${marketplaceResult.error.message}`);
+  }
+  if (marketplaceResult.data) {
     return { row: marketplaceResult.data, source: "marketplace_products" as const };
   }
 
@@ -541,14 +465,6 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       const { row: productRow } = await loadPublicProductBySlugFromSupabase(sb, data.slug);
 
       if (!productRow) {
-        const fallbackProduct = await findFallbackProduct(data.slug);
-        if (fallbackProduct) {
-          return {
-            product: fallbackProduct,
-            active_demos: fallbackProduct.demo_urls ?? [],
-            seo: null,
-          };
-        }
         return { product: null, active_demos: [], seo: null };
       }
 
@@ -573,14 +489,6 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       };
     } catch (err) {
       console.error("getPublicProduct error:", err);
-      const fallbackProduct = await findFallbackProduct(data.slug);
-      if (fallbackProduct) {
-        return {
-          product: fallbackProduct,
-          active_demos: fallbackProduct.demo_urls ?? [],
-          seo: null,
-        };
-      }
       // A failed read is not an absent product. Answering { product: null }
       // here made the route answer 404 "Product Not Found" for a real product
       // whenever the database was unreachable; rejecting lets it tell the two
@@ -751,11 +659,12 @@ const productSchema = z.object({
   is_new_release: z.boolean().optional(),
   is_best_seller: z.boolean().optional(),
   is_ai: z.boolean().optional(),
-  category_id: z.string().uuid().nullable().optional(),
+  category_id: z.string().uuid(),
   sort_order: z.number().int().optional(),
   visible: z.boolean().optional(),
   publish_at: z.string().nullable().optional(),
   unpublish_at: z.string().nullable().optional(),
+  publish_on_create: z.boolean().default(true),
 });
 
 export const upsertProduct = createServerFn({ method: "POST" })
@@ -773,7 +682,15 @@ export const upsertProduct = createServerFn({ method: "POST" })
     await requireOperator("Editing the catalogue", { alsoAllow: ["marketing", "seo"] });
 
     const { upsertReviewedProduct } = await import("@/lib/marketplace/product-write.server");
-    return upsertReviewedProduct(context.supabase, data);
+    const { publish_on_create, ...product } = data;
+    const values = product.id
+      ? product
+      : {
+          ...product,
+          content_status: publish_on_create ? "published" : "draft",
+          moderation_status: publish_on_create ? "approved" : "draft",
+        };
+    return upsertReviewedProduct(context.supabase, values);
   });
 
 export const deleteProduct = createServerFn({ method: "POST" })

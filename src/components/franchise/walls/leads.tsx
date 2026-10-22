@@ -43,6 +43,15 @@ export const config: WallConfig = {
     { key: "lost", label: "Mark Lost", icon: Pause, patch: { stage: "lost" }, destructive: true },
   ],
   formFields: [
+    {
+      key: "franchise_id",
+      label: "Franchise",
+      type: "resource-select",
+      optionsResource: "franchises",
+      optionLabel: "franchise",
+      createOnly: true,
+      required: true,
+    },
     { key: "name", label: "Lead name", type: "text", required: true },
     { key: "company", label: "Company", type: "text" },
     { key: "value", label: "Value", type: "number" },

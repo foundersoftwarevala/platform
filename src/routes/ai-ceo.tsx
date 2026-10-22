@@ -134,7 +134,7 @@ function AICEOLayout() {
     SECTIONS[0].label;
 
   return (
-    <RequireRole role={["boss", "admin"]}>
+    <RequireRole role={["boss", "boss_owner", "admin"]}>
       <TooltipProvider delayDuration={120}>
         <div className="creator-theme mm-scope flex min-h-screen w-full">
           <CreatorSidebar

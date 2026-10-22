@@ -213,7 +213,7 @@ function ChecksEditor({
 function RequirementsTab({ d }: { d: ProjectDetail }) {
   const { translate: t } = useLanguage();
   const canEdit = useCan("operator");
-  const isOwner = useCan("owner");
+  const isOwner = useCan("boss");
   const approved = d.requirements.find((r) => r.status === "approved");
   const draft = d.requirements.find((r) => r.status === "draft");
   const [title, setTitle] = useState("");

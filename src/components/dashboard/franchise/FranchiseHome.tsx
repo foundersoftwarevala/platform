@@ -4,7 +4,17 @@ import { useFranchise } from "@/lib/franchise-store";
 import { fmtMoney } from "@/lib/metrics";
 
 export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void }) {
-  const { branches, leads, employees, payments, revenueByPeriod, loading, error, note } = useFranchise();
+  const {
+    branches,
+    leads,
+    employees,
+    payments,
+    products,
+    revenueByPeriod,
+    loading,
+    error,
+    note,
+  } = useFranchise();
 
   const totalRevenue = branches.reduce((s, b) => s + b.monthlyRevenue, 0);
   const pipeline = leads.filter((l) => l.stage !== "won" && l.stage !== "lost").reduce((s, l) => s + l.value, 0);
@@ -53,6 +63,62 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
             <Plus className="h-3 w-3 opacity-60" />
           </button>
         ))}
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 depth-3d">
+        <div className="text-sm font-semibold">Assigned products</div>
+        {products.length ? (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {products.map((product) => (
+              <article
+                key={product.id}
+                className="rounded-xl border border-border bg-background/40 p-3"
+              >
+                <div className="flex items-center gap-3">
+                  {product.imageUrl && (
+                    <img
+                      src={product.imageUrl}
+                      alt=""
+                      className="h-10 w-10 rounded-lg object-cover"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold">{product.name}</div>
+                    {product.industry && (
+                      <div className="text-[11px] text-muted-foreground">{product.industry}</div>
+                    )}
+                  </div>
+                </div>
+                {product.description && (
+                  <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                    {product.description}
+                  </p>
+                )}
+                <div className="mt-3 flex items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold">
+                    {product.priceLabel || "Contact for pricing"}
+                  </span>
+                  {product.demoUrl && (
+                    <a
+                      href={product.demoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-brand hover:underline"
+                    >
+                      View demo
+                    </a>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {loading
+              ? "Loading assigned products…"
+              : "No products have been assigned to your franchise yet."}
+          </p>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">

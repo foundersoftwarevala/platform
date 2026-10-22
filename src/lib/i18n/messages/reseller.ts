@@ -12,8 +12,13 @@ export const RESELLER_MESSAGES = {
   "reseller.plans.loading": "Loading membership plans",
   "reseller.plans.load_failed": "Unable to load membership plans.",
   "reseller.plans.current": [
-    "Current membership: {plan} · {status} · until {date}",
+    "Membership: {plan} · {status} · expires {date}",
     "the reseller's active membership",
+  ],
+  "reseller.plans.period": ["Starts {start} · expires {end}", "the exact membership period"],
+  "reseller.plans.customer_discount": [
+    "Current customer discount: {percent}%",
+    "discount available to customers referred by this reseller",
   ],
   "reseller.plans.none": "No active membership yet.",
   "reseller.plans.per_year": ["/ year", "after a yearly price"],
@@ -171,6 +176,7 @@ export const RESELLER_MESSAGES = {
   "reseller.manager.pause": ["Pause", "button that pauses a reseller account"],
   "reseller.manager.suspend": ["Suspend", "button that suspends a reseller account"],
   "reseller.manager.reject": ["Reject", "button that rejects a reseller application"],
+  "reseller.manager.reinstate": ["Reinstate", "reactivates a paused or suspended reseller"],
   "reseller.manager.terminate": ["Terminate", "button that ends a reseller account for good"],
   "reseller.manager.show_more": "Show more",
   "reseller.manager.plan_confirm": [

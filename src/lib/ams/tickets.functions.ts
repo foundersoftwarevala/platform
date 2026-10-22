@@ -53,7 +53,6 @@ const AMS_STAFF_ROLES = [
   "boss",
   "boss_owner",
   "founder",
-  "owner",
 ];
 
 async function isAmsStaff(sb: SupabaseClient<Database>, uid: string): Promise<boolean> {
@@ -62,7 +61,13 @@ async function isAmsStaff(sb: SupabaseClient<Database>, uid: string): Promise<bo
 }
 
 /** Platform operators: the only staff who may work a ticket they raised themselves. */
-const AMS_OPERATOR_ROLES = ["admin", "super_admin", "boss", "boss_owner", "founder", "owner"];
+const AMS_OPERATOR_ROLES = [
+  "admin",
+  "super_admin",
+  "boss",
+  "boss_owner",
+  "founder",
+];
 async function isAmsOperator(sb: SupabaseClient<Database>, uid: string): Promise<boolean> {
   const { data } = await sb.from("user_roles").select("role").eq("user_id", uid);
   return (data ?? []).some((r) => AMS_OPERATOR_ROLES.includes(String(r.role)));

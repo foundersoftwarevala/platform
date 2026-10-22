@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, Loader2, LockKeyhole, ShoppingCart } from "lu
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
+  type CartQuote,
   createMarketplaceCheckout,
   getMarketplaceCart,
   listMarketplaceOrders,
@@ -85,6 +86,22 @@ function CheckoutPage() {
     queryKey: ["marketplace-cart"],
     queryFn: () => getCart(),
   });
+  const paymentQuote = useQuery({
+    queryKey: ["marketplace-payment-quote"],
+    enabled: cartQuery.isSuccess && cartQuery.data.items.length > 0,
+    queryFn: async (): Promise<CartQuote> => {
+      const response = await fetch("/api/payment/quote", {
+        headers: await authHeaders(),
+        credentials: "same-origin",
+      });
+      const payload = (await response.json().catch(() => ({}))) as CartQuote & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Could not verify the current price.");
+      return payload;
+    },
+    staleTime: 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
   const listOrders = useServerFn(listMarketplaceOrders);
   const [payNote, setPayNote] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
@@ -125,7 +142,7 @@ function CheckoutPage() {
   });
 
   const items = cartQuery.data?.items ?? [];
-  const quote = cartQuery.data?.quote;
+  const quote = paymentQuote.data;
   const lineTotal = new Map((quote?.lines ?? []).map((l) => [l.cart_item_id, l.line_total]));
   const money = (value: number | string | undefined) =>
     `${quote?.currency ?? ""} ${Number(value ?? 0).toFixed(2)}`.trim();
@@ -155,6 +172,16 @@ function CheckoutPage() {
             <div className="py-10 text-center text-slate-400">{t("checkout.empty")}</div>
           ) : (
             <div className="space-y-4">
+              {paymentQuote.isPending && (
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Verifying the current reseller discount…
+                </div>
+              )}
+              {paymentQuote.isError && (
+                <div role="alert" className="text-sm text-amber-300">
+                  {paymentQuote.error.message}
+                </div>
+              )}
               {items.map((item: any) => (
                 <div key={item.id} className="flex items-center justify-between border-b border-slate-800 pb-4">
                   <div>
@@ -192,7 +219,7 @@ function CheckoutPage() {
                   )}
                 </dl>
               )}
-              <Button disabled={checkoutMutation.isPending || paying} onClick={() => checkoutMutation.mutate()} className="w-full bg-cyan-500 text-slate-950 hover:bg-cyan-400">
+              <Button disabled={!quote || paymentQuote.isFetching || checkoutMutation.isPending || paying} onClick={() => checkoutMutation.mutate()} className="w-full bg-cyan-500 text-slate-950 hover:bg-cyan-400">
                 {checkoutMutation.isPending || paying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
                 {paying ? t("checkout.opening_payment") : t("checkout.pay_securely")}
               </Button>

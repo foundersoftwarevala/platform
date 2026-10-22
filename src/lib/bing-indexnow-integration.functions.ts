@@ -5,6 +5,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
 
 /**
  * Every server function in this file is a public RPC endpoint and works with
@@ -224,65 +225,100 @@ export const submitUrlsToBing = createServerFn({ method: "POST" })
 // ============================================================================
 
 export const submitToIndexNow = createServerFn({ method: "POST" })
-  .inputValidator(
-    (d: unknown) =>
-      d as {
-        host: string;
-        key: string;
-        key_location?: string;
-        urls: string[];
-      },
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        host: z
+          .string()
+          .trim()
+          .min(1)
+          .max(253)
+          .regex(/^[a-z0-9.-]+$/i),
+        key: z
+          .string()
+          .min(8)
+          .max(128)
+          .regex(/^[a-z0-9-]+$/i),
+        key_location: z.string().url().max(2048).optional(),
+        urls: z.array(z.string().url().max(2048)).min(1).max(1000),
+      })
+      .superRefine((input, context) => {
+        if (input.key_location) {
+          const location = new URL(input.key_location);
+          if (
+            location.protocol !== "https:" ||
+            location.hostname.toLowerCase() !== input.host.toLowerCase()
+          ) {
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["key_location"],
+              message: "The IndexNow key file must be an HTTPS URL on the submitted host.",
+            });
+          }
+        }
+        input.urls.forEach((value, index) => {
+          const url = new URL(value);
+          if (
+            url.protocol !== "https:" ||
+            url.username ||
+            url.password ||
+            url.hostname.toLowerCase() !== input.host.toLowerCase()
+          ) {
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["urls", index],
+              message: "Each URL must be an HTTPS page on the submitted host.",
+            });
+          }
+        });
+      })
+      .parse(d),
   )
   .handler(async ({ data }) => {
     await seoGuard("submitToIndexNow");
     const admin = getSupabaseAdmin();
 
-    try {
-      const indexnowUrl = "https://api.indexnow.org/indexnow";
-
-      // Prepare payload
-      const payload = {
+    const response = await fetch("https://api.indexnow.org/indexnow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         host: data.host,
         key: data.key,
         keyLocation: data.key_location,
         urlList: data.urls,
-      };
-
-      // Submit to IndexNow
-      const response = await fetch(indexnowUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const success = response.status === 202 || response.ok;
-
-      // Store submission record
-      const submissionId = crypto.randomUUID();
-
-      await admin.from("indexnow_submissions").insert({
-        submission_id: submissionId,
-        host: data.host,
-        url_count: data.urls.length,
-        urls_submitted: JSON.stringify(data.urls),
-        status: success ? "submitted" : "failed",
-        response_status: response.status,
-        response_body: await response.text(),
-        created_at: new Date().toISOString(),
-      });
-
-      return {
-        success,
-        submission_id: submissionId,
-        urls_submitted: data.urls.length,
-        status_code: response.status,
-      };
-    } catch (error) {
-      console.error("IndexNow error:", error);
-      throw error;
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const responseBody = (await response.text())
+      .replace(new RegExp(data.key, "gi"), "[redacted]")
+      .slice(0, 4000);
+    const accepted = response.status === 200 || response.status === 202;
+    const submissionId = crypto.randomUUID();
+    const { error: logError } = await admin.from("indexnow_submissions").insert({
+      submission_id: submissionId,
+      host: data.host,
+      url_count: data.urls.length,
+      urls_submitted: data.urls,
+      status: accepted ? "submitted" : "failed",
+      response_status: response.status,
+      response_body: responseBody,
+      created_at: new Date().toISOString(),
+    });
+    if (logError) {
+      throw new Error(
+        `IndexNow responded with HTTP ${response.status}, but the submission log could not be saved: ${logError.message}`,
+      );
     }
+
+    return {
+      success: accepted,
+      submission_id: submissionId,
+      urls_submitted: data.urls.length,
+      status_code: response.status,
+      message: accepted
+        ? `IndexNow accepted ${data.urls.length} URL(s).`
+        : `IndexNow refused the submission with HTTP ${response.status}${responseBody ? `: ${responseBody}` : ""}`,
+    };
   });
 
 // ============================================================================

@@ -116,8 +116,11 @@ async function one(path: string): Promise<Row | null> {
 
 const partnerOf = {
   seller: (uid: string, kind: string) =>
-    read(`marketplace_sellers?select=id,seller_kind,display_name&owner_user_id=eq.${uid}&limit=10`).then(
-      (rows) => rows.find((r) => r.seller_kind === kind) ?? rows[0] ?? null,
+    read(`marketplace_sellers?select=id,seller_kind,display_name,status&owner_user_id=eq.${uid}&limit=10`).then(
+      (rows) => {
+        const seller = rows.find((row) => row.seller_kind === kind);
+        return seller && ["approved", "pending"].includes(text(seller.status)) ? seller : null;
+      },
     ),
   reseller: (uid: string) => one(`resellers?select=id,name&user_id=eq.${uid}`),
   affiliate: (uid: string) => one(`marketplace_affiliate_partners?select=id,display_name&user_id=eq.${uid}`),
@@ -131,7 +134,7 @@ async function holdsRole(uid: string, roles: string[]): Promise<boolean> {
   return rows.some((r) => roles.includes(text(r.role).toLowerCase()));
 }
 
-const OPERATORS = ["boss", "boss_owner", "admin", "super_admin", "founder", "owner"];
+const OPERATORS = ["boss", "boss_owner", "admin", "super_admin", "founder"];
 
 /* ------------------------------- the reads ------------------------------- */
 

@@ -10,7 +10,7 @@ export function useOperator(): Operator {
   return op;
 }
 
-export function useCan(role: "operator" | "owner"): boolean {
+export function useCan(role: "operator" | "boss"): boolean {
   const op = useOperator();
-  return role === "owner" ? op.role === "owner" : op.role !== "viewer";
+  return role === "boss" ? op.role === "boss" : op.role !== "viewer";
 }

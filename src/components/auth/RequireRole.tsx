@@ -12,7 +12,7 @@ function normalizeRole(value: unknown): string {
  * boss would be refused from a console whose narrow role they do not personally
  * hold, which is how people end up removing guards altogether.
  */
-const OPERATOR_ROLES = ["boss", "boss_owner", "admin", "super_admin", "founder", "owner"];
+const OPERATOR_ROLES = ["boss", "boss_owner", "admin", "super_admin", "founder"];
 
 export function RequireRole({ role, children, allowOperators = true }: {
   role: string | string[];

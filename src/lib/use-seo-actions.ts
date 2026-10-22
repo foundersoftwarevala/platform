@@ -1,10 +1,13 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import {
   deleteRecord,
   generateSeoReport,
+  generateSeoContentDraft,
+  generateSeoKeywordIdeas,
+  listSeoAiManagerServices,
   generateWithAi,
   insertRecord,
   runAutomation,
@@ -15,6 +18,14 @@ import {
   syncSemrush,
   updateRecord,
 } from "@/lib/seo.functions";
+import { submitToIndexNow } from "@/lib/bing-indexnow-integration.functions";
+import {
+  getMarketplaceProductCountrySeoProgress,
+  getMarketplaceProductCountrySeoWorkerStatus,
+  processMarketplaceProductCountrySeoBatch,
+  retryFailedMarketplaceProductCountrySeo,
+  setMarketplaceProductCountrySeoWorkerEnabled,
+} from "@/lib/marketplace-product-seo.functions";
 
 export type SeoValue = string | number | boolean | null | string[];
 export type SeoTableName =
@@ -162,6 +173,52 @@ export function useSearchConsoleSync() {
   const sync = useServerFn(syncSearchConsole);
   return useMutation({
     mutationFn: (input: { siteUrl: string; days: number }) => sync({ data: input }),
+    onSuccess: (result) =>
+      toast.success(
+        `Search Console sync complete · ${result.rowsSynced.toLocaleString()} ranking row(s) saved`,
+      ),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useGenerateSeoContentDraft() {
+  const generate = useServerFn(generateSeoContentDraft);
+  return useMutation({
+    mutationFn: (input: { topic: string; targetKeyword?: string; locale: string }) =>
+      generate({ data: input }),
+    onSuccess: (result) => toast.success(`Draft saved: ${result.title}`),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useGenerateSeoKeywordIdeas() {
+  const generate = useServerFn(generateSeoKeywordIdeas);
+  return useMutation({
+    mutationFn: (input: { topic: string; locale: string; count: number }) =>
+      generate({ data: input }),
+    onSuccess: (result) => toast.success(`${result.ideas.length} keyword idea(s) saved for review`),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useSeoAiManagerServices() {
+  const list = useServerFn(listSeoAiManagerServices);
+  return useQuery({
+    queryKey: ["seo", "ai-api-manager-services"],
+    queryFn: () => list(),
+    staleTime: 30_000,
+  });
+}
+
+export function useSubmitIndexNow() {
+  const submit = useServerFn(submitToIndexNow);
+  return useMutation({
+    mutationFn: (input: { host: string; key: string; key_location?: string; urls: string[] }) =>
+      submit({ data: input }),
+    onSuccess: (result) => {
+      if (result.success) toast.success(result.message);
+      else toast.error(result.message);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 }
@@ -171,5 +228,82 @@ export function useSemrushSync() {
   return useMutation({
     mutationFn: (input: { domain: string; database: string }) => sync({ data: input }),
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+const MARKETPLACE_PRODUCT_SEO_PROGRESS_KEY = ["seo", "marketplace-product-country-progress"];
+const MARKETPLACE_PRODUCT_SEO_WORKER_KEY = ["seo", "marketplace-product-country-worker"];
+
+export function useMarketplaceProductCountrySeoProgress(pollWhileProcessing = false) {
+  const read = useServerFn(getMarketplaceProductCountrySeoProgress);
+  return useQuery({
+    queryKey: MARKETPLACE_PRODUCT_SEO_PROGRESS_KEY,
+    queryFn: () => read(),
+    refetchInterval: (query) =>
+      pollWhileProcessing || query.state.data?.processing ? 5000 : false,
+  });
+}
+
+export function useMarketplaceProductCountrySeoWorkerStatus() {
+  const read = useServerFn(getMarketplaceProductCountrySeoWorkerStatus);
+  return useQuery({
+    queryKey: MARKETPLACE_PRODUCT_SEO_WORKER_KEY,
+    queryFn: () => read(),
+    refetchInterval: (query) => (query.state.data?.enabled ? 5000 : 15000),
+  });
+}
+
+export function useSetMarketplaceProductCountrySeoWorkerEnabled() {
+  const client = useQueryClient();
+  const setEnabled = useServerFn(setMarketplaceProductCountrySeoWorkerEnabled);
+  return useMutation({
+    mutationFn: (enabled: boolean) => setEnabled({ data: { enabled } }),
+    onSuccess: (result) => {
+      void client.invalidateQueries({ queryKey: MARKETPLACE_PRODUCT_SEO_WORKER_KEY });
+      void client.invalidateQueries({ queryKey: MARKETPLACE_PRODUCT_SEO_PROGRESS_KEY });
+      toast.success(
+        result.enabled ? "Marketplace SEO worker resumed." : "Marketplace SEO worker paused.",
+      );
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useProcessMarketplaceProductCountrySeoBatch() {
+  const client = useQueryClient();
+  const processBatch = useServerFn(processMarketplaceProductCountrySeoBatch);
+  return useMutation({
+    mutationFn: () => processBatch(),
+    onSuccess: (result) => {
+      void client.invalidateQueries({ queryKey: MARKETPLACE_PRODUCT_SEO_PROGRESS_KEY });
+      void client.invalidateQueries({ queryKey: MARKETPLACE_PRODUCT_SEO_WORKER_KEY });
+      if (result.apiConfigurationPending) {
+        toast.error(
+          "Pending API configuration. Configure Ollama Local or an approved Free text model in AI API Manager.",
+        );
+      } else if (result.claimed === 0 && !result.enabled) {
+        toast.success(result.pauseReason ?? "Marketplace SEO worker is paused.");
+      } else if (result.claimed === 0) {
+        toast.success("Marketplace SEO worker is already processing an item.");
+      } else {
+        toast.success(
+          `SEO item processed · ${result.completed} generated · ${result.failed} failed`,
+        );
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+}
+
+export function useRetryFailedMarketplaceProductCountrySeo() {
+  const client = useQueryClient();
+  const retry = useServerFn(retryFailedMarketplaceProductCountrySeo);
+  return useMutation({
+    mutationFn: () => retry(),
+    onSuccess: (result) => {
+      void client.invalidateQueries({ queryKey: MARKETPLACE_PRODUCT_SEO_PROGRESS_KEY });
+      toast.success(`${result.requeued.toLocaleString()} failed SEO item(s) queued for retry`);
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 }

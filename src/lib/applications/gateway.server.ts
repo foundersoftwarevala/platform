@@ -77,3 +77,15 @@ export async function isApplicationStaff(token: string): Promise<boolean> {
   const outcome = await rpcAs<boolean>(token, "application_staff", {});
   return outcome.ok && outcome.data === true;
 }
+
+/** Platform operators are the only people allowed to decide reseller applications. */
+export async function isApplicationBoss(token: string): Promise<boolean> {
+  const outcome = await rpcAs<boolean>(token, "application_boss", {});
+  return outcome.ok && outcome.data === true;
+}
+
+/** Reseller Managers may read the restricted application list, but cannot review it. */
+export async function isResellerApplicationReader(token: string): Promise<boolean> {
+  const outcome = await rpcAs<boolean>(token, "reseller_application_reader", {});
+  return outcome.ok && outcome.data === true;
+}

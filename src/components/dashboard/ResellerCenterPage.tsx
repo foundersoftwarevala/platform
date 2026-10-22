@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { ArrowLeft, ChevronRight, Inbox, Plus, Search } from "lucide-react";
 import { RESELLER_CENTERS, type CenterKey, type CenterFeature } from "@/lib/reseller-extras";
 import { ResellerReferralLinks } from "@/components/reseller/ResellerReferralLinks";
+import { ResellerSettingsSecurity } from "@/components/dashboard/ResellerSettingsSecurity";
 
 /** Coupon features: coupons are issued and managed by Software Vala, never by a reseller. */
 const COUPON_FEATURES = new Set(["gen", "analytics", "history"]);
@@ -171,6 +172,10 @@ function FeatureDetail({
 }) {
   const Icon = feature.icon;
   const [configOpen, setConfigOpen] = useState(false);
+  const connectedAccountFeature =
+    (centerKey === "settings" &&
+      ["profile", "company", "payment", "bank", "upi"].includes(feature.key)) ||
+    (centerKey === "security" && ["password", "2fa", "kyc"].includes(feature.key));
   return (
     <div className="rounded-3xl bg-card border border-border shadow-card overflow-hidden">
       <div className="p-6 md:p-8 border-b border-border grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
@@ -189,21 +194,22 @@ function FeatureDetail({
           </div>
         </div>
         {/* Coupons are the company's: a reseller has nothing to configure on them. */}
-        {!(centerKey === "referral" && COUPON_FEATURES.has(feature.key)) && (
-          // The configure form had nothing behind it (its Save stored
-          // nothing), so the button is disabled and says why.
-          <button
-            type="button"
-            onClick={() => setConfigOpen((v) => !v)}
-            aria-expanded={configOpen}
-            disabled
-            title={CONFIG_UNAVAILABLE}
-            aria-label={`Configure - ${CONFIG_UNAVAILABLE}`}
-            className="press-3d shrink-0 inline-flex items-center gap-2 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Plus className="h-3.5 w-3.5" /> {configOpen ? "Close" : "Configure"}
-          </button>
-        )}
+        {!connectedAccountFeature &&
+          !(centerKey === "referral" && COUPON_FEATURES.has(feature.key)) && (
+            // The configure form had nothing behind it (its Save stored
+            // nothing), so the button is disabled and says why.
+            <button
+              type="button"
+              onClick={() => setConfigOpen((v) => !v)}
+              aria-expanded={configOpen}
+              disabled
+              title={CONFIG_UNAVAILABLE}
+              aria-label={`Configure - ${CONFIG_UNAVAILABLE}`}
+              className="press-3d shrink-0 inline-flex items-center gap-2 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Plus className="h-3.5 w-3.5" /> {configOpen ? "Close" : "Configure"}
+            </button>
+          )}
       </div>
 
       {configOpen && (
@@ -253,7 +259,9 @@ function FeatureDetail({
         </form>
       )}
 
-      {centerKey === "referral" && feature.key === "link" ? (
+      {connectedAccountFeature ? (
+        <ResellerSettingsSecurity featureKey={feature.key} />
+      ) : centerKey === "referral" && feature.key === "link" ? (
         <ResellerReferralLinks />
       ) : (
         <div className="p-8 md:p-12 grid place-items-center text-center">

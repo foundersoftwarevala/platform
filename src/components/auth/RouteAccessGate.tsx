@@ -81,7 +81,7 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
   { prefix: "/ams", roles: ["developer", "support"], label: "AMS" },
   // Publishing a demo puts third-party software on the storefront under Software
   // Vala branding, so the pipeline behind these screens accepts only boss, admin,
-  // super_admin, owner and developer. The door used to admit support as well, so a
+  // super_admin and developer. The door used to admit support as well, so a
   // support user could open the console and be refused the moment they acted.
   // Aligned with the pipeline rather than widening it.
   { prefix: "/demo-manager", roles: [...DEMO_ROUTE_ROLES], label: "Demo Manager" },

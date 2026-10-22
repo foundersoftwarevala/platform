@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, TablesInsert } from "@/integrations/supabase/types";
+import { catalogueChanged } from "./catalogue-invalidation";
 import { logProductReview, productCreationReview, productReviewFields } from "./product-safety";
 
 /** The caller must authorize catalogue editing before calling this writer. */
@@ -23,5 +24,6 @@ export async function upsertReviewedProduct(
   if (error) throw new Error(error.message);
   if (!row?.id) throw new Error("Product write could not be verified");
   if (review) logProductReview(review, "catalogue upsert", row.id);
+  catalogueChanged();
   return row;
 }

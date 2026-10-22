@@ -96,7 +96,7 @@ beforeAll(() => {
     id: "u-owner",
     email: "owner@test.local",
     name: "owner@test.local",
-    role: "owner",
+    role: "boss",
   };
   operator = {
     id: "u-op",
@@ -160,8 +160,8 @@ describe("database", () => {
 
 describe("auth (Control Panel roles)", () => {
   it("maps platform roles onto Vala AI roles", () => {
-    expect(roleFromPlatform(["boss_owner"])).toBe("owner");
-    expect(roleFromPlatform(["super_admin", "developer"])).toBe("owner");
+    expect(roleFromPlatform(["boss_owner"])).toBe("boss");
+    expect(roleFromPlatform(["super_admin", "developer"])).toBe("boss");
     expect(roleFromPlatform(["developer"])).toBe("operator");
     expect(roleFromPlatform(["admin"])).toBe("operator");
     expect(roleFromPlatform(["finance"])).toBe("viewer");

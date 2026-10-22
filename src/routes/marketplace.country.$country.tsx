@@ -205,22 +205,24 @@ function CountryPage() {
 
       {seo.categories.length > 0 && (
         <section className="px-6 pb-8">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-white/50">
-            Categories covered in {seo.country}
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {seo.categories.map((category) => (
-              <Link
-                key={category.id}
-                to="/marketplace/category/$slug"
-                params={{ slug: category.slug }}
-                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/85 hover:bg-white/[0.08]"
-              >
-                {category.name}
-                <span className="ml-2 text-xs text-white/45">{category.productCount}</span>
-              </Link>
-            ))}
-          </div>
+          <details className="group rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <summary className="cursor-pointer list-none text-sm font-semibold text-white/75 marker:hidden">
+              Categories in {seo.country} ({seo.categories.length})
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {seo.categories.map((category) => (
+                <Link
+                  key={category.id}
+                  to="/marketplace/category/$slug"
+                  params={{ slug: category.slug }}
+                  className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/85 hover:bg-white/[0.08]"
+                >
+                  {category.name}
+                  <span className="ml-2 text-xs text-white/45">{category.productCount}</span>
+                </Link>
+              ))}
+            </div>
+          </details>
         </section>
       )}
 

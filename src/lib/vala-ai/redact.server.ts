@@ -27,7 +27,7 @@ function escapeRegExp(s: string) {
 }
 
 export function redactForRole<T>(value: T, role: Role | undefined): T {
-  if (role === "owner") return value;
+  if (role === "boss") return value;
   const dir = dataDir();
   const variants = [...new Set([dir, dir.replace(/\\/g, "/"), dir.replace(/\//g, "\\")])];
   const embedded = new RegExp(

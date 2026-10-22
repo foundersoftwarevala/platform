@@ -102,7 +102,7 @@ export const Route = createFileRoute("/api/payment/initiate")({
           return Response.json({ error: "That order can no longer be paid" }, { status: 409 });
         }
 
-        const orderTotal = Number(order.total ?? 0);
+        let orderTotal = Number(order.total ?? 0);
         if (!(orderTotal > 0)) {
           return Response.json({ error: "That order has no amount" }, { status: 409 });
         }
@@ -152,16 +152,56 @@ export const Route = createFileRoute("/api/payment/initiate")({
         // create a second transaction or get a different price; an attempt
         // PayU already answered as failed gets a fresh id, and the old one is
         // kept so a late answer for it can still be matched to this order.
-        const metadata = (order.metadata as Record<string, unknown> | null) ?? {};
+        let metadata = (order.metadata as Record<string, unknown> | null) ?? {};
+        let pricedOrderVersion: string | null = null;
         const previousTxnid = String(order.txnid ?? "");
         const previousFailed = Boolean(previousTxnid) && Boolean(order.payu_status) &&
           String(order.payu_status).toLowerCase() !== "success";
         const reuse = Boolean(previousTxnid) && !previousFailed && Number(order.amount_inr ?? 0) > 0;
+        const sessionKey = readCookie(request, REFERRAL_COOKIE);
+        const attribution = sessionKey ? await attributionForSession(sessionKey) : null;
         const attempts = Array.isArray(metadata.payu_attempts)
           ? (metadata.payu_attempts as PayuAttempt[])
           : [];
         if (previousFailed) {
           attempts.push({ txnid: previousTxnid, amount_inr: Number(order.amount_inr ?? 0) || null });
+        }
+
+        if (!reuse) {
+          const priced = await rest("rpc/marketplace_apply_reseller_discount", {
+            method: "POST",
+            body: JSON.stringify({
+              p_order_id: orderId,
+              p_buyer_id: user.id,
+              p_reseller_id: attribution?.resellerId ?? null,
+            }),
+          });
+          if (!priced.ok) {
+            await logPaymentEvent(orderId, "reseller_payment_pricing_failed", {
+              status: priced.status,
+            });
+            return Response.json(
+              { error: "The current reseller plan could not be verified. Please retry shortly." },
+              { status: 503 },
+            );
+          }
+          const price = (await priced.json()) as {
+            total?: number;
+            pricing?: Record<string, unknown>;
+            updated_at?: string;
+          };
+          const currentTotal = Number(price.total);
+          if (
+            !Number.isFinite(currentTotal) ||
+            currentTotal <= 0 ||
+            !price.pricing ||
+            typeof price.updated_at !== "string"
+          ) {
+            return Response.json({ error: "The current payment price is invalid." }, { status: 502 });
+          }
+          orderTotal = currentTotal;
+          pricedOrderVersion = price.updated_at;
+          metadata = { ...metadata, pricing: price.pricing };
         }
 
         // PayU settles in rupees. An order already priced in rupees needs no
@@ -212,8 +252,11 @@ export const Route = createFileRoute("/api/payment/initiate")({
         const sameAttempt = previousTxnid
           ? `&txnid=eq.${encodeURIComponent(previousTxnid)}`
           : "&txnid=is.null";
+        const samePrice = pricedOrderVersion
+          ? `&updated_at=eq.${encodeURIComponent(pricedOrderVersion)}`
+          : "";
         const started = await fetch(
-          `${url()}/rest/v1/marketplace_orders?id=eq.${encodeURIComponent(orderId)}&status=eq.pending_payment${sameAttempt}`,
+          `${url()}/rest/v1/marketplace_orders?id=eq.${encodeURIComponent(orderId)}&status=eq.pending_payment${sameAttempt}${samePrice}`,
           {
             method: "PATCH",
             headers: { ...admin(), Prefer: "return=representation" },
@@ -260,53 +303,54 @@ export const Route = createFileRoute("/api/payment/initiate")({
         // Nothing here may block a payment. An order that cannot be attributed
         // is simply an unattributed order, which is what every order is today.
         try {
-          const sessionKey = readCookie(request, REFERRAL_COOKIE);
-          if (sessionKey) {
-            const attribution = await attributionForSession(sessionKey);
-            if (attribution) {
-              let affiliateSelfReferral = false;
-              if (attribution.affiliatePartnerId) {
-                affiliateSelfReferral = await isAffiliateSelfReferral(
-                  attribution.affiliatePartnerId,
-                  user.id,
-                );
+          if (attribution) {
+            // An affiliate buying through their own link is recorded and
+            // flagged rather than quietly credited, so a person can decide.
+            let affiliateSelfReferral = false;
+            if (attribution.affiliatePartnerId) {
+              affiliateSelfReferral = await isAffiliateSelfReferral(
+                attribution.affiliatePartnerId,
+                user.id,
+              );
+            }
+            // The same for a reseller. The database already refuses the
+            // commission (reseller_commissions_for_order); the attribution is
+            // flagged here so the order shows why.
+            let resellerSelfReferral = false;
+            if (!affiliateSelfReferral && attribution.resellerId) {
+              const reseller = await rest(
+                `resellers?select=user_id&id=eq.${encodeURIComponent(attribution.resellerId)}&limit=1`,
+              );
+              if (reseller.ok) {
+                const rows = (await reseller.json()) as { user_id: string | null }[];
+                resellerSelfReferral = rows[0]?.user_id === user.id;
               }
-              let resellerSelfReferral = false;
-              if (!affiliateSelfReferral && attribution.resellerId) {
-                const reseller = await rest(
-                  `resellers?select=user_id&id=eq.${encodeURIComponent(attribution.resellerId)}&limit=1`,
-                );
-                if (reseller.ok) {
-                  const rows = (await reseller.json()) as { user_id: string | null }[];
-                  resellerSelfReferral = rows[0]?.user_id === user.id;
-                }
-              }
-              if (affiliateSelfReferral) {
-                await logPaymentEvent(orderId, "referral_attribution_blocked", {
-                  reason: "buyer owns the referring affiliate account",
-                  affiliate_partner_id: attribution.affiliatePartnerId,
-                });
-              } else {
-                const attributed = await attributeOrder(orderId, attribution, {
-                  buyer_id: user.id,
-                  order_total: orderTotal,
-                  currency: orderCurrency,
-                  self_referral: resellerSelfReferral,
-                  risk: resellerSelfReferral ? "REVIEW" : "NORMAL",
-                  risk_reason: resellerSelfReferral
-                    ? "buyer owns the referring reseller account"
-                    : null,
-                  stamped_at: "payment_initiate",
-                });
-                await logPaymentEvent(orderId, "referral_attributed", {
-                  created: attributed.created,
-                  reason: attributed.reason ?? null,
-                  affiliate_partner_id: attribution.affiliatePartnerId ?? null,
-                  influencer_profile_id: attribution.influencerProfileId ?? null,
-                  reseller_id: attribution.resellerId ?? null,
-                  self_referral: resellerSelfReferral,
-                });
-              }
+            }
+            if (affiliateSelfReferral) {
+              await logPaymentEvent(orderId, "referral_attribution_blocked", {
+                reason: "buyer owns the referring affiliate account",
+                affiliate_partner_id: attribution.affiliatePartnerId,
+              });
+            } else {
+              const attributed = await attributeOrder(orderId, attribution, {
+                buyer_id: user.id,
+                order_total: orderTotal,
+                currency: orderCurrency,
+                self_referral: resellerSelfReferral,
+                risk: resellerSelfReferral ? "REVIEW" : "NORMAL",
+                risk_reason: resellerSelfReferral
+                  ? "buyer owns the referring reseller account"
+                  : null,
+                stamped_at: "payment_initiate",
+              });
+              await logPaymentEvent(orderId, "referral_attributed", {
+                created: attributed.created,
+                reason: attributed.reason ?? null,
+                affiliate_partner_id: attribution.affiliatePartnerId ?? null,
+                influencer_profile_id: attribution.influencerProfileId ?? null,
+                reseller_id: attribution.resellerId ?? null,
+                self_referral: resellerSelfReferral,
+              });
             }
           }
         } catch (error) {

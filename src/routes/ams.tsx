@@ -1,6 +1,7 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 
 import { RequireRole } from "@/components/auth/RequireRole";
+import { AmsComingSoon } from "@/components/ams/shared/AmsComingSoon";
 import { AppShell } from "@/components/layout/AppShell";
 import { RouteHistoryPanel, RouteHistoryProvider } from "@/components/layout/RouteHistory";
 import { Toaster } from "@/components/ui/sonner";
@@ -50,6 +51,11 @@ export const Route = createFileRoute("/ams")({
 });
 
 function AmsManagerLayout() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isStaticCollectionPreview =
+    /\/ams\/[^/]+-vault\/?$/.test(pathname) ||
+    /^\/ams\/museum(?:\/|$)/.test(pathname);
+
   return (
     <RequireRole role={["developer", "support"]}>
       <TooltipProvider delayDuration={250}>
@@ -57,7 +63,7 @@ function AmsManagerLayout() {
           {/* Celebrations come from the one provider at the root; a second one
               here gave AMS Manager its own queue and its own sound switch. */}
           <AppShell>
-            <Outlet />
+            {isStaticCollectionPreview ? <AmsComingSoon /> : <Outlet />}
           </AppShell>
           <RouteHistoryPanel />
           <Toaster richColors position="bottom-right" />

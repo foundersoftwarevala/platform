@@ -39,7 +39,7 @@ export const loadManagerRecordsFn = createServerFn({ method: "POST" })
         device: "Control Panel",
         since: person.last_seen_at,
         access: "Managed by the Control Panel",
-        deploy: person.role === "owner",
+        deploy: person.role === "boss",
       }));
       if (!rows.length)
         rows = [

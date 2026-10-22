@@ -16,13 +16,14 @@ import { config as commission } from "./walls/commission";
 import { config as kyc } from "./walls/kyc";
 import { config as licenses } from "./walls/licenses";
 import { config as notifications } from "./walls/notifications";
-import { config as reports } from "./walls/reports";
+import { ResellerReports } from "@/components/reseller/ResellerReports";
 import { config as subscriptions } from "./walls/subscriptions";
 import { config as support } from "./walls/support";
 import { config as wallet } from "./walls/wallet";
 import { customersConfig, ordersConfig, productsConfig } from "./walls/core";
 import { resellerGroups } from "./navigation";
 import { ResellerManager } from "@/components/marketplace-manager/sections/ResellerManager";
+import { ResellerApplicationsQueue } from "@/components/applications/RoleApplicationsQueue";
 
 const fmt = (amount: number, currency: string) =>
   `${currency === "USD" ? "$" : `${currency} `}${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -123,7 +124,7 @@ const explicit: Record<string, SectionEntry> = {
   // screen used to be a list kept in the browser.
   Resellers: ResellerManager,
   "Reseller Directory": ResellerManager,
-  Applications: ResellerManager,
+  Applications: ResellerApplicationsQueue,
   Approvals: ResellerManager,
   Customers: customersConfig,
   Orders: ordersConfig,
@@ -144,8 +145,8 @@ const explicit: Record<string, SectionEntry> = {
   Notifications: notifications,
   "Support Desk": support,
   Tickets: support,
-  Reports: reports,
-  "Manager Reports": reports,
+  Reports: ResellerReports,
+  "Manager Reports": ResellerReports,
   License: licenses,
 };
 

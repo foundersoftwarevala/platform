@@ -14,6 +14,7 @@ const BUILT_IN_PROVIDER_HOSTS = new Set([
   "oauth.reddit.com",
   "open.tiktokapis.com",
   "openapi.naver.com",
+  "openrouter.ai",
   "searchconsole.googleapis.com",
   "ssl.bing.com",
   "www.googleapis.com",

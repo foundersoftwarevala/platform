@@ -1,21 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, CheckCircle, ArrowUpRight, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { smQuery, smMutate } from '@/lib/sm-data';
+import { smQuery } from '@/lib/sm-data';
 import { PageHeader } from '../layout/PageShell';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 
 interface Incident {
   id: string;
@@ -43,8 +33,6 @@ const formatRelative = (iso: string) => {
 const SMIncidents = () => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -89,92 +77,18 @@ const SMIncidents = () => {
     void loadData();
   }, [loadData]);
 
-  const logAudit = async (action: string, details: string, incident: Incident) => {
-    await smMutate('audit log entry', () =>
-      supabase.from('server_audit_logs').insert({
-        action,
-        actor: 'Server Manager',
-        details,
-        result: 'Success',
-        risk_level: incident.severity === 'critical' ? 'high' : 'medium',
-        server_id: incident.server_id,
-      }),
-    );
-  };
-
-  const acknowledge = async (incident: Incident) => {
-    setBusyId(incident.id);
-    const ok = await smMutate(
-      'acknowledge incident',
-      () =>
-        supabase
-          .from('server_incidents')
-          .update({ status: 'acknowledged' })
-          .eq('id', incident.id),
-      `${incident.incident_code} acknowledged`,
-    );
-    if (ok) {
-      await logAudit('Incident Acknowledged', `${incident.incident_code} acknowledged`, incident);
-      await loadData();
-    }
-    setBusyId(null);
-  };
-
-  const escalate = async (incident: Incident) => {
-    setBusyId(incident.id);
-    const ok = await smMutate(
-      'escalate incident',
-      () =>
-        supabase
-          .from('server_incidents')
-          .update({ status: 'in_progress' })
-          .eq('id', incident.id),
-      `${incident.incident_code} escalated`,
-    );
-    if (ok) {
-      await logAudit('Incident Escalated', `${incident.incident_code} escalated to Super Admin`, incident);
-      await loadData();
-    }
-    setBusyId(null);
-  };
-
-  const resolveCritical = async (incident: Incident) => {
-    setBusyId(incident.id);
-    const ok = await smMutate(
-      'resolve incident',
-      () =>
-        supabase
-          .from('server_incidents')
-          .update({
-            status: 'resolved',
-            resolved_at: new Date().toISOString(),
-            resolution_notes: 'Approved and resolved via Server Manager',
-          })
-          .eq('id', incident.id),
-      `${incident.incident_code} resolved`,
-    );
-    if (ok) {
-      await logAudit('Critical Incident Resolved', `${incident.incident_code} resolved with approval`, incident);
-      await loadData();
-    }
-    setBusyId(null);
-    setConfirmId(null);
-  };
-
   const counts = {
-    critical: incidents.filter((i) => i.severity === 'critical').length,
-    warning: incidents.filter((i) => i.severity === 'warning').length,
-    info: incidents.filter((i) => i.severity === 'info').length,
+    critical: loading || loadError ? null : incidents.filter((i) => i.severity === 'critical').length,
+    warning: loading || loadError ? null : incidents.filter((i) => i.severity === 'warning').length,
+    info: loading || loadError ? null : incidents.filter((i) => i.severity === 'info').length,
     resolvedToday: incidents.filter(
       (i) => i.status === 'resolved' && i.resolved_at && new Date(i.resolved_at).toDateString() === new Date().toDateString(),
     ).length,
   };
 
-  const confirmIncident = incidents.find((i) => i.id === confirmId) ?? null;
-
   return (
     <div className="space-y-6">
-      <PageHeader title="Alerts & Incidents" subtitle="Triage, escalate, and resolve infrastructure incidents" />
+      <PageHeader title="Alerts & Incidents" subtitle="Recorded incidents. Alert delivery and response actions are unavailable until their integrations are connected." />
 
       {loadError && (
         <div className="flex items-center justify-between gap-4 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
@@ -190,25 +104,25 @@ const SMIncidents = () => {
         <Card className="bento-card premium-halo hover-lift !p-0">
           <CardContent className="p-4">
             <p className="text-sm text-destructive">Critical</p>
-            <p className="text-2xl font-bold text-destructive">{counts.critical}</p>
+            <p className="text-2xl font-bold text-destructive">{counts.critical ?? '—'}</p>
           </CardContent>
         </Card>
         <Card className="bento-card premium-halo hover-lift !p-0">
           <CardContent className="p-4">
             <p className="text-sm text-accent-amber">Warning</p>
-            <p className="text-2xl font-bold text-accent-amber">{counts.warning}</p>
+            <p className="text-2xl font-bold text-accent-amber">{counts.warning ?? '—'}</p>
           </CardContent>
         </Card>
         <Card className="bento-card premium-halo hover-lift !p-0">
           <CardContent className="p-4">
             <p className="text-sm text-primary">Info</p>
-            <p className="text-2xl font-bold text-primary">{counts.info}</p>
+            <p className="text-2xl font-bold text-primary">{counts.info ?? '—'}</p>
           </CardContent>
         </Card>
         <Card className="bento-card premium-halo hover-lift !p-0">
           <CardContent className="p-4">
             <p className="text-sm text-accent-emerald">Resolved Today</p>
-            <p className="text-2xl font-bold text-accent-emerald">{counts.resolvedToday}</p>
+            <p className="text-2xl font-bold text-accent-emerald">{loading || loadError ? '—' : counts.resolvedToday}</p>
           </CardContent>
         </Card>
       </div>
@@ -223,20 +137,26 @@ const SMIncidents = () => {
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Severity</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Affected</th>
               <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Status</th>
-              <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
                   <Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading incidents...
                 </td>
               </tr>
             )}
-            {!loading && incidents.length === 0 && (
+            {!loading && loadError && (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
+                  Incident data is unavailable.
+                </td>
+              </tr>
+            )}
+            {!loading && !loadError && incidents.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
                   No incidents recorded.
                 </td>
               </tr>
@@ -273,53 +193,6 @@ const SMIncidents = () => {
                       {incident.status.replace('_', ' ')}
                     </Badge>
                   </td>
-                  <td className="px-6 py-4">
-                    {incident.status !== 'resolved' && (
-                      <div className="flex gap-2">
-                        {incident.status === 'open' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs"
-                            disabled={busyId === incident.id}
-                            onClick={() => void acknowledge(incident)}
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Acknowledge
-                          </Button>
-                        )}
-                        {incident.status !== 'in_progress' ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs"
-                            disabled={busyId === incident.id}
-                            onClick={() => void escalate(incident)}
-                          >
-                            <ArrowUpRight className="w-3 h-3 mr-1" />
-                            Escalate
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs border-accent-emerald/40 text-accent-emerald"
-                            disabled={busyId === incident.id}
-                            onClick={() => {
-                              if (incident.severity === 'critical') {
-                                setConfirmId(incident.id);
-                              } else {
-                                void resolveCritical(incident);
-                              }
-                            }}
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Resolve
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </td>
                 </tr>
               ))}
           </tbody>
@@ -327,28 +200,8 @@ const SMIncidents = () => {
       </Card>
 
       <p className="text-xs text-muted-foreground flex items-center gap-1">
-        <AlertTriangle className="w-3 h-3" /> Critical incident resolution requires approval
+        <AlertTriangle className="w-3 h-3" /> Incident records are read-only here; notification delivery and audited response workflows are not connected.
       </p>
-
-      <AlertDialog open={!!confirmId} onOpenChange={(open) => !open && setConfirmId(null)}>
-        <AlertDialogContent className="bg-card border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-foreground">Approve critical incident resolution?</AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground">
-              {confirmIncident ? `${confirmIncident.incident_code} is a critical incident. Resolving it requires explicit approval and will be recorded in the audit log.` : ''}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => confirmIncident && void resolveCritical(confirmIncident)}
-            >
-              Approve & Resolve
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

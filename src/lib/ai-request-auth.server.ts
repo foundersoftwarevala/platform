@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { userFromBearerToken } from "@/lib/auth/bearer-user.server";
 
-const AI_CALLER_ROLES = ["admin", "boss", "developer", "seo", "marketing"] as const;
+const AI_CALLER_ROLES = ["admin", "boss", "boss_owner", "developer", "seo", "marketing"] as const;
 
 function tokenFromRequest(): string {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");

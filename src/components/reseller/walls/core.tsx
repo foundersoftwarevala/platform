@@ -61,6 +61,16 @@ export const customersConfig: WallConfig = {
   ],
   formFields: [
     { key: "contact_name", label: "Customer Name", type: "text", required: true },
+    {
+      key: "reseller_id",
+      label: "Assigned reseller",
+      type: "resource-select",
+      optionsResource: "resellers",
+      optionValue: "id",
+      optionLabel: "name",
+      required: true,
+      createOnly: true,
+    },
     { key: "company_name", label: "Company", type: "text" },
     { key: "email", label: "Email", type: "email" },
     { key: "phone", label: "Phone", type: "text" },

@@ -53,7 +53,15 @@ function admin() {
   return { apikey: key, Authorization: `Bearer ${key}` };
 }
 
-const PUBLISHED = "&visible=eq.true&content_status=eq.published";
+function publishedProductFilters(now = new Date().toISOString()): string {
+  const filters = new URLSearchParams({
+    moderation_status: "eq.approved",
+    visible: "eq.true",
+    content_status: "eq.published",
+    and: `(or(publish_at.is.null,publish_at.lte.${now}),or(unpublish_at.is.null,unpublish_at.gt.${now}))`,
+  });
+  return `&${filters.toString()}`;
+}
 
 /**
  * The manager's row configuration - which rows exist, whether each is live,
@@ -141,7 +149,7 @@ async function categoryOrder(categoryId: string): Promise<string[] | null> {
     const ids: string[] = [];
     for (let offset = 0; ; offset += 1000) {
       const response = await fetch(
-        `${url()}/rest/v1/marketplace_products?select=id${PUBLISHED}` +
+        `${url()}/rest/v1/marketplace_products?select=id${publishedProductFilters()}` +
           `&category_id=eq.${encodeURIComponent(categoryId)}` +
           `&order=sort_order.asc,name.asc,id.asc&limit=1000&offset=${offset}`,
         { headers: admin() },
@@ -213,7 +221,7 @@ async function cardsById(ids: string[]): Promise<CatalogCard[] | null> {
   for (let offset = 0; offset < ids.length; offset += 50) {
     const batch = ids.slice(offset, offset + 50);
     const response = await fetch(
-      `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}${PUBLISHED}&id=in.(${batch.join(",")})`,
+      `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}${publishedProductFilters()}&id=in.(${batch.join(",")})`,
       { headers: admin() },
     );
     if (!response.ok) {

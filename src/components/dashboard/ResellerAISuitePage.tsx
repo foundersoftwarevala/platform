@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { useServerFn } from "@/lib/serverFn";
+import { generateResellerAi, type ResellerAiTool } from "@/lib/reseller-dashboard.functions";
 import {
-  ArrowLeft, Brain, Sparkles, Lock,
+  ArrowLeft, Brain, Sparkles, Loader2,
   Bot, Gauge, FileText, Mail, MessageCircle, Repeat2, RotateCcw, TrendingUp,
 } from "lucide-react";
 
 type Tool = {
-  key: string;
+  key: ResellerAiTool;
   title: string;
   desc: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -37,12 +39,9 @@ export function ResellerAISuitePage({ onBack }: { onBack: () => void }) {
           <div className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-[oklch(0.75_0.18_300)]" />
             <h2 className="text-lg font-bold tracking-tight">Reseller AI Suite</h2>
-            <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning border border-warning/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
-              <Lock className="h-3 w-3" /> UI preview
-            </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Production-grade AI workspace for resellers. Model execution will be wired in a later backend phase.
+            AI tools for sales, lead qualification and customer communication.
           </p>
         </div>
       </header>
@@ -75,9 +74,25 @@ export function ResellerAISuitePage({ onBack }: { onBack: () => void }) {
 }
 
 function ToolDialog({ tool, onClose }: { tool: Tool; onClose: () => void }) {
+  const generate = useServerFn(generateResellerAi);
   const [input, setInput] = useState("");
-  const [status, setStatus] = useState<"idle" | "preview">("idle");
+  const [output, setOutput] = useState<{ text: string; model: string | null } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const Icon = tool.icon;
+  async function run() {
+    if (!input.trim() || isGenerating) return;
+    setIsGenerating(true);
+    setOutput(null);
+    setError(null);
+    try {
+      setOutput(await generate({ data: { tool: tool.key, input: input.trim() } }));
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "The AI request could not be completed.");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="w-full max-w-2xl rounded-2xl border border-border bg-popover shadow-2xl overflow-hidden animate-scale-in origin-center" onClick={(e) => e.stopPropagation()}>
@@ -89,9 +104,6 @@ function ToolDialog({ tool, onClose }: { tool: Tool; onClose: () => void }) {
             <div className="text-sm font-semibold">{tool.title}</div>
             <div className="text-[11px] text-muted-foreground">{tool.desc}</div>
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning border border-warning/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
-            <Lock className="h-3 w-3" /> UI only
-          </span>
         </div>
 
         <div className="p-4 space-y-4">
@@ -99,28 +111,37 @@ function ToolDialog({ tool, onClose }: { tool: Tool; onClose: () => void }) {
             <label className="text-[11px] uppercase tracking-wider text-muted-foreground">{tool.inputLabel}</label>
             <textarea
               value={input}
-              onChange={(e) => { setInput(e.target.value); setStatus("idle"); }}
+              onChange={(e) => { setInput(e.target.value); setOutput(null); setError(null); }}
               placeholder={tool.placeholder}
               rows={4}
               className="mt-1 w-full rounded-lg bg-surface border border-border p-3 text-sm outline-none focus:ring-2 focus:ring-ring resize-none"
             />
           </div>
 
-          {status === "idle" ? (
+          {isGenerating ? (
+            <div className="rounded-xl border border-border bg-surface/40 p-6 text-center" role="status">
+              <Loader2 className="mx-auto h-6 w-6 animate-spin text-brand" />
+              <div className="mt-2 text-sm font-medium">Generating with AI…</div>
+              <div className="text-[11px] text-muted-foreground">Using an available local or free AI provider.</div>
+            </div>
+          ) : error ? (
+            <div className="rounded-xl border border-danger/30 bg-danger/5 p-4" role="alert">
+              <div className="text-xs font-semibold text-danger">Generation failed</div>
+              <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{error}</p>
+            </div>
+          ) : output ? (
+            <div className="rounded-xl border border-border bg-surface p-4" aria-live="polite">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold">
+                <Sparkles className="h-3.5 w-3.5 text-brand" /> AI-generated result
+              </div>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{output.text}</p>
+              {output.model && <div className="mt-3 text-[10px] text-muted-foreground">Model: {output.model}</div>}
+            </div>
+          ) : (
             <div className="rounded-xl border border-dashed border-border bg-surface/40 p-6 text-center">
               <Sparkles className="mx-auto h-6 w-6 text-muted-foreground" />
               <div className="mt-2 text-sm font-medium">AI output appears here</div>
-              <div className="text-[11px] text-muted-foreground">Provide input and tap Generate.</div>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-warning/30 bg-warning/5 p-4">
-              <div className="flex items-center gap-2 text-warning text-xs font-semibold">
-                <Lock className="h-3.5 w-3.5" /> Backend not connected
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                This is the production UI for this AI tool. The model call will be wired in
-                a later backend phase — no LLMs are invoked from this preview.
-              </p>
+              <div className="text-[11px] text-muted-foreground">Enter your information and select Generate.</div>
             </div>
           )}
         </div>
@@ -130,12 +151,12 @@ function ToolDialog({ tool, onClose }: { tool: Tool; onClose: () => void }) {
             Close
           </button>
           <button
-            onClick={() => { if (input.trim()) setStatus("preview"); }}
-            disabled={!input.trim()}
+            onClick={() => void run()}
+            disabled={!input.trim() || isGenerating}
             className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-brand px-3 py-2 text-xs font-semibold text-brand-foreground shadow-glow hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
-            <Sparkles className="h-3.5 w-3.5" />
-            Generate
+            {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {isGenerating ? "Generating…" : output ? "Generate again" : "Generate"}
           </button>
         </div>
       </div>

@@ -7,14 +7,55 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * stand-in; the handler itself is the real one.
  */
 
+const pricingState = vi.hoisted(() => ({
+  order: null as Record<string, unknown> | null,
+  discountPercent: 0,
+  resellerId: null as string | null,
+  version: 0,
+}));
+
 vi.mock("@/lib/commerce/fulfilment", () => ({ logPaymentEvent: vi.fn(async () => undefined) }));
 vi.mock("@/lib/i18n/server-translate.server", () => ({ languageOf: () => "en" }));
 vi.mock("@/lib/affiliate/core", () => ({
   REFERRAL_COOKIE: "sv_ref",
-  readCookie: () => null,
-  attributionForSession: vi.fn(),
+  readCookie: vi.fn(() => pricingState.resellerId ? "session-key" : null),
+  attributionForSession: vi.fn(async () =>
+    pricingState.resellerId ? { resellerId: pricingState.resellerId } : null),
   attributeOrder: vi.fn(),
-  rest: vi.fn(),
+  rest: vi.fn(async (path: string, init?: RequestInit) => {
+    if (path === "rpc/marketplace_apply_reseller_discount") {
+      const body = JSON.parse(String(init?.body)) as { p_reseller_id: string | null };
+      const subtotal = Number(pricingState.order?.subtotal ?? pricingState.order?.total ?? 0);
+      const percent = body.p_reseller_id ? pricingState.discountPercent : 0;
+      const discount = Math.round(subtotal * percent) / 100;
+      const total = subtotal - discount;
+      const pricing = {
+        eligible: percent > 0,
+        percent,
+        reseller_id: percent > 0 ? body.p_reseller_id : null,
+        plan_name: percent > 0 ? "Professional" : undefined,
+        reason: percent > 0 ? "active_membership" : "no_active_membership",
+      };
+      if (pricingState.order) {
+        pricingState.version += 1;
+        const updatedAt = `2026-10-19T12:00:${String(pricingState.version).padStart(2, "0")}.000Z`;
+        pricingState.order.updated_at = updatedAt;
+        pricingState.order.total = total;
+        pricingState.order.discount_total = discount;
+        pricingState.order.metadata = {
+          ...((pricingState.order.metadata as Record<string, unknown> | undefined) ?? {}),
+          pricing,
+        };
+        return new Response(JSON.stringify({ total, pricing, updated_at: updatedAt }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ total, pricing }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response("[]", { headers: { "Content-Type": "application/json" } });
+  }),
 }));
 
 const { Route } = await import("@/routes/api/payment/initiate");
@@ -41,9 +82,14 @@ beforeEach(() => {
     FX_API_URL: "http://fx.test/?amount={AMOUNT}",
   });
   order = {
-    id: "o1", buyer_id: "u1", user_id: null, status: "pending_payment", total: 249, currency: "USD",
+    id: "o1", buyer_id: "u1", user_id: null, status: "pending_payment", subtotal: 249,
+    discount_total: 0, total: 249, currency: "USD",
     txnid: null, amount_inr: null, fx_rate: null, payu_status: null, metadata: {},
   };
+  pricingState.order = order;
+  pricingState.discountPercent = 0;
+  pricingState.resellerId = null;
+  pricingState.version = 0;
   intents = [{ id: "i1", order_id: "o1", status: "pending" }];
   fxCalls = 0;
   lines = [{ product_name: "School ERP", currency: "USD" }];
@@ -75,6 +121,8 @@ beforeEach(() => {
         const wantTxn = url.searchParams.get("txnid");
         if (wantTxn === "is.null" && order.txnid != null) return json([]);
         if (wantTxn?.startsWith("eq.") && order.txnid !== wantTxn.slice(3)) return json([]);
+        const wantPriceVersion = url.searchParams.get("updated_at");
+        if (wantPriceVersion?.startsWith("eq.") && order.updated_at !== wantPriceVersion.slice(3)) return json([]);
         Object.assign(order, JSON.parse(String(init?.body)));
         return json([order]);
       }
@@ -127,6 +175,7 @@ describe("starting a payment", () => {
 
   it("charges a rupee order as it is, without a rate lookup", async () => {
     order.currency = "INR";
+    order.subtotal = 4999;
     order.total = 4999;
     lines = [{ product_name: "School ERP", currency: "INR" }];
     const body = (await (await start()).json()) as { fields: Record<string, string> };
@@ -156,6 +205,7 @@ describe("starting a payment", () => {
 
   it("charges a rupee order the same amount again on a retry", async () => {
     order.currency = "INR";
+    order.subtotal = 4999;
     order.total = 4999;
     lines = [{ product_name: "School ERP", currency: "INR" }];
     const first = (await (await start()).json()) as { fields: Record<string, string> };
@@ -199,6 +249,32 @@ describe("starting a payment", () => {
     expect(retry.fields).toMatchObject({ txnid: first.fields.txnid, amount: first.fields.amount });
   });
 
+  it("uses the referred reseller's active plan discount when payment starts", async () => {
+    pricingState.resellerId = "r1";
+    pricingState.discountPercent = 30;
+    const response = await start();
+    const body = (await response.json()) as { fields: Record<string, string> };
+    expect(body.fields.amount).toBe("14466.90");
+    expect(order).toMatchObject({ subtotal: 249, discount_total: 74.7, total: 174.3 });
+    expect((order.metadata as { pricing: { plan_name: string; percent: number } }).pricing)
+      .toMatchObject({ plan_name: "Professional", percent: 30 });
+  });
+
+  it("removes the discount on a fresh attempt after the membership expires", async () => {
+    pricingState.resellerId = "r1";
+    pricingState.discountPercent = 30;
+    const first = (await (await start()).json()) as { fields: Record<string, string> };
+    expect(first.fields.amount).toBe("14466.90");
+
+    order.payu_status = "failure";
+    pricingState.discountPercent = 0;
+    const next = (await (await start()).json()) as { fields: Record<string, string> };
+    expect(next.fields.txnid).not.toBe(first.fields.txnid);
+    expect(next.fields.amount).toBe("20667.00");
+    expect(order).toMatchObject({ discount_total: 0, total: 249 });
+    expect((order.metadata as { pricing: { percent: number } }).pricing.percent).toBe(0);
+  });
+
   it("refuses someone else's order", async () => {
     order.buyer_id = "someone-else";
     expect((await start()).status).toBe(403);
@@ -208,12 +284,20 @@ describe("starting a payment", () => {
 describe("crediting the referrer when the payment starts", () => {
   async function attributedWith(resellerOwner: string | null) {
     const core = await import("@/lib/affiliate/core");
-    (core as unknown as { readCookie: unknown }).readCookie = () => "session-key";
+    pricingState.resellerId = "r1";
     vi.mocked(core.attributionForSession).mockResolvedValue({ resellerId: "r1" } as never);
-    vi.mocked(core.rest).mockResolvedValue(json([{ user_id: resellerOwner }]) as never);
+    vi.mocked(core.rest).mockImplementation(async (path: string) =>
+      path === "rpc/marketplace_apply_reseller_discount"
+        ? json({
+            total: 249,
+            pricing: { eligible: false, percent: 0, reason: "no_active_membership" },
+            updated_at: "2026-10-19T12:00:01.000Z",
+          })
+        : json([{ user_id: resellerOwner }]) as never);
+    order.updated_at = "2026-10-19T12:00:01.000Z";
     vi.mocked(core.attributeOrder).mockClear().mockResolvedValue({ created: true } as never);
     expect((await start()).status).toBe(200);
-    (core as unknown as { readCookie: unknown }).readCookie = () => null;
+    pricingState.resellerId = null;
     return vi.mocked(core.attributeOrder).mock.calls[0]?.[2] as Record<string, unknown>;
   }
 

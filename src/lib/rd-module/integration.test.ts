@@ -12,7 +12,7 @@ describe("R&D Control Panel authorization", () => {
     caller.mockRejectedValue(new Error("Please sign in."));
     await expect(requireRdOperator()).rejects.toThrow("Please sign in");
   });
-  it.each(["boss", "boss_owner", "admin", "super_admin", "founder", "owner"])(
+  it.each(["boss", "boss_owner", "admin", "super_admin", "founder"])(
     "accepts %s",
     async (role) => {
       caller.mockResolvedValue({

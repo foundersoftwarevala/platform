@@ -22,25 +22,25 @@ const REPORT_TYPES = [
 const RANGE_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90 };
 
 interface HealthReport {
-  overallHealth: number;
-  avgResponseTime: number;
-  avgErrorRate: number;
+  overallHealth: number | null;
+  avgResponseTime: number | null;
+  avgErrorRate: number | null;
   serverCount: number;
-  slaRows: { service: string; target: number; actual: number; compliant: boolean }[];
+  slaRows: { service: string; target: number; actual: number | null; compliant: boolean | null }[];
 }
 
 interface IncidentReport {
   totalIncidents: number;
   resolved: number;
-  avgMttr: number;
+  avgMttr: number | null;
   bySeverity: Record<string, number>;
 }
 
 interface CostReport {
-  totalMonthlyCost: number;
-  avgCostPerServer: number;
+  totalMonthlyCost: number | null;
+  avgCostPerServer: number | null;
   totalCapacityGb: number;
-  usedDiskPercent: number;
+  usedDiskPercent: number | null;
   topServers: { name: string; cost: number }[];
 }
 
@@ -57,6 +57,10 @@ const SMReports = () => {
   const generateReport = useCallback(async () => {
     setGenerating(true);
     setLoadError(null);
+    setGeneratedAt(null);
+    setHealthReport(null);
+    setIncidentReport(null);
+    setCostReport(null);
     const days = RANGE_DAYS[range] ?? 30;
     const since = new Date(Date.now() - days * 86_400_000).toISOString();
 
@@ -65,7 +69,7 @@ const SMReports = () => {
       const servers = await smQuery('infrastructure health data', () =>
         supabase
           .from('server_instances')
-          .select('health_score, response_time_ms, error_rate, uptime_percent, sla_percent, server_name')
+          .select('sla_percent, server_name')
           .neq('status', 'decommissioned'),
       );
       if (servers === null) {
@@ -73,18 +77,16 @@ const SMReports = () => {
         return;
       }
       const rows = servers ?? [];
-      const avg = (fn: (r: (typeof rows)[number]) => number) =>
-        rows.length ? rows.reduce((a, r) => a + Number(fn(r) || 0), 0) / rows.length : 0;
       setHealthReport({
-        overallHealth: avg((r) => r.health_score),
-        avgResponseTime: avg((r) => r.response_time_ms),
-        avgErrorRate: avg((r) => r.error_rate),
+        overallHealth: null,
+        avgResponseTime: null,
+        avgErrorRate: null,
         serverCount: rows.length,
         slaRows: rows.slice(0, 6).map((r) => ({
           service: r.server_name,
-          target: Number(r.sla_percent || 99.9),
-          actual: Number(r.uptime_percent || 0),
-          compliant: Number(r.uptime_percent || 0) >= Number(r.sla_percent || 99.9),
+          target: Number(r.sla_percent),
+          actual: null,
+          compliant: null,
         })),
       });
     } else if (reportType === 'incidents') {
@@ -108,14 +110,14 @@ const SMReports = () => {
       setIncidentReport({
         totalIncidents: rows.length,
         resolved,
-        avgMttr: mttrVals.length ? Math.round(mttrVals.reduce((a, b) => a + b, 0) / mttrVals.length) : 0,
+        avgMttr: mttrVals.length ? Math.round(mttrVals.reduce((a, b) => a + b, 0) / mttrVals.length) : null,
         bySeverity,
       });
     } else {
       const servers = await smQuery('cost & capacity data', () =>
         supabase
           .from('server_instances')
-          .select('server_name, monthly_cost, storage_gb, disk_usage')
+          .select('storage_gb')
           .neq('status', 'decommissioned'),
       );
       if (servers === null) {
@@ -123,18 +125,13 @@ const SMReports = () => {
         return;
       }
       const rows = servers ?? [];
-      const totalCost = rows.reduce((a, r) => a + Number(r.monthly_cost || 0), 0);
       const totalCapacity = rows.reduce((a, r) => a + Number(r.storage_gb || 0), 0);
-      const avgDiskUsage = rows.length ? rows.reduce((a, r) => a + Number(r.disk_usage || 0), 0) / rows.length : 0;
       setCostReport({
-        totalMonthlyCost: totalCost,
-        avgCostPerServer: rows.length ? totalCost / rows.length : 0,
+        totalMonthlyCost: null,
+        avgCostPerServer: null,
         totalCapacityGb: totalCapacity,
-        usedDiskPercent: avgDiskUsage,
-        topServers: [...rows]
-          .sort((a, b) => Number(b.monthly_cost || 0) - Number(a.monthly_cost || 0))
-          .slice(0, 5)
-          .map((r) => ({ name: r.server_name, cost: Number(r.monthly_cost || 0) })),
+        usedDiskPercent: null,
+        topServers: [],
       });
     }
 
@@ -148,7 +145,7 @@ const SMReports = () => {
     <div className="space-y-6">
       <PageHeader
         title="Reports"
-        subtitle="Generate live reports from real infrastructure data"
+        subtitle="Review recorded incidents and profile data; agent metrics and subscription costs are unavailable"
         action={
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Lock className="w-3 h-3" />
@@ -201,7 +198,9 @@ const SMReports = () => {
       </div>
 
       {generatedAt && (
-        <p className="text-xs text-muted-foreground">Report generated at {generatedAt} from live data.</p>
+        <p className="text-xs text-muted-foreground">
+          Report generated at {generatedAt}. Health and usage metrics await agent telemetry; cost data awaits subscription records.
+        </p>
       )}
 
       {/* Health Report */}
@@ -213,28 +212,28 @@ const SMReports = () => {
               <div className="grid grid-cols-4 gap-4">
                 <div className="bento-card !p-4">
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Overall Health</p>
-                  <p className="text-xl font-bold">{healthReport.overallHealth.toFixed(1)}%</p>
+                  <p className="text-xl font-bold text-muted-foreground">{healthReport.overallHealth?.toFixed(1) ?? '—'}</p>
                 </div>
                 <div className="bento-card !p-4">
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Avg Response Time</p>
-                  <p className="text-xl font-bold">{Math.round(healthReport.avgResponseTime)}ms</p>
+                  <p className="text-xl font-bold text-muted-foreground">{healthReport.avgResponseTime == null ? '—' : `${Math.round(healthReport.avgResponseTime)}ms`}</p>
                 </div>
                 <div className="bento-card !p-4">
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Error Rate</p>
-                  <p className="text-xl font-bold">{healthReport.avgErrorRate.toFixed(2)}%</p>
+                  <p className="text-xl font-bold text-muted-foreground">{healthReport.avgErrorRate?.toFixed(2) ?? '—'}</p>
                 </div>
                 <div className="bento-card !p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Servers Analyzed</p>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Servers in Scope</p>
                   <p className="text-xl font-bold">{healthReport.serverCount}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bento-card !p-0 overflow-hidden">
+          <Card className="bento-card !p-0 overflow-x-auto">
             <CardHeader><CardTitle className="text-sm font-semibold tracking-tight">SLA Compliance Report</CardTitle></CardHeader>
             <CardContent className="p-0">
-              <table className="w-full">
+              <table className="w-full min-w-[850px]">
                 <thead>
                   <tr className="border-b border-border bg-surface/60 text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="text-left px-6 py-3 font-medium">Server</th>
@@ -250,13 +249,11 @@ const SMReports = () => {
                     <tr key={item.service} className="border-b border-border/60 hover:bg-white/[0.03] transition-colors">
                       <td className="px-6 py-4 font-medium text-foreground">{item.service}</td>
                       <td className="px-6 py-4 text-muted-foreground">{item.target.toFixed(2)}%</td>
+                      <td className="px-6 py-4 text-muted-foreground">{item.actual?.toFixed(2) ?? '—'}</td>
                       <td className="px-6 py-4">
-                        <span className={item.compliant ? 'text-accent-emerald font-semibold' : 'text-destructive font-semibold'}>
-                          {item.actual.toFixed(2)}%
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        {item.compliant ? (
+                        {item.compliant == null ? (
+                          <span className="text-muted-foreground text-sm">Unverified</span>
+                        ) : item.compliant ? (
                           <span className="inline-flex items-center gap-1 text-accent-emerald text-sm">
                             <CheckCircle className="w-4 h-4" /> Compliant
                           </span>
@@ -288,7 +285,7 @@ const SMReports = () => {
                 </div>
                 <div className="bento-card !p-4">
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">Avg MTTR</p>
-                  <p className="text-xl font-bold">{incidentReport.avgMttr} min</p>
+                  <p className="text-xl font-bold">{incidentReport.avgMttr == null ? '—' : `${incidentReport.avgMttr} min`}</p>
                 </div>
                 <div className="bento-card !p-4">
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">Resolved</p>
@@ -317,19 +314,19 @@ const SMReports = () => {
               <div className="grid grid-cols-4 gap-4">
                 <div className="bento-card !p-4">
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Total Monthly Cost</p>
-                  <p className="text-xl font-bold">₹{Math.round(costReport.totalMonthlyCost).toLocaleString()}</p>
+                  <p className="text-xl font-bold text-muted-foreground">{costReport.totalMonthlyCost == null ? '—' : costReport.totalMonthlyCost.toLocaleString()}</p>
                 </div>
                 <div className="bento-card !p-4">
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Avg Cost / Server</p>
-                  <p className="text-xl font-bold">₹{Math.round(costReport.avgCostPerServer).toLocaleString()}</p>
+                  <p className="text-xl font-bold text-muted-foreground">{costReport.avgCostPerServer == null ? '—' : costReport.avgCostPerServer.toLocaleString()}</p>
                 </div>
                 <div className="bento-card !p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Total Capacity</p>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Profiled Capacity</p>
                   <p className="text-xl font-bold">{Math.round(costReport.totalCapacityGb)} GB</p>
                 </div>
                 <div className="bento-card !p-4">
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Avg Disk Usage</p>
-                  <p className="text-xl font-bold">{costReport.usedDiskPercent.toFixed(1)}%</p>
+                  <p className="text-xl font-bold text-muted-foreground">{costReport.usedDiskPercent?.toFixed(1) ?? '—'}</p>
                 </div>
               </div>
             </CardContent>
@@ -339,7 +336,7 @@ const SMReports = () => {
             <CardHeader><CardTitle className="text-sm font-semibold tracking-tight flex items-center gap-2"><Server className="w-5 h-5 text-primary" />Top Servers by Cost</CardTitle></CardHeader>
             <CardContent>
               {costReport.topServers.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">No servers found.</p>
+                <p className="text-muted-foreground text-center py-4">Subscription cost data is not configured.</p>
               ) : (
                 <div className="space-y-2">
                   {costReport.topServers.map((s) => (

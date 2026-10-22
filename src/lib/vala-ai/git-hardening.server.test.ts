@@ -20,7 +20,7 @@ import { checkpoint, isClean, requireReadyWorkspace, type Workspace } from "./wo
 const root = mkdtempSync(join(tmpdir(), "vala-githard-"));
 process.env.VALA_AI_DATA_DIR = join(root, "data");
 process.env.VALA_AI_WORKER = "off";
-const owner: Operator = { id: "u-owner", email: "o@test.local", name: "o", role: "owner" };
+const owner: Operator = { id: "u-owner", email: "o@test.local", name: "o", role: "boss" };
 let ws: Workspace;
 
 const plainGit = (cwd: string, ...args: string[]) =>

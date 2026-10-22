@@ -76,6 +76,17 @@ export type Payment = {
   date: string;
 };
 
+export type AssignedProduct = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  imageUrl: string;
+  priceLabel: string;
+  industry: string;
+  demoUrl: string;
+};
+
 type State = {
   loading: boolean;
   error: string | null;
@@ -86,13 +97,14 @@ type State = {
   leads: Lead[];
   employees: Employee[];
   payments: Payment[];
+  products: AssignedProduct[];
   /** The franchise's recorded revenue, one point per period, oldest first. */
   revenueByPeriod: { label: string; value: number }[];
 };
 
 const EMPTY: State = {
   loading: true, error: null, note: null, franchiseIds: [],
-  branches: [], leads: [], employees: [], payments: [], revenueByPeriod: [],
+  branches: [], leads: [], employees: [], payments: [], products: [], revenueByPeriod: [],
 };
 
 // The franchise tables are not all in the generated types.
@@ -105,6 +117,12 @@ function asNumber(value: unknown, fallback = 0) {
 }
 
 type Row = Record<string, unknown>;
+type PageQuery = (
+  from: number,
+  to: number,
+) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+
+const PAGE_SIZE = 500;
 
 function mapBranch(row: Row): Branch {
   return {
@@ -179,6 +197,19 @@ async function rows(q: PromiseLike<{ data: unknown; error: { message: string } |
   return (data ?? []) as Row[];
 }
 
+async function pagedRows(query: PageQuery): Promise<Row[]> {
+  const result: Row[] = [];
+  for (let start = 0; ; start += PAGE_SIZE) {
+    const page = await rows(query(start, start + PAGE_SIZE - 1));
+    result.push(...page);
+    if (page.length < PAGE_SIZE) return result;
+  }
+}
+
+function isRow(value: unknown): value is Row {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 async function load(): Promise<void> {
   try {
     const { data: auth } = await supabase.auth.getUser();
@@ -196,13 +227,27 @@ async function load(): Promise<void> {
       setState({ ...EMPTY, loading: false, note: "No franchise is linked to this account yet." });
       return;
     }
-    const [branches, leads, employees, royalties, performance] = await Promise.all([
+    const [branches, leads, employees, royalties, performance, assignments] = await Promise.all([
       rows(from("franchise_branches").select("*").in("franchise_id", franchiseIds).order("created_at", { ascending: false })),
       rows(from("franchise_leads").select("*").in("franchise_id", franchiseIds).order("created_at", { ascending: false })),
       rows(from("franchise_employees").select("*").in("franchise_id", franchiseIds).order("created_at", { ascending: false })),
       rows(from("franchise_royalties").select("*").in("franchise_id", franchiseIds).order("created_at", { ascending: false })),
       rows(from("franchise_performance").select("period,revenue").in("franchise_id", franchiseIds).order("period")),
+      pagedRows((start, end) =>
+        from("franchise_product_assignments")
+          .select(
+            "franchise_id,product_id,product:marketplace_products(id,name,slug,description,thumbnail_url,logo,price_label,industry_label,demo_url)",
+          )
+          .in("franchise_id", franchiseIds)
+          .eq("active", true)
+          .order("franchise_id", { ascending: true })
+          .order("product_id", { ascending: true })
+          .range(start, end),
+      ),
     ]);
+    const assignedProducts = assignments.flatMap((assignment) =>
+      isRow(assignment.product) ? [assignment.product] : [],
+    );
     const branchName = new Map(branches.map((b) => [String(b.id), String(b.name ?? "")]));
     const byPeriod = new Map<string, number>();
     for (const p of performance) byPeriod.set(String(p.period), (byPeriod.get(String(p.period)) ?? 0) + asNumber(p.revenue, 0));
@@ -215,6 +260,16 @@ async function load(): Promise<void> {
       leads: leads.map(mapLead),
       employees: employees.map((e) => mapEmployee(e, branchName)),
       payments: royalties.map(mapPayment),
+      products: assignedProducts.map((product) => ({
+        id: String(product.id),
+        name: String(product.name ?? ""),
+        slug: String(product.slug ?? ""),
+        description: String(product.description ?? ""),
+        imageUrl: String(product.thumbnail_url ?? product.logo ?? ""),
+        priceLabel: String(product.price_label ?? ""),
+        industry: String(product.industry_label ?? ""),
+        demoUrl: String(product.demo_url ?? ""),
+      })),
       revenueByPeriod: [...byPeriod.entries()].slice(-12).map(([label, value]) => ({ label, value })),
     });
   } catch (error) {

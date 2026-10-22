@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { HardDrive, Database, Server, Loader2, Archive } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,13 +12,12 @@ interface ServerStorageRow {
   server_name: string;
   provider: string;
   storage_gb: number;
-  disk_usage: number;
 }
 
 const SMBackups = () => {
-  const [servers, setServers] = useState<ServerStorageRow[]>([]);
-  const [backupTotalGb, setBackupTotalGb] = useState(0);
-  const [restoreTotalGb, setRestoreTotalGb] = useState(0);
+  const [servers, setServers] = useState<ServerStorageRow[] | null>(null);
+  const [backupTotalGb, setBackupTotalGb] = useState<number | null>(null);
+  const [restoreTotalGb, setRestoreTotalGb] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -30,7 +28,7 @@ const SMBackups = () => {
         smQuery('server storage', () =>
           supabase
             .from('server_instances')
-            .select('id, server_name, provider, storage_gb, disk_usage')
+            .select('id, server_name, provider, storage_gb')
             .neq('status', 'decommissioned')
             .order('storage_gb', { ascending: false }),
         ),
@@ -40,23 +38,28 @@ const SMBackups = () => {
 
       if (srv === null || jobs === null || rp === null) {
         setLoadError('Could not load backup and storage data. Please try again.');
-      } else {
-        setLoadError(null);
+        setServers(null);
+        setBackupTotalGb(null);
+        setRestoreTotalGb(null);
+        return;
       }
+      setLoadError(null);
 
       setServers(
-        (srv ?? []).map((s) => ({
+        srv.map((s) => ({
           id: s.id,
           server_name: s.server_name,
           provider: s.provider,
           storage_gb: Number(s.storage_gb || 0),
-          disk_usage: Number(s.disk_usage || 0),
         })),
       );
-      setBackupTotalGb((jobs ?? []).reduce((a, j) => a + Number(j.size_gb || 0), 0));
-      setRestoreTotalGb((rp ?? []).reduce((a, r) => a + Number(r.size_gb || 0), 0));
+      setBackupTotalGb(jobs.reduce((a, j) => a + Number(j.size_gb || 0), 0));
+      setRestoreTotalGb(rp.reduce((a, r) => a + Number(r.size_gb || 0), 0));
     } catch (err) {
       setLoadError(smErrorMessage(err));
+      setServers(null);
+      setBackupTotalGb(null);
+      setRestoreTotalGb(null);
     } finally {
       setLoading(false);
     }
@@ -66,11 +69,11 @@ const SMBackups = () => {
     void loadData();
   }, [loadData]);
 
-  const totalStorage = servers.reduce((a, s) => a + s.storage_gb, 0);
+  const totalStorage = servers?.reduce((a, s) => a + s.storage_gb, 0) ?? null;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Storage & Backup Capacity" subtitle="Disk usage per server and backup/restore storage footprint" />
+      <PageHeader title="Storage & Backup Capacity" subtitle="Profiled capacity and recorded backup entries; live disk usage is unavailable" />
 
       {loadError && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive flex items-center justify-between gap-4">
@@ -92,7 +95,7 @@ const SMBackups = () => {
               </div>
               <div>
                 <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Provisioned Storage</p>
-                <p className="mt-1 text-xl font-bold">{totalStorage.toFixed(0)} GB</p>
+                <p className="mt-1 text-xl font-bold">{totalStorage == null ? '—' : `${totalStorage.toFixed(0)} GB`}</p>
               </div>
             </div>
             <div className="bento-card premium-halo hover-lift shimmer-sweep enter-soft !p-4 flex items-center gap-3">
@@ -100,8 +103,8 @@ const SMBackups = () => {
                 <Database className="w-5 h-5 text-accent-pink" />
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Backup Job Volume</p>
-                <p className="mt-1 text-xl font-bold text-accent-pink">{backupTotalGb.toFixed(1)} GB</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Recorded Backup Job Volume</p>
+                <p className="mt-1 text-xl font-bold text-accent-pink">{backupTotalGb == null ? '—' : `${backupTotalGb.toFixed(1)} GB`}</p>
               </div>
             </div>
             <div className="bento-card premium-halo hover-lift shimmer-sweep enter-soft !p-4 flex items-center gap-3">
@@ -109,8 +112,8 @@ const SMBackups = () => {
                 <Archive className="w-5 h-5 text-accent-emerald" />
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Restore Point Volume</p>
-                <p className="mt-1 text-xl font-bold text-accent-emerald">{restoreTotalGb.toFixed(1)} GB</p>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Recorded Restore Point Volume</p>
+                <p className="mt-1 text-xl font-bold text-accent-emerald">{restoreTotalGb == null ? '—' : `${restoreTotalGb.toFixed(1)} GB`}</p>
               </div>
             </div>
           </div>
@@ -123,7 +126,9 @@ const SMBackups = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {servers.length === 0 ? (
+              {servers === null ? (
+                <p className="text-muted-foreground text-sm py-8 text-center">Server storage data unavailable.</p>
+              ) : servers.length === 0 ? (
                 <p className="text-muted-foreground text-sm py-8 text-center">No server storage data available.</p>
               ) : (
                 <div className="space-y-4">
@@ -135,10 +140,9 @@ const SMBackups = () => {
                           <Badge variant="outline" className="text-xs">{s.provider}</Badge>
                         </div>
                         <span className="text-muted-foreground text-sm font-mono">
-                          {s.storage_gb.toFixed(0)} GB total · {s.disk_usage.toFixed(0)}% used
+                          {s.storage_gb.toFixed(0)} GB profiled · usage unavailable
                         </span>
                       </div>
-                      <Progress value={s.disk_usage} className="h-2" />
                     </div>
                   ))}
                 </div>

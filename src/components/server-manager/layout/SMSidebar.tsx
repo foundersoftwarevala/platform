@@ -42,7 +42,7 @@ interface SMSidebarProps {
   onToggleCollapsed: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
-  alertBadge: number;
+  alertBadge: number | null;
 }
 
 type Item = { id: ViewType; label: string; icon: LucideIcon };
@@ -88,7 +88,12 @@ export function SMSidebar({
         {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-primary" />}
         <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
         {!collapsed && <span className="truncate text-left flex-1">{item.label}</span>}
-        {!collapsed && item.id === 'alerts' && alertBadge > 0 && (
+        {!collapsed && item.id === 'alerts' && alertBadge === null && (
+          <span className="rounded-md bg-surface px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground" aria-label="Alert count unknown">
+            ?
+          </span>
+        )}
+        {!collapsed && item.id === 'alerts' && alertBadge !== null && alertBadge > 0 && (
           <span className="rounded-md bg-destructive/20 px-1.5 py-0.5 text-[10px] font-bold text-destructive">
             {alertBadge}
           </span>

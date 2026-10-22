@@ -27,142 +27,242 @@ type OrderItem = {
   created_at: string;
 };
 
+type ProductRow = {
+  id: string;
+  moderation_status: string | null;
+  content_status: string | null;
+  visible: boolean | null;
+  publish_at: string | null;
+  unpublish_at: string | null;
+};
+
 const num = (v: unknown): number => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
 const money = (n: number): number => Math.round(n * 100) / 100;
+const PAGE_SIZE = 1000;
+
+async function readAllRows<T extends Record<string, unknown>>(path: string): Promise<T[]> {
+  const rows: T[] = [];
+  let offset = 0;
+
+  while (true) {
+    const response = await rest(`${path}&order=id.asc`, {
+      headers: {
+        Range: `${offset}-${offset + PAGE_SIZE - 1}`,
+        Prefer: "count=exact",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Marketplace dashboard data could not be read (${response.status})`);
+    }
+
+    const contentRange = response.headers.get("content-range");
+    const total = Number(contentRange?.split("/")[1]);
+    if (!Number.isSafeInteger(total) || total < 0) {
+      throw new Error("Marketplace dashboard data returned no exact row count");
+    }
+
+    const page: unknown = await response.json();
+    if (!Array.isArray(page)) {
+      throw new Error("Marketplace dashboard data returned an invalid row set");
+    }
+    rows.push(...(page as T[]));
+
+    if (rows.length >= total) return rows;
+    if (page.length === 0) {
+      throw new Error("Marketplace dashboard data returned an incomplete row set");
+    }
+    offset += page.length;
+  }
+}
+
+async function readRowsByIds<T extends Record<string, unknown>>(
+  table: string,
+  select: string,
+  column: string,
+  ids: string[],
+): Promise<T[]> {
+  const rows: T[] = [];
+  const unique = [...new Set(ids.filter(Boolean))];
+
+  for (let offset = 0; offset < unique.length; offset += 100) {
+    const batch = unique.slice(offset, offset + 100);
+    const list = batch.map((id) => `"${id}"`).join(",");
+    rows.push(...(await readAllRows<T>(`${table}?select=${select}&${column}=in.(${list})`)));
+  }
+
+  return rows;
+}
+
+function isPublicProduct(product: ProductRow, now: number): boolean {
+  return (
+    product.visible === true &&
+    product.moderation_status === "approved" &&
+    (product.content_status === null || product.content_status === "published") &&
+    (!product.publish_at || Date.parse(product.publish_at) <= now) &&
+    (!product.unpublish_at || Date.parse(product.unpublish_at) > now)
+  );
+}
 
 export const Route = createFileRoute("/api/seller/metrics")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const gate = await requireAuthor(request, { allowPending: true });
+        const gate = await requireAuthor(request, {
+          allowPending: true,
+          sellerKinds: ["author", "vendor"],
+        });
         if (!gate.ok) return gate.response;
         const sellerId = gate.seller.id;
 
         const now = new Date();
-        const startOfDay = new Date(Date.UTC(
-          now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
-        )).toISOString();
-        const startOfMonth = new Date(Date.UTC(
-          now.getUTCFullYear(), now.getUTCMonth(), 1,
-        )).toISOString();
+        const startOfDay = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+        ).toISOString();
+        const startOfMonth = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+        ).toISOString();
 
-        const [productsRes, itemsRes, commissionsRes] = await Promise.all([
-          rest(
-            `marketplace_products?select=id,moderation_status,visible,downloads` +
-              `&seller_id=eq.${encodeURIComponent(sellerId)}&limit=2000`,
-          ),
-          rest(
-            `marketplace_order_items?select=id,order_id,line_total,created_at` +
-              `&seller_id=eq.${encodeURIComponent(sellerId)}&limit=2000`,
-          ),
-          rest(
-            `marketplace_commissions?select=id,order_item_id,gross_amount,seller_amount,status,created_at` +
-              `&seller_id=eq.${encodeURIComponent(sellerId)}&limit=2000`,
-          ),
-        ]);
+        try {
+          const sellerFilter = `seller_id=eq.${encodeURIComponent(sellerId)}`;
+          const [products, items, commissions] = await Promise.all([
+            readAllRows<ProductRow & { downloads: number | null }>(
+              `marketplace_products?select=id,moderation_status,content_status,visible,publish_at,unpublish_at,downloads&${sellerFilter}`,
+            ),
+            readAllRows<OrderItem>(
+              `marketplace_order_items?select=id,order_id,line_total,created_at&${sellerFilter}`,
+            ),
+            readAllRows<{
+              order_item_id: string;
+              gross_amount: number | string;
+              seller_amount: number | string;
+              status: string;
+              created_at: string;
+            }>(
+              `marketplace_commissions?select=id,order_item_id,gross_amount,seller_amount,status,created_at&${sellerFilter}`,
+            ),
+          ]);
 
-        const products = productsRes.ok
-          ? ((await productsRes.json()) as { moderation_status: string; visible: boolean; downloads: number | null }[])
-          : [];
-        const items = itemsRes.ok ? ((await itemsRes.json()) as OrderItem[]) : [];
-        const commissions = commissionsRes.ok
-          ? ((await commissionsRes.json()) as
-              { order_item_id: string; gross_amount: number | string; seller_amount: number | string;
-                status: string; created_at: string }[])
-          : [];
-
-        // The orders behind this seller's lines, for status and buyer counts.
-        let orders: { id: string; status: string; buyer_id: string | null; created_at: string }[] = [];
-        const orderIds = Array.from(new Set(items.map((i) => i.order_id).filter(Boolean)));
-        if (orderIds.length) {
-          const list = orderIds.slice(0, 500).map((id) => `"${id}"`).join(",");
-          const ordersRes = await rest(
-            `marketplace_orders?select=id,status,buyer_id,created_at&id=in.(${list})&limit=1000`,
+          const productIds = products.map((product) => product.id);
+          const versions = await readRowsByIds<{ id: string }>(
+            "marketplace_product_versions",
+            "id",
+            "product_id",
+            productIds,
           );
-          if (ordersRes.ok) orders = await ordersRes.json();
+          const downloads = await readRowsByIds<{ id: string }>(
+            "marketplace_downloads",
+            "id",
+            "version_id",
+            versions.map((version) => version.id),
+          );
+
+          const orderIds = Array.from(new Set(items.map((item) => item.order_id).filter(Boolean)));
+          const orders = await readRowsByIds<{
+            id: string;
+            status: string;
+            buyer_id: string | null;
+            created_at: string;
+          }>("marketplace_orders", "id,status,buyer_id,created_at", "id", orderIds);
+
+          const live = commissions.filter((commission) => commission.status !== "reversed");
+          const reversed = commissions.filter((commission) => commission.status === "reversed");
+          const nowTimestamp = now.getTime();
+
+          const published = products.filter((product) =>
+            isPublicProduct(product, nowTimestamp),
+          ).length;
+          const drafts = products.filter((product) =>
+            ["draft", "changes_requested", "rejected"].includes(String(product.moderation_status)),
+          ).length;
+          const inReview = products.filter((product) =>
+            ["submitted", "under_review"].includes(String(product.moderation_status)),
+          ).length;
+
+          const paidOrders = orders.filter((order) => order.status === "paid");
+          const buyers = paidOrders.map((order) => order.buyer_id).filter(Boolean) as string[];
+          const buyerCounts = buyers.reduce<Record<string, number>>((acc, buyer) => {
+            acc[buyer] = (acc[buyer] ?? 0) + 1;
+            return acc;
+          }, {});
+
+          const revenueToday = money(
+            live
+              .filter((commission) => commission.created_at >= startOfDay)
+              .reduce((sum, commission) => sum + num(commission.gross_amount), 0),
+          );
+          const revenueMonth = money(
+            live
+              .filter((commission) => commission.created_at >= startOfMonth)
+              .reduce((sum, commission) => sum + num(commission.gross_amount), 0),
+          );
+
+          /**
+           * `null` means the platform has no source for this metric yet, not zero.
+           * The dashboard shows a dash for these instead of inventing a number.
+           */
+          const metrics: Record<string, number | null> = {
+            // products
+            products: published,
+            "products-draft": drafts,
+            "products-review": inReview,
+            downloads: downloads.length,
+
+            // orders
+            orders: orders.filter((order) => order.created_at >= startOfDay).length,
+            "orders-pending": orders.filter((order) => order.status === "pending_payment").length,
+            "orders-completed": paidOrders.length,
+            "orders-cancelled": orders.filter((order) =>
+              ["cancelled", "payment_failed"].includes(String(order.status)),
+            ).length,
+            sales: live.length,
+
+            // money
+            revenue: revenueToday,
+            "revenue-month": revenueMonth,
+            commissions: money(
+              live.reduce((sum, commission) => sum + num(commission.seller_amount), 0),
+            ),
+            earnings: money(
+              live.reduce((sum, commission) => sum + num(commission.seller_amount), 0),
+            ),
+
+            // customers
+            customers: Object.keys(buyerCounts).length,
+            "customers-repeat": Object.values(buyerCounts).filter((count) => count > 1).length,
+
+            // refunds
+            returns: reversed.length,
+            refunds: reversed.length,
+
+            // No source exists for these yet. A dash is the honest answer.
+            inventory: null,
+            "inventory-oos": null,
+            reviews: null,
+            followers: null,
+            reach: null,
+            views: null,
+            leads: null,
+            clicks: null,
+          };
+
+          return Response.json({
+            seller: {
+              id: sellerId,
+              display_name: gate.seller.display_name,
+              status: gate.seller.status,
+              currency: gate.seller.payout_currency ?? "USD",
+            },
+            metrics,
+            source: "supabase:marketplace",
+            generatedAt: new Date().toISOString(),
+          });
+        } catch (error) {
+          console.error("[seller metrics] database read failed", error);
+          return Response.json({ error: "Could not load your dashboard figures" }, { status: 502 });
         }
-
-        const live = commissions.filter((c) => c.status !== "reversed");
-        const reversed = commissions.filter((c) => c.status === "reversed");
-
-        const published = products.filter((p) => p.visible === true).length;
-        const drafts = products.filter((p) =>
-          ["draft", "changes_requested", "rejected"].includes(String(p.moderation_status))).length;
-        const inReview = products.filter((p) =>
-          ["submitted", "under_review"].includes(String(p.moderation_status))).length;
-
-        const paidOrders = orders.filter((o) => o.status === "paid");
-        const buyers = paidOrders.map((o) => o.buyer_id).filter(Boolean) as string[];
-        const buyerCounts = buyers.reduce<Record<string, number>>((acc, b) => {
-          acc[b] = (acc[b] ?? 0) + 1;
-          return acc;
-        }, {});
-
-        const revenueToday = money(
-          live.filter((c) => c.created_at >= startOfDay).reduce((s, c) => s + num(c.gross_amount), 0),
-        );
-        const revenueMonth = money(
-          live.filter((c) => c.created_at >= startOfMonth).reduce((s, c) => s + num(c.gross_amount), 0),
-        );
-
-        /**
-         * `null` means the platform has no source for this metric yet, not zero.
-         * The dashboard shows a dash for these instead of inventing a number.
-         */
-        const metrics: Record<string, number | null> = {
-          // products
-          products: published,
-          "products-draft": drafts,
-          "products-review": inReview,
-          downloads: products.reduce((s, p) => s + num(p.downloads), 0),
-
-          // orders
-          orders: orders.filter((o) => o.created_at >= startOfDay).length,
-          "orders-pending": orders.filter((o) => o.status === "pending_payment").length,
-          "orders-completed": paidOrders.length,
-          "orders-cancelled": orders.filter((o) =>
-            ["cancelled", "payment_failed"].includes(String(o.status))).length,
-          sales: live.length,
-
-          // money
-          revenue: revenueToday,
-          "revenue-month": revenueMonth,
-          commissions: money(live.reduce((s, c) => s + num(c.seller_amount), 0)),
-          earnings: money(live.reduce((s, c) => s + num(c.seller_amount), 0)),
-
-          // customers
-          customers: Object.keys(buyerCounts).length,
-          "customers-repeat": Object.values(buyerCounts).filter((n) => n > 1).length,
-
-          // refunds
-          returns: reversed.length,
-          refunds: reversed.length,
-
-          // No source exists for these yet. A dash is the honest answer.
-          inventory: null,
-          "inventory-oos": null,
-          reviews: null,
-          followers: null,
-          reach: null,
-          views: null,
-          leads: null,
-          clicks: null,
-        };
-
-        return Response.json({
-          seller: {
-            id: sellerId,
-            display_name: gate.seller.display_name,
-            status: gate.seller.status,
-            currency: gate.seller.payout_currency ?? "USD",
-          },
-          metrics,
-          source: "supabase:marketplace",
-          generatedAt: new Date().toISOString(),
-        });
       },
     },
   },

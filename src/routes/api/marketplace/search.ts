@@ -12,13 +12,13 @@ import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
  * real prices from `marketplace_product_pricing`. Nothing here is generated:
  * every product returned exists in the catalogue.
  *
- *   ?q=<free text>          rank products against a described requirement
+ *   ?q=<free text>          find products matching catalogue text
  *   ?ids=<id,id,id>         fetch a specific set, for side-by-side compare
  *   ?mode=popular           the products the marketplace is actually opening
  *   ?category=<slug>        narrow any of the above to one category
  *   &format=cards           answer with the marketplace's product cards
  *                           (src/lib/marketplace/catalog-card.ts) instead of
- *                           product rows: the home page's search box
+ *                           product rows: the homepage's paged catalogue search
  *
  * This is the marketplace's one search. The home page's box used to filter a
  * list of products written into the page's source instead of the catalogue.
@@ -180,7 +180,7 @@ async function withPricing(url: string, rows: ProductRow[]) {
   }));
 }
 
-async function answer(request: Request): Promise<Response> {
+export async function answer(request: Request): Promise<Response> {
         const url = process.env.SUPABASE_URL?.trim();
         if (!url || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json({ products: [], error: "Catalogue is not configured" }, { status: 503 });
@@ -192,9 +192,14 @@ async function answer(request: Request): Promise<Response> {
         const mode = (params.get("mode") ?? "").trim();
         const category = (params.get("category") ?? "").trim();
         const limit = Math.min(Math.max(Number(params.get("limit") ?? 12) || 12, 1), 40);
+        const requestedOffset = Number(params.get("offset") ?? 0);
+        if (!Number.isSafeInteger(requestedOffset) || requestedOffset < 0 || requestedOffset > 1_000_000) {
+          return Response.json({ error: "Invalid search offset" }, { status: 400 });
+        }
+        const offset = requestedOffset;
         const asCards = params.get("format") === "cards";
 
-        const cacheKey = `${query}|${ids}|${mode}|${category}|${limit}|${asCards}`;
+        const cacheKey = `${query}|${ids}|${mode}|${category}|${limit}|${offset}|${asCards}`;
         const hit = cache.get(cacheKey);
         if (hit && Date.now() - hit.at < CACHE_MS) return Response.json(hit.payload);
 
@@ -209,14 +214,18 @@ async function answer(request: Request): Promise<Response> {
             `${url}/rest/v1/marketplace_categories?select=id&slug=eq.${encodeURIComponent(category)}&limit=1`,
             { headers: admin() },
           );
-          const found = categoryResponse.ok ? ((await categoryResponse.json()) as ProductRow[]) : [];
+          if (!categoryResponse.ok) {
+            console.error("[search] category lookup failed", categoryResponse.status, await categoryResponse.text());
+            return Response.json({ cards: [], products: [], error: "Search is unavailable" }, { status: 502 });
+          }
+          const found = (await categoryResponse.json()) as ProductRow[];
           if (found[0]?.id) categoryFilter = `&category_id=eq.${String(found[0].id)}`;
           // An unknown category narrows to nothing. It used to be ignored, so
           // the answer looked filtered and was not.
           else if (categoryResponse.ok) {
             return Response.json(
               asCards
-                ? { cards: [], terms: [], reason: "unknown_category" }
+                ? { cards: [], terms: [], reason: "unknown_category", total: 0, offset, hasMore: false }
                 : { products: [], terms: [], reason: "unknown_category" },
               { status: 404 },
             );
@@ -284,8 +293,65 @@ async function answer(request: Request): Promise<Response> {
 
           // ---- match a described requirement ---------------------------------
           const words = terms(query);
+
+          // The homepage needs a real, paged catalogue result set. Unlike the
+          // recommendation mode below, this path must not stop at an arbitrary
+          // first 200 matches or rank only a partial sample.
+          if (asCards) {
+            if (!words.length && !category) {
+              return Response.json({ cards: [], terms: [], total: 0, offset, hasMore: false });
+            }
+
+            const searchFilter = words.length
+              ? `&or=(${encodeURIComponent(
+                  words
+                    .map((word) => {
+                        const safe = escapeForFilter(word);
+                      return (
+                        `name.ilike.*${safe}*,industry_label.ilike.*${safe}*` +
+                        `,subcategory.ilike.*${safe}*,description.ilike.*${safe}*` +
+                        `,search_text.ilike.*${safe}*`
+                      );
+                    })
+                    .join(","),
+                )})`
+              : "";
+            const response = await fetch(
+              `${base}${categoryFilter}${searchFilter}${ORDER}&limit=${limit}&offset=${offset}`,
+              { headers: { ...admin(), Prefer: "count=exact" } },
+            );
+            if (!response.ok) {
+              console.error("[search] catalogue page failed", response.status, await response.text());
+              return Response.json(
+                { cards: [], terms: words, error: "Search is unavailable" },
+                { status: 502 },
+              );
+            }
+            const range = response.headers.get("content-range") ?? "";
+            const totalMatch = range.match(/\/(\d+)$/);
+            if (!totalMatch) {
+              console.error("[search] catalogue count missing", range);
+              return Response.json(
+                { cards: [], terms: words, error: "Search is unavailable" },
+                { status: 502 },
+              );
+            }
+            const rows = (await response.json()) as ProductRow[];
+            const total = Number(totalMatch[1]);
+            const payload = {
+              cards: rows.map(toCard),
+              terms: words,
+              scanned: rows.length,
+              total,
+              offset,
+              hasMore: offset + rows.length < total,
+            };
+            cache.set(cacheKey, { at: Date.now(), payload });
+            if (cache.size > 300) cache.clear();
+            return Response.json(payload);
+          }
+
           if (!words.length) {
-            if (asCards) return Response.json({ cards: [], terms: [] });
             // Something was typed and none of it is searchable: that is no
             // match, not a request for the featured list.
             if (query) return Response.json({ products: [], terms: [], reason: "no_searchable_words" });
@@ -297,7 +363,11 @@ async function answer(request: Request): Promise<Response> {
           const or = words
             .map((w) => {
               const safe = escapeForFilter(w);
-              return `name.ilike.*${safe}*,industry_label.ilike.*${safe}*,search_text.ilike.*${safe}*`;
+              return (
+                `name.ilike.*${safe}*,industry_label.ilike.*${safe}*` +
+                `,subcategory.ilike.*${safe}*,description.ilike.*${safe}*` +
+                `,search_text.ilike.*${safe}*`
+              );
             })
             .join(",");
 

@@ -208,8 +208,8 @@ on("GET", "/status", "viewer", async () => {
 });
 on("GET", "/settings", "viewer", () => getSettings());
 // Services AI API Manager can route to (names and ids only; keys never leave the gateway).
-on("GET", "/gateway-services", "owner", () => gatewayServices());
-on("PATCH", "/settings", "owner", ({ body, op }) => updateSettings(body, op!.id));
+on("GET", "/gateway-services", "boss", () => gatewayServices());
+on("PATCH", "/settings", "boss", ({ body, op }) => updateSettings(body, op!.id));
 on("GET", "/people", "viewer", () =>
   all("select id, email, role, last_seen_at from people order by last_seen_at desc"),
 );
@@ -280,7 +280,7 @@ on("POST", "/projects/:id/requirements", "operator", ({ params, body, op }) =>
     op!,
   ),
 );
-on("POST", "/requirements/:id/approve", "owner", ({ params, op }) =>
+on("POST", "/requirements/:id/approve", "boss", ({ params, op }) =>
   approveRequirement(params.id, op!),
 );
 on("POST", "/projects/:id/change-requests", "operator", ({ params, body, op }) =>
@@ -293,7 +293,7 @@ on("POST", "/projects/:id/change-requests", "operator", ({ params, body, op }) =
 on("GET", "/change-requests", "viewer", ({ op }) =>
   withLabels(listChangeRequests(), ["raised_by", "decided_by"], labelerFor(op)),
 );
-on("POST", "/change-requests/:id/decide", "owner", ({ params, body, op }) =>
+on("POST", "/change-requests/:id/decide", "boss", ({ params, body, op }) =>
   decideChangeRequest(params.id, Boolean(body.approve), op!),
 );
 on("POST", "/projects/:id/rollback", "operator", ({ params, body, op }) =>
@@ -347,7 +347,7 @@ on("GET", "/approvals", "viewer", ({ url, op }) =>
     labelerFor(op),
   ),
 );
-on("POST", "/approvals/:id/decide", "owner", ({ params, body, op }) =>
+on("POST", "/approvals/:id/decide", "boss", ({ params, body, op }) =>
   decideApproval(
     params.id,
     {

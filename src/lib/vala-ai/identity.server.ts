@@ -12,7 +12,7 @@ import { all } from "./db.server.ts";
 export type Labeler = (id: string | null | undefined) => string | null;
 
 export function labelerFor(caller: Operator | null): Labeler {
-  const showEmail = caller?.role === "owner" || caller?.role === "operator";
+  const showEmail = caller?.role === "boss" || caller?.role === "operator";
   const emails = new Map<string, string>(
     showEmail
       ? all<{ id: string; email: string }>("select id, email from people").map((p) => [

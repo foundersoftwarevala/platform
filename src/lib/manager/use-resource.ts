@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState } from "react";
 
 import { authHeaders } from "@/lib/auth/operator-fetch";
 
@@ -29,7 +29,24 @@ export type ResourceState = {
   total: number;
   loading: boolean;
   failed: boolean;
+  refresh: () => void;
 };
+
+export type ResourceFeedbackEntry = {
+  id: string;
+  resource: string;
+  loading: boolean;
+  failed: boolean;
+  retry: () => void;
+};
+
+export type ResourceFeedbackContextValue = {
+  entries: ResourceFeedbackEntry[];
+  report: (entry: ResourceFeedbackEntry) => void;
+  remove: (id: string) => void;
+};
+
+export const ResourceFeedbackContext = createContext<ResourceFeedbackContextValue | null>(null);
 
 const EMPTY: Row[] = [];
 
@@ -57,6 +74,12 @@ export function useResource(
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const feedback = useContext(ResourceFeedbackContext);
+  const report = feedback?.report;
+  const remove = feedback?.remove;
+  const id = useId();
+  const retry = useCallback(() => setRetryKey((current) => current + 1), []);
 
   useEffect(() => {
     let alive = true;
@@ -90,9 +113,15 @@ export function useResource(
     return () => {
       alive = false;
     };
-  }, [resource, limit, search, filterKey, offset, sort, dir]);
+  }, [resource, limit, search, filterKey, offset, sort, dir, retryKey]);
 
-  return { rows, total, loading, failed };
+  useEffect(() => {
+    report?.({ id, resource, loading, failed, retry });
+  }, [failed, id, loading, report, resource, retry]);
+
+  useEffect(() => () => remove?.(id), [id, remove]);
+
+  return { rows, total, loading, failed, refresh: retry };
 }
 
 /** A number as the screen wants to print it, or a placeholder while unknown. */

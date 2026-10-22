@@ -1,0 +1,93 @@
+Author E2E live-test preflight
+Updated: 2026-10-20 17:52 PDT
+Scope: Safe, read-only production probes only. No production data was created,
+updated, or deleted.
+
+Access available in this workspace
+-------------------------------
+- Repository root is the local Windows checkout:
+  C:\Users\oooo\Desktop\founder\platform
+- .env, .env.ops, and .env.test.local are absent.
+- The local SSH agent is unavailable ("Error connecting to agent: No such
+  file or directory").
+- Non-interactive SSH attempt to root@77.37.121.112 with BatchMode and
+  strict host-key checking failed: "Permission denied (publickey,password)."
+  No password was supplied to SSH and no host key or credential was changed.
+- Supabase CLI preflight could not run because the package is not installed
+  locally and `npx --no-install` refused to download it. No package was
+  installed and no migration command was run.
+- A final environment-variable presence check found no SUPABASE_URL,
+  SUPABASE_ANON_KEY, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_ACCESS_TOKEN, DATABASE_URL, or PG connection variables. Values were
+  not printed.
+- No authenticated author or administrator bearer token is available here.
+- No browser page/session is shared for authenticated UI validation.
+- No SQL connection or Supabase CLI session was used during this preflight.
+
+Live HTTP probes (curl.exe GET, no Authorization header)
+--------------------------------------------------------
+https://softwarevala.net/                         HTTP 200
+https://softwarevala.net/api/author/products       HTTP 401
+https://softwarevala.net/api/author/product-files  HTTP 404
+https://softwarevala.net/api/author/earnings       HTTP 401
+
+The 401 responses show that these protected endpoints reject an unauthenticated
+request; they do not verify authenticated author behavior. The 404 indicates
+the product-files route is not available on the running production deployment.
+The local route exists at src/routes/api/author/product-files.ts.
+
+Local automated tests (not live database evidence)
+--------------------------------------------------
+Command:
+  npm.cmd exec vitest -- run src/routes/api/author/-product-files.test.ts
+    src/routes/api/author/-earnings.test.ts
+    src/lib/marketplace/__tests__/catalog-publication-filters.test.ts
+    --reporter=dot
+Result: 3 test files passed, 9 tests passed.
+Additional post-assertion-fix run:
+  npm.cmd exec vitest -- run src/routes/api/author/-product-files.test.ts
+    --reporter=dot
+Result: 1 test file passed, 4 tests passed (2026-10-20 17:50 PDT).
+
+Production mutations and migration handling
+--------------------------------------------
+- No test user, seller, product, file, download, order, payout, commission, or
+  review was created or changed.
+- No cleanup/deletion was attempted.
+- No migration was pushed.
+- The earlier Phase 1 policy migrations
+  20261108T145000_marketplace_public_read_requires_approval.sql and
+  20261108T145100_marketplace_products_server_write_only.sql are recorded as
+  applied and verified in audit/phase0-summary.txt and
+  audit/phase1-summary.txt.
+- 20261108T145200_marketplace_author_product_files.sql is present locally.
+  Its current production application status was not queried in this preflight;
+  do not treat its presence in the repository as proof that it was applied.
+  `supabase db push` was not run because there is no authenticated database
+  session here and repository guidance says not to rely on the incomplete
+  migration ledger or push without comparing the live schema.
+
+Requested live E2E status
+-------------------------
+- Items #1/#2/#4/#5: BLOCKED for authenticated production flow; no author
+  session, and the product-files endpoint returns HTTP 404 in production.
+- Item #11: BLOCKED; no authenticated session or live product-file route.
+- Items #12/#13: NOT RUN; synthetic production sales and payout writes were
+  intentionally avoided, and no authenticated database session is available.
+- Item #14: NOT RUN; no authenticated session; synthetic review writes were
+  avoided.
+- Item #23: only the no-token case was probed: products and earnings returned
+  HTTP 401. Wrong-role and suspended-seller cases require suitable test
+  identities and an authenticated test session, neither available here.
+- Item #26: BLOCKED; sign-in/sign-out and refresh persistence were not run.
+- Item #27: BLOCKED for authenticated UI state validation; no browser session
+  is shared. The anonymous HTTP probes above are not a substitute.
+- Item #28: BLOCKED-no-browser-session; no shared browser page or authenticated
+  test session was available for responsive, keyboard, or focus checks.
+- Item #30: public homepage HTTP 200 verified. Authenticated production
+  behavior is not verified.
+
+No completion claim is made for the requested live E2E items. Continue only
+after a securely provisioned isolated test environment/session and a verified
+database connection are available. Do not paste service-role keys or passwords
+into chat.

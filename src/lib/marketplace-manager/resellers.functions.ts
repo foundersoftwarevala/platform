@@ -58,6 +58,15 @@ export type ResellerPlan = {
   memberships: number;
 };
 
+export type ResellerPlanStatus = {
+  reseller_id: string;
+  reseller_name: string;
+  plan_name: string | null;
+  starts_at: string | null;
+  expires_at: string | null;
+  discount_percent: number;
+};
+
 export type ResellerOverview = {
   ok: boolean;
   reason?: string;
@@ -103,6 +112,23 @@ export const getResellers = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<ResellerOverview> =>
     callAsUser("mm_resellers", { p_query: data }),
   );
+
+export const getResellerPlanStatuses = createServerFn({ method: "GET" })
+  .handler(async (): Promise<ResellerPlanStatus[]> => {
+    const result = await callAsUser<JsonObject>("mm_reseller_plan_status", {});
+    if (result.ok === false) {
+      throw new Error("Reseller plan status is available to marketplace operators only.");
+    }
+    const rows = z.array(z.object({
+      reseller_id: z.string().uuid(),
+      reseller_name: z.string(),
+      plan_name: z.string().nullable(),
+      starts_at: z.string().nullable(),
+      expires_at: z.string().nullable(),
+      discount_percent: z.number(),
+    })).parse(result.resellers ?? []);
+    return rows;
+  });
 
 /**
  * One reseller, with the decisions on their payouts in its audit history.

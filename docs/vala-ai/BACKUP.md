@@ -41,10 +41,27 @@ The installed wrapper comes from [backup-cron.sh](../../scripts/vala-ai/backup-c
 concurrent runs and logs to `/var/log/vala-ai/backup.log` (root-owned 0640, directory 0750).
 [The logrotate configuration](../../deploy/production/system/logrotate-vala-ai-backup) provides seven daily log rotations.
 
-**The live database does not yet exist.** Until a separately authorized application startup
-initializes it, the wrapper logs `NOT READY` and exits 69. It never creates an empty database
-to report a successful backup. The schedule is installed, but a real production-data backup
-is **not verified**.
+The live schema-4 database is present in the configured data directory. Before the scoped
+production deployment on 2026-10-18, the installed wrapper created
+`/var/lib/vala-ai/backups/vala-20261018T162852Z.db`; its SHA-256 and SQLite
+`integrity_check` passed, and exactly seven backups were retained. The wrapper still refuses
+to create an empty database when the configured source is absent.
+
+A separate root-only file-level snapshot was created at
+`/root/sv-seo-backup/vala-ai-predeploy-20261018T162852Z/data-files.tar.gz`; its SHA-256 and
+archive validation passed.
+
+The scoped candidate built successfully and passed its port-3011 homepage, native-language,
+session and locale smoke checks before deployment. PM2 is online with the process holding
+port 3000, the live server bundle matches the candidate build, the public homepage returned
+HTTP 200 on three consecutive checks, and the temporary staging copy of `.env` was removed.
+The previous build remains at `/var/www/softwarevala/.output.prev-20261018-163428`.
+
+During initial post-deploy browser verification, 13 HTTP 502 responses were logged between
+16:35:56 and 16:40:56 UTC for `/api/notifications/stream`, `/`, and
+`/rest/v1/product_demo_urls`. A fresh AI CEO page reload and later homepage checks showed no
+5xx, but the cause of those earlier responses was not established; continue monitoring those
+endpoints rather than treating every integration as verified.
 
 Workspaces, evidence logs and release patches are ordinary files the database points to. Back
 them up at file level with the rest of the server (for example `rsync -a /var/lib/vala-ai/
@@ -74,8 +91,9 @@ backup-host:…`, excluding `vala.db*` which the job above covers).
   retained exactly seven databases plus seven checksum files.
 - Actual one-shot cron delivered the absent-source failure to `/var/mail/root`; the temporary
   job was removed and the existing root crontab was preserved.
-- No live Vala database was initialized, backed up or restored. No application restart,
-  deployment, provider request or business PostgreSQL write was performed.
+- At the original 2026-10-12 preparation checkpoint, no live Vala database had been
+  initialized, backed up or restored. The later predeployment schema-4 backup is recorded
+  above. No provider request or business PostgreSQL write was performed during backup.
 - Infrastructure rollback and checksums:
   `/root/sv-seo-backup/vala-ai-step4-20261012T162336Z/`; alert proof:
   `/root/sv-seo-backup/vala-ai-backup-alert-20261012T162705Z/`.

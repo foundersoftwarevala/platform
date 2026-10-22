@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { useSessionRole } from "@/hooks/use-permissions";
 import { authHeaders } from "@/lib/auth/operator-fetch";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
@@ -20,11 +21,9 @@ import { useTranslation } from "@/lib/i18n/use-translation";
  * Applications submitted through /apply/<role>, managed in one queue.
  *
  * The Control Panel's Application Manager shows every kind together; each role
- * Manager shows its own. Either way the list, the full application, its
- * documents and its decisions come from /api/applications/queue, which reads
- * each role's own table and decides with that role's own review function - so
- * only application staff see anything, nobody can decide their own
- * application, and every refusal and suspension carries its reason.
+ * Manager shows its own. The Reseller Manager uses a summary-only read-only
+ * view; the Control Panel retains the full reseller application and documents.
+ * Decisions use each role's review function and are authorized by the server.
  */
 
 type Kind = "reseller" | "vendor" | "author" | "franchise" | "influencer" | "affiliate";
@@ -186,8 +185,15 @@ function ApplicationDetails({ kind, id }: { kind: Kind; id: string }) {
   );
 }
 
-export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
+export function RoleApplicationsQueue({
+  kind,
+  readOnly = false,
+}: {
+  kind: Kind | "all";
+  readOnly?: boolean;
+}) {
   const { t } = useTranslation();
+  const { role: sessionRole } = useSessionRole();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"open" | "all">("open");
   const [only, setOnly] = useState<Kind | "all">("all");
@@ -199,10 +205,13 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
   const showing = kind === "all" ? only : kind;
 
   const q = useQuery({
-    queryKey: ["role-applications", kind, showing, filter],
-    queryFn: async () =>
-      (await api<{ rows: Summary[] }>(`/api/applications/queue?kind=${showing}&filter=${filter}`))
-        .rows,
+    queryKey: ["role-applications", kind, showing, readOnly ? "reseller-manager" : filter],
+    queryFn: async () => {
+      const result = await api<{ rows: Summary[] }>(
+        `/api/applications/queue?kind=${showing}&filter=${readOnly ? "reseller-manager" : filter}`,
+      );
+      return result.rows;
+    },
   });
 
   const decide = useMutation({
@@ -285,15 +294,17 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
               ))}
             </select>
           )}
-          <select
-            aria-label={t("apply.queue.filter_label")}
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as "open" | "all")}
-            className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
-          >
-            <option value="open">{t("apply.queue.filter_open")}</option>
-            <option value="all">{t("apply.queue.filter_all")}</option>
-          </select>
+          {!readOnly && (
+            <select
+              aria-label={t("apply.queue.filter_label")}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as "open" | "all")}
+              className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm"
+            >
+              <option value="open">{t("apply.queue.filter_open")}</option>
+              <option value="all">{t("apply.queue.filter_all")}</option>
+            </select>
+          )}
         </div>
       </header>
 
@@ -330,74 +341,81 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
                     {r.email} · {new Date(r.submitted).toLocaleString()}
                   </p>
                   {r.reason && <p className="mt-1 text-xs text-amber-300">{r.reason}</p>}
-                  <button
-                    type="button"
-                    data-details
-                    onClick={() =>
-                      setOpen(open === `${r.kind}-${r.id}` ? null : `${r.kind}-${r.id}`)
-                    }
-                    className="mt-2 inline-flex items-center gap-1 text-xs text-primary"
-                  >
-                    {open === `${r.kind}-${r.id}` ? (
-                      <ChevronUp className="h-3.5 w-3.5" />
-                    ) : (
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    )}
-                    {t("apply.queue.details")}
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      data-details
+                      onClick={() =>
+                        setOpen(open === `${r.kind}-${r.id}` ? null : `${r.kind}-${r.id}`)
+                      }
+                      className="mt-2 inline-flex items-center gap-1 text-xs text-primary"
+                    >
+                      {open === `${r.kind}-${r.id}` ? (
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      )}
+                      {t("apply.queue.details")}
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className="rounded-full border border-border px-2 py-0.5 text-xs">
-                    {r.status}
+                    {r.kind === "reseller" && r.status === "active" ? "Approved" : r.status}
                   </span>
-                  {r.actions.length > 0 && (
-                    <div className="flex flex-wrap justify-end gap-2">
-                      {r.actions.map((status) => (
-                        <button
-                          key={status}
-                          type="button"
-                          data-approve={
-                            status === "approved" || status === "active" ? "" : undefined
-                          }
-                          data-reject={status === "rejected" ? "" : undefined}
-                          data-suspend={status === "suspended" ? "" : undefined}
-                          data-review={status === "in_review" ? "" : undefined}
-                          disabled={decide.isPending}
-                          onClick={() => {
-                            if (NEEDS_REASON.has(status)) {
-                              setAsking(
-                                asking?.id === r.id && asking.status === status
-                                  ? null
-                                  : { id: r.id, status },
-                              );
-                              setReason("");
-                            } else {
-                              decide.mutate({ kind: r.kind, id: r.id, status, reason: null });
+                  {r.actions.length > 0 &&
+                    !readOnly &&
+                    (r.kind !== "reseller" || sessionRole === "admin") && (
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {r.actions.map((status) => (
+                          <button
+                            key={status}
+                            type="button"
+                            data-approve={
+                              status === "approved" || status === "active" ? "" : undefined
                             }
-                          }}
-                          className={
-                            status === "rejected"
-                              ? "inline-flex items-center gap-1 rounded-lg border border-destructive/40 px-3 py-1.5 text-xs text-destructive"
-                              : status === "suspended"
-                                ? "inline-flex items-center gap-1 rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs text-amber-300"
-                                : status === "in_review"
-                                  ? "rounded-lg border border-border px-3 py-1.5 text-xs"
-                                  : "inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs text-white"
-                          }
-                        >
-                          {status === "rejected" && <XCircle className="h-3.5 w-3.5" />}
-                          {status === "suspended" && <PauseCircle className="h-3.5 w-3.5" />}
-                          {(status === "approved" || status === "active") && (
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          )}
-                          {label(r, status)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                            data-reject={status === "rejected" ? "" : undefined}
+                            data-suspend={status === "suspended" ? "" : undefined}
+                            data-review={status === "in_review" ? "" : undefined}
+                            disabled={decide.isPending}
+                            onClick={() => {
+                              if (NEEDS_REASON.has(status)) {
+                                setAsking(
+                                  asking?.id === r.id && asking.status === status
+                                    ? null
+                                    : { id: r.id, status },
+                                );
+                                setReason("");
+                              } else {
+                                decide.mutate({ kind: r.kind, id: r.id, status, reason: null });
+                              }
+                            }}
+                            className={
+                              status === "rejected"
+                                ? "inline-flex items-center gap-1 rounded-lg border border-destructive/40 px-3 py-1.5 text-xs text-destructive"
+                                : status === "suspended"
+                                  ? "inline-flex items-center gap-1 rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs text-amber-300"
+                                  : status === "in_review"
+                                    ? "rounded-lg border border-border px-3 py-1.5 text-xs"
+                                    : "inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs text-white"
+                            }
+                          >
+                            {status === "rejected" && <XCircle className="h-3.5 w-3.5" />}
+                            {status === "suspended" && <PauseCircle className="h-3.5 w-3.5" />}
+                            {(status === "approved" || status === "active") && (
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            )}
+                            {label(r, status)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                 </div>
               </div>
-              {asking?.id === r.id && (
+              {!readOnly && open === `${r.kind}-${r.id}` && (
+                <ApplicationDetails kind={r.kind} id={r.id} />
+              )}
+              {!readOnly && asking?.id === r.id && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <input
                     value={reason}
@@ -429,7 +447,6 @@ export function RoleApplicationsQueue({ kind }: { kind: Kind | "all" }) {
                   </button>
                 </div>
               )}
-              {open === `${r.kind}-${r.id}` && <ApplicationDetails kind={r.kind} id={r.id} />}
             </li>
           ))}
         </ul>
@@ -448,4 +465,8 @@ export function InfluencerApplicationsQueue() {
 
 export function AllApplicationsQueue() {
   return <RoleApplicationsQueue kind="all" />;
+}
+
+export function ResellerApplicationsQueue() {
+  return <RoleApplicationsQueue kind="reseller" readOnly />;
 }

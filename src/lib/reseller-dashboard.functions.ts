@@ -24,6 +24,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { aiComplete } from "@/lib/ai-gateway.server";
 
 function writer() {
   const url = process.env.SUPABASE_URL ?? "";
@@ -552,6 +553,187 @@ export const setResellerLeadFollowUpDone = createServerFn({ method: "POST" })
     return row as FollowUpRow;
   });
 
+type ResellerLeadTask = {
+  id: string;
+  lead_id: string;
+  title: string;
+  due_at: string | null;
+  status: "pending" | "completed";
+  created_at: string;
+};
+
+export const listResellerLeadTasks = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) => z.object({ leadId: z.string().uuid() }).parse(value ?? {}))
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    await ownLead(sb, who, data.leadId, false);
+    const { data: rows, error } = await loose(sb)
+      .from("reseller_lead_tasks")
+      .select("id, lead_id, title, due_at, status, created_at")
+      .eq("lead_id", data.leadId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as ResellerLeadTask[];
+  });
+
+export const addResellerLeadTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) =>
+    z.object({
+      leadId: z.string().uuid(),
+      title: z.string().trim().min(1, "A task description is required").max(500),
+      due: z.string().optional(),
+    }).parse(value ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    const { agent } = await ownLead(sb, who, data.leadId, false);
+    const due = data.due ? Date.parse(data.due) : NaN;
+    if (data.due && Number.isNaN(due)) throw new Error("That date could not be read.");
+    const { data: row, error } = await loose(sb)
+      .from("reseller_lead_tasks")
+      .insert({
+        lead_id: data.leadId,
+        owner_agent_id: agent,
+        title: data.title,
+        due_at: Number.isNaN(due) ? null : new Date(due).toISOString(),
+      })
+      .select("id, lead_id, title, due_at, status, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row as ResellerLeadTask;
+  });
+
+export const setResellerLeadTaskDone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) => z.object({ id: z.string().uuid(), done: z.boolean() }).parse(value ?? {}))
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    const agent = await agentIdFor(sb, who, false);
+    if (!agent) throw new Error("That task was not found among yours.");
+    const { data: row, error } = await loose(sb)
+      .from("reseller_lead_tasks")
+      .update({ status: data.done ? "completed" : "pending" })
+      .eq("id", data.id)
+      .eq("owner_agent_id", agent)
+      .select("id, lead_id, title, due_at, status, created_at")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("That task was not found among yours.");
+    return row as ResellerLeadTask;
+  });
+
+type ResellerLeadQuote = {
+  id: string;
+  lead_id: string;
+  product: string;
+  amount: number;
+  currency: string;
+  status: "draft" | "sent" | "accepted" | "declined";
+  created_at: string;
+};
+
+export const listResellerLeadQuotes = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) => z.object({ leadId: z.string().uuid() }).parse(value ?? {}))
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    await ownLead(sb, who, data.leadId, false);
+    const { data: rows, error } = await loose(sb)
+      .from("reseller_lead_quotes")
+      .select("id, lead_id, product, amount, currency, status, created_at")
+      .eq("lead_id", data.leadId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as ResellerLeadQuote[];
+  });
+
+export const addResellerLeadQuote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) =>
+    z.object({
+      leadId: z.string().uuid(),
+      product: z.string().trim().min(1, "A product or line is required").max(300),
+      amount: z.number().finite().min(0).max(1_000_000_000),
+      currency: z.string().trim().length(3).default("USD"),
+      status: z.enum(["draft", "sent", "accepted", "declined"]).default("sent"),
+    }).parse(value ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    const { agent } = await ownLead(sb, who, data.leadId, false);
+    const { data: row, error } = await loose(sb)
+      .from("reseller_lead_quotes")
+      .insert({
+        lead_id: data.leadId,
+        owner_agent_id: agent,
+        product: data.product,
+        amount: data.amount,
+        currency: data.currency.toUpperCase(),
+        status: data.status,
+      })
+      .select("id, lead_id, product, amount, currency, status, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row as ResellerLeadQuote;
+  });
+
+type ResellerLeadProposal = {
+  id: string;
+  lead_id: string;
+  title: string;
+  body: string;
+  status: "draft" | "sent";
+  created_at: string;
+};
+
+export const listResellerLeadProposals = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) => z.object({ leadId: z.string().uuid() }).parse(value ?? {}))
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    await ownLead(sb, who, data.leadId, false);
+    const { data: rows, error } = await loose(sb)
+      .from("reseller_lead_proposals")
+      .select("id, lead_id, title, body, status, created_at")
+      .eq("lead_id", data.leadId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as ResellerLeadProposal[];
+  });
+
+export const addResellerLeadProposal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) =>
+    z.object({
+      leadId: z.string().uuid(),
+      title: z.string().trim().min(1, "A proposal title is required").max(300),
+      body: z.string().trim().min(1, "Proposal details are required").max(20_000),
+    }).parse(value ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    const { agent } = await ownLead(sb, who, data.leadId, false);
+    const { data: row, error } = await loose(sb)
+      .from("reseller_lead_proposals")
+      .insert({ lead_id: data.leadId, owner_agent_id: agent, title: data.title, body: data.body })
+      .select("id, lead_id, title, body, status, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row as ResellerLeadProposal;
+  });
+
 /* ---------------- One client's purchases, licences and follow-ups ---------------- */
 
 const PAID = new Set(["paid", "processing", "fulfilled", "completed"]);
@@ -595,17 +777,8 @@ async function attributedOrders(sb: Sb, resellerId: string) {
   }[];
 }
 
-/**
- * The client, if this reseller owns it, and the orders among the reseller's
- * own credited sales that its email address placed.
- *
- * A client is a crm_customers row with an email address, and an order belongs
- * to a buyer account, so the two are joined by that address - but only among
- * the orders this reseller is credited with. Matching every order on the
- * platform by email would let anyone who adds a "client" read that person's
- * purchases; limited to the reseller's own sales, it shows only what they sold.
- */
-async function clientOrders(sb: Sb, who: Reseller, clientId: string) {
+/** Verify the client belongs to this reseller's CRM owner row. */
+async function ownedClient(sb: Sb, who: Reseller, clientId: string) {
   const owner = await ownerIdFor(sb, who, false);
   if (!owner) throw new Error("That client was not found among yours.");
   const client = await loose(sb)
@@ -616,18 +789,27 @@ async function clientOrders(sb: Sb, who: Reseller, clientId: string) {
     .maybeSingle();
   if (client.error) throw new Error(client.error.message);
   if (!client.data) throw new Error("That client was not found among yours.");
-  const email = ((client.data as { email?: string | null }).email ?? "").trim().toLowerCase();
-  if (!email) return { owner, client: client.data as { id: string; created_at: string }, orders: [] };
+  return { owner, client: client.data as { id: string; email: string | null; created_at: string } };
+}
+
+/**
+ * The client's orders among this reseller's credited sales. Matching a CRM
+ * email against every marketplace order would expose unrelated purchases.
+ */
+async function clientOrders(sb: Sb, who: Reseller, clientId: string) {
+  const { owner, client } = await ownedClient(sb, who, clientId);
+  const email = (client.email ?? "").trim().toLowerCase();
+  if (!email) return { owner, client, orders: [] };
 
   const orders = await attributedOrders(sb, who.reseller.id);
   const buyerIds = [...new Set(orders.map((o) => o.buyer_id).filter((b): b is string => !!b))];
-  if (!buyerIds.length) return { owner, client: client.data as { id: string; created_at: string }, orders: [] };
+  if (!buyerIds.length) return { owner, client, orders: [] };
   // Exact, case-insensitive address match among those buyers only.
   const buyers = (await readIn(sb, "profiles", "id, email", "id", buyerIds)) as { id: string; email: string | null }[];
   const theirs = new Set(buyers.filter((b) => (b.email ?? "").trim().toLowerCase() === email).map((b) => b.id));
   return {
     owner,
-    client: client.data as { id: string; created_at: string },
+    client,
     orders: orders.filter((o) => o.buyer_id && theirs.has(o.buyer_id)),
   };
 }
@@ -703,9 +885,37 @@ export const listResellerClientActivity = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(200);
     if (tasks.error) throw new Error(tasks.error.message);
+    const [noteResult, documentResult, communicationResult] = await Promise.all([
+      loose(sb)
+        .from("reseller_client_notes")
+        .select("notes")
+        .eq("client_id", data.clientId)
+        .eq("owner_id", owner)
+        .maybeSingle(),
+      loose(sb)
+        .from("reseller_client_documents")
+        .select("id, file_name, mime_type, file_size, storage_path, created_at")
+        .eq("client_id", data.clientId)
+        .eq("owner_id", owner)
+        .order("created_at", { ascending: false })
+        .limit(100),
+      loose(sb)
+        .from("reseller_client_communications")
+        .select("id, communication_type, content, actor_name, created_at")
+        .eq("client_id", data.clientId)
+        .eq("owner_id", owner)
+        .order("created_at", { ascending: false })
+        .limit(200),
+    ]);
+    for (const result of [noteResult, documentResult, communicationResult]) {
+      if (result.error) throw new Error(result.error.message);
+    }
 
     return {
       clientCreatedAt: client.created_at,
+      notes: ((noteResult.data as { notes?: string } | null)?.notes ?? ""),
+      documents: (documentResult.data ?? []) as ClientDocumentRow[],
+      communications: (communicationResult.data ?? []) as ClientCommunicationRow[],
       purchases: orders
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .map((o) => ({
@@ -735,7 +945,7 @@ export const addResellerClientFollowUp = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const sb = writer();
     const who = await requireReseller(sb, context);
-    const { owner } = await clientOrders(sb, who, data.clientId);
+    const { owner } = await ownedClient(sb, who, data.clientId);
     const due = data.due ? Date.parse(data.due) : NaN;
     const { data: row, error } = await loose(sb)
       .from("crm_tasks")
@@ -772,6 +982,119 @@ export const setResellerClientFollowUpDone = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!row) throw new Error("That follow-up was not found among yours.");
     return row as ClientTask;
+  });
+
+type ClientDocumentRow = {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  storage_path: string;
+  created_at: string;
+};
+
+type ClientCommunicationRow = {
+  id: string;
+  communication_type: string;
+  content: string;
+  actor_name: string;
+  created_at: string;
+};
+
+export const saveResellerClientNotes = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) =>
+    z.object({ clientId: z.string().uuid(), notes: z.string().max(20_000) }).parse(value ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    const { owner } = await ownedClient(sb, who, data.clientId);
+    const { data: row, error } = await loose(sb)
+      .from("reseller_client_notes")
+      .upsert(
+        { client_id: data.clientId, owner_id: owner, notes: data.notes, updated_at: new Date().toISOString() },
+        { onConflict: "client_id" },
+      )
+      .select("client_id, notes, updated_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row as { client_id: string; notes: string; updated_at: string };
+  });
+
+export const addResellerClientCommunication = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) =>
+    z.object({
+      clientId: z.string().uuid(),
+      content: z.string().trim().min(1, "Describe the communication").max(2000),
+      kind: z.enum(["call", "email", "meeting", "other"]).default("other"),
+    }).parse(value ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    const { owner } = await ownedClient(sb, who, data.clientId);
+    const { data: row, error } = await loose(sb)
+      .from("reseller_client_communications")
+      .insert({
+        client_id: data.clientId,
+        owner_id: owner,
+        actor_id: who.userId,
+        actor_name: who.name,
+        communication_type: data.kind,
+        content: data.content,
+      })
+      .select("id, communication_type, content, actor_name, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row as ClientCommunicationRow;
+  });
+
+export const registerResellerClientDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) =>
+    z.object({
+      clientId: z.string().uuid(),
+      storagePath: z.string().min(1).max(200),
+      fileName: z.string().trim().min(1).max(255),
+      mimeType: z.string().min(1).max(150),
+      fileSize: z.number().int().positive().max(15 * 1024 * 1024),
+    }).parse(value ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const who = await requireReseller(sb, context);
+    const { owner } = await ownedClient(sb, who, data.clientId);
+    const pathPattern = new RegExp(`^${who.userId}/${data.clientId}/[0-9a-f-]{36}$`, "i");
+    if (!pathPattern.test(data.storagePath)) throw new Error("That document upload path is not valid.");
+    const allowedTypes = new Set([
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "text/plain",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ]);
+    if (!allowedTypes.has(data.mimeType)) throw new Error("That document type is not supported.");
+    const { data: row, error } = await loose(sb)
+      .from("reseller_client_documents")
+      .insert({
+        client_id: data.clientId,
+        owner_id: owner,
+        uploaded_by: who.userId,
+        file_name: data.fileName,
+        mime_type: data.mimeType,
+        file_size: data.fileSize,
+        storage_path: data.storagePath,
+      })
+      .select("id, file_name, mime_type, file_size, storage_path, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row as ClientDocumentRow;
   });
 
 /* ---------------- Dashboard figures ---------------- */
@@ -971,4 +1294,335 @@ export const listResellerPaymentRails = createServerFn({ method: "GET" })
       code: r.code,
       label: r.display_name || r.code,
     }));
+  });
+
+const resellerAccountSettingsSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160).optional(),
+    phone: z.string().trim().max(40).optional(),
+    companyName: z.string().trim().max(200).optional(),
+    legalName: z.string().trim().max(200).optional(),
+    gstNumber: z.string().trim().max(40).optional(),
+    panNumber: z.string().trim().max(20).optional(),
+    region: z.string().trim().max(120).optional(),
+    timezone: z.string().trim().max(100).optional(),
+    companyAddress: z.string().trim().max(2000).optional(),
+    payoutMethod: z.enum(["bank", "upi"]).optional(),
+    bankAccountHolder: z.string().trim().max(160).optional(),
+    bankName: z.string().trim().max(160).optional(),
+    bankAccountNumber: z.string().trim().max(80).optional(),
+    bankIfsc: z.string().trim().max(20).optional(),
+    upiVpa: z.string().trim().max(100).optional(),
+  })
+  .refine((value) => !value.bankIfsc || /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(value.bankIfsc), {
+    path: ["bankIfsc"],
+    message: "Enter a valid IFSC code.",
+  })
+  .refine((value) => !value.upiVpa || /^[A-Za-z0-9._-]{2,}@[A-Za-z0-9.-]{2,}$/.test(value.upiVpa), {
+    path: ["upiVpa"],
+    message: "Enter a valid UPI ID.",
+  });
+
+export const getResellerAccountSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb = writer();
+    const { reseller } = await requireReseller(sb, context);
+    const [profile, settings] = await Promise.all([
+      loose(sb)
+        .from("resellers")
+        .select(
+          "name, email, phone, company_name, legal_name, gst_number, pan_number, region, kyc_status",
+        )
+        .eq("id", reseller.id)
+        .eq("user_id", context.userId)
+        .maybeSingle(),
+      loose(sb)
+        .from("reseller_account_settings")
+        .select(
+          "timezone, company_address, payout_method, bank_account_holder, bank_name, bank_account_number, bank_ifsc, upi_vpa",
+        )
+        .eq("reseller_id", reseller.id)
+        .maybeSingle(),
+    ]);
+    if (profile.error) throw new Error(profile.error.message);
+    if (settings.error) throw new Error(settings.error.message);
+    if (!profile.data) throw new Error("The reseller profile could not be loaded.");
+    const p = profile.data as Record<string, string | null>;
+    const s = (settings.data ?? {}) as Record<string, string | null>;
+    return {
+      profile: {
+        resellerId: reseller.id,
+        name: p.name ?? "",
+        email: p.email ?? "",
+        phone: p.phone ?? "",
+        companyName: p.company_name ?? "",
+        legalName: p.legal_name ?? "",
+        gstNumber: p.gst_number ?? "",
+        panNumber: p.pan_number ?? "",
+        region: p.region ?? "",
+        kycStatus: p.kyc_status ?? "unverified",
+      },
+      settings: {
+        timezone: s.timezone ?? "UTC",
+        companyAddress: s.company_address ?? "",
+        payoutMethod: s.payout_method ?? "bank",
+        bankAccountHolder: s.bank_account_holder ?? "",
+        bankName: s.bank_name ?? "",
+        bankAccountNumber: s.bank_account_number ?? "",
+        bankIfsc: s.bank_ifsc ?? "",
+        upiVpa: s.upi_vpa ?? "",
+      },
+    };
+  });
+
+export const saveResellerAccountSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) => resellerAccountSettingsSchema.parse(value ?? {}))
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const { reseller } = await requireReseller(sb, context);
+    const profile: Record<string, string> = {};
+    if (data.name !== undefined) profile.name = data.name;
+    if (data.phone !== undefined) profile.phone = data.phone;
+    if (data.companyName !== undefined) profile.company_name = data.companyName;
+    if (data.legalName !== undefined) profile.legal_name = data.legalName;
+    if (data.gstNumber !== undefined) profile.gst_number = data.gstNumber;
+    if (data.panNumber !== undefined) profile.pan_number = data.panNumber;
+    if (data.region !== undefined) profile.region = data.region;
+
+    if (Object.keys(profile).length) {
+      const result = await loose(sb)
+        .from("resellers")
+        .update(profile)
+        .eq("id", reseller.id)
+        .eq("user_id", context.userId)
+        .select("id")
+        .maybeSingle();
+      if (result.error) throw new Error(result.error.message);
+      if (!result.data) throw new Error("The reseller profile was not updated.");
+    }
+
+    const settings: Record<string, string> = {};
+    if (data.timezone !== undefined) settings.timezone = data.timezone;
+    if (data.companyAddress !== undefined) settings.company_address = data.companyAddress;
+    if (data.payoutMethod !== undefined) settings.payout_method = data.payoutMethod;
+    if (data.bankAccountHolder !== undefined) settings.bank_account_holder = data.bankAccountHolder;
+    if (data.bankName !== undefined) settings.bank_name = data.bankName;
+    if (data.bankAccountNumber !== undefined) settings.bank_account_number = data.bankAccountNumber;
+    if (data.bankIfsc !== undefined) settings.bank_ifsc = data.bankIfsc.toUpperCase();
+    if (data.upiVpa !== undefined) settings.upi_vpa = data.upiVpa;
+
+    if (Object.keys(settings).length) {
+      const result = await loose(sb)
+        .from("reseller_account_settings")
+        .upsert(
+          { reseller_id: reseller.id, ...settings, updated_at: new Date().toISOString() },
+          { onConflict: "reseller_id" },
+        )
+        .select("reseller_id")
+        .maybeSingle();
+      if (result.error) throw new Error(result.error.message);
+      if (!result.data) throw new Error("The reseller settings were not saved.");
+    }
+    return { success: true };
+  });
+
+const resellerKycDocumentSchema = z.object({
+  storagePath: z.string().min(1).max(500),
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.enum(["application/pdf", "image/jpeg", "image/png", "image/webp"]),
+  fileSize: z
+    .number()
+    .int()
+    .positive()
+    .max(10 * 1024 * 1024),
+});
+
+export const listResellerKycDocuments = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb = writer();
+    const { reseller } = await requireReseller(sb, context);
+    const result = await loose(sb)
+      .from("reseller_kyc_documents")
+      .select("id, file_name, mime_type, file_size, storage_path, created_at")
+      .eq("reseller_id", reseller.id)
+      .eq("uploaded_by", context.userId)
+      .order("created_at", { ascending: false });
+    if (result.error) throw new Error(result.error.message);
+    const documents = (result.data ?? []) as {
+      id: string;
+      file_name: string;
+      mime_type: string;
+      file_size: number;
+      storage_path: string;
+      created_at: string;
+    }[];
+    return Promise.all(
+      documents.map(async (doc) => {
+        const signed = await sb.storage
+          .from("reseller-kyc-documents")
+          .createSignedUrl(doc.storage_path, 300);
+        if (signed.error) throw new Error(signed.error.message);
+        return {
+          id: doc.id,
+          fileName: doc.file_name,
+          mimeType: doc.mime_type,
+          fileSize: doc.file_size,
+          createdAt: doc.created_at,
+          url: signed.data.signedUrl,
+        };
+      }),
+    );
+  });
+
+export const registerResellerKycDocument = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) => resellerKycDocumentSchema.parse(value ?? {}))
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    const { reseller } = await requireReseller(sb, context);
+    const expectedPrefix = `${context.userId}/${reseller.id}/`;
+    if (!data.storagePath.startsWith(expectedPrefix) || data.storagePath.includes("..")) {
+      throw new Error("The uploaded document path is not owned by this reseller account.");
+    }
+    const inserted = await loose(sb)
+      .from("reseller_kyc_documents")
+      .insert({
+        reseller_id: reseller.id,
+        uploaded_by: context.userId,
+        file_name: data.fileName,
+        mime_type: data.mimeType,
+        file_size: data.fileSize,
+        storage_path: data.storagePath,
+      })
+      .select("id")
+      .maybeSingle();
+    if (inserted.error) throw new Error(inserted.error.message);
+    if (!inserted.data) throw new Error("The KYC document could not be registered.");
+    const updated = await loose(sb)
+      .from("resellers")
+      .update({ kyc_status: "submitted" })
+      .eq("id", reseller.id)
+      .eq("user_id", context.userId)
+      .select("id")
+      .maybeSingle();
+    if (updated.error || !updated.data) {
+      const failure =
+        updated.error?.message ??
+        "The document was saved, but the KYC status could not be updated.";
+      const cleanup = await loose(sb)
+        .from("reseller_kyc_documents")
+        .delete()
+        .eq("id", inserted.data.id);
+      if (cleanup.error) {
+        throw new Error(
+          `${failure} The incomplete document record could not be removed: ${cleanup.error.message}`,
+        );
+      }
+      throw new Error(failure);
+    }
+    return { success: true };
+  });
+
+export const RESELLER_AI_TOOLS = [
+  "sales-assistant",
+  "lead-scoring",
+  "proposal",
+  "email",
+  "whatsapp",
+  "followup",
+  "renewal",
+  "forecast",
+] as const;
+
+export type ResellerAiTool = (typeof RESELLER_AI_TOOLS)[number];
+
+const RESELLER_AI_INSTRUCTIONS: Record<ResellerAiTool, string> = {
+  "sales-assistant":
+    "Help a software reseller with sales objections, product pitches and demo preparation. Give practical, concise guidance and do not invent product capabilities or customer facts.",
+  "lead-scoring":
+    "Assess the supplied lead for fit, intent and conversion likelihood. Give a transparent 0-100 estimate, explain the evidence and uncertainty, and recommend the next qualifying questions. Do not invent missing facts.",
+  proposal:
+    "Draft a tailored software-services proposal from the supplied brief. Clearly label assumptions, describe scope and deliverables, and do not invent prices, guarantees, product features or legal terms.",
+  email:
+    "Write a polished sales email based only on the supplied goal and facts. Use a clear subject, concise body and one appropriate call to action. Do not invent names, promises or product capabilities.",
+  whatsapp:
+    "Write a brief, natural WhatsApp sales message based only on the supplied intent and facts. Keep it concise, respectful and include a clear next step without inventing details.",
+  followup:
+    "Recommend a practical next follow-up based only on the supplied pipeline snapshot. State the suggested channel, timing and message, and identify uncertainty rather than inventing activity.",
+  renewal:
+    "Assess renewal or churn risk using only the supplied account information. Explain the evidence and uncertainty, and suggest concrete retention checks without claiming access to license telemetry not provided.",
+  forecast:
+    "Prepare a cautious revenue or commission forecast from the supplied figures and horizon. State assumptions and missing inputs clearly; do not fabricate historical or financial data.",
+};
+
+export function resellerAiInstructions(tool: ResellerAiTool) {
+  return RESELLER_AI_INSTRUCTIONS[tool];
+}
+
+export function eligibleResellerAiServiceId(service: unknown): string | null {
+  if (!service || typeof service !== "object" || Array.isArray(service)) return null;
+  const row = service as Record<string, unknown>;
+  const tier = String(row["pricing_tier"] ?? "").toLowerCase();
+  const category = String(row["category"] ?? "").toLowerCase();
+  if (
+    row["status"] !== "active" ||
+    row["approval_status"] !== "approved" ||
+    !["ai", "llm"].includes(category) ||
+    !["local", "free", "free-tier", "freemium"].includes(tier)
+  ) {
+    return null;
+  }
+  return typeof row["id"] === "string" && row["id"].trim() ? row["id"] : null;
+}
+
+export const generateResellerAi = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((value) =>
+    z.object({
+      tool: z.enum(RESELLER_AI_TOOLS),
+      input: z.string().trim().min(1, "Enter information for the AI tool").max(4000),
+    }).parse(value ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const sb = writer();
+    await requireReseller(sb, context);
+    const { data: service, error: serviceError } = await loose(sb)
+      .from("api_services")
+      .select("id, category, status, approval_status, pricing_tier")
+      .eq("status", "active")
+      .eq("approval_status", "approved")
+      .in("category", ["ai", "llm"])
+      .in("pricing_tier", ["local", "free", "free-tier", "freemium"])
+      .order("name", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (serviceError) {
+      throw new Error(`Could not verify free-tier AI availability: ${serviceError.message}`);
+    }
+    const serviceId = eligibleResellerAiServiceId(service);
+    if (!serviceId) {
+      throw new Error("No active approved free-tier AI service is available for Reseller AI.");
+    }
+    const result = await aiComplete({
+      module: "reseller",
+      serviceId,
+      temperature: 0.4,
+      maxTokens: 1200,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are Software Vala's practical reseller assistant. Use only facts in the user's input; " +
+            "do not claim to have read the reseller's CRM, products, orders, or account data. " +
+            `${resellerAiInstructions(data.tool)} Return useful, clear plain text.`,
+        },
+        { role: "user", content: data.input },
+      ],
+    });
+    const text = result.text.trim();
+    if (!text) throw new Error("The AI provider returned an empty answer.");
+    return { text, model: result.model };
   });

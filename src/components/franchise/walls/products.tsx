@@ -1,51 +1,91 @@
-import { Activity, CheckCircle2, Coins, Gauge, Package, Pause, ShieldCheck, Trash2, TrendingUp, Users } from "lucide-react";
+import { CheckCircle2, Gauge, Package, Pause, TrendingUp } from "lucide-react";
 
 import { StatusPill, type WallConfig } from "@/components/manager-suite/wall";
 
-const STATUSES = ["active", "pending", "review", "suspended", "closed"] as const;
-
 export const config: WallConfig = {
-  // Reads the marketplace catalogue a franchise sells from.
-  resource: "products",
+  resource: "franchise_product_assignments",
   scope: "franchise-products",
-  entity: "product",
+  entity: "product assignment",
   eyebrow: "Products",
   title: "Product Assignment",
-  subtitle: "Assign products, categories, pricing and regional rules to franchises.",
+  subtitle: "Assign catalogue products to specific franchises.",
   icon: Package,
-  primaryLabel: "New Record",
+  primaryLabel: "Assign Product",
   seed: [],
   kpis: [
-    { label: "Total Products", icon: Gauge, compute: (r) => r.length ? r.length : "—" },
-    { label: "Assigned", icon: TrendingUp, compute: (r) => r.length ? r.length : "—" },
-    { label: "Regional Rules", icon: Coins, compute: (r) => r.length ? r.length : "—" },
-    { label: "Discount Rules", icon: ShieldCheck, compute: (r) => r.length ? r.length : "—" },
+    { label: "Assignments", icon: Gauge, compute: (rows) => rows.length || "—" },
+    {
+      label: "Active",
+      icon: TrendingUp,
+      compute: (rows) => rows.filter((row) => row.active).length || "—",
+    },
   ],
   columns: [
-    { key: "name", header: "Name" },
-    { key: "owner", header: "Owner" },
-    { key: "scope", header: "Scope" },
-    { key: "status", header: "Status", render: (r) => <StatusPill value={r.status} /> },
-    { key: "updated_at", header: "Updated" },
+    {
+      key: "franchise_id",
+      header: "Franchise",
+      render: (row) => <span className="font-mono text-xs">{row.franchise_id}</span>,
+    },
+    {
+      key: "product_id",
+      header: "Product",
+      render: (row) => <span className="font-mono text-xs">{row.product_id}</span>,
+    },
+    {
+      key: "active",
+      header: "Status",
+      render: (row) => <StatusPill value={row.active ? "active" : "inactive"} />,
+    },
+    { key: "created_at", header: "Assigned" },
   ],
-  filters: [{ key: "status", label: "Status", options: STATUSES }],
+  filters: [],
   bulkActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, variant: "destructive" },
-    { key: "delete", label: "Delete", icon: Trash2, variant: "destructive" },
+    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { active: true } },
+    {
+      key: "suspend",
+      label: "Deactivate",
+      icon: Pause,
+      patch: { active: false },
+      variant: "destructive",
+    },
   ],
   rowActions: [
-    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { status: "active" } },
-    { key: "suspend", label: "Suspend", icon: Pause, patch: { status: "suspended" }, destructive: true },
+    { key: "activate", label: "Activate", icon: CheckCircle2, patch: { active: true } },
+    {
+      key: "suspend",
+      label: "Deactivate",
+      icon: Pause,
+      patch: { active: false },
+      destructive: true,
+    },
   ],
   formFields: [
-    { key: "name", label: "Name", type: "text", required: true },
-    { key: "owner", label: "Owner", type: "text" },
-    { key: "scope", label: "Scope", type: "text" },
-    { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },
-    { key: "updated_at", label: "Updated", type: "text" },
+    {
+      key: "franchise_id",
+      label: "Franchise",
+      type: "resource-select",
+      optionsResource: "franchises",
+      optionLabel: "franchise",
+      createOnly: true,
+      required: true,
+    },
+    {
+      key: "product_id",
+      label: "Marketplace product",
+      type: "resource-select",
+      optionsResource: "products",
+      optionLabel: "name",
+      createOnly: true,
+      required: true,
+    },
   ],
-  searchFields: ["name", "owner", "scope"],
-  primaryField: "name",
-  panels: [{ title: "Catalog Types", items: ["Live source pending", "Owner", "Last sync"] }, { title: "Assignments", items: ["Live source pending", "Owner", "Last sync"] }],
+  searchFields: [],
+  primaryField: "product_id",
+  statusField: "active",
+  panels: [
+    {
+      title: "Assignments",
+      items: ["Active assignments are visible to the linked franchise dashboard."],
+    },
+  ],
 };

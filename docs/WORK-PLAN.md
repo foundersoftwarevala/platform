@@ -93,19 +93,20 @@ This one needs the owner to allow it or to apply it.
 
 First finding, and a trap worth writing down: the live `/` route renders
 `src/components/sapphire-home/HomeIndex.tsx`, **not**
-`marketplace-home/HomeIndex.tsx`. The marketplace-home tree is a retired stand
-kept beside the live one. Check `src/routes/index.tsx` before editing any
-homepage component — I edited the wrong one first.
+the former `marketplace-home/HomeIndex.tsx`, which was removed after its
+Marketplace Manager preview was moved to the live card component. The
+`marketplace-home` directory remains in use for shared category and product
+detail pages. Check `src/routes/index.tsx` before editing homepage components.
 
 Sections whose content is hardcoded rather than manager-controlled:
 utility-bar, feature-strip, ai-zone, vala-academy, partner-ecosystem,
 enterprise-cta, and the search-bar stats badge. The rest read real sources.
 
-Still hardcoded and not yet fixed: the live footer line in sapphire-home
-("55 Master Categories ... 20 Live Demos Ready", with the product count taken
-from an array length in the browser), and the `/` route title and description
-("147 Software Solutions", "20 master categories") — the latter is SEO
-metadata, which SEO Manager owns.
+The homepage search and category filter now query the published catalogue;
+search results page through the full matching set. The homepage's authored
+default shelves remain a separate presentation. Catalogue count and homepage
+title metadata are maintained by the corresponding live homepage components
+and route.
 
 One row per homepage section: what renders it, which manager control claims to
 own it, which table that control writes, and whether changing the control

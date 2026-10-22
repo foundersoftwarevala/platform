@@ -81,7 +81,7 @@ export function ProductDetail() {
         toast.error("Please sign in to buy.");
         void navigate({
           to: "/login",
-          search: { redirect: `/marketplace/product/${slug}` } as never,
+          search: { redirect: `/marketplace/product/${slug}?buy=1` } as never,
         });
         return;
       }
@@ -232,11 +232,6 @@ export function ProductDetail() {
                       {product.badge && (
                         <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40">
                           {product.badge}
-                        </Badge>
-                      )}
-                      {product.industry_label && (
-                        <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/40">
-                          {product.industry_label}
                         </Badge>
                       )}
                     </div>

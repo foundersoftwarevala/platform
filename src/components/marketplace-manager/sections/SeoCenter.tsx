@@ -76,14 +76,32 @@ import {
   X,
   Save,
   CircleDot,
+  Loader2,
 } from "lucide-react";
 import { Card, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import { SeoSection as LegacySeoEditor } from "./SeoSection";
+import { SeoFrameworkTabs, type SeoFrameworkPhase } from "./SeoFrameworkTabs";
+import { SeoTechnicalCrawler } from "./SeoTechnicalCrawler";
+import { ResellerCountrySeoQueue } from "@/components/seo-manager/ResellerCountrySeoQueue";
 
 import { notBuilt } from "@/lib/ui/not-built";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { authHeaders } from "@/lib/auth/operator-fetch";
-import { useAiGeneration, useGenerateReport, useSiteAudit } from "@/lib/use-seo-actions";
+import {
+  useAiGeneration,
+  useGenerateReport,
+  useGenerateSeoContentDraft,
+  useGenerateSeoKeywordIdeas,
+  useSeoAiManagerServices,
+  useMarketplaceProductCountrySeoProgress,
+  useMarketplaceProductCountrySeoWorkerStatus,
+  useProcessMarketplaceProductCountrySeoBatch,
+  useRetryFailedMarketplaceProductCountrySeo,
+  useSetMarketplaceProductCountrySeoWorkerEnabled,
+  useSearchConsoleSync,
+  useSiteAudit,
+  useSubmitIndexNow,
+} from "@/lib/use-seo-actions";
 import { relativeFromNow } from "@/lib/timezone";
 import {
   countWhere,
@@ -715,7 +733,7 @@ function ActionDrawer({ state, onClose }: { state: DrawerState; onClose: () => v
    ========================================================= */
 export const SEO_MODULE_GROUPS: {
   label: string;
-  items: { id: string; label: string; icon: any }[];
+  items: { id: string; label: string; messageKey?: "seo.reseller_seo"; icon: any }[];
 }[] = [
   {
     label: "Overview",
@@ -758,6 +776,8 @@ export const SEO_MODULE_GROUPS: {
   {
     label: "Ranking & Research",
     items: [
+      { id: "backlinks-foundation", label: "Backlinks & Competitors", icon: LinkIcon },
+      { id: "keywords-foundation", label: "Keywords & Rankings", icon: Hash },
       { id: "keywords", label: "Keyword Center", icon: Hash },
       { id: "cluster", label: "Keyword Cluster", icon: GitBranch },
       { id: "ranking", label: "Google Ranking", icon: TrendingUp },
@@ -778,6 +798,7 @@ export const SEO_MODULE_GROUPS: {
   {
     label: "Technical",
     items: [
+      { id: "technical-foundation", label: "Technical SEO", icon: ScanLine },
       { id: "redirect", label: "Redirects", icon: ArrowRight },
       { id: "canonical", label: "Canonical", icon: LinkIcon },
       { id: "sitemap", label: "Sitemap", icon: MapIcon },
@@ -797,6 +818,7 @@ export const SEO_MODULE_GROUPS: {
       { id: "campaigns", label: "Campaigns", icon: Target },
       { id: "aiwriter", label: "AI Writer", icon: Wand2 },
       { id: "aikeyword", label: "AI Keyword", icon: Bot },
+      { id: "reseller-country-seo", label: "", messageKey: "seo.reseller_seo", icon: Globe2 },
     ],
   },
   {
@@ -806,6 +828,14 @@ export const SEO_MODULE_GROUPS: {
       { id: "others", label: "Other Tools", icon: Layers },
       { id: "bulk", label: "Bulk Ops", icon: ListFilter },
       { id: "settings", label: "Settings", icon: Settings },
+    ],
+  },
+  {
+    label: "Expansion & Business",
+    items: [
+      { id: "local-phase2", label: "Local SEO", icon: MapPin },
+      { id: "international-phase2", label: "International SEO", icon: Languages },
+      { id: "reporting-phase2", label: "Reporting & Business", icon: BarChart3 },
     ],
   },
 ];
@@ -1215,6 +1245,7 @@ function RowActs() {
    ROOT COMPONENT
    ========================================================= */
 export function SeoCenter() {
+  const { t } = useTranslation();
   const [module, setModule] = useState("dashboard");
   const [drawer, setDrawer] = useState<DrawerState>({ open: false, title: "", kind: "info" });
 
@@ -1318,7 +1349,7 @@ export function SeoCenter() {
                       }`}
                     >
                       <Icon className="h-3 w-3" />
-                      {it.label}
+                      {it.messageKey ? t(it.messageKey) : it.label}
                     </button>
                   );
                 })}
@@ -1338,6 +1369,16 @@ export function SeoCenter() {
 
 export function renderSeoModule(id: string) {
   switch (id) {
+    case "technical-foundation":
+      return <SeoTechnicalCrawler />;
+    case "reseller-country-seo":
+      return <ResellerCountrySeoQueue />;
+    case "backlinks-foundation":
+    case "keywords-foundation":
+    case "local-phase2":
+    case "international-phase2":
+    case "reporting-phase2":
+      return <SeoFrameworkTabs key={id} phase={id} />;
     case "dashboard":
       return <DashboardModule />;
     case "health":
@@ -2458,9 +2499,40 @@ const TRANSLATION_TONE: Record<string, "default" | "success" | "warning" | "prem
 function IndexNowModule() {
   const { t } = useTranslation();
   const [offset, setOffset] = useState(0);
+  const [host, setHost] = useState("");
+  const [key, setKey] = useState("");
+  const [keyLocation, setKeyLocation] = useState("");
+  const [urlInput, setUrlInput] = useState("");
+  const submission = useSubmitIndexNow();
   const subs = useResource("indexnow", { limit: PAGE_SIZE, offset });
   const all = useResource("indexnow", { limit: 1 });
-  const ok = useResource("indexnow", { limit: 1, filters: ["status.eq.success"] });
+  const ok = useResource("indexnow", { limit: 1, filters: ["status.eq.submitted"] });
+  const urls = urlInput
+    .split(/\r?\n/)
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+  const submitUrls = () => {
+    submission.mutate(
+      {
+        host: host.trim(),
+        key,
+        ...(keyLocation.trim() ? { key_location: keyLocation.trim() } : {}),
+        urls,
+      },
+      {
+        onSuccess: (result) => {
+          if (!result.success) return;
+          setKey("");
+          setUrlInput("");
+          submission.reset();
+          subs.refresh();
+          all.refresh();
+          ok.refresh();
+        },
+      },
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -2472,6 +2544,109 @@ function IndexNowModule() {
           IndexNow
         </div>
         <div className="mt-1 text-[12px] text-muted-foreground">{t("seo.indexnow_note")}</div>
+      </Card>
+      <Card>
+        <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-accent">
+          Submit changed URLs
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            Host
+            <input
+              value={host}
+              onChange={(event) => setHost(event.target.value)}
+              placeholder="example.com"
+              autoComplete="off"
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            IndexNow key (not stored)
+            <input
+              type="password"
+              value={key}
+              onChange={(event) => setKey(event.target.value)}
+              autoComplete="new-password"
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+          <label className="space-y-1 text-[11px] text-muted-foreground md:col-span-2">
+            Key file URL (optional)
+            <input
+              value={keyLocation}
+              onChange={(event) => setKeyLocation(event.target.value)}
+              placeholder="https://example.com/<key>.txt"
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+          <label className="space-y-1 text-[11px] text-muted-foreground md:col-span-2">
+            HTTPS URLs on that host, one per line (maximum 1,000)
+            <textarea
+              value={urlInput}
+              onChange={(event) => setUrlInput(event.target.value)}
+              rows={4}
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={
+              !host.trim() ||
+              !key ||
+              urls.length === 0 ||
+              urls.length > 1000 ||
+              submission.isPending
+            }
+            onClick={submitUrls}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[11px] font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {submission.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
+            {submission.isPending ? "Submitting…" : `Submit ${urls.length || ""} URL(s)`}
+          </button>
+          <span className="text-[10px] text-muted-foreground">
+            Credentials are used for this request only and are not saved by the page.
+          </span>
+        </div>
+        {submission.isError ? (
+          <div
+            className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[11px] text-destructive"
+            role="alert"
+          >
+            <span>{submission.error.message}</span>
+            {submission.variables ? (
+              <button
+                type="button"
+                onClick={() => submission.mutate(submission.variables)}
+                className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {submission.data && !submission.data.success ? (
+          <div
+            className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[11px] text-destructive"
+            role="alert"
+          >
+            <span>{submission.data.message}</span>
+            {submission.variables ? (
+              <button
+                type="button"
+                onClick={() => submission.mutate(submission.variables)}
+                className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </Card>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <StatCard
@@ -4661,6 +4836,7 @@ function ProductSeoModule() {
   const entries = useResource("seo_product_entries", { limit: 100 });
   return (
     <div className="space-y-6">
+      <MarketplaceProductCountrySeoQueue />
       <PagesOfType kind="product" title={t("seo.product_pages")} Icon={Boxes} />
       <div>
         <Toolbar title={t("seo.product_seo_entries")} count={entries.total} />
@@ -4694,6 +4870,187 @@ function ProductSeoModule() {
         )}
       </div>
     </div>
+  );
+}
+
+function MarketplaceProductCountrySeoQueue() {
+  const processBatch = useProcessMarketplaceProductCountrySeoBatch();
+  const worker = useMarketplaceProductCountrySeoWorkerStatus();
+  const setWorkerEnabled = useSetMarketplaceProductCountrySeoWorkerEnabled();
+  const progress = useMarketplaceProductCountrySeoProgress(
+    processBatch.isPending || worker.data?.enabled === true,
+  );
+  const retryFailed = useRetryFailedMarketplaceProductCountrySeo();
+  const counts = progress.data;
+  const percent = counts?.total ? Math.floor((counts.completed / counts.total) * 100) : 0;
+  const processed = (counts?.completed ?? 0) + (counts?.failed ?? 0);
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold">Bulk Generation Status</div>
+          <p className="mt-1 max-w-3xl text-[11px] leading-relaxed text-muted-foreground">
+            Eligible public products are lazily paired with all 100 Marketplace countries. The
+            background worker handles one pair at a time, prefers Ollama Local, and is restricted to
+            approved Free providers. Paid providers are never used by this queue. Pause takes effect
+            after any in-progress pair finishes.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void progress.refetch()}
+          disabled={progress.isFetching}
+          className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-2 text-[11px] font-semibold disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${progress.isFetching ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
+      </div>
+
+      {progress.isError ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[11px] text-destructive">
+          <span role="alert">Marketplace SEO queue progress could not be loaded.</span>
+          <button
+            type="button"
+            onClick={() => void progress.refetch()}
+            className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
+          >
+            Retry
+          </button>
+        </div>
+      ) : progress.isLoading ? (
+        <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Reading SEO generation progress…
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-[11px]">
+            <span>
+              Total pairs <strong>{counts?.total.toLocaleString() ?? 0}</strong>
+            </span>
+            <span>
+              Processed <strong>{processed.toLocaleString()}</strong>
+            </span>
+            <span>
+              Complete <strong>{counts?.completed.toLocaleString() ?? 0}</strong> /{" "}
+              <strong>{counts?.total.toLocaleString() ?? 0}</strong>
+            </span>
+            <span>Remaining {counts?.pending.toLocaleString() ?? 0}</span>
+            <span>Processing {counts?.processing.toLocaleString() ?? 0}</span>
+            <span>Failed {counts?.failed.toLocaleString() ?? 0}</span>
+          </div>
+          <div
+            className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-label="Marketplace product-country SEO generation"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+          >
+            <div
+              className="h-full rounded-full bg-primary transition-[width]"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setWorkerEnabled.mutate(!worker.data?.enabled)}
+              disabled={worker.isLoading || worker.isError || setWorkerEnabled.isPending}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[11px] font-bold text-primary-foreground disabled:opacity-50"
+            >
+              {setWorkerEnabled.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : worker.data?.enabled ? (
+                <Pause className="h-3.5 w-3.5" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
+              {setWorkerEnabled.isPending
+                ? "Updating worker…"
+                : worker.data?.enabled
+                  ? "Pause"
+                  : "Resume"}
+            </button>
+            <button
+              type="button"
+              onClick={() => processBatch.mutate()}
+              disabled={processBatch.isPending || !counts?.pending || !worker.data?.enabled}
+              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[11px] font-semibold disabled:opacity-50"
+            >
+              {processBatch.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {processBatch.isPending ? "Processing one…" : "Process one now"}
+            </button>
+            <button
+              type="button"
+              onClick={() => retryFailed.mutate()}
+              disabled={retryFailed.isPending || !counts?.failed}
+              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-[11px] font-semibold disabled:opacity-50"
+            >
+              {retryFailed.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Retry next 50 failed
+            </button>
+          </div>
+          {worker.isError ? (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[11px] text-destructive">
+              <span role="alert">Background worker status could not be loaded.</span>
+              <button
+                type="button"
+                onClick={() => void worker.refetch()}
+                className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
+              >
+                Retry
+              </button>
+            </div>
+          ) : worker.isLoading ? (
+            <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Reading worker status…
+            </div>
+          ) : worker.data ? (
+            <div className="mt-3 space-y-1 text-[11px] text-muted-foreground" aria-live="polite">
+              <div>
+                Worker <strong>{worker.data.enabled ? "Running" : "Paused"}</strong>
+                {" · "}Current AI provider <strong>{worker.data.current_provider}</strong>
+              </div>
+              {worker.data.pause_reason ? (
+                <div role="status">{worker.data.pause_reason}</div>
+              ) : null}
+              {worker.data.last_error ? (
+                <div className="break-words text-destructive" role="alert">
+                  {worker.data.last_error}
+                </div>
+              ) : null}
+              {worker.data.host_load_1m !== null || worker.data.available_memory_bytes !== null ? (
+                <div>
+                  Host load (1 min) {worker.data.host_load_1m?.toFixed(2) ?? "—"}
+                  {" · "}Available memory{" "}
+                  {worker.data.available_memory_bytes === null
+                    ? "—"
+                    : `${(worker.data.available_memory_bytes / 1024 ** 3).toFixed(1)} GiB`}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      )}
+      {processBatch.data?.apiConfigurationPending && (
+        <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-800 dark:text-amber-200">
+          <strong>Pending API configuration.</strong> Configure a valid, active AI provider in AI
+          API Manager, then retry the failed items. No content was generated for those items.
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -6919,25 +7276,25 @@ function BlogCenterModule() {
 }
 
 /**
- * What the AI has actually produced, and what it is suggesting.
- *
- * The writer screen offered sixteen "Generate" cards and a prompt box over a
- * Generate button, none of which was wired to a model; the keyword screen
- * listed five researched keywords that no research produced. There is no
- * generation endpoint on this platform, so a Generate button here could only
- * ever have done nothing.
- *
- * What is recorded is the output that exists - content items and reels, each
- * naming the model that drafted it - and eight suggestions with an impact, a
- * confidence and whether they were accepted. Those are shown, and the screen
- * says plainly that generating from here is not built.
+ * Generate and persist draft content while keeping AI suggestions reviewable.
+ * New content is saved as a draft; it is never published automatically.
  */
 function AiWriterModule() {
   const { t } = useTranslation();
+  const [topic, setTopic] = useState("");
+  const [targetKeyword, setTargetKeyword] = useState("");
+  const [locale, setLocale] = useState("en");
   const suggestions = useResource("seo_ai_suggestions", { limit: 100 });
   const content = useResource("blog", { limit: 200 });
   const reels = useResource("seo_reels", { limit: 50 });
+  const generation = useGenerateSeoContentDraft();
   const drafted = content.rows.filter((row) => text(row, "model", "") !== "");
+  const generateDraft = () => {
+    generation.mutate(
+      { topic: topic.trim(), targetKeyword: targetKeyword.trim() || undefined, locale },
+      { onSuccess: () => content.refresh() },
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -6954,10 +7311,94 @@ function AiWriterModule() {
               {t("seo.what_has_been_drafted_and_what_is_being_sugges")}
             </div>
             <div className="mt-1 text-[11px] text-muted-foreground">
-              {t("seo.there_is_no_generation_endpoint_on_this_platfo")}
+              Generate an original draft through the configured AI service. New content is saved as
+              a draft for review and is never published automatically.
             </div>
           </div>
         </div>
+      </Card>
+
+      <Card>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="space-y-1 text-[11px] text-muted-foreground md:col-span-2">
+            Article topic
+            <textarea
+              value={topic}
+              onChange={(event) => setTopic(event.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder="Describe the intended reader, subject, and useful angle"
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            Target keyword (optional)
+            <input
+              value={targetKeyword}
+              onChange={(event) => setTargetKeyword(event.target.value)}
+              maxLength={200}
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            Language / locale
+            <input
+              value={locale}
+              onChange={(event) => setLocale(event.target.value)}
+              maxLength={40}
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={topic.trim().length < 2 || locale.trim().length < 2 || generation.isPending}
+            onClick={generateDraft}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[11px] font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {generation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Wand2 className="h-3.5 w-3.5" />
+            )}
+            {generation.isPending ? "Generating draft…" : "Generate and save draft"}
+          </button>
+          <span className="text-[10px] text-muted-foreground">
+            AI estimates may need fact-checking and editorial review.
+          </span>
+        </div>
+        {generation.isError ? (
+          <div
+            className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[11px] text-destructive"
+            role="alert"
+          >
+            <span>{generation.error.message}</span>
+            {generation.variables ? (
+              <button
+                type="button"
+                onClick={() =>
+                  generation.mutate(generation.variables, { onSuccess: () => content.refresh() })
+                }
+                className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {generation.data ? (
+          <div className="mt-4 space-y-2 rounded-lg border border-border bg-background/40 p-3">
+            <div className="font-semibold">{generation.data.title}</div>
+            <div className="text-[10px] text-muted-foreground">
+              Saved as draft · {generation.data.wordCount.toLocaleString()} words ·{" "}
+              {generation.data.targetKeyword} · {generation.data.model}
+            </div>
+            <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed">
+              {generation.data.body}
+            </pre>
+          </div>
+        ) : null}
       </Card>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -7063,9 +7504,18 @@ function AiWriterModule() {
 
 function AiKeywordModule() {
   const { t } = useTranslation();
+  const [topic, setTopic] = useState("");
+  const [locale, setLocale] = useState("en");
   const suggestions = useResource("seo_ai_suggestions", { limit: 100 });
   const planned = useResource("keywords", { limit: 200, filters: ["status.eq.planned"] });
+  const generation = useGenerateSeoKeywordIdeas();
   const forKeywords = suggestions.rows.filter((row) => /keyword/i.test(text(row, "target_type")));
+  const generateIdeas = () => {
+    generation.mutate(
+      { topic: topic.trim(), locale, count: 10 },
+      { onSuccess: () => suggestions.refresh() },
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -7074,8 +7524,77 @@ function AiKeywordModule() {
           {t("seo.ai_keyword")}
         </div>
         <div className="mt-1 text-[12px] text-muted-foreground">
-          {t("seo.research_is_not_run_from_this_screen_nothing_h")}
+          Generate keyword ideas with the configured AI service. Ideas are saved for review; search
+          volume and difficulty are not inferred or fabricated.
         </div>
+      </Card>
+      <Card>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            Topic or seed phrase
+            <input
+              value={topic}
+              onChange={(event) => setTopic(event.target.value)}
+              maxLength={500}
+              placeholder="e.g. inventory software for small retailers"
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            Language / locale
+            <input
+              value={locale}
+              onChange={(event) => setLocale(event.target.value)}
+              maxLength={40}
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={topic.trim().length < 2 || locale.trim().length < 2 || generation.isPending}
+            onClick={generateIdeas}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[11px] font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {generation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Bot className="h-3.5 w-3.5" />
+            )}
+            {generation.isPending ? "Researching…" : "Generate keyword ideas"}
+          </button>
+          <span className="text-[10px] text-muted-foreground">
+            AI impact and confidence are estimates, not measured search metrics.
+          </span>
+        </div>
+        {generation.isError ? (
+          <div
+            className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[11px] text-destructive"
+            role="alert"
+          >
+            <span>{generation.error.message}</span>
+            {generation.variables ? (
+              <button
+                type="button"
+                onClick={() =>
+                  generation.mutate(generation.variables, {
+                    onSuccess: () => suggestions.refresh(),
+                  })
+                }
+                className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {generation.data ? (
+          <p className="mt-3 text-[11px] text-success" role="status">
+            {generation.data.ideas.length} keyword idea(s) saved for review using{" "}
+            {generation.data.model}.
+          </p>
+        ) : null}
       </Card>
       <Toolbar title={t("seo.keyword_suggestions")} count={forKeywords.length} />
       <Table
@@ -7213,24 +7732,183 @@ function ToolGrid({
 }
 
 function GoogleToolsModule() {
+  const [siteUrl, setSiteUrl] = useState("");
+  const [days, setDays] = useState(30);
   const integrations = useResource("seo_integrations", { limit: 100 });
+  const sync = useSearchConsoleSync();
   const google = integrations.rows.filter((row) =>
     /google|gsc|ga4|search console|analytics|tag manager|merchant|pagespeed/i.test(
       `${text(row, "provider")} ${text(row, "display_name")}`,
     ),
   );
-  return <ToolGrid items={google} state={integrations} />;
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+          Google Search Console
+        </div>
+        <div className="mb-3 text-[11px] text-muted-foreground">
+          Refresh-token OAuth runs on the server. Configure GOOGLE_SEARCH_CONSOLE_CREDENTIALS there;
+          secrets are never entered into or returned to this page. Search results are saved as dated
+          SEO keyword rankings.
+        </div>
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px_auto] md:items-end">
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            Verified Search Console property
+            <input
+              value={siteUrl}
+              onChange={(event) => setSiteUrl(event.target.value)}
+              maxLength={2048}
+              placeholder="https://example.com/ or sc-domain:example.com"
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+          <label className="space-y-1 text-[11px] text-muted-foreground">
+            Lookback days
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={days}
+              onChange={(event) => setDays(Number(event.target.value))}
+              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={
+              !siteUrl.trim() || !Number.isInteger(days) || days < 1 || days > 365 || sync.isPending
+            }
+            onClick={() =>
+              sync.mutate(
+                { siteUrl: siteUrl.trim(), days },
+                { onSuccess: () => integrations.refresh() },
+              )
+            }
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-[11px] font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {sync.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            {sync.isPending ? "Syncing…" : "Sync data"}
+          </button>
+        </div>
+        {sync.isError ? (
+          <div
+            className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[11px] text-destructive"
+            role="alert"
+          >
+            <span>{sync.error.message}</span>
+            {sync.variables ? (
+              <button
+                type="button"
+                onClick={() =>
+                  sync.mutate(sync.variables, { onSuccess: () => integrations.refresh() })
+                }
+                className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {sync.isSuccess ? (
+          <p className="mt-3 text-[11px] text-success" role="status">
+            Saved {sync.data.rowsSynced.toLocaleString()} row(s) for {sync.data.siteUrl} from{" "}
+            {sync.data.periodStart} through {sync.data.periodEnd}.
+            {sync.data.truncated
+              ? " Google returned the 25,000-row page limit; results may be truncated."
+              : ""}
+          </p>
+        ) : null}
+      </Card>
+      <ToolGrid items={google} state={integrations} />
+    </div>
+  );
 }
 
 function OtherToolsModule() {
   const integrations = useResource("seo_integrations", { limit: 100 });
   const others = integrations.rows.filter(
     (row) =>
+      text(row, "provider") !== "lovable_ai" &&
       !/google|gsc|ga4|search console|analytics|tag manager|merchant|pagespeed/i.test(
         `${text(row, "provider")} ${text(row, "display_name")}`,
       ),
   );
-  return <ToolGrid items={others} state={integrations} />;
+  return (
+    <div className="space-y-4">
+      <ToolGrid items={others} state={integrations} />
+      <AiApiManagerPanel />
+    </div>
+  );
+}
+
+function AiApiManagerPanel() {
+  const services = useSeoAiManagerServices();
+  return (
+    <Card>
+      <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">
+        AI API Manager services
+      </div>
+      <p className="mb-3 text-[11px] text-muted-foreground">
+        SEO reads provider availability from the central AI API Manager. Credentials are never
+        returned to this page.
+      </p>
+      {services.isPending ? (
+        <div className="flex items-center gap-2 py-2 text-[11px] text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Reading registered AI services…
+        </div>
+      ) : services.isError ? (
+        <div className="flex flex-wrap items-center justify-between gap-2" role="alert">
+          <span className="text-[11px] text-destructive">
+            AI API Manager services could not be read: {services.error.message}
+          </span>
+          <button
+            type="button"
+            onClick={() => void services.refetch()}
+            className="rounded-md border border-border px-3 py-1 text-[11px] font-semibold"
+          >
+            Retry
+          </button>
+        </div>
+      ) : services.data.length === 0 ? (
+        <div className="text-[11px] text-muted-foreground">No AI services are registered.</div>
+      ) : (
+        <div className="space-y-2">
+          {services.data.map((service) => {
+            const ready = service.status === "active" && service.approvalStatus === "approved";
+            const tone = ready
+              ? "success"
+              : service.approvalStatus === "pending"
+                ? "warning"
+                : service.status === "inactive"
+                  ? "default"
+                  : "destructive";
+            return (
+              <div
+                key={service.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background/40 px-3 py-2 text-[12px]"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-semibold">{service.name}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {service.category} · {service.pricingTier}
+                  </div>
+                </div>
+                <Chip tone={tone}>
+                  {service.status} · {service.approvalStatus}
+                </Chip>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
 }
 
 /* =========================================================
@@ -7442,6 +8120,7 @@ function BulkOpsModule() {
 function SettingsModule() {
   const { t } = useTranslation();
   const integrations = useResource("seo_integrations", { limit: 100 });
+  const seoIntegrations = integrations.rows.filter((row) => text(row, "provider") !== "lovable_ai");
   const alerts = useResource("seo_alerts", { limit: 50 });
   const activity = useResource("seo_activity", { limit: 100 });
 
@@ -7450,7 +8129,7 @@ function SettingsModule() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
           label={t("seo.integrations")}
-          value={figure(integrations.total, integrations)}
+          value={integrations.loading ? "…" : String(seoIntegrations.length)}
           icon={<Settings className="h-4 w-4" />}
         />
         <StatCard
@@ -7458,7 +8137,7 @@ function SettingsModule() {
           value={
             integrations.loading
               ? "…"
-              : String(countWhere(integrations.rows, (r) => text(r, "status") === "connected"))
+              : String(countWhere(seoIntegrations, (r) => text(r, "status") === "connected"))
           }
           tone="success"
         />
@@ -7481,7 +8160,7 @@ function SettingsModule() {
             {t("seo.integrations")}
           </div>
           <div className="space-y-2">
-            {integrations.rows.map((it) => {
+            {seoIntegrations.map((it) => {
               const status = text(it, "status");
               return (
                 <div
@@ -7496,7 +8175,7 @@ function SettingsModule() {
                 </div>
               );
             })}
-            {!integrations.loading && integrations.rows.length === 0 && (
+            {!integrations.loading && seoIntegrations.length === 0 && (
               <div className="text-[11px] text-muted-foreground">
                 {integrations.failed
                   ? t("seo.integrations_could_not_be_read")
@@ -7505,6 +8184,8 @@ function SettingsModule() {
             )}
           </div>
         </Card>
+
+        <AiApiManagerPanel />
 
         <Card>
           <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-accent">

@@ -1,42 +1,36 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Cpu, HardDrive, Globe, Sparkles, ArrowRight, Bookmark, Scale, X
+  Cpu, HardDrive, Globe, Sparkles, Scale, X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 import { smQuery } from '@/lib/sm-data';
 import { PageHeader } from '../layout/PageShell';
 
 type Plan = Tables<'server_plans'>;
-type Region = Tables<'server_regions'>;
 
 const SMExplorePlans = () => {
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedPlans, setSelectedPlans] = useState<string[]>([]);
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [showCompare, setShowCompare] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const [planRows, regionRows] = await Promise.all([
-        smQuery('server plans', () => supabase.from('server_plans').select('*').eq('is_active', true).order('price_monthly', { ascending: true })),
-        smQuery('server regions', () => supabase.from('server_regions').select('*').eq('is_active', true)),
-      ]);
-      if (planRows === null || regionRows === null) {
-        setLoadError('Could not load plans or regions. Please try again.');
+      const planRows = await smQuery('server plans', () =>
+        supabase.from('server_plans').select('*').eq('is_active', true).order('plan_name'),
+      );
+      if (planRows === null) {
+        setLoadError('Could not load plan references. Please try again.');
       }
       setPlans(planRows ?? []);
-      setRegions(regionRows ?? []);
     } finally {
       setLoading(false);
     }
@@ -48,14 +42,6 @@ const SMExplorePlans = () => {
     setSelectedPlans(prev =>
       prev.includes(planId) ? prev.filter(id => id !== planId) : [...prev, planId]
     );
-  };
-
-  const handleSavePlan = (planName: string) => {
-    toast.success(`${planName} saved to favorites`);
-  };
-
-  const handleProceed = (planName: string) => {
-    toast.success(`Proceeding with ${planName}... head to Buy Server to complete purchase.`);
   };
 
   const recommended = plans.filter(p => p.is_recommended);
@@ -74,47 +60,27 @@ const SMExplorePlans = () => {
 
       <PageHeader
         title="Explore Plans"
-        subtitle="Find the perfect server configuration for your needs"
-        action={
-          <div className="flex items-center gap-2 p-1 bg-surface rounded-lg">
-            <button
-              onClick={() => setBillingCycle('monthly')}
-              className={`px-4 py-2 rounded-md text-sm transition-all ${
-                billingCycle === 'monthly' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setBillingCycle('yearly')}
-              className={`px-4 py-2 rounded-md text-sm transition-all ${
-                billingCycle === 'yearly' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
-              }`}
-            >
-              Yearly (Save 17%)
-            </button>
-          </div>
-        }
+        subtitle="Reference server configurations only — subscription pricing and provisioning are not configured."
       />
 
       {/* AI Suggestions */}
       <div className="bento-card premium-halo enter-soft">
         <CardHeader className="p-0 pb-4">
           <CardTitle className="text-foreground flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" />
-            AI Recommendations
+            <Globe className="w-5 h-5 text-primary" />
+            Recommended Configurations
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {recommended.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No recommended plans available right now.</p>
+            <p className="text-muted-foreground text-sm">No plans have a recommendation configured.</p>
           ) : (
             <div className="grid grid-cols-3 gap-4">
               {recommended.map((plan) => (
                 <div key={plan.id} className="p-4 rounded-lg bg-surface/50 border border-border">
                   <p className="text-primary text-sm font-medium mb-1">Recommended</p>
                   <p className="text-foreground font-semibold mb-2">{plan.plan_name}</p>
-                  <p className="text-muted-foreground text-sm">{plan.recommendation_reason ?? 'Great balance of price and performance.'}</p>
+                  <p className="text-muted-foreground text-sm">{plan.recommendation_reason ?? 'No recommendation details provided.'}</p>
                 </div>
               ))}
             </div>
@@ -130,8 +96,6 @@ const SMExplorePlans = () => {
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           {plans.map((plan, i) => {
-            const monthly = Number(plan.price_monthly);
-            const yearly = plan.price_yearly ? Number(plan.price_yearly) : monthly * 12;
             return (
               <motion.div
                 key={plan.id}
@@ -203,26 +167,11 @@ const SMExplorePlans = () => {
                       </div>
                     )}
 
-                    <div className="border-t border-border pt-4 mb-4">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-bold text-foreground">
-                          ₹{(billingCycle === 'monthly' ? monthly : yearly / 12).toLocaleString()}
-                        </span>
-                        <span className="text-muted-foreground">/mo</span>
-                      </div>
-                      {billingCycle === 'yearly' && (
-                        <p className="text-accent-emerald text-sm">Save ₹{(monthly * 12 - yearly).toLocaleString()}/year</p>
-                      )}
-                    </div>
+                    <p className="border-t border-border pt-4 mb-4 text-sm text-muted-foreground">
+                      Subscription price not configured
+                    </p>
 
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSavePlan(plan.plan_name)}
-                      >
-                        <Bookmark className="w-4 h-4" />
-                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -230,14 +179,6 @@ const SMExplorePlans = () => {
                         onClick={() => togglePlanSelection(plan.id)}
                       >
                         <Scale className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => handleProceed(plan.plan_name)}
-                      >
-                        Buy
-                        <ArrowRight className="w-4 h-4 ml-1" />
                       </Button>
                     </div>
                   </CardContent>
@@ -268,30 +209,32 @@ const SMExplorePlans = () => {
             </Button>
           </CardHeader>
           <CardContent className="p-6 pt-0">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface/60 text-xs uppercase tracking-wider text-muted-foreground text-left">
-                  <th className="py-2 pr-4">Attribute</th>
-                  {comparePlans.map(p => <th key={p.id} className="py-2 pr-4 text-foreground">{p.plan_name}</th>)}
-                </tr>
-              </thead>
-              <tbody className="text-foreground">
-                {[
-                  ['Type', (p: Plan) => p.plan_type],
-                  ['CPU', (p: Plan) => `${p.cpu_cores} vCPU`],
-                  ['RAM', (p: Plan) => `${p.ram_gb} GB`],
-                  ['Storage', (p: Plan) => `${p.storage_gb} GB`],
-                  ['Bandwidth', (p: Plan) => `${p.bandwidth_tb} TB`],
-                  ['Regions', (p: Plan) => (p.regions ?? []).join(', ')],
-                  ['Price/mo', (p: Plan) => `₹${Number(p.price_monthly).toLocaleString()}`],
-                ].map(([label, fn]) => (
-                  <tr key={label as string} className="border-b border-border/60 hover:bg-white/[0.03] transition-colors">
-                    <td className="py-2 pr-4 text-muted-foreground">{label as string}</td>
-                    {comparePlans.map(p => <td key={p.id} className="py-2 pr-4">{(fn as (p: Plan) => string)(p)}</td>)}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface/60 text-xs uppercase tracking-wider text-muted-foreground text-left">
+                    <th className="py-2 pr-4">Attribute</th>
+                    {comparePlans.map(p => <th key={p.id} className="py-2 pr-4 text-foreground">{p.plan_name}</th>)}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="text-foreground">
+                  {[
+                    ['Type', (p: Plan) => p.plan_type],
+                    ['CPU', (p: Plan) => `${p.cpu_cores} vCPU`],
+                    ['RAM', (p: Plan) => `${p.ram_gb} GB`],
+                    ['Storage', (p: Plan) => `${p.storage_gb} GB`],
+                    ['Bandwidth', (p: Plan) => `${p.bandwidth_tb} TB`],
+                    ['Regions', (p: Plan) => (p.regions ?? []).join(', ')],
+                    ['Subscription price', () => 'Not configured'],
+                  ].map(([label, fn]) => (
+                    <tr key={label as string} className="border-b border-border/60 hover:bg-white/[0.03] transition-colors">
+                      <td className="py-2 pr-4 text-muted-foreground">{label as string}</td>
+                      {comparePlans.map(p => <td key={p.id} className="py-2 pr-4">{(fn as (p: Plan) => string)(p)}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </CardContent>
         </Card>
       )}

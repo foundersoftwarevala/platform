@@ -13,12 +13,13 @@ there is none.
 
 | What | Where |
 |---|---|
-| Homepage | `src/components/marketplace-home/HomeIndex.tsx`, served at `/` (`src/routes/index.tsx`) and `/marketplace` (`src/routes/marketplace.index.tsx`) with the same loader |
-| Homepage sections | `src/components/marketplace-home/*` (RefSections, CategorySlider, HeroCarousel, TopUtilityBar, …) |
+| Homepage | `src/components/sapphire-home/HomeIndex.tsx`, served at `/` (`src/routes/index.tsx`) |
+| Homepage sections | `src/components/sapphire-home/*` (RefSections, CategorySlider, HeroCarousel, UtilityStrip, …) |
+| Shared marketplace pages | `src/components/marketplace-home/CategoryDetail.tsx`, `ProductDetail.tsx`, `SiteFooter.tsx`, and related components; this directory is not a second homepage |
 | First page of rows (server-rendered) | `getHomeCatalog` in `src/lib/marketplace/home-catalog.functions.ts` |
 | Later rows and "load more" | `/api/marketplace/catalog` |
 | The catalogue reader behind both | `src/lib/marketplace/catalog.server.ts` (applies the manager's row configuration, schedules and hand-placed order) |
-| The product card | `src/lib/marketplace/catalog-card.ts` (`CARD_FIELDS`, `toCard`, `CatalogCard`), drawn by `DemoCard` in `HomeIndex.tsx` |
+| The product card | `src/lib/marketplace/catalog-card.ts` (`CARD_FIELDS`, `toCard`, `CatalogCard`), drawn by `DemoCard` in `src/components/sapphire-home/HomeIndex.tsx` |
 | Search | `/api/marketplace/search` — the homepage box (`format=cards`) and the AI finder / recommend / compare tools |
 | Categories | table `marketplace_categories`: homepage rows, the category strip and the industry grid (`/api/marketplace/rows`), category pages (`/marketplace/category/<slug>`) |
 | Products | table `marketplace_products` (public = `visible` and `content_status = published`) |

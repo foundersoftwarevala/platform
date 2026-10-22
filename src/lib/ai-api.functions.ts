@@ -279,7 +279,6 @@ const MANAGER_VIEW_ROLES = [
   "boss_owner",
   "super_admin",
   "founder",
-  "owner",
   "finance",
 ] as const;
 

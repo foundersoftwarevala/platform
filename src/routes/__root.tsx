@@ -23,6 +23,7 @@ import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { AttributionCapture } from "@/components/marketplace/AttributionCapture";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TooltipProvider } from "../components/ui/tooltip";
+import { GlobalContextMenu } from "@/components/ui/global-context-menu";
 import { CelebrationProvider } from "../components/ams/effects/Celebration";
 import { RecognitionDetector } from "../components/ams/effects/RecognitionDetector";
 import { getLanguageBootstrap } from "@/lib/i18n/bootstrap.functions";
@@ -94,14 +95,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Software Vala™ — The Name of Trust" },
+      { title: "Software Vala - The Name of Trust" },
       {
         name: "description",
         content:
           "Software Vala™ — The Name of Trust. A global marketplace of ready-to-deploy software with live demos, full source code and lifetime access.",
       },
       { name: "author", content: "Software Vala" },
-      { property: "og:title", content: "Software Vala™ — The Name of Trust" },
+      { property: "og:title", content: "Software Vala - The Name of Trust" },
       {
         property: "og:description",
         content:
@@ -165,38 +166,40 @@ function RootComponent() {
         document direction and no text at all.
       */}
       <LanguageProvider initial={languageBootstrap}>
-        {/*
-        Translates the text already rendered on the page - the locked
-        storefront copy, the chat, every console - through the platform's own
-        engine. Renders nothing and rewrites no markup.
-      */}
-        <PageTranslator />
-        {/* The first Tab stop on every page: past the menus to its <main>. */}
-        <SkipToContent />
-        {/* The language selector on every screen whose header has none. */}
-        <LanguageDock />
-        <TooltipProvider>
-          <CelebrationProvider>
-            {/* The one path from a recognition the engine granted to the screen. */}
-            <RecognitionDetector />
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            {/* Operator consoles are gated centrally by path; public pages pass straight through. */}
-            {/* Notices a ?ref= arrival on any page and tells the server once. */}
-            <ReferralCapture />
-            <AttributionCapture />
-            {/*
-            The session and roles for the consoles that call useAuth() (support,
-            sales CRM, demo manager). The provider existed and was never mounted,
-            so those screens failed with "useAuth must be used within an
-            AuthProvider" before rendering anything.
-          */}
-            <AuthProvider>
-              <RouteAccessGate>
-                <Outlet />
-              </RouteAccessGate>
-            </AuthProvider>
-          </CelebrationProvider>
-        </TooltipProvider>
+        <GlobalContextMenu>
+          {/*
+          Translates the text already rendered on the page - the locked
+          storefront copy, the chat, every console - through the platform's own
+          engine. Renders nothing and rewrites no markup.
+        */}
+          <PageTranslator />
+          {/* The first Tab stop on every page: past the menus to its <main>. */}
+          <SkipToContent />
+          {/* The language selector on every screen whose header has none. */}
+          <LanguageDock />
+          <TooltipProvider>
+            <CelebrationProvider>
+              {/* The one path from a recognition the engine granted to the screen. */}
+              <RecognitionDetector />
+              {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+              {/* Operator consoles are gated centrally by path; public pages pass straight through. */}
+              {/* Notices a ?ref= arrival on any page and tells the server once. */}
+              <ReferralCapture />
+              <AttributionCapture />
+              {/*
+              The session and roles for the consoles that call useAuth() (support,
+              sales CRM, demo manager). The provider existed and was never mounted,
+              so those screens failed with "useAuth must be used within an
+              AuthProvider" before rendering anything.
+            */}
+              <AuthProvider>
+                <RouteAccessGate>
+                  <Outlet />
+                </RouteAccessGate>
+              </AuthProvider>
+            </CelebrationProvider>
+          </TooltipProvider>
+        </GlobalContextMenu>
       </LanguageProvider>
     </QueryClientProvider>
   );

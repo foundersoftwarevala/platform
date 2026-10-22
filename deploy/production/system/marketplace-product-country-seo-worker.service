@@ -1,0 +1,20 @@
+[Unit]
+Description=Marketplace product-country SEO background worker
+After=network-online.target pm2-root.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=/etc/softwarevala/seo-worker.env
+ExecStart=/usr/bin/node /usr/local/bin/sv-marketplace-seo-worker.mjs
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

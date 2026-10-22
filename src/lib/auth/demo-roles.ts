@@ -3,7 +3,7 @@
  *
  * The route gate in front of the demo consoles and the server guard behind them
  * each kept their own list, and they drifted: the gate admitted `support` while
- * the pipeline accepted only boss, admin, super_admin, owner and developer, so a
+ * the pipeline accepted only boss, admin, super_admin and developer, so a
  * support user could open the console and be refused the moment they acted.
  *
  * This file holds no logic and imports nothing, so the browser can read it
@@ -16,7 +16,6 @@ export const DEMO_OPERATOR_ROLES = [
   "boss",
   "admin",
   "super_admin",
-  "owner",
   "developer",
 ] as const;
 

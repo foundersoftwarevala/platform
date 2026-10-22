@@ -2,9 +2,11 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SLARiskDTO, TaskDTO } from "@/lib/dev-manager.types";
+import type { CanonicalTaskDTO } from "@/lib/tasks/types";
 
 const mocks = vi.hoisted(() => ({
   tasks: [] as TaskDTO[],
+  canonicalTasks: [] as CanonicalTaskDTO[],
   risks: [] as SLARiskDTO[],
   mutate: vi.fn(),
   downloadCsv:
@@ -25,6 +27,11 @@ vi.mock("@/hooks/useDevManagerData", () => ({
   useReassignTask: () => ({ mutate: mocks.mutate, isPending: false }),
   useEscalateTask: () => ({ mutate: mocks.mutate, isPending: false }),
   useAllDeveloperTasks: () => ({ data: [], isLoading: false, error: null }),
+  useCanonicalTasks: () => ({ data: mocks.canonicalTasks, isLoading: false, error: null }),
+  useCanonicalTaskAssignees: () => ({ data: [], isLoading: false, error: null }),
+  useCreateCanonicalTask: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCancelCanonicalTask: () => ({ mutate: mocks.mutate, isPending: false }),
+  useReopenCanonicalTask: () => ({ mutate: mocks.mutate, isPending: false }),
 }));
 vi.mock("@/components/developer-management/DMPromptDialog", () => ({
   useDMPrompt: () => ({ ask: vi.fn() }),
@@ -68,6 +75,28 @@ beforeEach(() => {
       promiseIds: [P1, P2],
     },
   ];
+  mocks.canonicalTasks = [
+    {
+      id: "20000000-0000-4000-8000-000000000001",
+      developerId: "30000000-0000-4000-8000-000000000003",
+      developerRecordId: null,
+      developerLabel: "Isolated developer fixture",
+      title: "Canonical task fixture",
+      description: null,
+      status: "assigned",
+      paymentStatus: "pending",
+      dueAt: null,
+      deadlineAt: null,
+      verifiedAt: null,
+      paidAt: null,
+      priority: "medium",
+      artifacts: null,
+      submissionNotes: null,
+      managerNotes: null,
+      createdAt: "2026-10-16T00:00:00.000Z",
+      updatedAt: "2026-10-16T00:00:00.000Z",
+    },
+  ];
   mocks.risks = [
     {
       taskId: mocks.tasks[0].id,
@@ -84,15 +113,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Developer Manager plural promise consumers", () => {
-  it("retains the Promise-linked label in the management task board", () => {
+  it("renders tasks from the canonical manager task query", () => {
     render(<DMTaskManagement />);
-    expect(screen.getByText("Promise-linked: Isolated promise UI fixture")).toBeTruthy();
+    expect(screen.getByText("Canonical task fixture")).toBeTruthy();
   });
 
-  it("does not label an unlinked management task as promise-linked", () => {
-    mocks.tasks[0].promiseIds = [];
+  it("does not fabricate promise links on canonical tasks", () => {
     render(<DMTaskManagement />);
-    expect(screen.getByText("Isolated promise UI fixture")).toBeTruthy();
+    expect(screen.getByText("Canonical task fixture")).toBeTruthy();
     expect(screen.queryByText(/^Promise-linked:/)).toBeNull();
   });
 

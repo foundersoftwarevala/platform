@@ -31,7 +31,7 @@ function ResearchModule() {
   );
   const errors = useSyncExternalStore(subscribe, snapshot, () => "");
   return (
-    <RequireRole role={["boss", "boss_owner", "admin", "super_admin", "founder", "owner"]}>
+    <RequireRole role={["boss", "boss_owner", "admin", "super_admin", "founder"]}>
       <div className="rd-module rd-module-shell">
         <nav
           aria-label="R&D module"

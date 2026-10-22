@@ -29,7 +29,7 @@ export type ViewKpi = { label: string; value: string; accent?: string };
 export type ViewRow = { id: string; cells: Record<string, string>; status?: { label: string; tone: ViewTone } };
 export type ViewResult = { kpis: ViewKpi[]; rows: ViewRow[]; empty?: string };
 
-const STAFF = ["developer", "support", "admin", "super_admin", "boss", "boss_owner", "founder", "owner"];
+const STAFF = ["developer", "support", "admin", "super_admin", "boss", "boss_owner", "founder"];
 
 async function db() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Shield, Eye, ArrowUpRight, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { smQuery, smMutate } from '@/lib/sm-data';
+import { Shield, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { smQuery } from '@/lib/sm-data';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,9 +30,6 @@ interface SecurityAlert {
 interface PatchServer {
   id: string;
   server: string;
-  os: string;
-  app: string;
-  lastPatched: string;
 }
 
 const formatRelative = (iso: string) => {
@@ -48,12 +44,11 @@ const formatRelative = (iso: string) => {
 
 const SMSecurity = () => {
   const [loading, setLoading] = useState(true);
-  const [rules, setRules] = useState<FirewallRule[]>([]);
-  const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
-  const [patchStatus, setPatchStatus] = useState<PatchServer[]>([]);
-  const [intrusionCount, setIntrusionCount] = useState(0);
-  const [portScanCount, setPortScanCount] = useState(0);
-  const [pendingPatchCount, setPendingPatchCount] = useState(0);
+  const [rules, setRules] = useState<FirewallRule[] | null>(null);
+  const [alerts, setAlerts] = useState<SecurityAlert[] | null>(null);
+  const [patchStatus, setPatchStatus] = useState<PatchServer[] | null>(null);
+  const [intrusionCount, setIntrusionCount] = useState<number | null>(null);
+  const [portScanCount, setPortScanCount] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -74,19 +69,24 @@ const SMSecurity = () => {
         smQuery('patch status', () =>
           supabase
             .from('server_instances')
-            .select('id, server_name, os_patch_status, app_patch_status, last_patch_date, security_risk_level')
+            .select('id, server_name')
             .neq('status', 'decommissioned'),
         ),
       ]);
 
       if (firewallRules === null || securityAlerts === null || servers === null) {
         setLoadError('Failed to load security data.');
+        setRules(null);
+        setAlerts(null);
+        setPatchStatus(null);
+        setIntrusionCount(null);
+        setPortScanCount(null);
         return;
       }
       setLoadError(null);
 
     setRules(
-      (firewallRules ?? []).map((r) => ({
+      firewallRules.map((r) => ({
         id: r.id,
         rule_name: r.rule_name,
         status: r.status,
@@ -98,7 +98,7 @@ const SMSecurity = () => {
     );
 
     setAlerts(
-      (securityAlerts ?? []).map((a) => ({
+      securityAlerts.map((a) => ({
         id: a.id,
         alert_code: a.alert_code,
         alert_type: a.alert_type,
@@ -108,22 +108,14 @@ const SMSecurity = () => {
         time: formatRelative(a.created_at),
       })),
     );
-    setPortScanCount((securityAlerts ?? []).filter((a) => a.alert_type?.toLowerCase().includes('scan')).length);
-    setIntrusionCount((securityAlerts ?? []).filter((a) => a.alert_type?.toLowerCase().includes('intrusion')).length);
+    setPortScanCount(securityAlerts.filter((a) => a.alert_type?.toLowerCase().includes('scan')).length);
+    setIntrusionCount(securityAlerts.filter((a) => a.alert_type?.toLowerCase().includes('intrusion')).length);
 
-    const rows = servers ?? [];
     setPatchStatus(
-      rows.map((s) => ({
+      servers.map((s) => ({
         id: s.id,
         server: s.server_name,
-        os: s.os_patch_status,
-        app: s.app_patch_status,
-        lastPatched: s.last_patch_date ?? 'N/A',
       })),
-    );
-    setPendingPatchCount(
-      rows.filter((s) => s.os_patch_status !== 'up_to_date' && s.os_patch_status !== 'Up to date').length +
-        rows.filter((s) => s.app_patch_status !== 'up_to_date' && s.app_patch_status !== 'Up to date').length,
     );
     } finally {
       setLoading(false);
@@ -133,29 +125,6 @@ const SMSecurity = () => {
   useEffect(() => {
     void loadData();
   }, [loadData]);
-
-  const toggleRule = async (rule: FirewallRule) => {
-    const newStatus = rule.status === 'active' ? 'disabled' : 'active';
-    const ok = await smMutate(
-      'update firewall rule',
-      () => supabase.from('server_firewall_rules').update({ status: newStatus }).eq('id', rule.id),
-      `${rule.rule_name} ${newStatus === 'active' ? 'enabled' : 'disabled'}`,
-    );
-    if (!ok) return;
-    setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, status: newStatus } : r)));
-  };
-
-  const updateAlertStatus = async (alert: SecurityAlert, status: string) => {
-    const ok = await smMutate(
-      'update security alert',
-      () => supabase.from('server_alerts').update({ status }).eq('id', alert.id),
-      `Alert ${alert.alert_code ?? alert.id.slice(0, 8)} marked as ${status}`,
-    );
-    if (!ok) return;
-    setAlerts((prev) => prev.map((a) => (a.id === alert.id ? { ...a, status } : a)));
-  };
-
-  const isPatchOk = (status: string) => status === 'up_to_date' || status === 'Up to date';
 
   return (
     <div className="space-y-6">
@@ -181,29 +150,30 @@ const SMSecurity = () => {
             <Card className="bento-card premium-halo hover-lift !p-0">
               <CardContent className="p-4">
                 <Shield className="w-5 h-5 text-accent-emerald mb-2" />
-                <p className="text-sm text-muted-foreground">Active Firewall Rules</p>
-                <p className="text-lg font-bold text-accent-emerald">{rules.filter((r) => r.status === 'active').length} / {rules.length}</p>
+                <p className="text-sm text-muted-foreground">Stored Firewall Rule Definitions</p>
+                <p className="text-lg font-bold text-muted-foreground">{rules?.length ?? '—'}</p>
+                <p className="text-xs text-muted-foreground">Not applied to servers</p>
               </CardContent>
             </Card>
             <Card className="bento-card premium-halo hover-lift !p-0">
               <CardContent className="p-4">
                 <AlertTriangle className="w-5 h-5 text-accent-amber mb-2" />
-                <p className="text-sm text-muted-foreground">Port Scan Alerts</p>
-                <p className="text-lg font-bold text-accent-amber">{portScanCount}</p>
+                <p className="text-sm text-muted-foreground">Recorded Port Scan Alerts</p>
+                <p className="text-lg font-bold text-accent-amber">{portScanCount ?? '—'}</p>
               </CardContent>
             </Card>
             <Card className="bento-card premium-halo hover-lift !p-0">
               <CardContent className="p-4">
                 <AlertTriangle className="w-5 h-5 text-destructive mb-2" />
-                <p className="text-sm text-muted-foreground">Intrusion Flags</p>
-                <p className="text-lg font-bold text-destructive">{intrusionCount}</p>
+                <p className="text-sm text-muted-foreground">Recorded Intrusion Flags</p>
+                <p className="text-lg font-bold text-destructive">{intrusionCount ?? '—'}</p>
               </CardContent>
             </Card>
             <Card className="bento-card premium-halo hover-lift !p-0">
               <CardContent className="p-4">
-                <CheckCircle className="w-5 h-5 text-primary mb-2" />
-                <p className="text-sm text-muted-foreground">Patch Status</p>
-                <p className="text-lg font-bold text-primary">{pendingPatchCount} pending</p>
+                <CheckCircle className="w-5 h-5 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Agent Patch Findings</p>
+                <p className="text-lg font-bold text-muted-foreground">Unknown</p>
               </CardContent>
             </Card>
           </div>
@@ -211,11 +181,13 @@ const SMSecurity = () => {
           {/* Firewall Rules */}
           <Card className="bento-card !p-0">
             <CardHeader>
-              <CardTitle className="text-foreground">Firewall Rules</CardTitle>
+              <CardTitle className="text-foreground">Stored Firewall Rule Definitions</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {rules.length === 0 ? (
+                {rules === null ? (
+                  <p className="text-muted-foreground text-sm">Firewall rule data unavailable.</p>
+                ) : rules.length === 0 ? (
                   <p className="text-muted-foreground text-sm">No firewall rules configured.</p>
                 ) : (
                   rules.map((rule) => (
@@ -229,14 +201,6 @@ const SMSecurity = () => {
                         <span className="text-muted-foreground">Ports: {rule.ports}</span>
                         <span className="text-muted-foreground font-mono text-xs">{rule.source_cidr}</span>
                         <Badge variant="outline" className="text-foreground border-border">{rule.action}</Badge>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={`text-xs ${rule.status === 'active' ? 'border-destructive/30 text-destructive' : 'border-accent-emerald/30 text-accent-emerald'}`}
-                          onClick={() => void toggleRule(rule)}
-                        >
-                          {rule.status === 'active' ? 'Disable' : 'Enable'}
-                        </Button>
                       </div>
                     </div>
                   ))
@@ -248,11 +212,15 @@ const SMSecurity = () => {
           {/* Security Alerts */}
           <Card className="bento-card overflow-hidden !p-0">
             <CardHeader>
-              <CardTitle className="text-foreground">Security Alerts</CardTitle>
+              <CardTitle className="text-foreground">Recorded Security Alerts</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {alerts.length === 0 ? (
-                <p className="text-muted-foreground text-sm px-6 pb-6">No active security alerts.</p>
+              {alerts === null ? (
+                <p className="text-muted-foreground text-sm px-6 pb-6">Security alert data unavailable.</p>
+              ) : alerts.length === 0 ? (
+                <p className="text-muted-foreground text-sm px-6 pb-6">
+                  No recorded security alerts. The read-only agent finding feed is not connected.
+                </p>
               ) : (
                 <div className="overflow-x-auto"><table className="w-full min-w-[860px]">
                   <thead>
@@ -262,7 +230,7 @@ const SMSecurity = () => {
                       <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">Source</th>
                       <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">Severity</th>
                       <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">Status</th>
-                      <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">Actions</th>
+                      <th className="text-left px-6 py-3 text-sm font-medium text-muted-foreground">Details</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -283,17 +251,8 @@ const SMSecurity = () => {
                         <td className="px-6 py-4">
                           <Badge variant="outline" className="border-border text-muted-foreground">{alert.status}</Badge>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm" className="text-xs border-primary/30 text-primary" onClick={() => void updateAlertStatus(alert, 'reviewed')}>
-                              <Eye className="w-3 h-3 mr-1" />
-                              Review
-                            </Button>
-                            <Button variant="outline" size="sm" className="text-xs border-destructive/30 text-destructive" onClick={() => void updateAlertStatus(alert, 'escalated')}>
-                              <ArrowUpRight className="w-3 h-3 mr-1" />
-                              Escalate
-                            </Button>
-                          </div>
+                        <td className="px-6 py-4 text-sm text-muted-foreground">
+                          {alert.alert_type.replace(/_/g, ' ')}
                         </td>
                       </tr>
                     ))}
@@ -306,30 +265,19 @@ const SMSecurity = () => {
           {/* Patch Status */}
           <Card className="bento-card !p-0">
             <CardHeader>
-              <CardTitle className="text-foreground">Patch Status</CardTitle>
+              <CardTitle className="text-foreground">Patch Findings</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {patchStatus.length === 0 ? (
+                {patchStatus === null ? (
+                  <p className="text-muted-foreground text-sm">Server list unavailable.</p>
+                ) : patchStatus.length === 0 ? (
                   <p className="text-muted-foreground text-sm">No servers found.</p>
                 ) : (
                   patchStatus.map((server) => (
                     <div key={server.id} className="p-4 border border-border bg-surface/60 rounded-lg">
                       <p className="font-medium text-foreground mb-2">{server.server}</p>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">OS:</span>
-                          <span className={isPatchOk(server.os) ? 'text-accent-emerald' : 'text-accent-amber'}>{server.os.replace(/_/g, ' ')}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">App:</span>
-                          <span className={isPatchOk(server.app) ? 'text-accent-emerald' : 'text-accent-amber'}>{server.app.replace(/_/g, ' ')}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Last:</span>
-                          <span className="text-foreground">{server.lastPatched}</span>
-                        </div>
-                      </div>
+                      <p className="text-sm text-muted-foreground">Unknown — agent data unavailable</p>
                     </div>
                   ))
                 )}

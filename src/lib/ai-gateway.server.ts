@@ -1,6 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import type { Database } from "@/integrations/supabase/types";
 import { decryptAiCredential, isEncryptedAiCredential } from "./ai-credentials.server";
+import { getLocalAiService, isConfiguredLocalAiService } from "./ai-local-services.server";
 import { assertManagedProviderEndpoint } from "./managed-api-endpoints.server";
 /**
  * One way in and out of an AI provider.
@@ -32,9 +34,94 @@ export type AiTarget = {
   modelId: string | null;
   modelRowId: string | null;
   isAnthropic: boolean;
+  isLocal?: boolean;
+  pricingTier?: string;
 };
 
-function serverClient() {
+export type AiPricingTier = "local" | "free" | "paid";
+
+function aiPricingPriority(value: unknown): number {
+  const tier = String(value ?? "").toLowerCase();
+  if (tier === "local") return 0;
+  if (tier === "free" || tier === "free-tier" || tier === "freemium") return 1;
+  if (tier === "paid") return 2;
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function aiServicePriority(service: {
+  slug?: unknown;
+  name?: unknown;
+  pricing_tier?: unknown;
+}): number {
+  const slug = String(service.slug ?? "").toLowerCase();
+  if (slug === "ollama-local") return 0;
+  if (slug === "founder-ai-local") return 1;
+  const tierPriority = aiPricingPriority(service.pricing_tier);
+  return tierPriority === Number.MAX_SAFE_INTEGER ? tierPriority : tierPriority + 2;
+}
+
+export function orderAiServicesByCost<
+  T extends { slug?: unknown; name?: unknown; pricing_tier?: unknown },
+>(services: T[]): T[] {
+  return [...services].sort(
+    (left, right) =>
+      aiServicePriority(left) - aiServicePriority(right) ||
+      String(left.name ?? "").localeCompare(String(right.name ?? "")),
+  );
+}
+
+export function isAiPricingTierAllowed(
+  pricingTier: unknown,
+  maxPricingTier?: AiPricingTier,
+): boolean {
+  const tier = String(pricingTier ?? "").toLowerCase();
+  if (!["local", "free", "free-tier", "freemium", "paid"].includes(tier)) return false;
+  if (!maxPricingTier) return true;
+  if (maxPricingTier === "local") return tier === "local";
+  if (maxPricingTier === "free") return tier !== "paid";
+  return true;
+}
+
+async function resolveLocalModelId(endpoint: string, modelId: unknown): Promise<string> {
+  if (typeof modelId === "string" && modelId.trim()) return modelId.trim();
+  const base = endpoint.slice(0, endpoint.lastIndexOf("/v1/chat/completions"));
+  const local = getLocalAiService(
+    endpoint.includes(":11434/") ? "ollama-local" : "founder-ai-local",
+  );
+  if (!local || local.endpoint !== endpoint) {
+    throw new Error("The local AI service endpoint is not allowlisted.");
+  }
+  const response = await fetch(local.modelsEndpoint, {
+    signal: AbortSignal.timeout(4000),
+    redirect: "error",
+  });
+  if (!response.ok) {
+    throw new Error(`Local AI model discovery failed (HTTP ${response.status}).`);
+  }
+  const payload: unknown = await response.json();
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("data" in payload) ||
+    !Array.isArray(payload.data)
+  ) {
+    throw new Error(`Local AI model discovery returned invalid data for ${base}.`);
+  }
+  const model = payload.data.find(
+    (candidate: unknown): candidate is { id: string } =>
+      typeof candidate === "object" &&
+      candidate !== null &&
+      "id" in candidate &&
+      typeof candidate.id === "string" &&
+      candidate.id.trim().length > 0,
+  );
+  if (!model) throw new Error("The local AI service has no model available.");
+  return model.id;
+}
+
+type AiDatabaseClient = SupabaseClient<Database>;
+
+function serverClient(): AiDatabaseClient {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ??
@@ -42,7 +129,7 @@ function serverClient() {
     process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
     "";
   if (!url || !key) throw new Error("Supabase is not configured on the server.");
-  return createClient(url, key, { auth: { persistSession: false } });
+  return createClient<Database>(url, key, { auth: { persistSession: false } });
 }
 
 /**
@@ -84,8 +171,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export async function resolveAiTargets(
   selector?: string | { serviceId?: string; serviceName?: string },
+  maxPricingTier?: AiPricingTier,
 ): Promise<AiTarget[]> {
-  const db = serverClient() as ReturnType<typeof createClient>;
+  const db = serverClient();
   const serviceName = typeof selector === "string" ? selector : selector?.serviceName;
   const serviceId = typeof selector === "string" ? undefined : selector?.serviceId;
 
@@ -93,7 +181,9 @@ export async function resolveAiTargets(
   if (serviceId) {
     const { data } = await db
       .from("api_services")
-      .select("id, name, provider_id, endpoint_url, status, category, approval_status")
+      .select(
+        "id, name, slug, type, provider_id, endpoint_url, status, category, approval_status, pricing_tier",
+      )
       .eq("id", serviceId)
       .maybeSingle();
     row = isRecord(data) ? data : null;
@@ -102,7 +192,9 @@ export async function resolveAiTargets(
   if (!row && serviceName) {
     const { data } = await db
       .from("api_services")
-      .select("id, name, provider_id, endpoint_url, status, category, approval_status")
+      .select(
+        "id, name, slug, type, provider_id, endpoint_url, status, category, approval_status, pricing_tier",
+      )
       .ilike("name", `%${serviceName}%`)
       .eq("status", "active")
       .limit(1);
@@ -116,11 +208,13 @@ export async function resolveAiTargets(
     // Any active AI service will do; the operator decides which by activating it.
     const { data } = await db
       .from("api_services")
-      .select("id, name, provider_id, endpoint_url, status, category, approval_status")
+      .select(
+        "id, name, slug, type, provider_id, endpoint_url, status, category, approval_status, pricing_tier",
+      )
       .eq("status", "active")
       .in("category", ["ai", "llm"])
       .order("name")
-      .limit(20);
+      .limit(100);
     // Only a chat endpoint can answer a completion; an embeddings or audio
     // service is not a worse choice, it is the wrong one.
     for (const candidate of (data ?? []) as Record<string, unknown>[]) {
@@ -138,19 +232,29 @@ export async function resolveAiTargets(
 
   const targets: AiTarget[] = [];
   const skipped: string[] = [];
-  for (const candidate of rows) {
+  const orderedRows = orderAiServicesByCost(rows);
+  for (const candidate of orderedRows) {
+    if (aiPricingPriority(candidate["pricing_tier"]) === Number.MAX_SAFE_INTEGER) {
+      skipped.push(`AI service ${candidate["name"]} has no verified pricing tier.`);
+      continue;
+    }
     try {
       targets.push(await buildTarget(db, candidate));
     } catch (problem) {
       skipped.push(problem instanceof Error ? problem.message : String(problem));
     }
   }
-  if (targets.length === 0) {
+  const eligibleTargets = targets.filter((target) =>
+    isAiPricingTierAllowed(target.pricingTier, maxPricingTier),
+  );
+  if (eligibleTargets.length === 0) {
     throw new Error(
-      skipped.length === 1 ? skipped[0] : `No AI service could be used. ${skipped.join(" ")}`,
+      skipped.length === 1
+        ? skipped[0]
+        : `No usable ${maxPricingTier ? `${maxPricingTier}-or-lower-cost ` : ""}AI service could be used. ${skipped.join(" ")}`,
     );
   }
-  return targets;
+  return eligibleTargets;
 }
 
 /**
@@ -161,10 +265,7 @@ export async function resolveAiTargets(
  * credential — so the caller above can skip it and say why rather than
  * discovering it halfway through a request.
  */
-async function buildTarget(
-  db: ReturnType<typeof createClient>,
-  row: Record<string, unknown>,
-): Promise<AiTarget> {
+async function buildTarget(db: AiDatabaseClient, row: Record<string, unknown>): Promise<AiTarget> {
   if (row["status"] !== "active") {
     throw new Error(`AI service ${row["name"]} is not active in AI API Manager.`);
   }
@@ -172,40 +273,58 @@ async function buildTarget(
     throw new Error(`AI service ${row["name"]} is not approved in AI API Manager.`);
   }
 
-  const endpoint = String(row["endpoint_url"] ?? "");
-  const managedEndpoint = assertManagedProviderEndpoint(endpoint);
+  const registeredEndpoint = String(row["endpoint_url"] ?? "");
+  const localService = getLocalAiService(row["slug"]);
+  const isLocal = localService !== null;
+  let endpoint: string;
+  if (isLocal) {
+    if (!isConfiguredLocalAiService(row["slug"], row["type"], registeredEndpoint)) {
+      throw new Error(`Local AI service ${row["name"]} has an unsafe or invalid endpoint.`);
+    }
+    endpoint = localService.endpoint;
+  } else {
+    endpoint = assertManagedProviderEndpoint(registeredEndpoint).toString();
+  }
 
-  const { data: provider } = await db
-    .from("ai_providers")
-    .select("name, slug")
-    .eq("id", row["provider_id"] as string)
-    .maybeSingle();
+  const providerId = typeof row["provider_id"] === "string" ? row["provider_id"] : null;
+  const { data: provider } = providerId
+    ? await db.from("ai_providers").select("name, slug").eq("id", providerId).maybeSingle()
+    : { data: null };
   const providerSlug = String(
     (provider as { slug?: string; name?: string } | null)?.slug ??
       (provider as { name?: string } | null)?.name ??
       row["name"],
   ).toLowerCase();
 
-  const { data: model } = await db
-    .from("ai_models")
-    .select("id, model_id")
-    .eq("provider_id", row["provider_id"] as string)
-    .eq("status", "active")
-    .eq("is_default", true)
-    .maybeSingle();
+  let model: { id: string; model_id: string } | null = null;
+  if (providerId) {
+    const { data, error } = await db
+      .from("ai_models")
+      .select("id, model_id")
+      .eq("provider_id", providerId)
+      .eq("status", "active")
+      .eq("is_default", true)
+      .maybeSingle();
+    if (error) throw new Error(`The default AI model could not be read: ${error.message}`);
+    model = data;
+  }
 
-  const { data: keyRows } = await db
-    .from("api_keys")
-    .select("secret_encrypted, status, environment")
-    .eq("service_id", row["id"] as string)
-    .eq("status", "active")
-    .eq("environment", "production")
-    .limit(1);
+  const modelId = isLocal ? await resolveLocalModelId(endpoint, model?.model_id) : model?.model_id;
+
+  const { data: keyRows } = isLocal
+    ? { data: [] }
+    : await db
+        .from("api_keys")
+        .select("secret_encrypted, status, environment")
+        .eq("service_id", row["id"] as string)
+        .eq("status", "active")
+        .eq("environment", "production")
+        .limit(1);
 
   const stored = (keyRows?.[0] as { secret_encrypted?: string } | undefined)?.secret_encrypted;
   const credential = isEncryptedAiCredential(stored) ? decryptAiCredential(stored) : null;
 
-  if (!credential) {
+  if (!credential && !isLocal) {
     throw new Error(
       `No production credential is configured for ${row["name"]}. ` +
         "Add an encrypted credential in AI API Manager.",
@@ -215,12 +334,14 @@ async function buildTarget(
   return {
     serviceId: String(row["id"]),
     serviceName: String(row["name"]),
-    endpoint: managedEndpoint.toString(),
-    credential,
+    endpoint,
+    credential: credential ?? "",
     providerSlug,
-    modelId: (model as { model_id?: string } | null)?.model_id ?? null,
+    modelId: modelId ?? null,
     modelRowId: (model as { id?: string } | null)?.id ?? null,
-    isAnthropic: providerSlug.includes("anthropic"),
+    isAnthropic: !isLocal && providerSlug.includes("anthropic"),
+    isLocal,
+    pricingTier: String(row["pricing_tier"] ?? "unknown"),
   };
 }
 
@@ -285,18 +406,22 @@ export type AiMessage = { role: "system" | "user" | "assistant"; content: string
  * everywhere, so retrying it only spends a second provider's credit and
  * doubles the latency before reporting the same error.
  *
- * What another provider can answer: this account is out of credit, over its
- * quota, rate limited, or the provider is overloaded or down. What it cannot:
- * a prompt this gateway built wrongly, or a model name that does not exist.
+ * What another provider can answer: rejected credentials, an unavailable
+ * provider-specific model, an exhausted quota, rate limiting, or an outage.
+ * What it cannot: a prompt this gateway built wrongly.
  *
  * Anthropic reports an exhausted balance as HTTP 400, not 402, so the status
  * alone cannot decide it and the message has to be read.
  */
-function providerCouldBeSwapped(status: number, message: string): boolean {
-  if (status === 402 || status === 408 || status === 429) return true;
+export function providerCouldBeSwapped(status: number, message: string): boolean {
+  if ([401, 402, 403, 408, 429].includes(status)) return true;
   if (status >= 500) return true;
   const m = message.toLowerCase();
   return (
+    /fetch failed|network error|connection refused|econnrefused|etimedout|timed out|timeout|socket hang up/.test(
+      m,
+    ) ||
+    /model.{0,40}(not found|not available|does not exist|unknown)/.test(m) ||
     m.includes("credit balance") ||
     m.includes("insufficient_quota") ||
     m.includes("insufficient quota") ||
@@ -316,6 +441,9 @@ export async function aiComplete(options: {
   temperature?: number;
   maxTokens?: number;
   json?: boolean;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  maxPricingTier?: AiPricingTier;
 }): Promise<{ text: string; model: string | null; service: string }> {
   // `serviceId` is an exact match against api_services.id; `serviceName` is a
   // fuzzy ilike("name", ...) fallback. Passing an id as `serviceName` would
@@ -324,6 +452,7 @@ export async function aiComplete(options: {
     options.serviceId
       ? { serviceId: options.serviceId, serviceName: options.serviceName }
       : options.serviceName,
+    options.maxPricingTier,
   );
 
   // Every attempt is metered, including the ones that fail, because a request
@@ -370,6 +499,8 @@ async function callTarget(
     temperature?: number;
     maxTokens?: number;
     json?: boolean;
+    timeoutMs?: number;
+    signal?: AbortSignal;
   },
 ): Promise<{ text: string; model: string | null; service: string }> {
   const started = Date.now();
@@ -392,8 +523,8 @@ async function callTarget(
       messages: rest,
     };
   } else {
-    resolvedModel = target.modelId ?? "gpt-4o-mini";
-    headers.authorization = `Bearer ${target.credential}`;
+    resolvedModel = target.modelId ?? (target.isLocal ? "qwen2.5:7b" : "gpt-4o-mini");
+    if (!target.isLocal) headers.authorization = `Bearer ${target.credential}`;
     body = {
       model: resolvedModel,
       temperature: options.temperature ?? 0.2,
@@ -403,10 +534,26 @@ async function callTarget(
     if (options.json) body.response_format = { type: "json_object" };
   }
 
+  const timeoutSignal = options.timeoutMs ? AbortSignal.timeout(options.timeoutMs) : undefined;
+  const signal =
+    options.signal && timeoutSignal
+      ? AbortSignal.any([options.signal, timeoutSignal])
+      : (options.signal ?? timeoutSignal);
   const response = await fetch(target.endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal,
+  }).catch(async (cause: unknown) => {
+    const cancelled = options.signal?.aborted;
+    const detail = cancelled
+      ? "The AI request was cancelled."
+      : cause instanceof Error
+        ? cause.message
+        : "The AI provider could not be reached.";
+    const status = cancelled ? 499 : detail.toLowerCase().includes("timeout") ? 408 : 503;
+    await meter(target, options.module, started, status, false);
+    throw new AiProviderError(detail, status);
   });
   type ProviderError = { message?: string };
   type ProviderResponse = {
@@ -434,7 +581,7 @@ async function callTarget(
     options.module,
     started,
     response.status,
-    response.ok,
+    response.ok && Boolean(text),
     result.usage,
     resolvedModel,
   );
@@ -451,9 +598,13 @@ async function callTarget(
     const providerError = Array.isArray(result.error)
       ? result.error[0]?.message
       : result.error?.message;
+    const status = response.ok ? 502 : response.status;
     throw new AiProviderError(
-      providerError ?? `The AI provider returned HTTP ${response.status}.`,
-      response.status,
+      providerError ??
+        (response.ok
+          ? "The AI provider returned an empty or unreadable response."
+          : `The AI provider returned HTTP ${response.status}.`),
+      status,
     );
   }
   const reportedModel =
@@ -533,19 +684,26 @@ async function streamFromTarget(
       messages: options.messages.filter((m) => m.role !== "system"),
     };
   } else {
-    headers.authorization = `Bearer ${target.credential}`;
+    if (!target.isLocal) headers.authorization = `Bearer ${target.credential}`;
     body = {
-      model: target.modelId ?? "gpt-4o-mini",
+      model: target.modelId ?? (target.isLocal ? "qwen2.5:7b" : "gpt-4o-mini"),
       stream: true,
       messages: options.messages,
     };
   }
 
-  const upstream = await fetch(target.endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
+  let upstream: Response;
+  try {
+    upstream = await fetch(target.endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : "The AI provider could not be reached.";
+    await meter(target, options.module, started, 503, false);
+    return { ok: false, status: 503, detail };
+  }
 
   void meter(target, options.module, started, upstream.status, upstream.ok);
 

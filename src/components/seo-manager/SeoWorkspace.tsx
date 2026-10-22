@@ -7,8 +7,14 @@ import { CreatorTopBar } from "@/components/creator/CreatorTopBar";
 import { PageShell } from "@/components/creator/PageShell";
 import { AiChatPanel } from "@/components/marketplace-manager/AiChatPanel";
 import type { NavGroup, NavItem } from "@/components/creator/navigation";
-import { SEO_MODULE_GROUPS, renderSeoModule } from "@/components/marketplace-manager/sections/SeoCenter";
+import { useTranslation } from "@/lib/i18n/use-translation";
+import {
+  SEO_MODULE_GROUPS,
+  renderSeoModule,
+} from "@/components/marketplace-manager/sections/SeoCenter";
 import { ExecutiveBanner } from "@/components/manager-suite/ExecutiveBanner";
+import ScreenErrorBoundary from "@/components/server-manager/ScreenErrorBoundary";
+import { SeoResourceFeedbackNotice, SeoResourceFeedbackProvider } from "./SeoResourceFeedback";
 
 const seoPrimary: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard },
@@ -18,13 +24,15 @@ const seoPrimary: NavItem[] = [
 ];
 
 export function SeoWorkspace({ initialModule }: { initialModule?: string } = {}) {
+  const { t } = useTranslation();
   const { groups, idByLabel, labelById } = useMemo(() => {
     const map: Record<string, string> = {};
     const g: NavGroup[] = SEO_MODULE_GROUPS.map((group) => ({
       label: group.label,
       items: group.items.map((item) => {
-        map[item.label] = item.id;
-        return { label: item.label, icon: item.icon };
+        const label = item.messageKey ? t(item.messageKey) : item.label;
+        map[label] = item.id;
+        return { label, icon: item.icon };
       }),
     }));
     // Built from the modules themselves rather than by inverting the
@@ -34,18 +42,19 @@ export function SeoWorkspace({ initialModule }: { initialModule?: string } = {})
     // exactly like a screen that works.
     const reverse: Record<string, string> = {};
     for (const group of SEO_MODULE_GROUPS) {
-      for (const item of group.items) reverse[item.id] = item.label;
+      for (const item of group.items) {
+        reverse[item.id] = item.messageKey ? t(item.messageKey) : item.label;
+      }
     }
     return { groups: g, idByLabel: map, labelById: reverse };
-  }, []);
+  }, [t]);
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  // ?module=<id> opens that section directly, so a link from elsewhere in the
-  // project can land on the right screen instead of the dashboard.
-  const [active, setActive] = useState(
-    () => (initialModule && labelById[initialModule]) || "Dashboard",
+  const [activeId, setActiveId] = useState(() =>
+    initialModule && labelById[initialModule] ? initialModule : "dashboard",
   );
+  const active = labelById[activeId] ?? "Dashboard";
   const [aiOpen, setAiOpen] = useState(false);
 
   return (
@@ -57,7 +66,8 @@ export function SeoWorkspace({ initialModule }: { initialModule?: string } = {})
         onCloseMobile={() => setMobileOpen(false)}
         active={active}
         onSelect={(label) => {
-          setActive(label);
+          const id = idByLabel[label];
+          if (id) setActiveId(id);
           setMobileOpen(false);
         }}
         primary={seoPrimary}
@@ -69,15 +79,21 @@ export function SeoWorkspace({ initialModule }: { initialModule?: string } = {})
       <div className="flex min-w-0 flex-1 flex-col">
         <CreatorTopBar onOpenMenu={() => setMobileOpen(true)} />
         <PageShell>
-          {/^(dashboard|overview|console)/i.test(active) ? (
-            <ExecutiveBanner
-              role="seo"
-              onNavigate={(label) => {
-                if (idByLabel[label]) setActive(label);
-              }}
-            />
-          ) : null}
-          {renderSeoModule(idByLabel[active] ?? "dashboard")}
+          <SeoResourceFeedbackProvider>
+            <SeoResourceFeedbackNotice />
+            <ScreenErrorBoundary screenId={`seo-manager:${activeId}`}>
+              {/^(dashboard|overview|console)/i.test(activeId) ? (
+                <ExecutiveBanner
+                  role="seo"
+                  onNavigate={(label) => {
+                    const id = idByLabel[label];
+                    if (id) setActiveId(id);
+                  }}
+                />
+              ) : null}
+              {renderSeoModule(activeId)}
+            </ScreenErrorBoundary>
+          </SeoResourceFeedbackProvider>
         </PageShell>
       </div>
 

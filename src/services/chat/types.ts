@@ -107,6 +107,13 @@ export interface ChatMessage {
   optimistic?: { state: DeliveryState; error?: string | undefined } | undefined;
 }
 
+export type ChatMessageCursor = { createdAt: string; id: string };
+
+export type ChatMessagePage = {
+  messages: ChatMessage[];
+  nextCursor: ChatMessageCursor | null;
+};
+
 export interface DraftAttachment {
   id: string;
   file: File;

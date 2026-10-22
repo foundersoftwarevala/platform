@@ -28,7 +28,7 @@ import {
 const root = mkdtempSync(join(tmpdir(), "vala-sandbox-"));
 process.env.VALA_AI_DATA_DIR = join(root, "data");
 process.env.VALA_AI_WORKER = "off";
-const owner: Operator = { id: "u-owner", email: "o@test.local", name: "o", role: "owner" };
+const owner: Operator = { id: "u-owner", email: "o@test.local", name: "o", role: "boss" };
 const IMAGE = "node:22-bookworm-slim@sha256:" + "a".repeat(64);
 const restoreEnv = { ...process.env };
 

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   prints: vi.fn(),
   snapshot: vi.fn(),
   saveRun: vi.fn(),
+  catalogueChanged: vi.fn(),
 }));
 vi.mock("@/lib/marketplace/author-guard", async (original) => ({
   ...(await original<typeof import("../author-guard")>()),
@@ -27,7 +28,7 @@ vi.mock("@/lib/seo/seo-store.server", () => ({
   readResourceRows: vi.fn(),
 }));
 vi.mock("@/lib/marketplace/catalogue-invalidation", () => ({
-  catalogueChanged: vi.fn(),
+  catalogueChanged: mocks.catalogueChanged,
   STOREFRONT_TABLES: new Set(["marketplace_products"]),
 }));
 
@@ -37,7 +38,11 @@ import { Route as GateRoute } from "@/routes/api/internal/seo-gate";
 import { upsertReviewedProduct } from "../product-write.server";
 
 type Post = (ctx: { request: Request }) => Promise<Response>;
+type Get = (ctx: { request: Request }) => Promise<Response>;
 type PostOptions = { server: { handlers: { POST: Post } } };
+type GetOptions = { server: { handlers: { GET: Get } } };
+const authorGet = (AuthorRoute.options as typeof AuthorRoute.options & GetOptions).server.handlers
+  .GET;
 const authorPost = (AuthorRoute.options as typeof AuthorRoute.options & PostOptions).server.handlers
   .POST;
 const managerPost = (ManagerRoute.options as typeof ManagerRoute.options & PostOptions).server
@@ -67,6 +72,39 @@ afterEach(() => {
 });
 
 describe("actual product creation handlers", () => {
+  it("returns the editable product fields and public category options for the author UI", async () => {
+    const calls: string[] = [];
+    mocks.rest.mockImplementation(async (path: string) => {
+      calls.push(path);
+      if (path.startsWith("marketplace_products")) {
+        return json([
+          {
+            id: "p1",
+            name: "Product",
+            features: ["Reports"],
+            tech_stack: ["React"],
+            category_id: "c1",
+            moderation_status: "draft",
+          },
+        ]);
+      }
+      return json([{ id: "c1", name: "Business" }]);
+    });
+
+    const response = await authorGet({
+      request: new Request("https://softwarevala.net/api/author/products"),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      products: [{ id: "p1", features: ["Reports"], tech_stack: ["React"] }],
+      categories: [{ id: "c1", name: "Business" }],
+    });
+    expect(calls[0]).toContain("features");
+    expect(calls[0]).toContain("search_keywords");
+    expect(calls[1]).toContain("is_hidden=eq.false");
+  });
+
   it.each(["dynamic", "provided-dynamic", "fallback", "fallback-pass", "unconfigured-failure"])(
     "gate dry-run %s uses dynamic expectations unless an explicit fallback is needed",
     async (scenario) => {
@@ -228,6 +266,32 @@ describe("actual product creation handlers", () => {
     expect(console.warn).not.toHaveBeenCalled();
   });
 
+  it("allows an owned submitted product to be withdrawn back to draft", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json([{ id: "p1" }])),
+    );
+    mocks.rest
+      .mockResolvedValueOnce(json([{ id: "p1", moderation_status: "submitted" }]))
+      .mockResolvedValueOnce(json([{ id: "p1", moderation_status: "draft" }]));
+
+    const response = await authorPost({
+      request: request("/api/author/products", { id: "p1", action: "withdraw" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      action: "withdraw",
+      from: "submitted",
+      to: "draft",
+    });
+    expect(JSON.parse(String(mocks.rest.mock.calls[1][1].body))).toMatchObject({
+      moderation_status: "draft",
+      content_status: "draft",
+    });
+  });
+
   it("manager creation overrides caller visibility and records the review reason", async () => {
     vi.stubGlobal(
       "fetch",
@@ -286,8 +350,49 @@ describe("actual product creation handlers", () => {
       });
       expect(write.mock.calls[0][0].visible).toBe(existing);
       expect(write.mock.calls[0][0].moderation_status).toBe(existing ? undefined : "submitted");
+      expect(mocks.catalogueChanged).toHaveBeenCalledOnce();
     },
   );
+
+  it.each([
+    { publish_on_create: true, content_status: "published", moderation_status: "approved" },
+    { publish_on_create: false, content_status: "draft", moderation_status: "draft" },
+  ])("catalogue creation persists category and publication fields: %s", async (status) => {
+    const write = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: string | URL, init?: RequestInit) => {
+        if (init?.method === "POST") {
+          const row = JSON.parse(String(init.body));
+          write(row);
+          return json({ id: "p1", ...row });
+        }
+        return json([]);
+      }),
+    );
+    const client = createClient<Database>("http://db.test", "fixture", {
+      auth: { persistSession: false, autoRefreshToken: false },
+      db: { retry: false },
+    });
+
+    await upsertReviewedProduct(client, {
+      name: "Business Suite",
+      slug: "business-suite",
+      category_id: "10000000-0000-4000-8000-000000000001",
+      visible: true,
+      content_status: status.content_status,
+      moderation_status: status.moderation_status,
+    });
+
+    expect(write).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category_id: "10000000-0000-4000-8000-000000000001",
+        content_status: status.content_status,
+        moderation_status: status.moderation_status,
+      }),
+    );
+    expect(mocks.catalogueChanged).toHaveBeenCalledOnce();
+  });
 
   it("catalogue lookup failures stop before writing", async () => {
     const write = vi.fn();
@@ -306,6 +411,7 @@ describe("actual product creation handlers", () => {
       "database unavailable",
     );
     expect(write).not.toHaveBeenCalled();
+    expect(mocks.catalogueChanged).not.toHaveBeenCalled();
   });
 
   it("a concurrent QA slug conflict cannot overwrite an existing product", async () => {

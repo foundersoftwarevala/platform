@@ -3,7 +3,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  operator: { id: "first", email: "first@example.invalid", name: "First", role: "owner" },
+  operator: { id: "first", email: "first@example.invalid", name: "First", role: "boss" },
   plan: vi.fn(),
   step: vi.fn(),
   save: vi.fn(),

@@ -1,6 +1,6 @@
 import {
   LayoutGrid, Activity, AlertTriangle, Database, Shield, Clock, Cpu, Network,
-  Rocket, Layers, ShoppingCart, Receipt, FileSearch, Settings, List, Gauge,
+  Rocket, Layers, Receipt, FileSearch, Settings, List, Gauge,
   Plus, Brain, Terminal, HardDrive, Server, ScrollText, Lock, Wrench,
   type LucideIcon,
 } from 'lucide-react';
@@ -8,7 +8,7 @@ import {
 export type ViewType =
   | 'dashboard' | 'addserver' | 'registry' | 'servers' | 'serverlogin' | 'monitoring'
   | 'aihealth' | 'performance' | 'alerts' | 'uptime' | 'resources' | 'network'
-  | 'backups' | 'storage' | 'security' | 'deployments' | 'plans' | 'buy'
+  | 'backups' | 'storage' | 'security' | 'deployments' | 'plans'
   | 'billing' | 'logs' | 'audit' | 'maintenance' | 'reports' | 'settings';
 
 export type NavItem = { id: ViewType; label: string; icon: LucideIcon };
@@ -27,7 +27,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { id: 'servers', label: 'Servers', icon: Server },
       { id: 'registry', label: 'Server Registry', icon: List },
-      { id: 'addserver', label: 'Add Server', icon: Plus },
+      { id: 'addserver', label: 'Connect Server', icon: Plus },
       { id: 'serverlogin', label: 'Server Login', icon: Terminal },
     ],
   },
@@ -62,7 +62,6 @@ export const navGroups: NavGroup[] = [
     label: 'Commerce',
     items: [
       { id: 'plans', label: 'Explore Plans', icon: Layers },
-      { id: 'buy', label: 'Buy New Server', icon: ShoppingCart },
       { id: 'billing', label: 'Billing & Usage', icon: Receipt },
       { id: 'settings', label: 'Settings', icon: Settings },
     ],

@@ -17,5 +17,5 @@ export const studioOperator = createMiddleware({ type: "function" }).server(asyn
 });
 
 export const studioOwner = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  return next({ context: { studioOperator: await requireStudioRole("owner") } });
+  return next({ context: { studioOperator: await requireStudioRole("boss") } });
 });

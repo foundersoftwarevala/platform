@@ -13,13 +13,12 @@ import "@/styles/marketplace-home.css";
  *
  * Resellers, vendors, authors, franchises, influencers and affiliates all land
  * here in one queue: read in full, their documents opened, approved, refused
- * with a reason or suspended. Each role's own Manager still runs the accounts
- * an approval creates; the application itself is decided here. It is the same
- * queue component the Franchise and Influencer Managers show for their own
- * kind, so there is one way of deciding an application, not several.
+ * with a reason or suspended. Reseller decisions are restricted to platform
+ * operators; other roles retain the application_staff review workflow. Each
+ * role's own Manager still runs the accounts an approval creates.
  *
- * Access follows the database: application_staff() decides who may read and
- * decide, whatever this page shows.
+ * Access follows the database's application_staff() and application_boss()
+ * checks, rather than relying on the page's visible controls.
  */
 export const Route = createFileRoute("/application-manager")({
   head: () => ({

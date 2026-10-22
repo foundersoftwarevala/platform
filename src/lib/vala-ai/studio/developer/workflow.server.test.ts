@@ -12,7 +12,7 @@ const owner = {
   id: "test-owner",
   email: "owner@example.invalid",
   name: "Owner",
-  role: "owner" as const,
+  role: "boss" as const,
 };
 vi.mock("../auth.functions", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../auth.functions")>()),

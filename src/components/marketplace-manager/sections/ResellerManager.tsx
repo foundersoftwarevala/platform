@@ -1,4 +1,5 @@
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { useSessionRole } from "@/hooks/use-permissions";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -7,7 +8,7 @@ import {
 
 import { Card, EmptyHint, PageHeader, StatCard } from "../ui";
 import {
-  createResellerCode, createResellerPayout, getResellerDetail, getResellers,
+  createResellerCode, createResellerPayout, getResellerDetail, getResellerPlanStatuses, getResellers,
   releaseResellerEarnings, setResellerPayoutStatus, setResellerPlan,
   setResellerSchedule, setResellerStatus,
   type PlanCode, type ResellerOverview, type ResellerRow, type ResellerStatus,
@@ -471,6 +472,8 @@ function ResellerProfile({ id, onBack }: { id: string; onBack: () => void }) {
 
 export function ResellerManager() {
   const { t } = useTranslation();
+  const { role: sessionRole } = useSessionRole();
+  const canReviewApplications = sessionRole === "admin";
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   // The search is sent once typing pauses, not on every keystroke.
@@ -492,6 +495,11 @@ export function ResellerManager() {
     queryKey: ["marketplace", "resellers", query, status, limit],
     queryFn: () =>
       getResellers({ data: { search: query || undefined, status: status || undefined, limit } }),
+    staleTime: 15_000,
+  });
+  const planStatuses = useQuery({
+    queryKey: ["marketplace", "reseller-plan-status"],
+    queryFn: () => getResellerPlanStatuses(),
     staleTime: 15_000,
   });
 
@@ -635,6 +643,43 @@ export function ResellerManager() {
         </div>
       </Card>
 
+      <Card className="mt-4" data-reseller-plan-status>
+        <h3 className="mb-2 text-sm font-bold">Current plan status</h3>
+        <p className="mb-3 text-[11px] text-muted-foreground">
+          Active customer discounts require an approved reseller and a membership within its exact start and expiry dates.
+        </p>
+        {planStatuses.isPending ? (
+          <EmptyHint text="Loading plan status…" />
+        ) : planStatuses.isError ? (
+          <EmptyHint text={`Could not load plan status: ${planStatuses.error.message}`} />
+        ) : planStatuses.data.length === 0 ? (
+          <EmptyHint text="No reseller plans found." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-3">Reseller</th>
+                  <th className="py-2 pr-3">Plan</th>
+                  <th className="py-2 pr-3">Expiry date</th>
+                  <th className="py-2">Current discount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {planStatuses.data.map((row) => (
+                  <tr key={row.reseller_id} className="border-t border-border/60">
+                    <td className="py-2 pr-3 font-medium">{row.reseller_name}</td>
+                    <td className="py-2 pr-3">{row.plan_name ?? "No plan"}</td>
+                    <td className="py-2 pr-3">{when(row.expires_at)}</td>
+                    <td className="py-2">{row.discount_percent}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       <Card className="mt-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {([
@@ -738,12 +783,21 @@ export function ResellerManager() {
                     <span className="text-[11px] text-muted-foreground" data-terminated-final>
                       {t("reseller.manager.terminated_final")}
                     </span>
+                  ) : r.status === "pending" || r.status === "rejected" ? (
+                    canReviewApplications ? (
+                      <button
+                        onClick={() => decide.mutate({ id: r.id, status: "active" })}
+                        className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"
+                      >
+                        Approve
+                      </button>
+                    ) : null
                   ) : r.status !== "active" ? (
                     <button
                       onClick={() => decide.mutate({ id: r.id, status: "active" })}
                       className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"
                     >
-                      Approve
+                      {t("reseller.manager.reinstate")}
                     </button>
                   ) : (
                     <>
@@ -780,7 +834,7 @@ export function ResellerManager() {
                   )}
                   {/* An application that is declined is rejected, with the
                       reason the database requires and sends to the applicant. */}
-                  {r.status === "pending" && (
+                  {r.status === "pending" && canReviewApplications && (
                     <button
                       onClick={() => {
                         const reason = window.prompt(

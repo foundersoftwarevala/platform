@@ -238,11 +238,26 @@ function summarise(kind: ApplicationKind, r: Row): ApplicationSummary {
 export async function listApplications(
   kinds: ApplicationKind[],
   open: boolean,
+  resellerManagerView = false,
 ): Promise<ApplicationSummary[]> {
   const results = await Promise.all(
     kinds.map(async (kind) => {
       const d = DEFINITIONS[kind];
-      const filters = [d.scope, open ? `status=in.(${OPEN_STATUSES.join(",")})` : null]
+      if (resellerManagerView && kind !== "reseller") {
+        throw new Error(
+          "The Reseller Manager application view only supports reseller applications.",
+        );
+      }
+      const statusFilter = resellerManagerView
+        ? "status=in.(pending,active)"
+        : open
+          ? `status=in.(${OPEN_STATUSES.join(",")})`
+          : null;
+      const filters = [
+        d.scope,
+        statusFilter,
+        resellerManagerView ? "application=not.is.null" : null,
+      ]
         .filter(Boolean)
         .join("&");
       const response = await serviceRest(
@@ -263,10 +278,41 @@ export async function listApplications(
             r.application != null ||
             OPEN_STATUSES.includes(text(r.status)),
         )
-        .map((r) => summarise(kind, r));
+        .map((r) => {
+          const summary = summarise(kind, r);
+          return resellerManagerView ? { ...summary, actions: [] } : summary;
+        });
     }),
   );
   return results.flat().sort((a, b) => (a.submitted < b.submitted ? 1 : -1));
+}
+
+export async function countApplications(): Promise<{
+  total: number;
+  byRole: { kind: ApplicationKind | "employee"; count: number }[];
+}> {
+  const kinds = [...APPLICATION_KINDS, "employee"] as const;
+  const byRole = await Promise.all(
+    kinds.map(async (kind) => {
+      const table =
+        kind === "employee" ? "employee_applications" : DEFINITIONS[kind].table;
+      const scope = kind === "employee" ? undefined : DEFINITIONS[kind].scope;
+      const response = await serviceRest(
+        `${table}?select=id&status=in.(${OPEN_STATUSES.join(",")})${scope ? `&${scope}` : ""}`,
+        { method: "HEAD", headers: { Prefer: "count=exact" } },
+      );
+      if (!response.ok)
+        throw new Error(`${kind} application count could not be read (${response.status})`);
+      const raw = response.headers.get("content-range")?.split("/")[1];
+      if (!raw || !/^\d+$/.test(raw))
+        throw new Error(`${kind} application count was not returned`);
+      const count = Number(raw);
+      if (!Number.isSafeInteger(count))
+        throw new Error(`${kind} application count is invalid`);
+      return { kind, count };
+    }),
+  );
+  return { total: byRole.reduce((sum, row) => sum + row.count, 0), byRole };
 }
 
 export type ApplicationField = { key: string; label: string; value: string | null };

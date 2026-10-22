@@ -9,23 +9,23 @@ import { now, ValaError } from "./util.server.ts";
  * `platform-auth.server.ts`). Their platform roles map onto three Vala AI
  * roles, and every API call checks that role on the server.
  *
- *   owner    — boss_owner, boss, founder, super_admin: approves requirements,
+ *   boss     — boss_owner, boss, founder, super_admin: approves requirements,
  *              change requests, rollbacks and releases; changes settings.
  *   operator — admin, developer: creates projects, requirement drafts, tasks;
  *              requests rollbacks and releases; chats with the agent.
  *   viewer   — the platform's other staff roles: read only.
  */
 
-export type Role = "owner" | "operator" | "viewer";
+export type Role = "boss" | "operator" | "viewer";
 export type Operator = { id: string; email: string; name: string; role: Role };
 
-const OWNER_ROLES = new Set(["boss_owner", "boss", "founder", "super_admin"]);
+const BOSS_ROLES = new Set(["boss_owner", "boss", "founder", "super_admin"]);
 const OPERATOR_ROLES = new Set(["admin", "developer"]);
 const VIEWER_ROLES = new Set(["employee", "sales", "support", "finance", "sales_support_manager"]);
-const RANK: Record<Role, number> = { viewer: 0, operator: 1, owner: 2 };
+const RANK: Record<Role, number> = { viewer: 0, operator: 1, boss: 2 };
 
 export function roleFromPlatform(platformRoles: string[]): Role | null {
-  if (platformRoles.some((r) => OWNER_ROLES.has(r))) return "owner";
+  if (platformRoles.some((r) => BOSS_ROLES.has(r))) return "boss";
   if (platformRoles.some((r) => OPERATOR_ROLES.has(r))) return "operator";
   if (platformRoles.some((r) => VIEWER_ROLES.has(r))) return "viewer";
   return null;

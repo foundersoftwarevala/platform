@@ -133,9 +133,9 @@ const SMLogs = () => {
       </div>
 
       {/* Logs Table */}
-      <div className="bento-card enter-soft !p-0 overflow-hidden">
+      <div className="bento-card enter-soft !p-0 overflow-x-auto">
         <table
-          className="w-full select-none"
+          className="w-full min-w-[900px] select-none"
           onCopy={(e) => e.preventDefault()}
           onContextMenu={(e) => e.preventDefault()}
         >

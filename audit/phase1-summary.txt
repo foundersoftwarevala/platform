@@ -1,0 +1,22 @@
+Phase 1 P0 verification (2026-10-20 UTC)
+
+Scope: Items 3, 4 backend, 9, 23, and 24. Phase 0 evidence and the two policy migrations are in audit/phase0-*.txt and supabase/migrations/20261108T145000_marketplace_public_read_requires_approval.sql plus 20261108T145100_marketplace_products_server_write_only.sql.
+
+Item 3 — VERIFIED WORKING for current storage security; product-media upload is not implemented and is tracked under Item 2. Live `storage.buckets` contained seven private buckets and no marketplace media/product-file bucket. There are no marketplace Storage object policies or marketplace objects. The only stored object was in developer-task-files; identifiers were redacted from evidence. No marketplace files can currently be uploaded or downloaded, so this verifies absence of an exposed media bucket, not an upload feature. Evidence: audit/phase0-schema-rls-storage.txt and audit/phase0-final-verify.txt.
+
+Item 4 backend — VERIFIED WORKING. `requireAuthor` resolves the signed-in user and seller server-side, limits seller kind, and rejects suspended/inactive sellers; `ownsProduct` checks seller_id from the database. `AUTHOR_TRANSITIONS` limits author actions; internal review has its own operator check and `REVIEW_TRANSITIONS`. Evidence: src/lib/marketplace/author-guard.ts:99-173; src/routes/api/author/products.ts:65-157; src/routes/api/internal/author-review.ts:58-152; focused author-guard and product-prevention-handler tests passed.
+
+Item 9 — FIXED. Public product detail and category readers already require visible, approved products within the schedule (`src/lib/marketplace.functions.ts:343-361, 460-512`). Phase 0 applied a live RLS correction because permissive public policies OR together. A separate service-role catalogue reader bypasses RLS; it previously filtered visibility/content status only. `catalog.server.ts` now adds approval and publish/unpublish-window filters to both category ID selection and card hydration. Regression: `src/lib/marketplace/__tests__/catalog-publication-filters.test.ts` verifies both service-role reads carry all four constraints. This application-code fix is local and not deployed.
+
+Item 23 — VERIFIED WORKING. Dashboard metrics are enabled only when the signed-in account holds the requested seller role and its own marketplace_sellers row is pending/approved. Suspended, inactive, missing seller records, and operator-only role views do not activate seller metrics; server APIs independently re-run `requireAuthor`. Evidence: src/routes/dashboard.$role.tsx:257-271; src/lib/auth-bridge.ts:58-86; src/lib/marketplace/author-guard.ts:99-129.
+
+Item 24 — FIXED on live `sv_platform`. RLS is enabled on each existing marketplace table in scope; generic products/product_files/orders/payouts/reviews/downloads/follows relations do not exist. Existing `marketplace_downloads`, `marketplace_order_items`, `marketplace_orders`, `marketplace_payouts`, and `marketplace_reviews` policies remain in place. Two product-policy defects were fixed: public product policies both require moderation approval; authenticated seller direct INSERT/UPDATE policies were removed, leaving server lifecycle writes and operator policies. Evidence: audit/phase0-policy-summary.txt, audit/phase0-final-verify.txt, and the two Phase 0 migrations. Live anonymous query returned 7,528 approved/visible products and zero visible-unapproved candidates.
+
+Seed review: `marketplace.seed.ts` has no route/library imports or invocation; no production query path uses it. Evidence: audit/phase0-seed-usage.txt.
+
+Verification after the catalogue fix:
+- `npm.cmd exec vitest -- run src/lib/marketplace/__tests__/catalog-publication-filters.test.ts src/lib/marketplace/__tests__/product-safety.test.ts src/lib/marketplace/__tests__/author-guard.test.ts --reporter=dot`: 3 files, 32 tests passed.
+- `npm.cmd exec eslint -- src/lib/marketplace/catalog.server.ts src/lib/marketplace/__tests__/catalog-publication-filters.test.ts`: passed.
+- The focused source and policy checks do not constitute a production deployment or live HTTP verification of the new application-code filter.
+
+Phase 1 result: P0 access controls/publication paths are verified or corrected. Media upload itself remains absent and is part of the planned P1 upload work; no bucket or Storage policy was added without an upload/asset ownership contract.

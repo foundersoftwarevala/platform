@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,11 +9,13 @@ const mocks = vi.hoisted(() => ({
   match: vi.fn(),
   category: vi.fn(),
   product: vi.fn(),
+  navigate: vi.fn(),
+  commerce: vi.fn(),
   content: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ slug: "fixture" }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mocks.navigate,
   useMatch: (options: object) => {
     mocks.match(options);
     return mocks.loaded ? { loaderData: mocks.loaded } : undefined;
@@ -33,7 +35,9 @@ vi.mock("@/lib/marketplace.functions", () => ({
 vi.mock("@/lib/marketplace-content.functions", () => ({
   getPublishedProductContent: mocks.content,
 }));
-vi.mock("@/lib/marketplace-commerce.functions", () => ({ addMarketplaceCartItem: vi.fn() }));
+vi.mock("@/lib/marketplace-commerce.functions", () => ({
+  addMarketplaceCartItem: mocks.commerce,
+}));
 vi.mock("@/lib/serverFn", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/i18n/use-translation", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -62,6 +66,9 @@ beforeEach(() => {
   mocks.match.mockClear();
   mocks.category.mockReset();
   mocks.product.mockReset();
+  mocks.navigate.mockReset();
+  mocks.commerce.mockReset();
+  window.history.replaceState({}, "", "/");
 });
 afterEach(cleanup);
 
@@ -117,6 +124,39 @@ describe("optional matching route loader data", () => {
       shouldThrow: false,
     });
     expect(mocks.product).not.toHaveBeenCalled();
+  });
+
+  it("preserves the Buy Now marker when an unsigned buyer is sent to login", async () => {
+    mocks.loaded = {
+      product: {
+        product: {
+          id: "product-fixture",
+          slug: "fixture",
+          name: "Seeded product",
+          icon: "SP",
+          description: "Fixture",
+          rating: 0,
+          downloads: 0,
+          tags: [],
+          features: [],
+          tech_stack: [],
+          visible: true,
+          content_status: "published",
+        },
+        active_demos: [],
+      },
+    };
+    mocks.commerce.mockRejectedValue(new Error("unauthorized"));
+    window.history.replaceState({}, "", "/marketplace/product/fixture?buy=1");
+
+    render(<ProductDetail />, { wrapper });
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith({
+        to: "/login",
+        search: { redirect: "/marketplace/product/fixture?buy=1" },
+      });
+    });
   });
 
   it("retains missing-product query fallback without throwing a missing-loader error", async () => {

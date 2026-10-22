@@ -19,6 +19,7 @@ export type Seller = {
   display_name: string | null;
   slug: string | null;
   status: string;
+  seller_kind: string | null;
   payout_currency: string | null;
 };
 
@@ -74,7 +75,7 @@ export async function currentUser(request: Request): Promise<AuthUser | null> {
 /** The seller record this user owns, whatever its status. */
 export async function sellerForUser(userId: string): Promise<Seller | null> {
   const response = await rest(
-    `marketplace_sellers?select=id,owner_user_id,display_name,slug,status,payout_currency` +
+    `marketplace_sellers?select=id,owner_user_id,display_name,slug,status,seller_kind,payout_currency` +
       `&owner_user_id=eq.${encodeURIComponent(userId)}&limit=1`,
   );
   if (!response.ok) return null;
@@ -97,7 +98,10 @@ function deny(message: string, status: number): { ok: false; response: Response 
  */
 export async function requireAuthor(
   request: Request,
-  { allowPending = false } = {},
+  {
+    allowPending = false,
+    sellerKinds = ["author"],
+  }: { allowPending?: boolean; sellerKinds?: readonly string[] } = {},
 ): Promise<AuthorContext> {
   if (!supabaseUrl() || !serviceKey()) {
     return deny("The marketplace backend is not configured", 503);
@@ -109,13 +113,20 @@ export async function requireAuthor(
   if (!seller) {
     return deny("This account is not registered as an author on the marketplace", 403);
   }
-  if (seller.status === "suspended") {
-    return deny("This author account is suspended", 403);
+  if (!seller.seller_kind || !sellerKinds.includes(seller.seller_kind)) {
+    return deny("This account is not registered for this seller workspace", 403);
   }
-  if (seller.status !== "approved" && !allowPending) {
+  if (seller.status === "approved") return { ok: true, user, seller };
+  if (seller.status === "pending" && allowPending) return { ok: true, user, seller };
+  if (seller.status === "pending") {
     return deny("This author account is awaiting approval", 403);
   }
-  return { ok: true, user, seller };
+  return deny(
+    seller.status === "suspended"
+      ? "This author account is suspended"
+      : "This author account is not active",
+    403,
+  );
 }
 
 /** Confirm a product belongs to this seller. Ownership is read, never supplied. */
@@ -127,20 +138,6 @@ export async function ownsProduct(sellerId: string, productId: string): Promise<
   if (!response.ok) return false;
   return ((await response.json()) as unknown[]).length > 0;
 }
-
-/**
- * The product lifecycle, and who may move it.
- *
- * An author may take a product from draft to submitted and back to draft while
- * it is theirs to edit. Everything from review onwards belongs to Software
- * Vala — an author must never be able to approve or publish their own work.
- */
-export const AUTHOR_TRANSITIONS: Record<string, string[]> = {
-  draft: ["submitted"],
-  submitted: ["draft"],
-  changes_requested: ["submitted", "draft"],
-  rejected: ["draft"],
-};
 
 export const REVIEW_TRANSITIONS: Record<string, string[]> = {
   submitted: ["under_review", "approved", "rejected", "changes_requested"],
@@ -158,10 +155,10 @@ export const REVIEW_TRANSITIONS: Record<string, string[]> = {
 export const AUTHOR_EDITABLE = [
   "name", "slug", "description", "features", "tech_stack", "technology",
   "frontend", "backend", "database", "mobile", "cloud", "integrations",
-  "demo_url", "public_repo_url", "documentation", "thumbnail_url", "cover_image",
+  "demo_url", "public_repo_url", "thumbnail_url", "cover_image",
   "logo", "icon", "favicon", "tags", "search_keywords", "languages", "industry_label",
   "target_audience", "subcategory", "category_id", "software_type", "modules",
-  "benefits", "roles", "version", "price_label", "price_period", "currency",
+  "benefits", "roles", "version", "license", "price_label", "price_period", "currency",
 ] as const;
 
 /**

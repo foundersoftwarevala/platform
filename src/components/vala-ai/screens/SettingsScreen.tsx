@@ -63,7 +63,7 @@ const FIELDS: { key: keyof Settings; label: string; hint: string }[] = [
 
 export function SettingsScreen() {
   const { translate: t } = useLanguage();
-  const isOwner = useCan("owner");
+  const isOwner = useCan("boss");
   const status = useApi<Status>(["status"], "/status", { refetchInterval: 10_000 });
   const settings = useApi<Settings>(["settings"], "/settings");
   const people = useApi<{ id: string; email: string; role: string; last_seen_at: string }[]>(

@@ -9,7 +9,7 @@ const OPERATOR_ROLES = new Set<string>(DEMO_OPERATOR_ROLES);
  *
  * RouteAccessGate let `developer` and `support` open /demo-manager while the
  * pipeline behind it - requireInternalOperator - accepts boss, admin,
- * super_admin, owner and developer. A support user could open the console and be
+ * super_admin and developer. A support user could open the console and be
  * refused the moment they acted on it, which reads as a fault in the product
  * rather than a permission boundary.
  *
@@ -19,9 +19,9 @@ const OPERATOR_ROLES = new Set<string>(DEMO_OPERATOR_ROLES);
  * adds support back to either side, or widens the operator set by accident.
  */
 describe("demo publishing authority", () => {
-  it("accepts exactly the five operator roles", () => {
+  it("accepts exactly the four operator roles", () => {
     expect([...OPERATOR_ROLES].sort()).toEqual(
-      ["admin", "boss", "developer", "owner", "super_admin"].sort(),
+      ["admin", "boss", "developer", "super_admin"].sort(),
     );
   });
 

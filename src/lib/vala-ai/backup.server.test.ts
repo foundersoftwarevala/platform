@@ -20,7 +20,7 @@ const restored = join(root, "restored");
 const backups = join(root, "backups");
 process.env.VALA_AI_DATA_DIR = original;
 process.env.VALA_AI_WORKER = "off";
-const owner: Operator = { id: "u-owner", email: "owner@test.local", name: "owner", role: "owner" };
+const owner: Operator = { id: "u-owner", email: "owner@test.local", name: "owner", role: "boss" };
 let projectId = "";
 let backupPath = "";
 

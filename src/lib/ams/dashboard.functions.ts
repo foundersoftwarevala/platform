@@ -2,41 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import type { Database } from "@/integrations/supabase/types";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
  * Returns everything the Command Center dashboard needs in a single round-trip.
  *
- * Auth is owned by the upstream Software Vala app — this module assumes the
- * user is already authenticated. We attempt to resolve the bearer token from
- * the incoming request; if absent (e.g. running standalone in preview), we
- * return a zeroed, empty dashboard shape instead of throwing 401. All real
- * values come from the database when a session is present.
+ * Auth is validated by the shared middleware. Database read and auth failures
+ * are surfaced rather than represented as an empty dashboard.
  */
-
-const EMPTY_DASHBOARD = {
-  profile: null as any,
-  totals: {
-    xp: 0,
-    achievementsCatalog: 0, badgesCatalog: 0, trophiesCatalog: 0,
-    achievementsEarned: 0, badgesEarned: 0, trophiesEarned: 0,
-    rewardsCatalog: 0, unreadNotifications: 0,
-  },
-  progression: {
-    currentLevel: null as any, nextLevel: null as any,
-    currentRank: null as any, nextRank: null as any,
-    levelProgressPct: 0, rankProgressPct: 0,
-  },
-  streak: { current_streak: 0, longest_streak: 0, last_active_date: null } as any,
-  collections: { achievements: [] as any[], badges: [] as any[], trophies: [] as any[] },
-  missions: { daily: [] as any[], weekly: [] as any[], monthly: [] as any[], seasonal: [] as any[] },
-  engagement: { challenges: [] as any[], quests: [] as any[], campaigns: [] as any[], events: [] as any[] },
-  economy: { wallets: [] as any[], claims: [] as any[] },
-  timelines: { achievements: [] as any[], badges: [] as any[], trophies: [] as any[], rewards: [] as any[] },
-  leaderboards: [] as any[],
-  leaderboardPreviews: { global: [] as any[], role: [] as any[], territory: [] as any[] },
-  halls: { fame: [] as any[], champions: [] as any[], top100: [] as any[], legends: [] as any[] },
-  xpRecent: [] as any[],
-};
 
 function clientFor(token?: string) {
   return createClient<Database>(
@@ -49,15 +22,18 @@ function clientFor(token?: string) {
   );
 }
 
-export const getCommandCenter = createServerFn({ method: "GET" }).handler(async () => {
+export const getCommandCenter = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
   const authHeader = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
-  if (!token) return EMPTY_DASHBOARD;
+  if (!token) throw new Error("Unauthorized: sign in required.");
 
   const supabase = clientFor(token);
-  const { data: userData } = await supabase.auth.getUser();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw new Error(`AMS account lookup failed: ${userError.message}`);
   const userId = userData.user?.id;
-  if (!userId) return EMPTY_DASHBOARD;
+  if (!userId) throw new Error("Unauthorized: the signed-in account could not be resolved.");
 
   const [
     userXp, profile, achievementsCount, badgesCount, trophiesCount,
@@ -100,12 +76,49 @@ export const getCommandCenter = createServerFn({ method: "GET" }).handler(async 
     supabase.from("xp_transactions").select("amount, created_at, reason").eq("user_id", userId).order("created_at", { ascending: false }).limit(30),
   ]);
 
+  const readError = [
+    userXp.error,
+    profile.error,
+    achievementsCount.error,
+    badgesCount.error,
+    trophiesCount.error,
+    userAchievements.error,
+    userBadges.error,
+    userTrophies.error,
+    streak.error,
+    missionsDaily.error,
+    missionsWeekly.error,
+    missionsMonthly.error,
+    missionsSeasonal.error,
+    challenges.error,
+    quests.error,
+    campaigns.error,
+    events.error,
+    wallets.error,
+    rewardsCount.error,
+    claims.error,
+    recentAch.error,
+    recentBadges.error,
+    recentTrophies.error,
+    recentRewards.error,
+    levelsAll.error,
+    ranksAll.error,
+    leaderboardDefs.error,
+    notificationsCount.error,
+    xpTxRecent.error,
+  ].find((error) => error !== null);
+  if (readError) throw new Error(`AMS command-center read failed: ${readError.message}`);
+
   const totalXp = Number(userXp.data?.total_xp ?? 0);
   const levels = levelsAll.data ?? [];
   const ranks = ranksAll.data ?? [];
-  const currentLevel = [...levels].reverse().find((l) => totalXp >= l.xp_required) ?? levels[0] ?? null;
+  const currentLevel = userXp.data
+    ? [...levels].reverse().find((l) => totalXp >= l.xp_required) ?? levels[0] ?? null
+    : null;
   const nextLevel = levels.find((l) => l.xp_required > totalXp) ?? null;
-  const currentRank = [...ranks].reverse().find((r) => totalXp >= r.min_xp) ?? ranks[0] ?? null;
+  const currentRank = userXp.data
+    ? [...ranks].reverse().find((r) => totalXp >= r.min_xp) ?? ranks[0] ?? null
+    : null;
   const nextRank = ranks.find((r) => r.min_xp > totalXp) ?? null;
 
   // Fetch top entries for the first leaderboard of each scope (global/role/territory)
@@ -115,12 +128,15 @@ export const getCommandCenter = createServerFn({ method: "GET" }).handler(async 
   const roleDef = pickDef("role");
   const territoryDef = pickDef("territory");
 
-  // profiles has no avatar_url, country or role_title; asking for them made
-  // PostgREST refuse the whole leaderboard. The screen renders display_name.
-  const entrySelect = "rank, score, user_id, profiles(display_name)";
   const fetchEntries = async (defId: string | undefined, limit: number) => {
     if (!defId) return [];
-    const r = await supabase.from("leaderboard_entries").select(entrySelect).eq("definition_id", defId).order("rank").limit(limit);
+    const r = await supabase
+      .from("leaderboard_entries")
+      .select("rank, score, user_id, profiles(full_name, username)")
+      .eq("definition_id", defId)
+      .order("rank")
+      .limit(limit);
+    if (r.error) throw new Error(`AMS leaderboard read failed: ${r.error.message}`);
     return r.data ?? [];
   };
 
@@ -189,7 +205,7 @@ export const getCommandCenter = createServerFn({ method: "GET" }).handler(async 
       fame: globalTop.slice(0, 3),
       champions: globalTop.slice(0, 5),
       top100,
-      legends: globalTop.filter((e: any) => e.rank === 1).slice(0, 10),
+      legends: globalTop.filter((entry) => entry.rank === 1).slice(0, 10),
     },
     xpRecent: xpTxRecent.data ?? [],
   };
@@ -205,10 +221,10 @@ export const getLeaderboard = createServerFn({ method: "GET" })
     if (data.slug) q = q.eq("slug", data.slug);
     else if (data.scope) q = q.eq("scope", data.scope);
     const def = await q.maybeSingle();
-    if (!def.data) return { entries: [] as any[] };
+    if (!def.data) return { entries: [] };
     const entries = await supabase
       .from("leaderboard_entries")
-      .select("rank, score, user_id, profiles(display_name)")
+      .select("rank, score, user_id, profiles(full_name, username)")
       .eq("definition_id", def.data.id)
       .order("rank")
       .limit(10);

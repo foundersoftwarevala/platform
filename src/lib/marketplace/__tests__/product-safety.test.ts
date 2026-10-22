@@ -5,6 +5,7 @@ import {
   productCreationReview,
   productReviewFields,
 } from "../product-safety";
+import { pickAuthorFields } from "../author-guard";
 
 describe("new-product QA review guard", () => {
   it.each([
@@ -64,6 +65,17 @@ describe("public reader and SEO publication eligibility", () => {
     { visible: true, content_status: "archived" },
   ])("does not publish an absent, hidden or non-published tenant: %j", (tenant) => {
     expect(isPublicProduct(tenant)).toBe(false);
+  });
+
+  describe("author product field persistence contract", () => {
+    it("accepts the schema-backed license field and drops the nonexistent documentation field", () => {
+      expect(
+        pickAuthorFields({
+          license: "Single user",
+          documentation: "https://example.invalid/docs",
+        }),
+      ).toEqual({ license: "Single user" });
+    });
   });
 
   it("accepts only explicitly visible, published tenants", () => {

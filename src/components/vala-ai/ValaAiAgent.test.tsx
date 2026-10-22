@@ -41,7 +41,7 @@ describe("ValaAiAgent session boundary", () => {
     });
     mocks.useApi.mockReturnValue({
       data: {
-        operator: { id: "owner-id", email: "owner@example.test", name: "Owner", role: "owner" },
+        operator: { id: "owner-id", email: "owner@example.test", name: "Owner", role: "boss" },
       },
       error: null,
     });

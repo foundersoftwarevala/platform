@@ -10,14 +10,14 @@ Audit fixes and their evidence: [REMEDIATION.md](REMEDIATION.md). Designs awaiti
 
 | Area                                                                 | Status             | Evidence                                                                                                   |
 | -------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| Control Panel sign-in, server-side roles                             | Built, tested      | `platform-auth.server.ts` reuses `requireOperator`; RBAC check per role (owner / operator / viewer / none) |
+| Control Panel sign-in, server-side roles                             | Built, tested      | `platform-auth.server.ts` reuses `requireOperator`; RBAC check per role (boss / operator / viewer / none) |
 | Projects with permanent IDs (`VP-…`), isolated git workspaces        | Built, tested      | source repo byte-identical after clone (unit test); `workspace.server.ts`                                  |
 | Requirements, scope lock, change requests                            | Built, tested      | approved requirements are immutable; changes only via an approved change request                           |
 | Agent loop on the local model                                        | Built, tested      | PENDING → ANALYZING → BUILDING → TESTING → (FIXING → RETESTING)* → VERIFIED → COMPLETE                     |
 | Independent verification                                             | Built, tested      | verifier re-runs every check on a clean, committed tree; protected check/test files cannot be edited       |
 | Crash recovery                                                       | Built, tested live | 90 s heartbeat lease; server killed mid-step, task resumed and completed                                   |
 | Evidence                                                             | Built, tested      | every check's output stored with SHA-256, re-checked when shown                                            |
-| Approvals, releases, rollback                                        | Built, tested      | owner approval executes the action and records the verified outcome; releases immutable (DB triggers)      |
+| Approvals, releases, rollback                                        | Built, tested      | boss approval executes the action and records the verified outcome; releases immutable (DB triggers)       |
 | Hash-chained audit log                                               | Built, tested      | tamper detection unit test                                                                                 |
 | Resource protection                                                  | Built, tested      | disk/memory floors, command timeouts with process-tree kill, output caps, write budgets                    |
 | Live running preview of client apps                                  | Not built          | preview = verified diff + file view                                                                        |
@@ -71,7 +71,7 @@ floating Founder assistant uses the same local audio upload route and retains
 its chat transport and command behavior.
 
 ```
-MediaRecorder -> /api/vala-ai/voice/transcribe-audio (operator/owner)
+MediaRecorder -> /api/vala-ai/voice/transcribe-audio (operator/boss)
   -> authenticated app server -> 127.0.0.1:3003/api/transcribe
   -> local FFmpeg -> local Whisper/ONNX -> { text }
   -> existing Chat persistence/context -> /api/vala-ai/voice/transcribe
@@ -194,7 +194,7 @@ configuration, not the source's Lovable gateway or a new provider account.
 
 Source AI "testing" is code review, not executed acceptance tests. Automated
 Flow versions record `ai_review_only`, and delivery rejects a workspace changed
-since its review. Use the original execution/independent verification and owner
+since its review. Use the original execution/independent verification and boss
 approval routes for executed checks and actual releases. Manual version test
 statuses are operator declarations, not verified execution evidence.
 
@@ -236,7 +236,7 @@ approved deployment; see [BACKUP.md](BACKUP.md).
 /vala-ai/* (React, src/components/vala-ai)  ── Authorization: Bearer <Control Panel session>
         │
 /api/vala-ai/* (src/routes/api/vala-ai/$.ts) → handleApi (src/lib/vala-ai/api.server.ts)
-        │  resolveCaller → requireOperator → user_roles → owner | operator | viewer
+        │  resolveCaller → requireOperator → user_roles → boss | operator | viewer
         ▼
 src/lib/vala-ai/   store (node:sqlite) · agent · worker · tasks · workspace · exec · governance · audit
         │
@@ -244,7 +244,7 @@ src/lib/vala-ai/   store (node:sqlite) · agent · worker · tasks · workspace 
 llama.cpp llama-server on 127.0.0.1 (OpenAI-compatible); only loopback/private URLs accepted
 ```
 
-Roles (from Control Panel roles): **owner** = boss_owner, boss, founder, super_admin ·
+Roles (from Control Panel roles): **boss** = boss_owner, boss, founder, super_admin ·
 **operator** = admin, developer · **viewer** = employee, sales, support, finance,
 sales_support_manager. Anyone else gets 403.
 
@@ -270,8 +270,9 @@ Tests: `npx vitest run src/lib/vala-ai` (the agent-loop tests use a stub model s
   `/var/lib/vala-ai` and `/etc/softwarevala/vala-ai.env`. Root-owned data directory: 0750.
   Numeric sandbox UID/GID: 10001:10001. See [sandbox verification](./SANDBOX_DESIGN.md).
 - Daily 02:30 UTC root backup schedule, seven-copy retention and local-root failure mail are
-  installed. No live SQLite database exists; only isolated backup/restore fixtures were tested.
-  See [backup status and rollback evidence](./BACKUP.md).
+  installed. No live SQLite database existed at this 2026-10-12 checkpoint; a live schema-4
+  database was present by 2026-10-18 and its predeployment backup passed SHA-256 and SQLite
+  integrity checks. See [backup status and rollback evidence](./BACKUP.md).
 - Model source defaults to `local`. The registered OpenAI service is enabled/approved, with an
   encrypted credential and runtime encryption key present. Credential validity and provider
   acceptance remain unverified; no real provider request was made.
@@ -299,7 +300,7 @@ Before release:
 3. Obtain separate deployment/restart approval. Snapshot code, environment and any SQLite plus
    workspace/evidence/release state before activation.
 4. Check homepage/login/marketplace health and the existing 7,199 slot sitemap URLs, then Vala
-   owner/operator/viewer RBAC, pages/API, workspace writes, timeout cleanup and audit integrity.
+   boss/operator/viewer RBAC, pages/API, workspace writes, timeout cleanup and audit integrity.
    Vala API checks may initialize/write its SQLite database.
 5. Select an authorized local model or explicitly enable AI API Manager settings; provider
    requests require separate approval.

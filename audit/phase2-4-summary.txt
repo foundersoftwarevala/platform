@@ -1,0 +1,299 @@
+Author Dashboard audit — Phase 2 through Phase 4 continuation
+
+Scope and deployment state
+--------------------------
+This report records repository verification, focused tests, the live aggregate
+snapshot in phase2-live-aggregates.txt, and the canonical production HTTP smoke
+check performed during this session. Application changes remain local; no
+application deployment was performed. The Phase 0 product policy migrations
+were already applied and verified in the prior phase.
+
+Item 1 | FIXED
+Files: src/components/dashboard/AuthorProductsWorkspace.tsx,
+src/components/dashboard/ModulePage.tsx, src/routes/api/author/products.ts.
+The author Products module now uses a persisted list/create/edit workflow
+through the author API. The API's GET returns the seller's editable product
+fields and categories; create/update remain behind requireAuthor, ownership
+checks and the product field allowlist. The UI has loading, error/retry, empty,
+save and state-transition handling. Focused UI and API tests passed. Not live:
+no authenticated author account/session was available for a production
+round-trip.
+
+Item 2 | PARTIALLY FIXED
+Files: src/components/dashboard/AuthorProductsWorkspace.tsx,
+src/routes/api/marketplace/media.ts, audit/phase0-schema-rls-storage.txt,
+audit/phase2-live-aggregates.txt.
+The product form persists thumbnail/cover image and link fields, but does not
+upload thumbnails, galleries, previews or downloadable product files. The
+existing Media API is an internal-operator metadata/download API, not an author
+upload API. Live aggregate evidence: 7,566 products, one image-bearing product,
+6,361 icon-name-only products, 7,528 currently public products without an
+image; no marketplace product-file/version/follower table was found.
+
+Item 3 | VERIFIED WORKING (security boundary only)
+Files: audit/phase0-schema-rls-storage.txt, audit/phase0-final-verify.txt,
+audit/phase1-summary.txt.
+The live instance had seven private buckets and no marketplace media bucket,
+marketplace object policy or marketplace object. No author upload path exists
+to expose; this verifies there is no public marketplace-media storage
+exposure, not that author uploads work.
+
+Item 4 | PARTIALLY FIXED
+Files: src/lib/marketplace/author-guard.ts,
+src/routes/api/author/products.ts,
+src/routes/api/internal/author-review.ts,
+src/components/dashboard/AuthorProductsWorkspace.tsx.
+Author identity, active seller status, ownership and allowed transitions are
+checked server-side; operator review is separately gated. The author UI can
+edit drafts, submit, withdraw submitted work and display marketplace-managed
+approved/published state. Rejected/requested-changes resubmission and a full
+authenticated live lifecycle were not exercised end-to-end.
+
+Item 5 | PARTIALLY FIXED
+Files: src/routes/api/author/products.ts,
+src/lib/marketplace/author-guard.ts, audit/phase2-live-aggregates.txt.
+The live marketplace_products schema contains all 35 product fields exposed
+by the editor, and the API reads/writes only allowed fields. The live database
+schema is confirmed; a create/reload/update round-trip was not run because no
+authenticated author session or isolated production test account was supplied.
+File uploads are excluded because the live file/version tables are absent.
+
+Item 6 | PARTIALLY FIXED
+Files: src/hooks/useSellerMetrics.ts, src/routes/api/seller/metrics.ts,
+src/routes/api/author/earnings.ts, audit/phase2-live-aggregates.txt.
+Metrics and earnings are backed by seller-scoped marketplace records and
+errors propagate rather than being presented as successful zeroes. Focused
+seller-metrics/earnings/commission tests passed (14 tests). Live SQL confirms
+5 paid orders/line items totalling 1,245.00; this was not compared against an
+authenticated rendered dashboard session, so exact widget parity remains
+unverified.
+
+Item 7 | NOT IMPLEMENTED
+Files: src/lib/dashboard-records/sources.ts, src/lib/permissions.ts.
+The Author role has no AI module in its configured modules. No author-specific
+product/sales context is passed to an AI chat workflow.
+
+Item 8 | PARTIALLY FIXED
+Files: src/lib/marketplace.functions.ts,
+src/routes/marketplace.index.tsx,
+src/routes/marketplace.category.$slug.tsx,
+src/routes/marketplace.$category.$country.tsx.
+Marketplace catalogue/detail routes are real and publication-filtered; the
+author's approved products can enter those public catalogue paths. No separate
+author Explore integration or authenticated live author-to-publication test
+was found.
+
+Item 9 | FIXED
+Files: src/lib/marketplace/catalog.server.ts,
+src/lib/marketplace.functions.ts,
+src/lib/marketplace/__tests__/catalog-publication-filters.test.ts,
+audit/phase0-seed-usage.txt, audit/phase1-summary.txt.
+Public reads enforce visibility, moderation approval and publication windows.
+The service-role catalogue reader now applies the same approval/window
+constraints because it bypasses RLS. The regression test verifies both ID
+selection and card hydration. marketplace.seed.ts has no route/library call
+sites. The code fix is local and not deployed.
+
+Item 10 | NOT IMPLEMENTED
+Files: src/lib/roles.ts, src/lib/dashboard-records/sources.ts.
+The Author role has no Library module and no saved/owned/assets workflow.
+Scope needs owner selection because saved marketplace products, purchased
+products and author upload assets are different data/permission models.
+
+Item 11 | PARTIALLY FIXED
+Files: src/lib/dashboard-records/records.functions.ts,
+src/lib/dashboard-records/sources.ts, src/routes/api/marketplace/media.ts,
+audit/phase2-live-aggregates.txt.
+The author Downloads record reader scopes product/version/download rows
+through the seller's products. The live database has no product-version or
+download records/tables in the inspected schema, and the author workflow has
+no private product-file delivery path. The Media API's signed download path
+is operator-only and cannot serve as author delivery.
+
+Item 12 | PARTIALLY FIXED
+Files: src/lib/dashboard-records/records.functions.ts,
+src/hooks/useSellerMetrics.ts, src/lib/commerce/commission.ts,
+audit/phase2-live-aggregates.txt.
+Sales are attributed by marketplace_order_items.seller_id and order status;
+commission generation skips self-purchases. The live snapshot has 5 paid
+lines totalling 1,245.00, 4 commission rows and one uncommissioned 249.00
+line. Three commission rows appear to be buyer-owned products. No historical
+financial rows were modified; correction requires owner approval and source
+of truth review.
+
+Item 13 | PARTIALLY FIXED
+Files: src/lib/dashboard-records/records.functions.ts,
+src/routes/api/author/earnings.ts, src/lib/commerce/commission.ts,
+audit/phase2-live-aggregates.txt.
+Current commission rows reconcile gross - platform fee - seller amount to
+zero; seller earnings are derived from commission rows. The live snapshot
+shows no payout records and the three buyer-owned commission anomalies noted
+under Item 12. No historical financial values were changed. Payout settlement
+is not verified by a live payout record.
+
+Item 14 | NOT IMPLEMENTED
+Files: src/lib/dashboard-records/records.functions.ts,
+src/lib/dashboard-records/sources.ts, audit/phase2-live-aggregates.txt.
+The generic author Reviews module reads seller-owned product reviews, but no
+author reply/moderation workflow or review records were found in the live
+aggregate snapshot. The requested reply flow is absent.
+
+Item 15 | NOT IMPLEMENTED
+Files: src/lib/roles.ts, src/lib/dashboard-records/sources.ts,
+audit/phase2-live-aggregates.txt.
+Author Followers is explicitly mapped to a no-follower-model state; no
+marketplace follows table exists in the live schema.
+
+Item 16 | PARTIALLY FIXED
+Files: src/components/dashboard/ams/AMSEngine.tsx,
+src/lib/ams-engine.ts, src/lib/roles.ts.
+The shared AMS/achievement surfaces are present in the Author dashboard.
+This repository check did not establish that every achievement is computed
+from author-specific live records or compare the rendered values with live
+records.
+
+Item 17 | PARTIALLY FIXED
+Files: src/components/dashboard/ams/AMSEngine.tsx,
+src/lib/ams-engine.ts, src/lib/ams/use-my-tickets.ts.
+The shared AMS ticket desk reads and mutates persisted tickets through server
+functions for the signed-in user's own tickets. An author-specific workflow
+for moderation, downloads and payout issues is not established.
+
+Item 18 | PARTIALLY FIXED
+Files: src/routes/dashboard.$role.tsx,
+src/components/dashboard/ams/AMSEngine.tsx,
+src/lib/ams/dashboard-role.ts.
+AMS screens are integrated into the role dashboard and identify the role.
+Live author-specific records and permissions were not tested in an
+authenticated session.
+
+Item 19 | NOT IMPLEMENTED
+Files: src/lib/roles.ts, src/lib/dashboard-records/sources.ts.
+The Author role has no Settings module/source for seller profile, payout
+preferences or account settings. No duplicate UI was added.
+
+Item 20 | PARTIALLY FIXED
+Files: src/lib/ams/use-my-tickets.ts, src/lib/ams/tickets.functions.ts,
+src/lib/dashboard-records/sources.ts.
+The shared support ticket system scopes tickets to the signed-in user and
+persists messages/status history. No author-specific rejection, moderation,
+download or payout context integration was found.
+
+Item 21 | PARTIALLY FIXED
+Files: src/routes/__root.tsx, src/components/i18n/LanguageSelector.tsx,
+src/lib/i18n/use-translation.ts,
+src/components/dashboard/AuthorProductsWorkspace.tsx.
+The app has a global persisted language selector/provider. The newly added
+Author Products form uses hard-coded English labels, and complete localization
+coverage across author modules/forms is not verified.
+
+Item 22 | PARTIALLY FIXED
+Files: src/components/notifications/NotificationBell.tsx,
+src/lib/realtime/notification-stream.ts, src/routes/api/internal/author-review.ts.
+The bell reads the signed-in user's notifications through mm_notifications,
+marks rows read, refreshes via the notification stream and polls as fallback.
+The full notification event pipeline for author submissions, approvals,
+rejections, sales and payouts was not demonstrated with live events.
+
+Item 23 | VERIFIED WORKING
+Files: src/routes/dashboard.$role.tsx, src/lib/auth-bridge.ts,
+src/lib/marketplace/author-guard.ts, audit/phase1-summary.txt.
+Role-route validation and server-side seller authorization reject missing,
+inactive or suspended sellers; metrics only activate for the user's own
+eligible seller record. Focused role/guard tests passed.
+
+Item 24 | FIXED (live database)
+Files: supabase/migrations/20261108T145000_marketplace_public_read_requires_approval.sql,
+supabase/migrations/20261108T145100_marketplace_products_server_write_only.sql,
+audit/phase0-policy-summary.txt, audit/phase0-final-verify.txt.
+RLS is enabled for existing marketplace tables in scope. Public product
+policies require approval; authenticated seller direct product writes were
+removed so lifecycle writes use the server path. Both migrations were
+transactionally applied and verified on live sv_platform in Phase 0. Generic
+product_files/follows relations are absent.
+
+Item 25 | PARTIALLY FIXED
+Files: src/components/dashboard/AuthorProductsWorkspace.test.tsx,
+src/lib/marketplace/__tests__/product-prevention-handlers.test.ts,
+src/lib/marketplace/__tests__/catalog-publication-filters.test.ts,
+src/routes/api/author/-earnings.test.ts,
+src/routes/api/seller/-metrics.test.ts, src/lib/commerce/commission.test.ts.
+Focused tests cover author product UI create/retry, lifecycle API handling,
+publication filters, seller metrics, earnings failure paths and commission
+logic. Upload ownership, private download delivery, live DB persistence,
+review replies, payout settlement and complete E2E coverage remain absent.
+
+Item 26 | BLOCKED
+Files: src/routes/api/author/products.ts,
+audit/phase2-live-aggregates.txt.
+The live schema is available, but no authenticated author browser/session or
+isolated production test account was supplied. Therefore refresh/re-login
+persistence was not executed against a real author session. No test product
+was created in production.
+
+Item 27 | PARTIALLY FIXED
+Files: src/components/dashboard/AuthorProductsWorkspace.tsx,
+src/components/dashboard/CrudWorkspace.tsx.
+The author product workspace has loading, empty, error, retry and mutation
+failure states; generic record modules have loading/error/empty states.
+Retry/recovery behavior for every author API/module was not tested.
+
+Item 28 | PARTIALLY FIXED
+Files: src/components/dashboard/AuthorProductsWorkspace.tsx,
+src/components/dashboard/CrudWorkspace.tsx.
+The author product list uses a horizontal overflow wrapper and responsive
+form grids, with semantic form labels and native keyboard-operable controls.
+A full mobile-browser, keyboard/focus and screen-reader audit was not run.
+
+Item 29 | PARTIALLY FIXED
+Files: src/lib/dashboard-records/records.functions.ts,
+src/hooks/useSellerMetrics.ts, src/routes/api/author/earnings.ts,
+audit/phase2-live-aggregates.txt.
+Products, sales and commission/revenue readers use seller IDs and marketplace
+product/order IDs consistently in source. Live data still has one missing
+commission line and three buyer-owned commission rows; files, downloads,
+reviews, followers and payouts lack complete live records/models. No financial
+data was altered.
+
+Item 30 | PARTIALLY FIXED (live smoke)
+Files: live production HTTP smoke, audit/phase2-4-summary.txt.
+Canonical https://softwarevala.net/ returned HTTP 200. Unauthenticated
+/api/author/products and /api/seller/metrics returned HTTP 401, confirming
+their auth boundary. Authenticated author behavior and the local code changes
+are not live because no app deployment or authenticated author session was
+performed.
+
+Validation in this continuation
+-------------------------------
+Focused test run:
+  npm.cmd exec vitest -- run src/routes/api/seller/-metrics.test.ts
+    src/routes/api/author/-earnings.test.ts
+    src/lib/commerce/commission.test.ts --reporter=dot
+  Result: 3 files passed, 14 tests passed.
+
+Focused author/catalog run:
+  The seven-file combined run passed 47 tests but hit the default 5-second
+  timeout in one AuthorProductsWorkspace test while Vitest started seven
+  isolated workers. Re-running that file alone passed both tests. Thus all
+  assertions in that focused set passed when run under the isolated test
+  files' normal startup conditions; the initial combined invocation itself
+  exited nonzero due worker startup contention.
+
+Focused author/catalog test runs and scoped lint are recorded in
+audit/phase1-summary.txt and the task checkpoint. The scoped ESLint command
+for the author workflow, API, catalogue filter and focused tests exited 0.
+The standard production build completed successfully after the final source
+edits (`built in 51.27s`, generated `.output/nitro.json`).
+
+Known follow-up decisions/work
+------------------------------
+1. Choose Library scope (saved marketplace products, purchased products, or
+   author-upload assets) before implementing its storage/permissions.
+2. Implement an author-owned upload/file model, private bucket policies,
+   signed delivery and E2E ownership tests before claiming Item 2/11 complete.
+3. Do not correct historical commission rows without explicit owner approval.
+4. Use an isolated authenticated author test account to verify persistence,
+   lifecycle and widget parity; do not create test products on production.
+5. Translate the new author product workflow and validate language switching.
+6. The local catalogue publication fix and author UI/API changes have not been
+   deployed; live HTTP success only verifies the currently running site.

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { smQuery, smMutate } from '@/lib/sm-data';
+import { smQuery } from '@/lib/sm-data';
 import { PageHeader } from '../layout/PageShell';
 
 interface DeploymentRow {
@@ -40,7 +40,7 @@ const formatRelative = (iso: string) => {
 };
 
 const formatDuration = (secs: number | null) => {
-  if (!secs) return '—';
+  if (secs == null) return '—';
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${m}m ${s}s`;
@@ -51,7 +51,6 @@ const SMDeployments = () => {
   const [loading, setLoading] = useState(true);
   const [envFilter, setEnvFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [actingId, setActingId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -116,51 +115,6 @@ const SMDeployments = () => {
     return styles[status] ?? styles['pending']!;
   };
 
-  const handleRollback = async (d: DeploymentRow) => {
-    setActingId(d.id);
-    const ok = await smMutate(
-      'trigger rollback',
-      () =>
-        supabase.from('server_deployments').insert({
-          deployment_code: `DEP-${Date.now().toString(36).toUpperCase()}`,
-          deployment_name: `${d.deployment_name} (rollback)`,
-          branch: d.branch,
-          commit_sha: d.commit_sha,
-          environment: d.environment,
-          status: 'success',
-          progress: 100,
-          duration_seconds: 30,
-          server_id: d.server_id,
-          triggered_by: 'manual-rollback',
-        }),
-      `Rollback initiated for ${d.deployment_name}`,
-    );
-    setActingId(null);
-    if (ok) void loadData();
-  };
-
-  const handleRedeploy = async (d: DeploymentRow) => {
-    setActingId(d.id);
-    const ok = await smMutate(
-      'trigger redeploy',
-      () =>
-        supabase.from('server_deployments').insert({
-          deployment_code: `DEP-${Date.now().toString(36).toUpperCase()}`,
-          deployment_name: d.deployment_name,
-          branch: d.branch,
-          commit_sha: d.commit_sha,
-          environment: d.environment,
-          status: 'running',
-          progress: 0,
-          server_id: d.server_id,
-          triggered_by: 'manual-redeploy',
-        }),
-      `Redeploy triggered for ${d.deployment_name}`,
-    );
-    setActingId(null);
-    if (ok) void loadData();
-  };
-
   const filtered = useMemo(
     () =>
       deployments.filter(
@@ -187,7 +141,7 @@ const SMDeployments = () => {
     <div className="space-y-6">
       <PageHeader
         title="Deployments"
-        subtitle="Manage and monitor server deployments"
+        subtitle="Recorded deployment history; deployment actions are not connected."
         action={
           <Button variant="outline" onClick={() => void loadData()}>
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -207,10 +161,10 @@ const SMDeployments = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Deployments', value: stats.total, icon: Rocket, color: 'text-primary', bg: 'bg-primary/15' },
-          { label: 'Successful', value: stats.success, icon: CheckCircle2, color: 'text-accent-emerald', bg: 'bg-accent-emerald/10' },
-          { label: 'Failed', value: stats.failed, icon: XCircle, color: 'text-destructive', bg: 'bg-destructive/10' },
-          { label: 'In Progress', value: stats.progress, icon: Clock, color: 'text-accent-amber', bg: 'bg-accent-amber/10' },
+          { label: 'Total Deployments', value: loading || loadError ? '—' : stats.total, icon: Rocket, color: 'text-primary', bg: 'bg-primary/15' },
+          { label: 'Successful', value: loading || loadError ? '—' : stats.success, icon: CheckCircle2, color: 'text-accent-emerald', bg: 'bg-accent-emerald/10' },
+          { label: 'Failed', value: loading || loadError ? '—' : stats.failed, icon: XCircle, color: 'text-destructive', bg: 'bg-destructive/10' },
+          { label: 'In Progress', value: loading || loadError ? '—' : stats.progress, icon: Clock, color: 'text-accent-amber', bg: 'bg-accent-amber/10' },
         ].map((stat) => {
           const Icon = stat.icon;
           return (
@@ -259,12 +213,14 @@ const SMDeployments = () => {
         <CardHeader>
           <CardTitle className="text-sm font-semibold tracking-tight flex items-center gap-2">
             <Rocket className="w-5 h-5 text-primary" />
-            Recent Deployments ({filtered.length})
+            Recent Deployments ({loading || loadError ? '—' : filtered.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+          ) : loadError ? (
+            <p className="text-muted-foreground text-sm py-8 text-center">Deployment history is unavailable.</p>
           ) : filtered.length === 0 ? (
             <p className="text-muted-foreground text-sm py-8 text-center">No deployments match the current filters.</p>
           ) : (
@@ -308,28 +264,6 @@ const SMDeployments = () => {
                       <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => toast.info(deployment.commit_sha ? `Commit ${deployment.commit_sha}` : 'No commit info')}>
                         <Eye className="w-4 h-4" />
                       </Button>
-                      {deployment.status === 'success' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-accent-amber"
-                          disabled={actingId === deployment.id}
-                          onClick={() => void handleRollback(deployment)}
-                        >
-                          {actingId === deployment.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-                        </Button>
-                      )}
-                      {deployment.status === 'failed' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-primary"
-                          disabled={actingId === deployment.id}
-                          onClick={() => void handleRedeploy(deployment)}
-                        >
-                          {actingId === deployment.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </motion.div>

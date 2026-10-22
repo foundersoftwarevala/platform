@@ -28,8 +28,8 @@ const alice: Operator = {
 };
 const bob: Operator = { id: "u-bob", email: "bob@test.local", name: "bob", role: "operator" };
 const vera: Operator = { id: "u-vera", email: "vera@test.local", name: "vera", role: "viewer" };
-const owner: Operator = { id: "u-owner", email: "owner@test.local", name: "owner", role: "owner" };
-const callers: Record<string, Operator> = { alice, bob, vera, owner };
+const owner: Operator = { id: "u-owner", email: "owner@test.local", name: "owner", role: "boss" };
+const callers: Record<string, Operator> = { alice, bob, vera, boss: owner };
 const resolve = async (req: Request) => callers[req.headers.get("x-test-caller") ?? ""] ?? null;
 const post = (who: string, path: string, body: unknown) =>
   handleApi(

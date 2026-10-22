@@ -9,6 +9,7 @@ import {
   encryptAiCredential,
   isEncryptedAiCredential,
 } from "./ai-credentials.server";
+import { getLocalAiService, isConfiguredLocalAiService } from "./ai-local-services.server";
 import { assertManagedProviderEndpoint } from "./managed-api-endpoints.server";
 import { aiComplete } from "./ai-gateway.server";
 import { randomUUID } from "node:crypto";
@@ -310,12 +311,18 @@ async function validateApiServiceActivation(
   if (values["status"] !== "active") return;
   const { data: service, error: serviceError } = await db
     .from("api_services")
-    .select("name, approval_status, credential_env")
+    .select("name, slug, type, endpoint_url, approval_status, credential_env")
     .eq("id", serviceId)
     .maybeSingle();
   if (serviceError || !service) throw new Error("API service is not registered.");
   if (service.approval_status !== "approved") {
     throw new Error("Approve this API service before enabling it.");
+  }
+  if (getLocalAiService(service.slug)) {
+    if (!isConfiguredLocalAiService(service.slug, service.type, service.endpoint_url)) {
+      throw new Error(`Local AI service ${service.name} has an unsafe or invalid endpoint.`);
+    }
+    return;
   }
   const { data: credentials, error: credentialError } = await db
     .from("api_keys")
@@ -443,16 +450,30 @@ export const checkApiServiceHealth = createServerFn({ method: "POST" })
     requireCentralAiManager(context, ["api_services"]);
     const { data: service, error } = await db
       .from("api_services")
-      .select("id, name, endpoint_url")
+      .select("id, name, slug, type, endpoint_url")
       .eq("id", data.serviceId)
       .maybeSingle();
     if (error || !service) throw new Error("API service is not registered.");
-    const endpoint = String(service.endpoint_url ?? "");
-    const url = assertManagedProviderEndpoint(endpoint);
+    const registeredEndpoint = String(service.endpoint_url ?? "");
+    const localService = getLocalAiService(service.slug);
+    let endpoint: string;
+    let healthUrl: URL;
+    if (localService) {
+      if (
+        !isConfiguredLocalAiService(service.slug, service.type, registeredEndpoint)
+      ) {
+        throw new Error(`Local AI service ${service.name} has an unsafe or invalid endpoint.`);
+      }
+      endpoint = registeredEndpoint;
+      healthUrl = new URL(localService.healthEndpoint);
+    } else {
+      endpoint = registeredEndpoint;
+      healthUrl = assertManagedProviderEndpoint(endpoint);
+    }
     let response: Response;
     try {
-      response = await fetch(url, {
-        method: "HEAD",
+      response = await fetch(healthUrl, {
+        method: localService ? "GET" : "HEAD",
         redirect: "error",
         signal: AbortSignal.timeout(10_000),
       });

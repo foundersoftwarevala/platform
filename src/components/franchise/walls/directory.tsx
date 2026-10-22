@@ -63,7 +63,10 @@ export const config: WallConfig = {
   ],
   formFields: [
     { key: "code", label: "Code", type: "text", required: true },
-    { key: "franchise", label: "Franchise", type: "text" },
+    { key: "franchise", label: "Franchise", type: "text", required: true },
+    { key: "owner_name", label: "Owner name", type: "text", required: true },
+    { key: "email", label: "Owner account email", type: "email", createOnly: true, required: true },
+    { key: "phone", label: "Phone", type: "text", required: true },
     { key: "location", label: "Location", type: "text" },
     { key: "tier", label: "Tier", type: "text" },
     { key: "status", label: "Status", type: "select", options: STATUSES, defaultValue: "active" },

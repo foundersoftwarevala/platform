@@ -181,6 +181,7 @@ import { Route as AmsVerificationVaultRouteImport } from './routes/ams.verificat
 import { Route as AmsXpRouteImport } from './routes/ams.xp'
 import { Route as AmsXpCrystalVaultRouteImport } from './routes/ams.xp-crystal-vault'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiMarketplaceProductCountrySeoWorkerRouteImport } from './routes/api/marketplace-product-country-seo-worker'
 import { Route as ApplyIndexRouteImport } from './routes/apply.index'
 import { Route as ApplyRoleRouteImport } from './routes/apply.$role'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
@@ -233,6 +234,7 @@ import { Route as RdManagerProManagerRouteImport } from './routes/rd-manager.pro
 import { Route as RdManagerStartRouteImport } from './routes/rd-manager.start'
 import { Route as RdManagerTrackRouteImport } from './routes/rd-manager.track'
 import { Route as SCodeRouteImport } from './routes/s.$code'
+import { Route as ServerManagerViewRouteImport } from './routes/server-manager.$view'
 import { Route as SitemapProductsPageRouteImport } from './routes/sitemap-products/$page'
 import { Route as SitemapSlotsPageRouteImport } from './routes/sitemap-slots/$page'
 import { Route as ValaAiIndexRouteImport } from './routes/vala-ai.index'
@@ -277,14 +279,16 @@ import { Route as ApiActionsConfigRouteImport } from './routes/api/actions/confi
 import { Route as ApiActionsRegistryRouteImport } from './routes/api/actions/registry'
 import { Route as ApiAffiliateAccountRouteImport } from './routes/api/affiliate/account'
 import { Route as ApiAffiliateAttributeRouteImport } from './routes/api/affiliate/attribute'
+import { Route as ApiAgentHeartbeatRouteImport } from './routes/api/agent/heartbeat'
 import { Route as ApiAnalyticsProductsRouteImport } from './routes/api/analytics/products'
 import { Route as ApiApplicationsDocumentsRouteImport } from './routes/api/applications/documents'
 import { Route as ApiApplicationsQueueRouteImport } from './routes/api/applications/queue'
 import { Route as ApiApplicationsSubmitRouteImport } from './routes/api/applications/submit'
+import { Route as ApiAssistRecordingRouteImport } from './routes/api/assist/recording'
 import { Route as ApiAuthorEarningsRouteImport } from './routes/api/author/earnings'
+import { Route as ApiAuthorProductFilesRouteImport } from './routes/api/author/product-files'
 import { Route as ApiAuthorProductsRouteImport } from './routes/api/author/products'
 import { Route as ApiControlPanelCockpitRouteImport } from './routes/api/control-panel/cockpit'
-import { Route as ApiAssistRecordingRouteImport } from './routes/api/assist/recording'
 import { Route as ApiControlPanelFeedRouteImport } from './routes/api/control-panel/feed'
 import { Route as ApiControlPanelPartnersRouteImport } from './routes/api/control-panel/partners'
 import { Route as ApiDemoAssignRouteImport } from './routes/api/demo/assign'
@@ -349,6 +353,7 @@ import { Route as ApiMarketplaceTranslateRouteImport } from './routes/api/market
 import { Route as ApiNotificationsStreamRouteImport } from './routes/api/notifications/stream'
 import { Route as ApiPartnerQuoteRouteImport } from './routes/api/partner/quote'
 import { Route as ApiPaymentInitiateRouteImport } from './routes/api/payment/initiate'
+import { Route as ApiPaymentQuoteRouteImport } from './routes/api/payment/quote'
 import { Route as ApiPaymentStatusRouteImport } from './routes/api/payment/status'
 import { Route as ApiPaymentWebhookRouteImport } from './routes/api/payment/webhook'
 import { Route as ApiQrCodeRouteImport } from './routes/api/qr/$code'
@@ -361,6 +366,9 @@ import { Route as ApiSeoConsoleRouteImport } from './routes/api/seo/console'
 import { Route as ApiSeoGenerateTagsRouteImport } from './routes/api/seo/generate-tags'
 import { Route as ApiSeoScoreRouteImport } from './routes/api/seo/score'
 import { Route as ApiSeoSearchPerformanceRouteImport } from './routes/api/seo/search-performance'
+import { Route as ApiServerManagerEnrollRouteImport } from './routes/api/server-manager/enroll'
+import { Route as ApiServerManagerHeartbeatRouteImport } from './routes/api/server-manager/heartbeat'
+import { Route as ApiServerManagerInvoicesRouteImport } from './routes/api/server-manager/invoices'
 import { Route as ApiTrackRefRouteImport } from './routes/api/track/ref'
 import { Route as ApiValaAiSplatRouteImport } from './routes/api/vala-ai/$'
 import { Route as MarketplaceCategoryCountryRouteImport } from './routes/marketplace.$category.$country'
@@ -381,6 +389,8 @@ import { Route as AmsAwardsRulesRewardsRouteImport } from './routes/ams.awards.r
 import { Route as AmsAwardsRulesStreaksRouteImport } from './routes/ams.awards.rules.streaks'
 import { Route as AmsAwardsRulesXpRouteImport } from './routes/ams.awards.rules.xp'
 import { Route as ApiAccountInvoiceIdRouteImport } from './routes/api/account/invoice/$id'
+import { Route as ApiInternalServerManagerAlertDeliveriesRouteImport } from './routes/api/internal/server-manager/alert-deliveries'
+import { Route as ApiInternalServerManagerSubscriptionsRouteImport } from './routes/api/internal/server-manager/subscriptions'
 import { Route as ApiOrdersIdFulfilRouteImport } from './routes/api/orders/$id/fulfil'
 import { Route as ApiProxyDemoSplatRouteImport } from './routes/api/proxy/demo.$'
 import { Route as ApiQrScanCodeRouteImport } from './routes/api/qr/scan/$code'
@@ -1265,6 +1275,12 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMarketplaceProductCountrySeoWorkerRoute =
+  ApiMarketplaceProductCountrySeoWorkerRouteImport.update({
+    id: '/api/marketplace-product-country-seo-worker',
+    path: '/api/marketplace-product-country-seo-worker',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApplyIndexRoute = ApplyIndexRouteImport.update({
   id: '/apply/',
   path: '/apply/',
@@ -1528,6 +1544,11 @@ const SCodeRoute = SCodeRouteImport.update({
   path: '/s/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ServerManagerViewRoute = ServerManagerViewRouteImport.update({
+  id: '/$view',
+  path: '/$view',
+  getParentRoute: () => ServerManagerRoute,
+} as any)
 const SitemapProductsPageRoute = SitemapProductsPageRouteImport.update({
   id: '/sitemap-products/$page',
   path: '/sitemap-products/$page',
@@ -1749,6 +1770,11 @@ const ApiAffiliateAttributeRoute = ApiAffiliateAttributeRouteImport.update({
   path: '/api/affiliate/attribute',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentHeartbeatRoute = ApiAgentHeartbeatRouteImport.update({
+  id: '/api/agent/heartbeat',
+  path: '/api/agent/heartbeat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnalyticsProductsRoute = ApiAnalyticsProductsRouteImport.update({
   id: '/api/analytics/products',
   path: '/api/analytics/products',
@@ -1770,9 +1796,19 @@ const ApiApplicationsSubmitRoute = ApiApplicationsSubmitRouteImport.update({
   path: '/api/applications/submit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAssistRecordingRoute = ApiAssistRecordingRouteImport.update({
+  id: '/api/assist/recording',
+  path: '/api/assist/recording',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthorEarningsRoute = ApiAuthorEarningsRouteImport.update({
   id: '/api/author/earnings',
   path: '/api/author/earnings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthorProductFilesRoute = ApiAuthorProductFilesRouteImport.update({
+  id: '/api/author/product-files',
+  path: '/api/author/product-files',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthorProductsRoute = ApiAuthorProductsRouteImport.update({
@@ -1796,11 +1832,6 @@ const ApiControlPanelPartnersRoute = ApiControlPanelPartnersRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDemoAssignRoute = ApiDemoAssignRouteImport.update({
-const ApiAssistRecordingRoute = ApiAssistRecordingRouteImport.update({
-  id: '/api/assist/recording',
-  path: '/api/assist/recording',
-  getParentRoute: () => rootRouteImport,
-} as any)
   id: '/api/demo/assign',
   path: '/api/demo/assign',
   getParentRoute: () => rootRouteImport,
@@ -2124,6 +2155,11 @@ const ApiPaymentInitiateRoute = ApiPaymentInitiateRouteImport.update({
   path: '/api/payment/initiate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPaymentQuoteRoute = ApiPaymentQuoteRouteImport.update({
+  id: '/api/payment/quote',
+  path: '/api/payment/quote',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPaymentStatusRoute = ApiPaymentStatusRouteImport.update({
   id: '/api/payment/status',
   path: '/api/payment/status',
@@ -2184,6 +2220,23 @@ const ApiSeoSearchPerformanceRoute = ApiSeoSearchPerformanceRouteImport.update({
   path: '/api/seo/search-performance',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiServerManagerEnrollRoute = ApiServerManagerEnrollRouteImport.update({
+  id: '/api/server-manager/enroll',
+  path: '/api/server-manager/enroll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiServerManagerHeartbeatRoute =
+  ApiServerManagerHeartbeatRouteImport.update({
+    id: '/api/server-manager/heartbeat',
+    path: '/api/server-manager/heartbeat',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiServerManagerInvoicesRoute =
+  ApiServerManagerInvoicesRouteImport.update({
+    id: '/api/server-manager/invoices',
+    path: '/api/server-manager/invoices',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiTrackRefRoute = ApiTrackRefRouteImport.update({
   id: '/api/track/ref',
   path: '/api/track/ref',
@@ -2290,6 +2343,18 @@ const ApiAccountInvoiceIdRoute = ApiAccountInvoiceIdRouteImport.update({
   path: '/api/account/invoice/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalServerManagerAlertDeliveriesRoute =
+  ApiInternalServerManagerAlertDeliveriesRouteImport.update({
+    id: '/api/internal/server-manager/alert-deliveries',
+    path: '/api/internal/server-manager/alert-deliveries',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiInternalServerManagerSubscriptionsRoute =
+  ApiInternalServerManagerSubscriptionsRouteImport.update({
+    id: '/api/internal/server-manager/subscriptions',
+    path: '/api/internal/server-manager/subscriptions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOrdersIdFulfilRoute = ApiOrdersIdFulfilRouteImport.update({
   id: '/api/orders/$id/fulfil',
   path: '/api/orders/$id/fulfil',
@@ -2353,7 +2418,7 @@ export interface FileRoutesByFullPath {
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
-  '/server-manager': typeof ServerManagerRoute
+  '/server-manager': typeof ServerManagerRouteWithChildren
   '/sitemap-blog.xml': typeof SitemapBlogDotxmlRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
   '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
@@ -2476,6 +2541,7 @@ export interface FileRoutesByFullPath {
   '/ams/xp': typeof AmsXpRoute
   '/ams/xp-crystal-vault': typeof AmsXpCrystalVaultRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/marketplace-product-country-seo-worker': typeof ApiMarketplaceProductCountrySeoWorkerRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
@@ -2518,6 +2584,7 @@ export interface FileRoutesByFullPath {
   '/rd-manager/start': typeof RdManagerStartRoute
   '/rd-manager/track': typeof RdManagerTrackRoute
   '/s/$code': typeof SCodeRoute
+  '/server-manager/$view': typeof ServerManagerViewRoute
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
   '/vala-ai/activity': typeof ValaAiActivityRoute
@@ -2567,11 +2634,14 @@ export interface FileRoutesByFullPath {
   '/api/actions/registry': typeof ApiActionsRegistryRoute
   '/api/affiliate/account': typeof ApiAffiliateAccountRoute
   '/api/affiliate/attribute': typeof ApiAffiliateAttributeRoute
+  '/api/agent/heartbeat': typeof ApiAgentHeartbeatRoute
   '/api/analytics/products': typeof ApiAnalyticsProductsRoute
   '/api/applications/documents': typeof ApiApplicationsDocumentsRoute
   '/api/applications/queue': typeof ApiApplicationsQueueRoute
   '/api/applications/submit': typeof ApiApplicationsSubmitRoute
+  '/api/assist/recording': typeof ApiAssistRecordingRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
+  '/api/author/product-files': typeof ApiAuthorProductFilesRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/control-panel/cockpit': typeof ApiControlPanelCockpitRoute
   '/api/control-panel/feed': typeof ApiControlPanelFeedRoute
@@ -2638,8 +2708,8 @@ export interface FileRoutesByFullPath {
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/quote': typeof ApiPaymentQuoteRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
-  '/api/assist/recording': typeof ApiAssistRecordingRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
   '/api/reseller/referral': typeof ApiResellerReferralRoute
@@ -2651,6 +2721,9 @@ export interface FileRoutesByFullPath {
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
   '/api/seo/score': typeof ApiSeoScoreRoute
   '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
+  '/api/server-manager/enroll': typeof ApiServerManagerEnrollRoute
+  '/api/server-manager/heartbeat': typeof ApiServerManagerHeartbeatRoute
+  '/api/server-manager/invoices': typeof ApiServerManagerInvoicesRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/api/vala-ai/$': typeof ApiValaAiSplatRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
@@ -2679,6 +2752,8 @@ export interface FileRoutesByFullPath {
   '/ams/awards/rules/streaks': typeof AmsAwardsRulesStreaksRoute
   '/ams/awards/rules/xp': typeof AmsAwardsRulesXpRoute
   '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
+  '/api/internal/server-manager/alert-deliveries': typeof ApiInternalServerManagerAlertDeliveriesRoute
+  '/api/internal/server-manager/subscriptions': typeof ApiInternalServerManagerSubscriptionsRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
   '/api/qr/scan/$code': typeof ApiQrScanCodeRoute
@@ -2721,7 +2796,7 @@ export interface FileRoutesByTo {
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
-  '/server-manager': typeof ServerManagerRoute
+  '/server-manager': typeof ServerManagerRouteWithChildren
   '/sitemap-blog.xml': typeof SitemapBlogDotxmlRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
   '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
@@ -2842,6 +2917,7 @@ export interface FileRoutesByTo {
   '/ams/xp': typeof AmsXpRoute
   '/ams/xp-crystal-vault': typeof AmsXpCrystalVaultRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/marketplace-product-country-seo-worker': typeof ApiMarketplaceProductCountrySeoWorkerRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
@@ -2884,6 +2960,7 @@ export interface FileRoutesByTo {
   '/rd-manager/start': typeof RdManagerStartRoute
   '/rd-manager/track': typeof RdManagerTrackRoute
   '/s/$code': typeof SCodeRoute
+  '/server-manager/$view': typeof ServerManagerViewRoute
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
   '/vala-ai/activity': typeof ValaAiActivityRoute
@@ -2933,11 +3010,14 @@ export interface FileRoutesByTo {
   '/api/actions/registry': typeof ApiActionsRegistryRoute
   '/api/affiliate/account': typeof ApiAffiliateAccountRoute
   '/api/affiliate/attribute': typeof ApiAffiliateAttributeRoute
+  '/api/agent/heartbeat': typeof ApiAgentHeartbeatRoute
   '/api/analytics/products': typeof ApiAnalyticsProductsRoute
   '/api/applications/documents': typeof ApiApplicationsDocumentsRoute
   '/api/applications/queue': typeof ApiApplicationsQueueRoute
   '/api/applications/submit': typeof ApiApplicationsSubmitRoute
+  '/api/assist/recording': typeof ApiAssistRecordingRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
+  '/api/author/product-files': typeof ApiAuthorProductFilesRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/control-panel/cockpit': typeof ApiControlPanelCockpitRoute
   '/api/control-panel/feed': typeof ApiControlPanelFeedRoute
@@ -3004,6 +3084,7 @@ export interface FileRoutesByTo {
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/quote': typeof ApiPaymentQuoteRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
@@ -3015,8 +3096,10 @@ export interface FileRoutesByTo {
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
   '/api/seo/score': typeof ApiSeoScoreRoute
-  '/api/assist/recording': typeof ApiAssistRecordingRoute
   '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
+  '/api/server-manager/enroll': typeof ApiServerManagerEnrollRoute
+  '/api/server-manager/heartbeat': typeof ApiServerManagerHeartbeatRoute
+  '/api/server-manager/invoices': typeof ApiServerManagerInvoicesRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/api/vala-ai/$': typeof ApiValaAiSplatRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
@@ -3045,6 +3128,8 @@ export interface FileRoutesByTo {
   '/ams/awards/rules/streaks': typeof AmsAwardsRulesStreaksRoute
   '/ams/awards/rules/xp': typeof AmsAwardsRulesXpRoute
   '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
+  '/api/internal/server-manager/alert-deliveries': typeof ApiInternalServerManagerAlertDeliveriesRoute
+  '/api/internal/server-manager/subscriptions': typeof ApiInternalServerManagerSubscriptionsRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
   '/api/qr/scan/$code': typeof ApiQrScanCodeRoute
@@ -3097,7 +3182,7 @@ export interface FileRoutesById {
   '/sales-crm': typeof SalesCrmRoute
   '/sales-support-manager': typeof SalesSupportManagerRoute
   '/seo-manager': typeof SeoManagerRoute
-  '/server-manager': typeof ServerManagerRoute
+  '/server-manager': typeof ServerManagerRouteWithChildren
   '/sitemap-blog.xml': typeof SitemapBlogDotxmlRoute
   '/sitemap-categories.xml': typeof SitemapCategoriesDotxmlRoute
   '/sitemap-countries.xml': typeof SitemapCountriesDotxmlRoute
@@ -3220,6 +3305,7 @@ export interface FileRoutesById {
   '/ams/xp': typeof AmsXpRoute
   '/ams/xp-crystal-vault': typeof AmsXpCrystalVaultRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/marketplace-product-country-seo-worker': typeof ApiMarketplaceProductCountrySeoWorkerRoute
   '/apply/$role': typeof ApplyRoleRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/control-panel/finance': typeof ControlPanelFinanceRoute
@@ -3262,6 +3348,7 @@ export interface FileRoutesById {
   '/rd-manager/start': typeof RdManagerStartRoute
   '/rd-manager/track': typeof RdManagerTrackRoute
   '/s/$code': typeof SCodeRoute
+  '/server-manager/$view': typeof ServerManagerViewRoute
   '/sitemap-products/$page': typeof SitemapProductsPageRoute
   '/sitemap-slots/$page': typeof SitemapSlotsPageRoute
   '/vala-ai/activity': typeof ValaAiActivityRoute
@@ -3311,11 +3398,14 @@ export interface FileRoutesById {
   '/api/actions/registry': typeof ApiActionsRegistryRoute
   '/api/affiliate/account': typeof ApiAffiliateAccountRoute
   '/api/affiliate/attribute': typeof ApiAffiliateAttributeRoute
+  '/api/agent/heartbeat': typeof ApiAgentHeartbeatRoute
   '/api/analytics/products': typeof ApiAnalyticsProductsRoute
   '/api/applications/documents': typeof ApiApplicationsDocumentsRoute
   '/api/applications/queue': typeof ApiApplicationsQueueRoute
   '/api/applications/submit': typeof ApiApplicationsSubmitRoute
+  '/api/assist/recording': typeof ApiAssistRecordingRoute
   '/api/author/earnings': typeof ApiAuthorEarningsRoute
+  '/api/author/product-files': typeof ApiAuthorProductFilesRoute
   '/api/author/products': typeof ApiAuthorProductsRoute
   '/api/control-panel/cockpit': typeof ApiControlPanelCockpitRoute
   '/api/control-panel/feed': typeof ApiControlPanelFeedRoute
@@ -3382,6 +3472,7 @@ export interface FileRoutesById {
   '/api/notifications/stream': typeof ApiNotificationsStreamRoute
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
+  '/api/payment/quote': typeof ApiPaymentQuoteRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
@@ -3394,6 +3485,9 @@ export interface FileRoutesById {
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
   '/api/seo/score': typeof ApiSeoScoreRoute
   '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
+  '/api/server-manager/enroll': typeof ApiServerManagerEnrollRoute
+  '/api/server-manager/heartbeat': typeof ApiServerManagerHeartbeatRoute
+  '/api/server-manager/invoices': typeof ApiServerManagerInvoicesRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/api/vala-ai/$': typeof ApiValaAiSplatRoute
   '/marketplace/$category/$country': typeof MarketplaceCategoryCountryRoute
@@ -3403,7 +3497,6 @@ export interface FileRoutesById {
   '/vala-ai/projects/$projectId': typeof ValaAiProjectsProjectIdRoute
   '/vala-ai/tasks/$taskId': typeof ValaAiTasksTaskIdRoute
   '/ai-ceo/agents/': typeof AiCeoAgentsIndexRoute
-  '/api/assist/recording': typeof ApiAssistRecordingRoute
   '/ai-ceo/tasks/': typeof AiCeoTasksIndexRoute
   '/ams/awards/': typeof AmsAwardsIndexRoute
   '/ams/collection/': typeof AmsCollectionIndexRoute
@@ -3423,6 +3516,8 @@ export interface FileRoutesById {
   '/ams/awards/rules/streaks': typeof AmsAwardsRulesStreaksRoute
   '/ams/awards/rules/xp': typeof AmsAwardsRulesXpRoute
   '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
+  '/api/internal/server-manager/alert-deliveries': typeof ApiInternalServerManagerAlertDeliveriesRoute
+  '/api/internal/server-manager/subscriptions': typeof ApiInternalServerManagerSubscriptionsRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
   '/api/qr/scan/$code': typeof ApiQrScanCodeRoute
@@ -3599,6 +3694,7 @@ export interface FileRouteTypes {
     | '/ams/xp'
     | '/ams/xp-crystal-vault'
     | '/api/chat'
+    | '/api/marketplace-product-country-seo-worker'
     | '/apply/$role'
     | '/blog/$slug'
     | '/control-panel/finance'
@@ -3641,6 +3737,7 @@ export interface FileRouteTypes {
     | '/rd-manager/start'
     | '/rd-manager/track'
     | '/s/$code'
+    | '/server-manager/$view'
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
     | '/vala-ai/activity'
@@ -3690,11 +3787,14 @@ export interface FileRouteTypes {
     | '/api/actions/registry'
     | '/api/affiliate/account'
     | '/api/affiliate/attribute'
+    | '/api/agent/heartbeat'
     | '/api/analytics/products'
     | '/api/applications/documents'
     | '/api/applications/queue'
     | '/api/applications/submit'
+    | '/api/assist/recording'
     | '/api/author/earnings'
+    | '/api/author/product-files'
     | '/api/author/products'
     | '/api/control-panel/cockpit'
     | '/api/control-panel/feed'
@@ -3761,6 +3861,7 @@ export interface FileRouteTypes {
     | '/api/notifications/stream'
     | '/api/partner/quote'
     | '/api/payment/initiate'
+    | '/api/payment/quote'
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/api/qr/$code'
@@ -3773,6 +3874,9 @@ export interface FileRouteTypes {
     | '/api/seo/generate-tags'
     | '/api/seo/score'
     | '/api/seo/search-performance'
+    | '/api/server-manager/enroll'
+    | '/api/server-manager/heartbeat'
+    | '/api/server-manager/invoices'
     | '/api/track/ref'
     | '/api/vala-ai/$'
     | '/marketplace/$category/$country'
@@ -3792,7 +3896,6 @@ export interface FileRouteTypes {
     | '/vala-ai/projects/'
     | '/ams/awards/$id/edit'
     | '/ams/awards/libraries/achievements'
-    | '/api/assist/recording'
     | '/ams/awards/libraries/badges'
     | '/ams/awards/libraries/ranks'
     | '/ams/awards/libraries/trophies'
@@ -3802,6 +3905,8 @@ export interface FileRouteTypes {
     | '/ams/awards/rules/streaks'
     | '/ams/awards/rules/xp'
     | '/api/account/invoice/$id'
+    | '/api/internal/server-manager/alert-deliveries'
+    | '/api/internal/server-manager/subscriptions'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
     | '/api/qr/scan/$code'
@@ -3965,6 +4070,7 @@ export interface FileRouteTypes {
     | '/ams/xp'
     | '/ams/xp-crystal-vault'
     | '/api/chat'
+    | '/api/marketplace-product-country-seo-worker'
     | '/apply/$role'
     | '/blog/$slug'
     | '/control-panel/finance'
@@ -4007,6 +4113,7 @@ export interface FileRouteTypes {
     | '/rd-manager/start'
     | '/rd-manager/track'
     | '/s/$code'
+    | '/server-manager/$view'
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
     | '/vala-ai/activity'
@@ -4056,11 +4163,14 @@ export interface FileRouteTypes {
     | '/api/actions/registry'
     | '/api/affiliate/account'
     | '/api/affiliate/attribute'
+    | '/api/agent/heartbeat'
     | '/api/analytics/products'
     | '/api/applications/documents'
     | '/api/applications/queue'
     | '/api/applications/submit'
+    | '/api/assist/recording'
     | '/api/author/earnings'
+    | '/api/author/product-files'
     | '/api/author/products'
     | '/api/control-panel/cockpit'
     | '/api/control-panel/feed'
@@ -4127,6 +4237,7 @@ export interface FileRouteTypes {
     | '/api/notifications/stream'
     | '/api/partner/quote'
     | '/api/payment/initiate'
+    | '/api/payment/quote'
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/api/qr/$code'
@@ -4139,6 +4250,9 @@ export interface FileRouteTypes {
     | '/api/seo/generate-tags'
     | '/api/seo/score'
     | '/api/seo/search-performance'
+    | '/api/server-manager/enroll'
+    | '/api/server-manager/heartbeat'
+    | '/api/server-manager/invoices'
     | '/api/track/ref'
     | '/api/vala-ai/$'
     | '/marketplace/$category/$country'
@@ -4167,8 +4281,9 @@ export interface FileRouteTypes {
     | '/ams/awards/rules/streaks'
     | '/ams/awards/rules/xp'
     | '/api/account/invoice/$id'
+    | '/api/internal/server-manager/alert-deliveries'
+    | '/api/internal/server-manager/subscriptions'
     | '/api/orders/$id/fulfil'
-    | '/api/assist/recording'
     | '/api/proxy/demo/$'
     | '/api/qr/scan/$code'
   id:
@@ -4342,6 +4457,7 @@ export interface FileRouteTypes {
     | '/ams/xp'
     | '/ams/xp-crystal-vault'
     | '/api/chat'
+    | '/api/marketplace-product-country-seo-worker'
     | '/apply/$role'
     | '/blog/$slug'
     | '/control-panel/finance'
@@ -4384,6 +4500,7 @@ export interface FileRouteTypes {
     | '/rd-manager/start'
     | '/rd-manager/track'
     | '/s/$code'
+    | '/server-manager/$view'
     | '/sitemap-products/$page'
     | '/sitemap-slots/$page'
     | '/vala-ai/activity'
@@ -4433,11 +4550,14 @@ export interface FileRouteTypes {
     | '/api/actions/registry'
     | '/api/affiliate/account'
     | '/api/affiliate/attribute'
+    | '/api/agent/heartbeat'
     | '/api/analytics/products'
     | '/api/applications/documents'
     | '/api/applications/queue'
     | '/api/applications/submit'
+    | '/api/assist/recording'
     | '/api/author/earnings'
+    | '/api/author/product-files'
     | '/api/author/products'
     | '/api/control-panel/cockpit'
     | '/api/control-panel/feed'
@@ -4504,6 +4624,7 @@ export interface FileRouteTypes {
     | '/api/notifications/stream'
     | '/api/partner/quote'
     | '/api/payment/initiate'
+    | '/api/payment/quote'
     | '/api/payment/status'
     | '/api/payment/webhook'
     | '/api/qr/$code'
@@ -4516,6 +4637,9 @@ export interface FileRouteTypes {
     | '/api/seo/generate-tags'
     | '/api/seo/score'
     | '/api/seo/search-performance'
+    | '/api/server-manager/enroll'
+    | '/api/server-manager/heartbeat'
+    | '/api/server-manager/invoices'
     | '/api/track/ref'
     | '/api/vala-ai/$'
     | '/marketplace/$category/$country'
@@ -4544,6 +4668,8 @@ export interface FileRouteTypes {
     | '/ams/awards/rules/streaks'
     | '/ams/awards/rules/xp'
     | '/api/account/invoice/$id'
+    | '/api/internal/server-manager/alert-deliveries'
+    | '/api/internal/server-manager/subscriptions'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
     | '/api/qr/scan/$code'
@@ -4555,7 +4681,6 @@ export interface RootRouteChildren {
   AiApiManagerRoute: typeof AiApiManagerRoute
   AiCeoRoute: typeof AiCeoRouteWithChildren
   AmsRoute: typeof AmsRouteWithChildren
-    | '/api/assist/recording'
   AmsManagerRoute: typeof AmsManagerRoute
   ApplicationManagerRoute: typeof ApplicationManagerRoute
   AssistManagerRoute: typeof AssistManagerRoute
@@ -4597,7 +4722,7 @@ export interface RootRouteChildren {
   SalesCrmRoute: typeof SalesCrmRoute
   SalesSupportManagerRoute: typeof SalesSupportManagerRoute
   SeoManagerRoute: typeof SeoManagerRoute
-  ServerManagerRoute: typeof ServerManagerRoute
+  ServerManagerRoute: typeof ServerManagerRouteWithChildren
   SitemapBlogDotxmlRoute: typeof SitemapBlogDotxmlRoute
   SitemapCategoriesDotxmlRoute: typeof SitemapCategoriesDotxmlRoute
   SitemapCountriesDotxmlRoute: typeof SitemapCountriesDotxmlRoute
@@ -4621,6 +4746,7 @@ export interface RootRouteChildren {
   AiFinderRoute: typeof AiFinderRoute
   AiRecommendRoute: typeof AiRecommendRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiMarketplaceProductCountrySeoWorkerRoute: typeof ApiMarketplaceProductCountrySeoWorkerRoute
   ApplyRoleRoute: typeof ApplyRoleRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DashboardRoleRoute: typeof DashboardRoleRoute
@@ -4641,11 +4767,14 @@ export interface RootRouteChildren {
   ApiActionsRegistryRoute: typeof ApiActionsRegistryRoute
   ApiAffiliateAccountRoute: typeof ApiAffiliateAccountRoute
   ApiAffiliateAttributeRoute: typeof ApiAffiliateAttributeRoute
+  ApiAgentHeartbeatRoute: typeof ApiAgentHeartbeatRoute
   ApiAnalyticsProductsRoute: typeof ApiAnalyticsProductsRoute
   ApiApplicationsDocumentsRoute: typeof ApiApplicationsDocumentsRoute
   ApiApplicationsQueueRoute: typeof ApiApplicationsQueueRoute
   ApiApplicationsSubmitRoute: typeof ApiApplicationsSubmitRoute
+  ApiAssistRecordingRoute: typeof ApiAssistRecordingRoute
   ApiAuthorEarningsRoute: typeof ApiAuthorEarningsRoute
+  ApiAuthorProductFilesRoute: typeof ApiAuthorProductFilesRoute
   ApiAuthorProductsRoute: typeof ApiAuthorProductsRoute
   ApiControlPanelCockpitRoute: typeof ApiControlPanelCockpitRoute
   ApiControlPanelFeedRoute: typeof ApiControlPanelFeedRoute
@@ -4712,6 +4841,7 @@ export interface RootRouteChildren {
   ApiNotificationsStreamRoute: typeof ApiNotificationsStreamRoute
   ApiPartnerQuoteRoute: typeof ApiPartnerQuoteRoute
   ApiPaymentInitiateRoute: typeof ApiPaymentInitiateRoute
+  ApiPaymentQuoteRoute: typeof ApiPaymentQuoteRoute
   ApiPaymentStatusRoute: typeof ApiPaymentStatusRoute
   ApiPaymentWebhookRoute: typeof ApiPaymentWebhookRoute
   ApiQrCodeRoute: typeof ApiQrCodeRoute
@@ -4724,9 +4854,14 @@ export interface RootRouteChildren {
   ApiSeoGenerateTagsRoute: typeof ApiSeoGenerateTagsRoute
   ApiSeoScoreRoute: typeof ApiSeoScoreRoute
   ApiSeoSearchPerformanceRoute: typeof ApiSeoSearchPerformanceRoute
+  ApiServerManagerEnrollRoute: typeof ApiServerManagerEnrollRoute
+  ApiServerManagerHeartbeatRoute: typeof ApiServerManagerHeartbeatRoute
+  ApiServerManagerInvoicesRoute: typeof ApiServerManagerInvoicesRoute
   ApiTrackRefRoute: typeof ApiTrackRefRoute
   ApiValaAiSplatRoute: typeof ApiValaAiSplatRoute
   ApiAccountInvoiceIdRoute: typeof ApiAccountInvoiceIdRoute
+  ApiInternalServerManagerAlertDeliveriesRoute: typeof ApiInternalServerManagerAlertDeliveriesRoute
+  ApiInternalServerManagerSubscriptionsRoute: typeof ApiInternalServerManagerSubscriptionsRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
   ApiQrScanCodeRoute: typeof ApiQrScanCodeRoute
@@ -4772,7 +4907,6 @@ declare module '@tanstack/react-router' {
     '/ams-manager': {
       id: '/ams-manager'
       path: '/ams-manager'
-  ApiAssistRecordingRoute: typeof ApiAssistRecordingRoute
       fullPath: '/ams-manager'
       preLoaderRoute: typeof AmsManagerRouteImport
       parentRoute: typeof rootRouteImport
@@ -5939,6 +6073,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/marketplace-product-country-seo-worker': {
+      id: '/api/marketplace-product-country-seo-worker'
+      path: '/api/marketplace-product-country-seo-worker'
+      fullPath: '/api/marketplace-product-country-seo-worker'
+      preLoaderRoute: typeof ApiMarketplaceProductCountrySeoWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/apply/': {
       id: '/apply/'
       path: '/apply'
@@ -6303,6 +6444,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/server-manager/$view': {
+      id: '/server-manager/$view'
+      path: '/$view'
+      fullPath: '/server-manager/$view'
+      preLoaderRoute: typeof ServerManagerViewRouteImport
+      parentRoute: typeof ServerManagerRoute
+    }
     '/sitemap-products/$page': {
       id: '/sitemap-products/$page'
       path: '/sitemap-products/$page'
@@ -6611,6 +6759,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAffiliateAttributeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent/heartbeat': {
+      id: '/api/agent/heartbeat'
+      path: '/api/agent/heartbeat'
+      fullPath: '/api/agent/heartbeat'
+      preLoaderRoute: typeof ApiAgentHeartbeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/analytics/products': {
       id: '/api/analytics/products'
       path: '/api/analytics/products'
@@ -6639,11 +6794,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiApplicationsSubmitRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/assist/recording': {
+      id: '/api/assist/recording'
+      path: '/api/assist/recording'
+      fullPath: '/api/assist/recording'
+      preLoaderRoute: typeof ApiAssistRecordingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/author/earnings': {
       id: '/api/author/earnings'
       path: '/api/author/earnings'
       fullPath: '/api/author/earnings'
       preLoaderRoute: typeof ApiAuthorEarningsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/author/product-files': {
+      id: '/api/author/product-files'
+      path: '/api/author/product-files'
+      fullPath: '/api/author/product-files'
+      preLoaderRoute: typeof ApiAuthorProductFilesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/author/products': {
@@ -6794,13 +6963,6 @@ declare module '@tanstack/react-router' {
       parentRoute: typeof rootRouteImport
     }
     '/api/influencer/referral': {
-    '/api/assist/recording': {
-      id: '/api/assist/recording'
-      path: '/api/assist/recording'
-      fullPath: '/api/assist/recording'
-      preLoaderRoute: typeof ApiAssistRecordingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
       id: '/api/influencer/referral'
       path: '/api/influencer/referral'
       fullPath: '/api/influencer/referral'
@@ -7115,6 +7277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPaymentInitiateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/payment/quote': {
+      id: '/api/payment/quote'
+      path: '/api/payment/quote'
+      fullPath: '/api/payment/quote'
+      preLoaderRoute: typeof ApiPaymentQuoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/payment/status': {
       id: '/api/payment/status'
       path: '/api/payment/status'
@@ -7197,6 +7366,27 @@ declare module '@tanstack/react-router' {
       path: '/api/seo/search-performance'
       fullPath: '/api/seo/search-performance'
       preLoaderRoute: typeof ApiSeoSearchPerformanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/server-manager/enroll': {
+      id: '/api/server-manager/enroll'
+      path: '/api/server-manager/enroll'
+      fullPath: '/api/server-manager/enroll'
+      preLoaderRoute: typeof ApiServerManagerEnrollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/server-manager/heartbeat': {
+      id: '/api/server-manager/heartbeat'
+      path: '/api/server-manager/heartbeat'
+      fullPath: '/api/server-manager/heartbeat'
+      preLoaderRoute: typeof ApiServerManagerHeartbeatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/server-manager/invoices': {
+      id: '/api/server-manager/invoices'
+      path: '/api/server-manager/invoices'
+      fullPath: '/api/server-manager/invoices'
+      preLoaderRoute: typeof ApiServerManagerInvoicesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/track/ref': {
@@ -7337,6 +7527,20 @@ declare module '@tanstack/react-router' {
       path: '/api/account/invoice/$id'
       fullPath: '/api/account/invoice/$id'
       preLoaderRoute: typeof ApiAccountInvoiceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/server-manager/alert-deliveries': {
+      id: '/api/internal/server-manager/alert-deliveries'
+      path: '/api/internal/server-manager/alert-deliveries'
+      fullPath: '/api/internal/server-manager/alert-deliveries'
+      preLoaderRoute: typeof ApiInternalServerManagerAlertDeliveriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/server-manager/subscriptions': {
+      id: '/api/internal/server-manager/subscriptions'
+      path: '/api/internal/server-manager/subscriptions'
+      fullPath: '/api/internal/server-manager/subscriptions'
+      preLoaderRoute: typeof ApiInternalServerManagerSubscriptionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/orders/$id/fulfil': {
@@ -7845,6 +8049,18 @@ const RdManagerRouteWithChildren = RdManagerRoute._addFileChildren(
   RdManagerRouteChildren,
 )
 
+interface ServerManagerRouteChildren {
+  ServerManagerViewRoute: typeof ServerManagerViewRoute
+}
+
+const ServerManagerRouteChildren: ServerManagerRouteChildren = {
+  ServerManagerViewRoute: ServerManagerViewRoute,
+}
+
+const ServerManagerRouteWithChildren = ServerManagerRoute._addFileChildren(
+  ServerManagerRouteChildren,
+)
+
 interface ValaAiRouteChildren {
   ValaAiActivityRoute: typeof ValaAiActivityRoute
   ValaAiAdminRoute: typeof ValaAiAdminRoute
@@ -7935,7 +8151,7 @@ const rootRouteChildren: RootRouteChildren = {
   SalesCrmRoute: SalesCrmRoute,
   SalesSupportManagerRoute: SalesSupportManagerRoute,
   SeoManagerRoute: SeoManagerRoute,
-  ServerManagerRoute: ServerManagerRoute,
+  ServerManagerRoute: ServerManagerRouteWithChildren,
   SitemapBlogDotxmlRoute: SitemapBlogDotxmlRoute,
   SitemapCategoriesDotxmlRoute: SitemapCategoriesDotxmlRoute,
   SitemapCountriesDotxmlRoute: SitemapCountriesDotxmlRoute,
@@ -7959,6 +8175,8 @@ const rootRouteChildren: RootRouteChildren = {
   AiFinderRoute: AiFinderRoute,
   AiRecommendRoute: AiRecommendRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiMarketplaceProductCountrySeoWorkerRoute:
+    ApiMarketplaceProductCountrySeoWorkerRoute,
   ApplyRoleRoute: ApplyRoleRoute,
   BlogSlugRoute: BlogSlugRoute,
   DashboardRoleRoute: DashboardRoleRoute,
@@ -7979,11 +8197,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiActionsRegistryRoute: ApiActionsRegistryRoute,
   ApiAffiliateAccountRoute: ApiAffiliateAccountRoute,
   ApiAffiliateAttributeRoute: ApiAffiliateAttributeRoute,
+  ApiAgentHeartbeatRoute: ApiAgentHeartbeatRoute,
   ApiAnalyticsProductsRoute: ApiAnalyticsProductsRoute,
   ApiApplicationsDocumentsRoute: ApiApplicationsDocumentsRoute,
   ApiApplicationsQueueRoute: ApiApplicationsQueueRoute,
   ApiApplicationsSubmitRoute: ApiApplicationsSubmitRoute,
+  ApiAssistRecordingRoute: ApiAssistRecordingRoute,
   ApiAuthorEarningsRoute: ApiAuthorEarningsRoute,
+  ApiAuthorProductFilesRoute: ApiAuthorProductFilesRoute,
   ApiAuthorProductsRoute: ApiAuthorProductsRoute,
   ApiControlPanelCockpitRoute: ApiControlPanelCockpitRoute,
   ApiControlPanelFeedRoute: ApiControlPanelFeedRoute,
@@ -8050,6 +8271,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNotificationsStreamRoute: ApiNotificationsStreamRoute,
   ApiPartnerQuoteRoute: ApiPartnerQuoteRoute,
   ApiPaymentInitiateRoute: ApiPaymentInitiateRoute,
+  ApiPaymentQuoteRoute: ApiPaymentQuoteRoute,
   ApiPaymentStatusRoute: ApiPaymentStatusRoute,
   ApiPaymentWebhookRoute: ApiPaymentWebhookRoute,
   ApiQrCodeRoute: ApiQrCodeRoute,
@@ -8062,9 +8284,16 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSeoGenerateTagsRoute: ApiSeoGenerateTagsRoute,
   ApiSeoScoreRoute: ApiSeoScoreRoute,
   ApiSeoSearchPerformanceRoute: ApiSeoSearchPerformanceRoute,
+  ApiServerManagerEnrollRoute: ApiServerManagerEnrollRoute,
+  ApiServerManagerHeartbeatRoute: ApiServerManagerHeartbeatRoute,
+  ApiServerManagerInvoicesRoute: ApiServerManagerInvoicesRoute,
   ApiTrackRefRoute: ApiTrackRefRoute,
   ApiValaAiSplatRoute: ApiValaAiSplatRoute,
   ApiAccountInvoiceIdRoute: ApiAccountInvoiceIdRoute,
+  ApiInternalServerManagerAlertDeliveriesRoute:
+    ApiInternalServerManagerAlertDeliveriesRoute,
+  ApiInternalServerManagerSubscriptionsRoute:
+    ApiInternalServerManagerSubscriptionsRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
   ApiQrScanCodeRoute: ApiQrScanCodeRoute,
@@ -8082,4 +8311,3 @@ declare module '@tanstack/react-start' {
     config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }
-  ApiAssistRecordingRoute: ApiAssistRecordingRoute,

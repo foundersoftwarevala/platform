@@ -102,7 +102,7 @@ export const RESELLER_CENTERS: Record<CenterKey, CenterConfig> = {
         key: "account", label: "Account security",
         features: [
           { key: "password", label: "Change Password",      icon: KeyRound,         description: "Rotate your sign-in password." },
-          { key: "2fa",      label: "2FA Authentication",   icon: Lock,             description: "TOTP & SMS multi-factor authentication." },
+          { key: "2fa",      label: "2FA Authentication",   icon: Lock,             description: "Authenticator-app multi-factor authentication using TOTP." },
           { key: "devices",  label: "Device Management",    icon: MonitorSmartphone, description: "Trust, name or revoke individual devices." },
           { key: "sessions", label: "Active Sessions",      icon: Smartphone,       description: "See where you're signed in right now." },
         ],

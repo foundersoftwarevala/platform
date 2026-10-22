@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.seo_crawl_jobs_one_running_per_domain_uidx;

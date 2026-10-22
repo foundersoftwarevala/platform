@@ -8,7 +8,13 @@ import {
   listApplications,
   type ApplicationKind,
 } from "@/lib/applications/registry.server";
-import { bearer, isApplicationStaff, rpcAs } from "@/lib/applications/gateway.server";
+import {
+  bearer,
+  isApplicationBoss,
+  isApplicationStaff,
+  isResellerApplicationReader,
+  rpcAs,
+} from "@/lib/applications/gateway.server";
 import { applySellerCommissionRule } from "@/lib/commerce/seller-commission.server";
 
 /**
@@ -16,50 +22,53 @@ import { applySellerCommissionRule } from "@/lib/commerce/seller-commission.serv
  * Manager, and each role Manager's own applications queue.
  *
  *   GET  /api/applications/queue?kind=all|<kind>&filter=open|all   the queue
+ *   GET  /api/applications/queue?kind=reseller&filter=reseller-manager
+ *                                                               the manager's read-only list
  *   GET  /api/applications/queue?kind=<kind>&id=<id>               one, in full
  *   POST /api/applications/queue {action:"decide", kind, id, status, reason?}
  *
- * Only application staff - the database's own application_staff() - may read
- * or decide. A decision is made with the reviewer's own token by the role's
- * own review function, so its rules apply unchanged: never your own
- * application, a reason for every refusal, a refusal is final.
+ * Application staff read the normal queues. Reseller Managers may read only
+ * reseller application summaries; only platform operators may decide those
+ * applications. Other decisions retain the existing application_staff gate.
  */
 
-async function gate(
+function signedIn(
   request: Request,
-): Promise<{ ok: true; token: string } | { ok: false; response: Response }> {
+): { ok: true; token: string } | { ok: false; response: Response } {
   const token = bearer(request);
   if (!token)
     // i18n-ignore: an API error message; this API answers in English.
     return { ok: false, response: Response.json({ error: "Please sign in" }, { status: 401 }) };
-  if (!(await isApplicationStaff(token))) {
-    return {
-      ok: false,
-      response: Response.json(
-        // i18n-ignore: an API error message; this API answers in English.
-        { error: "Application review is limited to application staff." },
-        { status: 403 },
-      ),
-    };
-  }
   return { ok: true, token };
+}
+
+function forbidden(message = "Application review is limited to application staff.") {
+  return Response.json(
+    // i18n-ignore: an API error message; this API answers in English.
+    { error: message },
+    { status: 403 },
+  );
 }
 
 export const Route = createFileRoute("/api/applications/queue")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const allowed = await gate(request);
-        if (!allowed.ok) return allowed.response;
+        const auth = signedIn(request);
+        if (!auth.ok) return auth.response;
 
         const url = new URL(request.url);
         const kindParam = url.searchParams.get("kind") ?? "all";
         const id = url.searchParams.get("id");
+        const resellerManagerView = url.searchParams.get("filter") === "reseller-manager";
 
         if (id) {
           if (!isApplicationKind(kindParam))
             // i18n-ignore: an API error message; this API answers in English.
             return Response.json({ error: "Name the kind of application" }, { status: 400 });
+          // Manager access is limited to the summary list; applicant details,
+          // uploaded ID documents and selfies remain available to application staff.
+          if (!(await isApplicationStaff(auth.token))) return forbidden();
           const detail = await getApplication(kindParam, id);
           // i18n-ignore: an API error message; this API answers in English.
           if (!detail) return Response.json({ error: "Application not found" }, { status: 404 });
@@ -75,8 +84,22 @@ export const Route = createFileRoute("/api/applications/queue")({
         if (!kinds.length)
           // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Unknown kind of application" }, { status: 400 });
+        if (resellerManagerView) {
+          if (kindParam !== "reseller")
+            return Response.json(
+              { error: "The Reseller Manager view only supports reseller applications." },
+              { status: 400 },
+            );
+          if (!(await isResellerApplicationReader(auth.token))) return forbidden();
+        } else if (!(await isApplicationStaff(auth.token))) {
+          return forbidden();
+        }
         try {
-          const rows = await listApplications(kinds, url.searchParams.get("filter") !== "all");
+          const rows = await listApplications(
+            kinds,
+            url.searchParams.get("filter") !== "all",
+            resellerManagerView,
+          );
           return Response.json({ rows });
         } catch (error) {
           return Response.json(
@@ -87,8 +110,8 @@ export const Route = createFileRoute("/api/applications/queue")({
       },
 
       POST: async ({ request }) => {
-        const allowed = await gate(request);
-        if (!allowed.ok) return allowed.response;
+        const auth = signedIn(request);
+        if (!auth.ok) return auth.response;
 
         let body: Record<string, unknown>;
         try {
@@ -102,6 +125,14 @@ export const Route = createFileRoute("/api/applications/queue")({
         if (!isApplicationKind(kind))
           // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "Unknown kind of application" }, { status: 400 });
+        if (kind === "reseller") {
+          if (!(await isApplicationBoss(auth.token)))
+            return forbidden(
+              "Only a platform operator can approve or reject reseller applications.",
+            );
+        } else if (!(await isApplicationStaff(auth.token))) {
+          return forbidden();
+        }
         if (!/^[0-9a-f-]{36}$/i.test(id))
           // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "An application id is required" }, { status: 400 });
@@ -130,7 +161,7 @@ export const Route = createFileRoute("/api/applications/queue")({
         }
 
         const { fn, args } = definition.review(id, status, reason);
-        const outcome = await rpcAs(allowed.token, fn, args);
+        const outcome = await rpcAs(auth.token, fn, args);
         if (!outcome.ok)
           return Response.json({ error: outcome.message }, { status: outcome.status });
 
