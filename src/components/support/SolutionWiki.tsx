@@ -1,28 +1,21 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { relativeTime, useWikiArticles } from '@/hooks/useSalesSupportData';
 import { motion } from 'framer-motion';
 import {
   BookOpen, Search, FileText, Video, ChevronRight, Star, Clock, Tag,
 } from 'lucide-react';
 
-// wiki_articles is not in the generated types.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const wikiTable = () => (supabase as any).from('wiki_articles');
-
 /**
  * The support knowledge base, from wiki_articles.
  *
  * Five invented articles with invented view counts and languages stood here,
  * and none could be opened. These are the published articles; opening one
- * shows it and counts the view.
+ * shows the article without making a browser-side database write.
  */
 const SolutionWiki = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
-  const queryClient = useQueryClient();
   const { data: rows, isLoading, error } = useWikiArticles();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const published = ((rows ?? []) as any[]).filter((r) => r.status === 'published');
@@ -46,14 +39,9 @@ const SolutionWiki = () => {
       id: c, label: c.charAt(0).toUpperCase() + c.slice(1), count: articles.filter((x) => x.category === c).length,
     })),
   ];
-  const open = async (id: string) => {
+  const open = (id: string) => {
     const next = openId === id ? null : id;
     setOpenId(next);
-    if (!next) return;
-    const article = articles.find((x) => x.id === id);
-    // Counting the view is best effort; the article is already open.
-    await wikiTable().update({ views: (article?.views ?? 0) + 1 }).eq('id', id);
-    void queryClient.invalidateQueries({ queryKey: ['wiki_articles'] });
   };
 
   const filteredArticles = articles.filter(article => {
@@ -129,7 +117,7 @@ const SolutionWiki = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 + index * 0.1 }}
             whileHover={{ y: -2 }}
-            onClick={() => void open(article.id)}
+            onClick={() => open(article.id)}
             className="p-5 rounded-2xl bg-gradient-to-br from-teal-500/5 to-sky-500/5 border border-teal-500/20 cursor-pointer group"
           >
             <div className="flex items-center gap-2 mb-3">
@@ -171,7 +159,7 @@ const SolutionWiki = () => {
             role="button"
             tabIndex={0}
             aria-expanded={openId === article.id}
-            onClick={() => void open(article.id)}
+            onClick={() => open(article.id)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void open(article.id); } }}
             className="p-4 rounded-xl bg-card/60 border border-border hover:border-teal-500/20 transition-all cursor-pointer group"
           >

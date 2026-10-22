@@ -1,6 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   createDeal,
   createQuote,
@@ -36,6 +38,7 @@ function errorMessage(error: unknown): string {
 
 export function SalesWorkspace() {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const load = useServerFn(getSalesWorkspace);
   const createDealFn = useServerFn(createDeal);
   const createQuoteFn = useServerFn(createQuote);
@@ -104,7 +107,7 @@ export function SalesWorkspace() {
   if (query.isLoading) {
     return (
       <main className="mx-auto max-w-7xl p-6 text-sm text-muted-foreground" role="status">
-        Loading Sales workspace…
+        {t("sales_support.sales.loading")}
       </main>
     );
   }
@@ -121,26 +124,40 @@ export function SalesWorkspace() {
     (member) => member.authUserId && member.department.toLowerCase().includes("sales"),
   );
   const tabs: { id: SalesTab; label: string }[] = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "leads", label: "Leads" },
-    { id: "deals", label: "Deals" },
-    { id: "quotes", label: "Quotes" },
-    ...(data.isManager ? [{ id: "team" as const, label: "Team access" }] : []),
+    { id: "dashboard", label: t("sales_support.sales.dashboard") },
+    { id: "leads", label: t("sales_support.sales.leads") },
+    { id: "deals", label: t("sales_support.sales.deals") },
+    { id: "quotes", label: t("sales_support.sales.quotes") },
+    ...(data.isManager
+      ? [{ id: "team" as const, label: t("sales_support.sales.team_access") }]
+      : []),
   ];
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
       <header>
-        <p className="text-sm font-medium text-primary">Sales workspace</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">Sales</h1>
+        <p className="text-sm font-medium text-primary">{t("sales_support.sales.workspace")}</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">
+          {t("sales_support.sales.title")}
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Live leads, deal stages, and quotes from the platform database.
+          {t("sales_support.sales.subtitle")}
         </p>
+        {data.isManager && (
+          <nav className="mt-4" aria-label={t("sales_support.sales.workspace_navigation")}>
+            <Link
+              className="inline-flex rounded-md border px-3 py-2 text-sm hover:bg-muted"
+              to="/dashboard/support"
+            >
+              {t("sales_support.sales.support_workspace_link")}
+            </Link>
+          </nav>
+        )}
       </header>
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav
           className="flex gap-2 overflow-x-auto border-b pb-3 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4"
-          aria-label="Sales pages"
+          aria-label={t("sales_support.sales.pages")}
         >
           {tabs.map((item) => (
             <button
@@ -156,28 +173,31 @@ export function SalesWorkspace() {
         </nav>
         <div className="min-w-0 space-y-6">
           {tab === "dashboard" && (
-            <section className="grid gap-4 sm:grid-cols-3" aria-label="Sales totals">
-              <Metric label="Visible leads" value={data.leads.length} />
-              <Metric label="Visible deals" value={data.deals.length} />
-              <Metric label="Visible quotes" value={data.quotes.length} />
+            <section
+              className="grid gap-4 sm:grid-cols-3"
+              aria-label={t("sales_support.sales.totals")}
+            >
+              <Metric label={t("sales_support.sales.visible_leads")} value={data.leads.length} />
+              <Metric label={t("sales_support.sales.visible_deals")} value={data.deals.length} />
+              <Metric label={t("sales_support.sales.visible_quotes")} value={data.quotes.length} />
             </section>
           )}
 
           {tab === "leads" && (
             <section className="space-y-4">
-              <h2 className="text-xl font-semibold">Leads</h2>
+              <h2 className="text-xl font-semibold">{t("sales_support.sales.leads")}</h2>
               {data.leads.length === 0 ? (
-                <Empty>No leads are assigned to this Sales account.</Empty>
+                <Empty>{t("sales_support.sales.no_assigned_leads")}</Empty>
               ) : (
                 <div className="overflow-x-auto rounded-lg border">
                   <table className="w-full min-w-[700px] text-left text-sm">
                     <thead className="bg-muted/60">
                       <tr>
-                        <Head>Reference</Head>
-                        <Head>Company</Head>
-                        <Head>Contact</Head>
-                        <Head>Stage</Head>
-                        <Head>Value</Head>
+                        <Head>{t("sales_support.sales.reference")}</Head>
+                        <Head>{t("sales_support.sales.company")}</Head>
+                        <Head>{t("sales_support.sales.contact")}</Head>
+                        <Head>{t("sales_support.sales.stage")}</Head>
+                        <Head>{t("sales_support.sales.value")}</Head>
                       </tr>
                     </thead>
                     <tbody>
@@ -206,13 +226,13 @@ export function SalesWorkspace() {
 
           {tab === "deals" && (
             <section className="space-y-5">
-              <h2 className="text-xl font-semibold">Deals</h2>
+              <h2 className="text-xl font-semibold">{t("sales_support.sales.deals")}</h2>
               <form
                 onSubmit={submitDeal}
                 className="grid gap-3 rounded-lg border p-4 md:grid-cols-2"
               >
                 <label className="grid gap-1 text-sm">
-                  Deal title
+                  {t("sales_support.sales.deal_title")}
                   <input
                     className="h-10 rounded-md border bg-background px-3"
                     name="title"
@@ -221,7 +241,7 @@ export function SalesWorkspace() {
                   />
                 </label>
                 <label className="grid gap-1 text-sm">
-                  Amount (INR)
+                  {t("sales_support.sales.amount_inr")}
                   <input
                     className="h-10 rounded-md border bg-background px-3"
                     name="amount"
@@ -232,13 +252,13 @@ export function SalesWorkspace() {
                   />
                 </label>
                 <label className="grid gap-1 text-sm">
-                  Related lead
+                  {t("sales_support.sales.related_lead")}
                   <select
                     className="h-10 rounded-md border bg-background px-3"
                     name="leadId"
                     defaultValue=""
                   >
-                    <option value="">No linked lead</option>
+                    <option value="">{t("sales_support.sales.no_linked_lead")}</option>
                     {data.leads.map((lead) => (
                       <option key={lead.id} value={lead.id}>
                         {lead.reference} — {lead.company}
@@ -248,7 +268,7 @@ export function SalesWorkspace() {
                 </label>
                 {data.isManager && (
                   <label className="grid gap-1 text-sm">
-                    Sales owner
+                    {t("sales_support.sales.sales_owner")}
                     <select
                       className="h-10 rounded-md border bg-background px-3"
                       name="ownerUserId"
@@ -256,7 +276,7 @@ export function SalesWorkspace() {
                       defaultValue=""
                     >
                       <option value="" disabled>
-                        Select a mapped representative
+                        {t("sales_support.sales.select_representative")}
                       </option>
                       {mappedSales.map((member) => (
                         <option key={member.id} value={member.authUserId!}>
@@ -268,8 +288,7 @@ export function SalesWorkspace() {
                 )}
                 {!data.isManager && !data.teamMemberId && (
                   <p className="text-sm text-amber-700 md:col-span-2" role="status">
-                    A manager must link this account to a Sales team member before deals can be
-                    created.
+                    {t("sales_support.sales.link_account_first")}
                   </p>
                 )}
                 <button
@@ -281,7 +300,9 @@ export function SalesWorkspace() {
                   }
                   type="submit"
                 >
-                  {dealMutation.isPending ? "Creating…" : "Create deal"}
+                  {dealMutation.isPending
+                    ? t("sales_support.sales.creating")
+                    : t("sales_support.sales.create_deal")}
                 </button>
                 {dealMutation.error && (
                   <p className="text-sm text-destructive md:col-span-2" role="alert">
@@ -290,7 +311,7 @@ export function SalesWorkspace() {
                 )}
               </form>
               {data.deals.length === 0 ? (
-                <Empty>No deals are visible for this account.</Empty>
+                <Empty>{t("sales_support.sales.no_visible_deals")}</Empty>
               ) : (
                 <div className="space-y-3">
                   {data.deals.map((deal) => (
@@ -318,7 +339,7 @@ export function SalesWorkspace() {
                       >
                         {!isDealStage(deal.stage) && (
                           <option value={deal.stage} disabled>
-                            {deal.stage} (read-only)
+                            {deal.stage} {t("sales_support.sales.read_only")}
                           </option>
                         )}
                         {DEAL_STAGES.map((stage) => (
@@ -336,13 +357,13 @@ export function SalesWorkspace() {
 
           {tab === "quotes" && (
             <section className="space-y-5">
-              <h2 className="text-xl font-semibold">Quotes</h2>
+              <h2 className="text-xl font-semibold">{t("sales_support.sales.quotes")}</h2>
               <form
                 onSubmit={submitQuote}
                 className="grid gap-3 rounded-lg border p-4 md:grid-cols-3"
               >
                 <label className="grid gap-1 text-sm">
-                  Deal
+                  {t("sales_support.sales.deal")}
                   <select
                     className="h-10 rounded-md border bg-background px-3"
                     name="dealId"
@@ -350,7 +371,7 @@ export function SalesWorkspace() {
                     defaultValue=""
                   >
                     <option value="" disabled>
-                      Select a visible deal
+                      {t("sales_support.sales.select_visible_deal")}
                     </option>
                     {data.deals.map((deal) => (
                       <option key={deal.id} value={deal.id}>
@@ -360,7 +381,7 @@ export function SalesWorkspace() {
                   </select>
                 </label>
                 <label className="grid gap-1 text-sm">
-                  Quote title
+                  {t("sales_support.sales.quote_title")}
                   <input
                     className="h-10 rounded-md border bg-background px-3"
                     name="title"
@@ -369,7 +390,7 @@ export function SalesWorkspace() {
                   />
                 </label>
                 <label className="grid gap-1 text-sm">
-                  Amount (INR)
+                  {t("sales_support.sales.amount_inr")}
                   <input
                     className="h-10 rounded-md border bg-background px-3"
                     name="amount"
@@ -384,7 +405,9 @@ export function SalesWorkspace() {
                   type="submit"
                   disabled={quoteMutation.isPending || data.deals.length === 0}
                 >
-                  {quoteMutation.isPending ? "Creating…" : "Create quote"}
+                  {quoteMutation.isPending
+                    ? t("sales_support.sales.creating")
+                    : t("sales_support.sales.create_quote")}
                 </button>
                 {quoteMutation.error && (
                   <p className="text-sm text-destructive md:col-span-3" role="alert">
@@ -393,7 +416,7 @@ export function SalesWorkspace() {
                 )}
               </form>
               {data.quotes.length === 0 ? (
-                <Empty>No quotes are visible for this account.</Empty>
+                <Empty>{t("sales_support.sales.no_visible_quotes")}</Empty>
               ) : (
                 <div className="space-y-3">
                   {data.quotes.map((quote) => (
@@ -411,13 +434,14 @@ export function SalesWorkspace() {
 
           {tab === "team" && data.isManager && (
             <section className="space-y-4">
-              <h2 className="text-xl font-semibold">Link existing team records to real accounts</h2>
+              <h2 className="text-xl font-semibold">
+                {t("sales_support.sales.link_records")}
+              </h2>
               <p className="text-sm text-muted-foreground">
-                Unlinked records remain visible only to managers. Linking requires an existing
-                authenticated account with the matching Sales or Support role.
+                {t("sales_support.sales.unlinked_manager_only")}
               </p>
               {data.team.filter((member) => !member.authUserId).length === 0 ? (
-                <Empty>All Sales and Support team records are linked.</Empty>
+                <Empty>{t("sales_support.sales.all_linked")}</Empty>
               ) : (
                 data.team
                   .filter((member) => !member.authUserId)
@@ -453,7 +477,8 @@ export function SalesWorkspace() {
                           defaultValue=""
                         >
                           <option value="" disabled>
-                            Select a {requiredRole} account
+                            {t("sales_support.sales.select_account")} {requiredRole}{" "}
+                            {t("sales_support.sales.account")}
                           </option>
                           {options.map((account) => (
                             <option key={account.id} value={account.id}>
@@ -467,7 +492,7 @@ export function SalesWorkspace() {
                           className="h-10 rounded-md border px-4 text-sm disabled:opacity-50"
                           disabled={linkMutation.isPending || options.length === 0}
                         >
-                          Link account
+                          {t("sales_support.sales.link_account")}
                         </button>
                       </form>
                     );

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { absoluteUrl } from "@/lib/seo/site-url";
-import SupportDashboard from "@/components/salespages/SupportDashboard";
+import SolutionWiki from "@/components/support/SolutionWiki";
+import { SupportWorkspace } from "@/components/sales-support/SupportWorkspace";
 import { RequireRole } from "@/components/auth/RequireRole";
 
 export const Route = createFileRoute("/support")({
@@ -26,9 +27,14 @@ export const Route = createFileRoute("/support")({
       },
     ],
   }),
-  component: () => (
-    <RequireRole role={["support", "sales_support_manager", "finance_manager"]}>
-      <SupportDashboard />
-    </RequireRole>
-  ),
+  component: SupportRoute,
 });
+
+function SupportRoute() {
+  const { section } = Route.useSearch();
+  return (
+    <RequireRole role={["support", "sales_support_manager", "finance_manager"]}>
+      {section === "wiki" ? <SolutionWiki /> : <SupportWorkspace initialTab="dashboard" />}
+    </RequireRole>
+  );
+}

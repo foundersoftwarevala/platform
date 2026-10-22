@@ -151,7 +151,9 @@ DECLARE
   row_id text;
 BEGIN
   IF audit_actor IS NULL THEN
-    RAISE EXCEPTION 'Sales and Support changes require an authenticated audit actor';
+    IF current_user <> 'service_role' THEN
+      RAISE EXCEPTION 'Sales and Support changes require an authenticated or service-role audit actor';
+    END IF;
   END IF;
   row_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.id::text ELSE NEW.id::text END;
   INSERT INTO public.audit_logs (
@@ -159,14 +161,17 @@ BEGIN
     before_state, after_state, metadata
   ) VALUES (
     audit_actor,
-    coalesce(audit_actor::text, 'system'),
+    coalesce(audit_actor::text, current_user),
     lower(TG_TABLE_NAME) || '.' || lower(TG_OP),
     TG_TABLE_NAME,
     row_id,
     'info',
     CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE to_jsonb(OLD) END,
     CASE WHEN TG_OP = 'DELETE' THEN NULL ELSE to_jsonb(NEW) END,
-    jsonb_build_object('source', 'sales_support_workspace')
+    jsonb_build_object(
+      'source', 'sales_support_workspace',
+      'actor_type', CASE WHEN audit_actor IS NULL THEN 'service_role' ELSE 'user' END
+    )
   );
   IF TG_OP = 'DELETE' THEN
     RETURN OLD;
@@ -185,21 +190,26 @@ DECLARE
 BEGIN
   IF NEW.auth_user_id IS DISTINCT FROM OLD.auth_user_id THEN
     IF audit_actor IS NULL THEN
-      RAISE EXCEPTION 'Team account linking requires an authenticated audit actor';
+      IF current_user <> 'service_role' THEN
+        RAISE EXCEPTION 'Team account linking requires an authenticated or service-role audit actor';
+      END IF;
     END IF;
     INSERT INTO public.audit_logs (
       actor_id, actor, action, entity_type, entity_id, severity,
       before_state, after_state, metadata
     ) VALUES (
       audit_actor,
-      coalesce(audit_actor::text, 'system'),
+      coalesce(audit_actor::text, current_user),
       'team_member.account_link_changed',
       'team_member',
       NEW.id::text,
       'info',
       jsonb_build_object('auth_user_id', OLD.auth_user_id),
       jsonb_build_object('auth_user_id', NEW.auth_user_id),
-      jsonb_build_object('source', 'sales_support_workspace')
+      jsonb_build_object(
+        'source', 'sales_support_workspace',
+        'actor_type', CASE WHEN audit_actor IS NULL THEN 'service_role' ELSE 'user' END
+      )
     );
   END IF;
   RETURN NEW;

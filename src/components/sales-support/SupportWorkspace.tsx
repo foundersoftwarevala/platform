@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   assignTicket,
   createTicket,
@@ -15,14 +17,15 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The request failed.";
 }
 
-export function SupportWorkspace() {
+export function SupportWorkspace({ initialTab = "dashboard" }: { initialTab?: SupportTab }) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const load = useServerFn(getSupportWorkspace);
   const createTicketFn = useServerFn(createTicket);
   const replyFn = useServerFn(replyToTicket);
   const assignFn = useServerFn(assignTicket);
   const linkMemberFn = useServerFn(linkTeamMember);
-  const [tab, setTab] = useState<SupportTab>("dashboard");
+  const [tab, setTab] = useState<SupportTab>(initialTab);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["sales-support-workspace", "support"],
@@ -93,7 +96,7 @@ export function SupportWorkspace() {
   if (query.isLoading) {
     return (
       <main className="mx-auto max-w-7xl p-6 text-sm text-muted-foreground" role="status">
-        Loading Support workspace…
+        {t("sales_support.support.loading")}
       </main>
     );
   }
@@ -111,26 +114,42 @@ export function SupportWorkspace() {
     (member) => member.authUserId && member.department.toLowerCase().includes("support"),
   );
   const tabs: { id: SupportTab; label: string }[] = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "tickets", label: "Tickets" },
-    { id: "knowledge", label: "Knowledge base" },
-    { id: "chat", label: "Chat" },
-    ...(data.isManager ? [{ id: "team" as const, label: "Team access" }] : []),
+    { id: "dashboard", label: t("sales_support.support.dashboard") },
+    { id: "tickets", label: t("sales_support.support.tickets") },
+    { id: "knowledge", label: t("sales_support.support.knowledge_tab") },
+    { id: "chat", label: t("sales_support.support.chat_tab") },
+    ...(data.isManager
+      ? [{ id: "team" as const, label: t("sales_support.support.team_access") }]
+      : []),
   ];
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
       <header>
-        <p className="text-sm font-medium text-primary">Support workspace</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">Support</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Assigned tickets and replies are read and written through authenticated server functions.
+        <p className="text-sm font-medium text-primary">
+          {t("sales_support.support.workspace")}
         </p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">
+          {t("sales_support.support.title")}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t("sales_support.support.subtitle")}
+        </p>
+        {data.isManager && (
+          <nav className="mt-4" aria-label={t("sales_support.support.workspace_navigation")}>
+            <Link
+              className="inline-flex rounded-md border px-3 py-2 text-sm hover:bg-muted"
+              to="/dashboard/sales"
+            >
+              {t("sales_support.support.sales_workspace_link")}
+            </Link>
+          </nav>
+        )}
       </header>
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav
           className="flex gap-2 overflow-x-auto border-b pb-3 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4"
-          aria-label="Support pages"
+          aria-label={t("sales_support.support.pages")}
         >
           {tabs.map((item) => (
             <button
@@ -146,29 +165,40 @@ export function SupportWorkspace() {
         </nav>
         <div className="min-w-0 space-y-6">
           {tab === "dashboard" && (
-            <section className="grid gap-4 sm:grid-cols-3" aria-label="Support totals">
-              <Metric label="Visible tickets" value={data.tickets.length} />
+            <section
+              className="grid gap-4 sm:grid-cols-3"
+              aria-label={t("sales_support.support.totals")}
+            >
               <Metric
-                label="Open tickets"
+                label={t("sales_support.support.visible_tickets")}
+                value={data.tickets.length}
+              />
+              <Metric
+                label={t("sales_support.support.open_tickets")}
                 value={
                   data.tickets.filter(
                     (ticket) => !["closed", "resolved"].includes(ticket.status.toLowerCase()),
                   ).length
                 }
               />
-              <Metric label="Visible replies" value={data.replies.length} />
+              <Metric
+                label={t("sales_support.support.visible_replies")}
+                value={data.replies.length}
+              />
             </section>
           )}
 
           {tab === "tickets" && (
             <section className="space-y-5">
-              <h2 className="text-xl font-semibold">Ticket queue</h2>
+              <h2 className="text-xl font-semibold">
+                {t("sales_support.support.ticket_queue")}
+              </h2>
               <form
                 onSubmit={submitTicket}
                 className="grid gap-3 rounded-lg border p-4 md:grid-cols-2"
               >
                 <label className="grid gap-1 text-sm">
-                  Customer name
+                  {t("sales_support.support.customer_name")}
                   <input
                     className="h-10 rounded-md border bg-background px-3"
                     name="customerName"
@@ -177,7 +207,7 @@ export function SupportWorkspace() {
                   />
                 </label>
                 <label className="grid gap-1 text-sm">
-                  Subject
+                  {t("sales_support.support.subject")}
                   <input
                     className="h-10 rounded-md border bg-background px-3"
                     name="subject"
@@ -186,7 +216,7 @@ export function SupportWorkspace() {
                   />
                 </label>
                 <label className="grid gap-1 text-sm">
-                  Category
+                  {t("sales_support.support.category")}
                   <input
                     className="h-10 rounded-md border bg-background px-3"
                     name="category"
@@ -196,7 +226,7 @@ export function SupportWorkspace() {
                   />
                 </label>
                 <label className="grid gap-1 text-sm">
-                  Priority
+                  {t("sales_support.support.priority")}
                   <select
                     className="h-10 rounded-md border bg-background px-3"
                     name="priority"
@@ -211,13 +241,13 @@ export function SupportWorkspace() {
                 </label>
                 {data.isManager && (
                   <label className="grid gap-1 text-sm">
-                    Assign to (optional)
+                    {t("sales_support.support.assign_optional")}
                     <select
                       className="h-10 rounded-md border bg-background px-3"
                       name="assignedUserId"
                       defaultValue=""
                     >
-                      <option value="">Leave unassigned</option>
+                      <option value="">{t("sales_support.support.leave_unassigned")}</option>
                       {linkedSupport.map((member) => (
                         <option key={member.id} value={member.authUserId!}>
                           {member.fullName}
@@ -227,7 +257,7 @@ export function SupportWorkspace() {
                   </label>
                 )}
                 <label className="grid gap-1 text-sm md:col-span-2">
-                  Description
+                  {t("sales_support.support.description")}
                   <textarea
                     className="min-h-24 rounded-md border bg-background p-3"
                     name="description"
@@ -236,8 +266,7 @@ export function SupportWorkspace() {
                 </label>
                 {!data.isManager && !data.teamMemberId && (
                   <p className="text-sm text-amber-700 md:col-span-2" role="status">
-                    A manager must link this account to a Support team member before tickets can be
-                    created.
+                    {t("sales_support.support.link_account_first")}
                   </p>
                 )}
                 <button
@@ -245,7 +274,9 @@ export function SupportWorkspace() {
                   className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
                   disabled={createMutation.isPending || (!data.isManager && !data.teamMemberId)}
                 >
-                  {createMutation.isPending ? "Creating…" : "Create ticket"}
+                  {createMutation.isPending
+                    ? t("sales_support.support.creating")
+                    : t("sales_support.support.create_ticket")}
                 </button>
                 {createMutation.error && (
                   <p className="text-sm text-destructive md:col-span-2" role="alert">
@@ -257,7 +288,7 @@ export function SupportWorkspace() {
               <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                 <div className="space-y-2">
                   {data.tickets.length === 0 ? (
-                    <Empty>No tickets are assigned to this Support account.</Empty>
+                    <Empty>{t("sales_support.support.no_assigned_tickets")}</Empty>
                   ) : (
                     data.tickets.map((ticket) => (
                       <button
@@ -278,7 +309,7 @@ export function SupportWorkspace() {
                 <div className="min-h-48 rounded-lg border p-4">
                   {!selectedTicket ? (
                     <p className="text-sm text-muted-foreground" role="status">
-                      Select a ticket to view its replies.
+                      {t("sales_support.support.select_ticket")}
                     </p>
                   ) : (
                     <div className="space-y-4">
@@ -296,7 +327,7 @@ export function SupportWorkspace() {
                       </header>
                       {data.isManager && (
                         <label className="grid max-w-sm gap-1 text-sm">
-                          Assigned Support agent
+                          {t("sales_support.support.assigned_agent")}
                           <select
                             className="h-10 rounded-md border bg-background px-3"
                             value={
@@ -314,7 +345,7 @@ export function SupportWorkspace() {
                             }}
                           >
                             <option value="" disabled>
-                              Select a mapped Support agent
+                              {t("sales_support.support.select_agent")}
                             </option>
                             {linkedSupport.map((member) => (
                               <option key={member.id} value={member.authUserId!}>
@@ -325,10 +356,14 @@ export function SupportWorkspace() {
                         </label>
                       )}
                       <div className="space-y-2 border-t pt-3">
-                        <h4 className="text-sm font-medium">Reply history</h4>
+                        <h4 className="text-sm font-medium">
+                          {t("sales_support.support.reply_history")}
+                        </h4>
                         {data.replies.filter((reply) => reply.ticketId === selectedTicket.id)
                           .length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No replies recorded.</p>
+                          <p className="text-sm text-muted-foreground">
+                            {t("sales_support.support.no_replies")}
+                          </p>
                         ) : (
                           data.replies
                             .filter((reply) => reply.ticketId === selectedTicket.id)
@@ -347,7 +382,7 @@ export function SupportWorkspace() {
                         onSubmit={(event) => submitReply(event, selectedTicket.id)}
                       >
                         <label className="grid gap-1 text-sm">
-                          Reply
+                          {t("sales_support.support.reply")}
                           <textarea
                             className="min-h-20 rounded-md border bg-background p-3"
                             name="body"
@@ -360,7 +395,9 @@ export function SupportWorkspace() {
                           className="h-10 justify-self-start rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
                           disabled={replyMutation.isPending}
                         >
-                          {replyMutation.isPending ? "Sending…" : "Send reply"}
+                          {replyMutation.isPending
+                            ? t("sales_support.support.sending")
+                            : t("sales_support.support.send_reply")}
                         </button>
                       </form>
                       {replyMutation.error && (
@@ -382,30 +419,32 @@ export function SupportWorkspace() {
 
           {tab === "knowledge" && (
             <section className="space-y-3 rounded-lg border p-6">
-              <h2 className="text-xl font-semibold">Knowledge base</h2>
+              <h2 className="text-xl font-semibold">
+                {t("sales_support.support.knowledge_base")}
+              </h2>
               <p className="text-sm text-muted-foreground">
-                Open the existing Solution Wiki workspace.
+                {t("sales_support.support.open_wiki")}
               </p>
               <a
                 className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
                 href="/support?section=wiki"
               >
-                Open Solution Wiki
+                {t("sales_support.support.open_solution_wiki")}
               </a>
             </section>
           )}
 
           {tab === "chat" && (
             <section className="space-y-3 rounded-lg border p-6">
-              <h2 className="text-xl font-semibold">Support chat</h2>
+              <h2 className="text-xl font-semibold">{t("sales_support.support.chat")}</h2>
               <p className="text-sm text-muted-foreground">
-                Open the existing authenticated Chat Manager.
+                {t("sales_support.support.open_chat_manager")}
               </p>
               <a
                 className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
                 href="/chat-manager"
               >
-                Open Chat Manager
+                {t("sales_support.support.open_chat")}
               </a>
             </section>
           )}
@@ -413,17 +452,16 @@ export function SupportWorkspace() {
           {tab === "team" && data.isManager && (
             <section className="space-y-4">
               <h2 className="text-xl font-semibold">
-                Link existing Support staff records to authenticated accounts
+                {t("sales_support.support.link_records")}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Unlinked ticket assignments stay manager-only until a manager links a real Support
-                account.
+                {t("sales_support.support.unlinked_manager_only")}
               </p>
               {data.team.filter(
                 (member) =>
                   !member.authUserId && member.department.toLowerCase().includes("support"),
               ).length === 0 ? (
-                <Empty>All Support team records are linked.</Empty>
+                <Empty>{t("sales_support.support.all_linked")}</Empty>
               ) : (
                 data.team
                   .filter(
@@ -457,7 +495,7 @@ export function SupportWorkspace() {
                           defaultValue=""
                         >
                           <option value="" disabled>
-                            Select a Support account
+                            {t("sales_support.support.select_account")}
                           </option>
                           {options.map((account) => (
                             <option key={account.id} value={account.id}>
@@ -471,7 +509,7 @@ export function SupportWorkspace() {
                           className="h-10 rounded-md border px-4 text-sm disabled:opacity-50"
                           disabled={linkMutation.isPending || options.length === 0}
                         >
-                          Link account
+                          {t("sales_support.support.link_account")}
                         </button>
                       </form>
                     );
