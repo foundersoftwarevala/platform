@@ -87,7 +87,14 @@ export function ChatWorkspace() {
     if (!sessionLoading && !userId) window.location.assign("/login?redirect=%2Fchat");
   }, [sessionLoading, userId]);
 
-  const conversationsQuery = useConversations(userId, hasChatConsent);
+  const onIncoming = useCallback(() => playCue("incoming", prefs.sound), [prefs.sound]);
+  const { connection } = useConversationRealtime({
+    conversationId: hasChatConsent ? activeId : null,
+    userId: hasChatConsent ? userId : null,
+    onIncomingMessage: onIncoming,
+  });
+
+  const conversationsQuery = useConversations(userId, hasChatConsent, connection);
   const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
 
   useEffect(() => {
@@ -106,7 +113,7 @@ export function ChatWorkspace() {
   }, [activeId, conversations]);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
-  const messagesQuery = useMessages(activeId, userId, hasChatConsent);
+  const messagesQuery = useMessages(activeId, userId, hasChatConsent, connection);
   const messages = useMemo(
     () =>
       (messagesQuery.data?.pages.flatMap((page) => page.messages) ?? []).sort(
@@ -134,13 +141,6 @@ export function ChatWorkspace() {
   );
 
   const shownName = myProfile?.display_name ?? t("chat.member");
-  const onIncoming = useCallback(() => playCue("incoming", prefs.sound), [prefs.sound]);
-  const { connection } = useConversationRealtime({
-    conversationId: hasChatConsent ? activeId : null,
-    userId,
-    onIncomingMessage: onIncoming,
-  });
-
   const { pending, uploads, queueFiles, cancelUpload, send, retry, discard } = useSendMessage(
     activeId,
     userId,

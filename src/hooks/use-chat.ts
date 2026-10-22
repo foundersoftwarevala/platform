@@ -14,15 +14,25 @@ import {
 import { uploadToSignedPath } from "@/services/chat/upload";
 import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import {
+  CHAT_CONVERSATION_FALLBACK_POLL_MS,
+  CHAT_MESSAGE_FALLBACK_POLL_MS,
+  chatFallbackRefetchInterval,
+  type ChatConnectionState,
+} from "@/services/chat/connection-policy";
+import {
   mediaKindFor,
   type ChatMessage,
   type ChatMessageCursor,
   type DraftAttachment,
 } from "@/services/chat/types";
 
-export type ConnectionState = "connecting" | "live" | "reconnecting" | "offline";
+export type ConnectionState = ChatConnectionState;
 
-export function useConversations(userId: string | null, enabled = true) {
+export function useConversations(
+  userId: string | null,
+  enabled = true,
+  connection: ConnectionState = "connecting",
+) {
   const queryClient = useQueryClient();
   // The conversation list follows chat changes live. They arrive on the
   // platform's notification stream: the /realtime socket below goes to the
@@ -40,6 +50,12 @@ export function useConversations(userId: string | null, enabled = true) {
     queryKey: ["conversations", userId],
     enabled: !!userId && enabled,
     queryFn: () => fetchConversations(userId!),
+    refetchInterval: chatFallbackRefetchInterval(
+      !!userId && enabled,
+      connection,
+      CHAT_CONVERSATION_FALLBACK_POLL_MS,
+    ),
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -49,6 +65,7 @@ export function useMessages(
   conversationId: string | null,
   userId: string | null,
   enabled = true,
+  connection: ConnectionState = "connecting",
 ) {
   return useInfiniteQuery({
     queryKey: ["messages", conversationId],
@@ -56,6 +73,12 @@ export function useMessages(
     initialPageParam: null as ChatMessageCursor | null,
     queryFn: ({ pageParam }) => fetchMessages(conversationId!, userId!, pageParam, MESSAGE_PAGE),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    refetchInterval: chatFallbackRefetchInterval(
+      !!conversationId && !!userId && enabled,
+      connection,
+      CHAT_MESSAGE_FALLBACK_POLL_MS,
+    ),
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -68,15 +91,23 @@ export function useConversationRealtime(options: {
   const { conversationId, userId, onIncomingMessage } = options;
   const queryClient = useQueryClient();
   const [connection, setConnection] = useState<ConnectionState>("connecting");
+  const conversationRef = useRef(conversationId);
+  conversationRef.current = conversationId;
   const incomingRef = useRef(onIncomingMessage);
   incomingRef.current = onIncomingMessage;
 
   useEffect(() => {
-    if (!conversationId || !userId) return;
+    if (!userId) {
+      setConnection("offline");
+      return;
+    }
     setConnection("connecting");
 
     const refresh = () => {
-      void queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      const currentConversationId = conversationRef.current;
+      if (currentConversationId) {
+        void queryClient.invalidateQueries({ queryKey: ["messages", currentConversationId] });
+      }
       void queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
     };
 
@@ -99,17 +130,21 @@ export function useConversationRealtime(options: {
       }
       if (
         e.type !== "notification" ||
-        e.conversation_id !== conversationId ||
         !e.event?.startsWith("chat.")
       )
         return;
-      if (e.event === "chat.message" && e.sender_id && e.sender_id !== userId)
-        incomingRef.current?.(e.sender_id);
-      refresh();
+      const currentConversationId = conversationRef.current;
+      if (currentConversationId && e.conversation_id === currentConversationId) {
+        if (e.event === "chat.message" && e.sender_id && e.sender_id !== userId) {
+          incomingRef.current?.(e.sender_id);
+        }
+        void queryClient.invalidateQueries({ queryKey: ["messages", currentConversationId] });
+      }
+      void queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
     });
 
     return unsubscribe;
-  }, [conversationId, userId, queryClient]);
+  }, [userId, queryClient]);
 
   return { connection };
 }

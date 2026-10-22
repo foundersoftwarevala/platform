@@ -4,6 +4,7 @@ import { chatFileRejection } from "./file-policy";
 describe("chat file policy", () => {
   it("rejects executable names even if the browser reports a document MIME type", () => {
     expect(chatFileRejection("invoice.exe", "application/pdf")).toContain("Executable");
+    expect(chatFileRejection("script.js", "text/plain")).toContain("Executable");
     expect(chatFileRejection("script.PS1", "text/plain")).toContain("Executable");
   });
 
