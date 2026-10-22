@@ -22,6 +22,8 @@ import { AMSessionLogs } from './screens/AMSessionLogs';
 import { AMAIAssistLayer } from './screens/AMAIAssistLayer';
 import { AMEmergencyStop } from './screens/AMEmergencyStop';
 import { AMSettings } from './screens/AMSettings';
+import { ClientConsent } from './screens/ClientConsent';
+import { AssistRealtimeProvider } from './AssistRealtimeProvider';
 import { Activity, Menu, ShieldCheck } from 'lucide-react';
 
 function AMShell() {
@@ -118,7 +120,10 @@ function AMShell() {
 export function AMFullLayout() {
   return (
     <AMProvider>
-      <AMShell />
+      <AssistRealtimeProvider>
+        <AMShell />
+        <ClientConsent />
+      </AssistRealtimeProvider>
     </AMProvider>
   );
 }

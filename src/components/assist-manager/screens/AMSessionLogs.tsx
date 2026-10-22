@@ -1,61 +1,88 @@
-/**
- * SESSION LOGS
- * Read-only audit trail sourced from assist_sessions (finished sessions are immutable).
- */
-
 import { useMemo, useState } from "react";
-import { Brain, Clock, FileText, Lock, Search, Shield, User } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { FileText, Lock, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useSessions } from "@/lib/assist-manager/hooks";
-import {
-  CodeChip,
-  EmptyState,
-  LoadingBlock,
-  ScreenHeader,
-  StatusPill,
-  formatClock,
-  formatDuration,
-  titleCase,
-} from "../am-ui";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAssistLogs, useSessions } from "@/lib/assist-manager/hooks";
+import { EmptyState, LoadingBlock, ScreenHeader } from "../am-ui";
+
+type AuditViewRow = {
+  id: string;
+  sessionId: string | null;
+  action: string;
+  actorId: string | null;
+  createdAt: string;
+  source: "assist_logs" | "assist_audit_logs" | "audit_logs";
+  details: unknown;
+};
 
 export function AMSessionLogs() {
-  const { data: sessions = [], isLoading } = useSessions();
+  const logs = useAssistLogs();
+  const sessions = useSessions();
   const [term, setTerm] = useState("");
 
-  const logs = useMemo(() => {
-    const finished = sessions.filter(
-      (s) => s.status === "completed" || s.status === "terminated" || s.status === "blocked",
-    );
-    const q = term.trim().toLowerCase();
-    if (!q) return finished;
-    return finished.filter((s) =>
+  const records = useMemo<AuditViewRow[]>(() => {
+    if (!logs.data) return [];
+    const rows: AuditViewRow[] = [
+      ...logs.data.events.map((event) => ({
+        id: `assist:${event.id}`,
+        sessionId: event.session_id,
+        action: event.action,
+        actorId: event.actor_user_id,
+        createdAt: event.created_at,
+        source: "assist_logs" as const,
+        details: event.details,
+      })),
+      ...logs.data.audit.map((event) => ({
+        id: `module:${event.id}`,
+        sessionId: event.session_id,
+        action: event.action,
+        actorId: event.actor_user_id,
+        createdAt: event.created_at,
+        source: "assist_audit_logs" as const,
+        details: { before: event.old_state, after: event.new_state },
+      })),
+      ...logs.data.platformAudit.map((event) => ({
+        id: `platform:${event.id}`,
+        sessionId: event.entity_type === "assist_sessions" ? event.entity_id : null,
+        action: event.action,
+        actorId: event.actor_id,
+        createdAt: event.created_at,
+        source: "audit_logs" as const,
+        details: { before: event.before_state, after: event.after_state },
+      })),
+    ];
+    const query = term.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) =>
       [
-        s.session_code,
-        s.end_user?.user_code ?? "",
-        s.agent?.agent_code ?? "",
-        s.purpose ?? "",
-        s.end_reason ?? "",
-        formatClock(s.started_at),
+        row.action,
+        row.actorId ?? "",
+        row.sessionId ?? "",
+        row.source,
+        JSON.stringify(row.details),
       ]
         .join(" ")
         .toLowerCase()
-        .includes(q),
+        .includes(query),
     );
-  }, [sessions, term]);
+  }, [logs.data, term]);
+  const sessionCodes = useMemo(
+    () => new Map((sessions.data ?? []).map((session) => [session.id, session.session_code])),
+    [sessions.data],
+  );
 
   return (
     <ScrollArea className="h-full">
       <div className="space-y-6 p-6">
         <ScreenHeader
           title="Session Logs"
-          subtitle="Read-only audit trail of all completed sessions"
+          subtitle="Append-only events from Assist and platform audit records"
           actions={
             <Badge variant="secondary" className="gap-1">
               <Lock className="h-3 w-3" />
-              No Edit • No Delete
+              Read only
             </Badge>
           }
         />
@@ -64,119 +91,59 @@ export function AMSessionLogs() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={term}
-            onChange={(e) => setTerm(e.target.value)}
-            placeholder="Search logs by session code, user, agent or reason..."
+            onChange={(event) => setTerm(event.target.value)}
+            placeholder="Search event, actor, session or source..."
             className="pl-10"
           />
         </div>
 
-        {isLoading ? (
+        {logs.isLoading || sessions.isLoading ? (
           <LoadingBlock rows={3} />
-        ) : logs.length === 0 ? (
+        ) : logs.isError || sessions.isError ? (
+          <Card>
+            <CardContent className="p-5 text-sm text-destructive" role="alert">
+              {logs.error instanceof Error
+                ? logs.error.message
+                : sessions.error instanceof Error
+                  ? sessions.error.message
+                  : "Audit records could not be loaded."}
+            </CardContent>
+          </Card>
+        ) : records.length === 0 ? (
           <EmptyState
-            title="No archived sessions"
-            description="Completed and terminated sessions appear here as immutable records."
+            title="No audit events"
+            description="No Assist or platform audit records match this view."
           />
         ) : (
-          <div className="space-y-4">
-            {logs.map((log) => (
-              <Card key={log.id}>
-                <CardContent className="p-4">
-                  <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        <FileText className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="code-chip font-medium">{log.session_code}</span>
-                          <StatusPill status={log.status} />
-                          {log.ai_involved && (
-                            <Badge variant="secondary" className="gap-1">
-                              <Brain className="h-3 w-3" />
-                              AI
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {log.purpose ?? titleCase(log.assist_type)}
-                        </p>
-                      </div>
+          <div className="space-y-3">
+            {records.map((record) => (
+              <Card key={record.id}>
+                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      <span className="font-medium">{record.action}</span>
+                      <Badge variant="outline">{record.source}</Badge>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium tabular-nums">
-                        {formatDuration(log.started_at, log.ended_at)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Duration</p>
-                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Session:{" "}
+                      {record.sessionId
+                        ? sessionCodes.get(record.sessionId) ?? record.sessionId
+                        : "not attached"}
+                      {" · "}Actor: {record.actorId ?? "system / unavailable"}
+                    </p>
+                    <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 text-xs">
+                      {JSON.stringify(record.details, null, 2)}
+                    </pre>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
-                    <div>
-                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <User className="h-3 w-3" /> Participants
-                      </p>
-                      <div className="mt-1 space-y-1">
-                        <p className="code-chip text-xs">{log.end_user?.user_code ?? "—"}</p>
-                        <p className="code-chip text-xs">{log.agent?.agent_code ?? "—"}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" /> Start Time
-                      </p>
-                      <p className="mt-1 text-xs">{formatClock(log.started_at)}</p>
-                    </div>
-                    <div>
-                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" /> End Time
-                      </p>
-                      <p className="mt-1 text-xs">{formatClock(log.ended_at)}</p>
-                    </div>
-                    <div>
-                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Shield className="h-3 w-3" /> Permissions
-                      </p>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {log.permissions.map((p) => (
-                          <Badge key={p} variant="outline" className="text-xs">
-                            {titleCase(p)}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
-                    <span>
-                      {log.actions_count} actions recorded
-                      {log.end_reason ? ` • ${log.end_reason}` : ""}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Lock className="h-3 w-3" />
-                      Immutable record <CodeChip>{log.risk_level}</CodeChip>
-                    </span>
-                  </div>
+                  <time className="shrink-0 text-xs text-muted-foreground">
+                    {new Date(record.createdAt).toLocaleString()}
+                  </time>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
-
-        <Card className="border-info/40 bg-info/5">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Lock className="mt-0.5 h-5 w-5 text-info" />
-              <div>
-                <p className="text-sm font-medium text-info">Audit Integrity</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Finished sessions are locked by database policy — they cannot be edited or
-                  deleted, guaranteeing a complete audit trail for security and compliance.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </ScrollArea>
   );

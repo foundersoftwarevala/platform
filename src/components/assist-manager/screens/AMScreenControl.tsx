@@ -21,12 +21,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
   useAccessModes,
+  useSetControlAllowed,
   useUpdateAccessMode,
   useUpdateControlState,
 } from "@/lib/assist-manager/hooks";
 import type { ControlMode } from "@/lib/assist-manager/types";
 import { CodeChip, EmptyState, LoadingBlock, ScreenHeader, iconFor } from "../am-ui";
 import { SessionPicker, useActiveSession } from "../am-session";
+import { useAssistRealtime } from "../assist-realtime-context";
 
 const MODES: {
   key: ControlMode;
@@ -60,6 +62,15 @@ export function AMScreenControl() {
   const { data: accessModes = [] } = useAccessModes();
   const updateControl = useUpdateControlState();
   const updateAccessMode = useUpdateAccessMode();
+  const setControlAllowed = useSetControlAllowed();
+  const {
+    isTarget,
+    isConnected,
+    localStream,
+    remoteStream,
+    lastControlIntent,
+    sendControlIntent,
+  } = useAssistRealtime();
 
   if (isLoading) {
     return (
@@ -87,6 +98,7 @@ export function AMScreenControl() {
     { key: "window_specific" as const, label: "Window-Specific Access", icon: Maximize },
     { key: "resolution_lock" as const, label: "Resolution Lock", icon: Lock },
   ];
+  const maskedStreamAvailable = Boolean(isTarget ? localStream : remoteStream);
 
   return (
     <ScrollArea className="h-full">
@@ -96,6 +108,32 @@ export function AMScreenControl() {
           subtitle="Remote control permissions and access modes"
           actions={<SessionPicker sessions={sessions} value={session.id} />}
         />
+
+        {isTarget && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Allow Control</CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium">Allow control requests over DataChannel</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  You can revoke this at any time. Browser-only control requests do not operate
+                  your mouse or keyboard; operating-system control requires a separately installed
+                  native agent.
+                </p>
+              </div>
+              <Switch
+                checked={Boolean(session.control_consent_at)}
+                disabled={setControlAllowed.isPending || !["active", "paused"].includes(session.status)}
+                onCheckedChange={(allowed) =>
+                  setControlAllowed.mutate({ sessionId: session.id, allowed })
+                }
+                aria-label="Allow remote control requests"
+              />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -109,11 +147,25 @@ export function AMScreenControl() {
                 <button
                   key={mode.key}
                   type="button"
+                  disabled={isTarget || updateControl.isPending || (mode.key === "control" && !session.control_consent_at)}
                   onClick={() =>
-                    updateControl.mutate({
-                      sessionId: session.id,
-                      patch: { control_mode: mode.key, is_paused: mode.key === "pause" },
-                    })
+                    updateControl.mutate(
+                      {
+                        sessionId: session.id,
+                        patch: { control_mode: mode.key, is_paused: mode.key === "pause" },
+                      },
+                      {
+                        onSuccess: () => {
+                          try {
+                            sendControlIntent({ kind: "mode", mode: mode.key });
+                          } catch (controlError) {
+                            if (mode.key !== "view" && mode.key !== "pause" && mode.key !== "freeze") {
+                              console.error("[assist-control] could not send DataChannel intent", controlError);
+                            }
+                          }
+                        },
+                      },
+                    )
                   }
                   className={cn(
                     "rounded-lg border p-4 text-center transition-colors",
@@ -130,7 +182,7 @@ export function AMScreenControl() {
             })}
             <button
               type="button"
-              disabled={!control?.is_paused || updateControl.isPending}
+              disabled={isTarget || !control?.is_paused || updateControl.isPending}
               onClick={() =>
                 updateControl.mutate({
                   sessionId: session.id,
@@ -161,7 +213,7 @@ export function AMScreenControl() {
             <div
               className={cn(
                 "rounded-lg border p-3",
-                control?.window_specific
+                maskedStreamAvailable
                   ? "border-success/30 bg-success/10"
                   : "border-warning/30 bg-warning/10",
               )}
@@ -169,15 +221,15 @@ export function AMScreenControl() {
               <p
                 className={cn(
                   "text-sm font-medium",
-                  control?.window_specific ? "text-success" : "text-warning",
+                  maskedStreamAvailable ? "text-success" : "text-warning",
                 )}
               >
-                {control?.window_specific ? "NO FULL SYSTEM ACCESS" : "FULL DESKTOP VISIBLE"}
+                {maskedStreamAvailable ? "MASKED WINDOW STREAM" : "NO WINDOW STREAM"}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {control?.window_specific
-                  ? "Window-specific access only"
-                  : "Enable window-specific access to restrict the view"}
+                {maskedStreamAvailable
+                  ? "The peer connection is receiving only the application-provided blue-mask stream."
+                  : "The database control flag alone does not verify that a stream is being shared."}
               </p>
             </div>
             <div className="rounded-lg border border-warning/30 bg-warning/10 p-3">
@@ -228,8 +280,30 @@ export function AMScreenControl() {
                     </span>
                     <Switch
                       checked={Boolean(control?.[t.key])}
+                      disabled={
+                        isTarget ||
+                        updateControl.isPending ||
+                        ((t.key === "cursor_control" || t.key === "keyboard_control") &&
+                          !session.control_consent_at)
+                      }
                       onCheckedChange={(v) =>
-                        updateControl.mutate({ sessionId: session.id, patch: { [t.key]: v } })
+                        updateControl.mutate(
+                          { sessionId: session.id, patch: { [t.key]: v } },
+                          {
+                            onSuccess: () => {
+                              if (t.key === "cursor_control" || t.key === "keyboard_control") {
+                                try {
+                                  sendControlIntent({
+                                    kind: t.key === "cursor_control" ? "cursor" : "keyboard",
+                                    enabled: v,
+                                  });
+                                } catch (controlError) {
+                                  console.error("[assist-control] could not send DataChannel intent", controlError);
+                                }
+                              }
+                            },
+                          },
+                        )
                       }
                     />
                   </div>
@@ -259,6 +333,7 @@ export function AMScreenControl() {
                     </div>
                     <Switch
                       checked={mode.is_active}
+                      disabled={isTarget || updateAccessMode.isPending}
                       onCheckedChange={(v) => updateAccessMode.mutate({ id: mode.id, isActive: v })}
                     />
                   </div>
@@ -268,6 +343,12 @@ export function AMScreenControl() {
           </Card>
         </div>
 
+        <p className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-muted-foreground">
+          {isConnected
+            ? "DataChannel is connected. Control intents are advisory only; this browser implementation does not inject operating-system mouse or keyboard input."
+            : "A browser DataChannel can carry control intents, but cannot operate the target operating system without a separately installed native agent."}
+        </p>
+
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -275,19 +356,32 @@ export function AMScreenControl() {
               <CodeChip>{session.resolution}</CodeChip>
               <CodeChip>{session.frame_rate} fps</CodeChip>
               <CodeChip>{control?.control_mode ?? "view"} mode</CodeChip>
+              {lastControlIntent && <CodeChip>last intent: {lastControlIntent}</CodeChip>}
             </div>
             <Button
               variant="destructive"
               size="sm"
+              disabled={isTarget || updateControl.isPending}
               onClick={() =>
-                updateControl.mutate({
-                  sessionId: session.id,
-                  patch: {
-                    control_mode: "view",
-                    cursor_control: false,
-                    keyboard_control: false,
+                updateControl.mutate(
+                  {
+                    sessionId: session.id,
+                    patch: {
+                      control_mode: "view",
+                      cursor_control: false,
+                      keyboard_control: false,
+                    },
                   },
-                })
+                  {
+                    onSuccess: () => {
+                      try {
+                        sendControlIntent({ kind: "mode", mode: "view" });
+                      } catch (controlError) {
+                        console.error("[assist-control] could not send DataChannel revoke", controlError);
+                      }
+                    },
+                  },
+                )
               }
             >
               Revoke control

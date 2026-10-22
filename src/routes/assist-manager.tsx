@@ -86,7 +86,19 @@ export const Route = createFileRoute("/assist-manager")({
 
 function AssistManagerRoute() {
   return (
-    <RequireRole role={["support", "developer", "sales"]}>
+    <RequireRole
+      role={[
+        "support",
+        "developer",
+        "sales",
+        "sales_support_manager",
+        "admin",
+        "boss",
+        "founder",
+        "super_admin",
+        "boss_owner",
+      ]}
+    >
       <div className="creator-theme min-h-screen">
         <AMFullLayout />
         <Toaster richColors position="bottom-right" />

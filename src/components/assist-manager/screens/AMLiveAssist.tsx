@@ -17,6 +17,7 @@ import {
   Square,
   Keyboard,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,14 +40,37 @@ import {
 } from "../am-ui";
 import { SessionPicker, useActiveSession } from "../am-session";
 import { useAM } from "../am-context";
+import { useAssistRealtime } from "../assist-realtime-context";
 
 export function AMLiveAssist() {
   const { sessions, session, control, isLoading } = useActiveSession();
+  const {
+    isTarget,
+    isConnected,
+    connectionState,
+    error,
+    localStream,
+    remoteStream,
+    startMaskedCapture,
+    connectViewer,
+    stopConnection,
+    sendControlIntent,
+  } = useAssistRealtime();
+  const videoRef = useRef<HTMLVideoElement>(null);
   const { data: windows = [] } = useSessionWindows(session?.id);
   const pauseResume = usePauseResume();
   const endSession = useEndSession();
   const updateControl = useUpdateControlState();
   const { setSection } = useAM();
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.srcObject = isTarget ? localStream : remoteStream;
+    if (video.srcObject) void video.play().catch((playError: unknown) => {
+      console.error("[assist-live] video playback was blocked", playError);
+    });
+  }, [isTarget, localStream, remoteStream]);
 
   if (isLoading) {
     return (
@@ -69,7 +93,7 @@ export function AMLiveAssist() {
   }
 
   const visibleWindow =
-    windows.find((w) => w.is_visible)?.title ?? session.end_user?.active_window ?? "Full desktop";
+    windows.find((w) => w.is_visible)?.title ?? session.end_user?.active_window ?? "Window share not started";
 
   return (
     <ScrollArea className="h-full">
@@ -86,21 +110,54 @@ export function AMLiveAssist() {
         />
 
         <Card className="overflow-hidden">
-          <div className="relative flex aspect-video items-center justify-center bg-muted/40 panel-grid">
-            <div className="text-center">
-              <Monitor className="mx-auto mb-3 h-14 w-14 text-primary" />
-              <p className="font-medium">{visibleWindow}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {session.resolution} · {session.frame_rate} fps · {session.latency_ms} ms latency
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Stream renders here once the assist relay is connected.
-              </p>
-            </div>
+          <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-muted/40 panel-grid">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted={isTarget}
+              className={localStream || remoteStream ? "h-full w-full object-contain" : "hidden"}
+              aria-label={isTarget ? "Privacy-masked local window preview" : "Remote masked window"}
+            />
+            {!localStream && !remoteStream && (
+              <div className="max-w-md text-center">
+                <Monitor className="mx-auto mb-3 h-14 w-14 text-primary" />
+                <p className="font-medium">{visibleWindow}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {isTarget
+                    ? "Only a browser-confirmed window is captured and sent through the blue mask."
+                    : "The remote view appears after the target starts masked window sharing."}
+                </p>
+                <Button
+                  className="mt-4"
+                  disabled={connectionState === "connecting"}
+                  onClick={() => {
+                    const connect = isTarget ? startMaskedCapture : connectViewer;
+                    void connect().catch((connectError: unknown) => {
+                      const message =
+                        connectError instanceof Error ? connectError.message : "Assist connection failed.";
+                      toast.error(message);
+                    });
+                  }}
+                >
+                  {connectionState === "connecting"
+                    ? "Connecting…"
+                    : isTarget
+                      ? "Start masked window sharing"
+                      : "Connect to target"}
+                </Button>
+                {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
+              </div>
+            )}
             <div className="absolute left-4 top-4 flex flex-wrap gap-2">
               <CodeChip>{ACCESS_MODE_LABEL[session.access_mode] ?? session.access_mode}</CodeChip>
               <RiskPill risk={session.risk_level} />
             </div>
+            {isConnected && (
+              <div className="absolute bottom-4 left-4 rounded-full bg-background/90 px-3 py-1 text-xs text-success">
+                Secure peer connection active
+              </div>
+            )}
             <div className="absolute right-4 top-4">
               <Button size="sm" variant="secondary" onClick={() => setSection("screen_control")}>
                 <Maximize2 className="mr-1 h-4 w-4" />
@@ -114,9 +171,8 @@ export function AMLiveAssist() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() =>
-                  pauseResume.mutate({ id: session.id, pause: session.status === "active" })
-                }
+                disabled={isTarget || pauseResume.isPending}
+                onClick={() => pauseResume.mutate({ id: session.id, pause: session.status === "active" })}
               >
                 {session.status === "active" ? (
                   <>
@@ -131,12 +187,20 @@ export function AMLiveAssist() {
               <Button
                 size="sm"
                 variant="outline"
+                disabled={isTarget || updateControl.isPending || !session.control_consent_at}
                 onClick={() =>
-                  session.id &&
-                  updateControl.mutate({
-                    sessionId: session.id,
-                    patch: { cursor_control: !control?.cursor_control },
-                  })
+                  updateControl.mutate(
+                    { sessionId: session.id, patch: { cursor_control: !control?.cursor_control } },
+                    {
+                      onSuccess: () => {
+                        try {
+                          sendControlIntent({ kind: "cursor", enabled: !control?.cursor_control });
+                        } catch (controlError) {
+                          toast.error(controlError instanceof Error ? controlError.message : "Control message failed.");
+                        }
+                      },
+                    },
+                  )
                 }
               >
                 <MousePointer className="mr-1 h-4 w-4" />
@@ -145,11 +209,20 @@ export function AMLiveAssist() {
               <Button
                 size="sm"
                 variant="outline"
+                disabled={isTarget || updateControl.isPending || !session.control_consent_at}
                 onClick={() =>
-                  updateControl.mutate({
-                    sessionId: session.id,
-                    patch: { keyboard_control: !control?.keyboard_control },
-                  })
+                  updateControl.mutate(
+                    { sessionId: session.id, patch: { keyboard_control: !control?.keyboard_control } },
+                    {
+                      onSuccess: () => {
+                        try {
+                          sendControlIntent({ kind: "keyboard", enabled: !control?.keyboard_control });
+                        } catch (controlError) {
+                          toast.error(controlError instanceof Error ? controlError.message : "Control message failed.");
+                        }
+                      },
+                    },
+                  )
                 }
               >
                 <Keyboard className="mr-1 h-4 w-4" />
@@ -171,15 +244,27 @@ export function AMLiveAssist() {
             <Button
               size="sm"
               variant="destructive"
-              onClick={() =>
-                endSession.mutate({ id: session.id, reason: "Ended by Assist Manager" })
-              }
+              onClick={() => {
+                void stopConnection().then(() =>
+                  endSession.mutate({ id: session.id, reason: "Ended by Assist Manager" }),
+                ).catch((stopError: unknown) => {
+                  toast.error(stopError instanceof Error ? stopError.message : "The Assist session could not be stopped.");
+                });
+              }}
             >
               <Square className="mr-1 h-4 w-4" />
               End Session
             </Button>
           </CardContent>
         </Card>
+
+        {!isTarget && session.control_consent_at && (
+          <p className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-muted-foreground">
+            Control intents travel over the WebRTC DataChannel. This browser implementation does not
+            inject mouse or keyboard input into the target operating system; that requires a separate
+            native agent.
+          </p>
+        )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Card>
