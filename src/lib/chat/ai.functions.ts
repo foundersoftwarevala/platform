@@ -4,6 +4,7 @@ import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 import { agentReply, type Turn } from "@/lib/chat/agent-turn.server";
 import { ensureLeadForConversation } from "@/lib/chat/links.server";
 import { withChatIdentity, withChatPlatformDatabase } from "@/lib/chat/manager-db.server";
+import { requireChatConsent } from "@/lib/chat/consent.server";
 
 /**
  * Each reply is a metered model call, and any participant could loop this
@@ -98,6 +99,7 @@ export const generateAiReply = createServerFn({ method: "POST" })
     const startedAt = Date.now();
 
     const conversation = await withChatIdentity(userId, async (tx) => {
+      await requireChatConsent(tx, userId);
       const [row] = await tx<AiConversation[]>`
         select c.id::text, c.subject, c.ai_enabled, c.status, c.department,
                c.created_by::text, public.has_permission(${userId}::uuid, 'message.send') as can_send
@@ -118,8 +120,9 @@ export const generateAiReply = createServerFn({ method: "POST" })
 
     const history = await withChatIdentity(
       userId,
-      (tx) =>
-        tx<AiHistoryMessage[]>`
+      async (tx) => {
+        await requireChatConsent(tx, userId);
+        return tx<AiHistoryMessage[]>`
         select m.sender_id::text,
                coalesce(corrected.corrected_body, m.body) as body, m.kind
           from public.messages m
@@ -132,7 +135,8 @@ export const generateAiReply = createServerFn({ method: "POST" })
            )
          order by m.created_at desc, m.id desc
          limit 24
-      `,
+      `
+      },
     );
     const botId = await getCanonicalBotId();
     await withChatPlatformDatabase(
@@ -286,6 +290,7 @@ export const setConversationAi = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { withChatIdentity } = await import("@/lib/chat/manager-db.server");
     return withChatIdentity(context.userId, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [authorization] = await tx<{ allowed: boolean }[]>`
         select (
           public.has_permission(${context.userId}::uuid, 'conversation.manage')
@@ -331,6 +336,7 @@ export const requestHumanHandoff = createServerFn({ method: "POST" })
     const { withChatIdentity } = await import("@/lib/chat/manager-db.server");
     try {
       await withChatIdentity(context.userId, async (tx) => {
+        await requireChatConsent(tx, context.userId);
         const [conversation] = await tx<{ id: string }[]>`
           select id::text
             from public.conversations

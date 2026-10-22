@@ -1,6 +1,21 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { Attachment, ChatMessage, ConversationSummary, Profile } from "@/services/chat/types";
+import {
+  readChatConsent,
+  recordChatConsent,
+  requireChatConsent,
+  type ChatConsentState,
+} from "@/lib/chat/consent.server";
+import type {
+  Attachment,
+  ChatMessage,
+  ChatMessageCursor,
+  ChatMessagePage,
+  ConversationSummary,
+  Profile,
+} from "@/services/chat/types";
+import { buildChatMessagePage } from "@/services/chat/cursor-pagination";
+import { chatFileRejection } from "@/services/chat/file-policy";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function requireUuid(value: string, label: string): void {
@@ -29,6 +44,22 @@ async function isChatManager(
   return row?.allowed === true;
 }
 
+export const getUserChatConsent = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<ChatConsentState> =>
+    chatDatabase(context, (tx) => readChatConsent(tx, context.userId)),
+  );
+
+export const setUserChatConsent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { granted: boolean }) => {
+    if (typeof input?.granted !== "boolean") throw new Error("A consent decision is required.");
+    return { granted: input.granted };
+  })
+  .handler(async ({ data, context }): Promise<ChatConsentState> =>
+    chatDatabase(context, (tx) => recordChatConsent(tx, context.userId, data.granted)),
+  );
+
 export const getUserChatProfiles = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { ids: string[] }) => {
@@ -42,6 +73,7 @@ export const getUserChatProfiles = createServerFn({ method: "GET" })
   .handler(async ({ data, context }): Promise<Profile[]> => {
     if (data.ids.length === 0) return [];
     return chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const rows = await tx<Profile[]>`
         select p.id::text, p.handle, p.display_name, p.job_title, p.avatar_path,
                p.presence, p.last_seen_at::text as last_seen_at
@@ -100,6 +132,7 @@ export const getUserChatConversations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ConversationSummary[]> =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [result] = await tx<{ conversations: unknown }[]>`
         with mine as (
           select conversation_id, user_id, role_label, favorite, muted, last_read_at
@@ -188,15 +221,37 @@ export const getUserChatConversations = createServerFn({ method: "GET" })
 
 export const getUserChatMessages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { conversationId: string; limit?: number }) => {
+  .inputValidator((input: {
+    conversationId: string;
+    limit?: number;
+    cursor?: ChatMessageCursor | null;
+  }) => {
     if (!input || !UUID.test(input.conversationId)) {
       throw new Error("A valid conversation identifier is required.");
     }
-    const limit = Math.max(1, Math.min(200, Math.floor(input.limit ?? 100)));
-    return { conversationId: input.conversationId, limit };
+    if (
+      input.limit !== undefined &&
+      (!Number.isSafeInteger(input.limit) || input.limit < 1)
+    ) {
+      throw new Error("Message page size must be a positive integer.");
+    }
+    const limit = Math.min(50, input.limit ?? 50);
+    const cursor = input.cursor ?? null;
+    if (cursor) {
+      if (typeof cursor !== "object") throw new Error("Invalid message cursor.");
+      requireUuid(cursor.id, "Message cursor identifier");
+      if (
+        typeof cursor.createdAt !== "string" ||
+        !Number.isFinite(Date.parse(cursor.createdAt))
+      ) {
+        throw new Error("A valid message cursor timestamp is required.");
+      }
+    }
+    return { conversationId: input.conversationId, limit, cursor };
   })
-  .handler(async ({ data, context }): Promise<ChatMessage[]> =>
+  .handler(async ({ data, context }): Promise<ChatMessagePage> =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [access] = await tx<{ allowed: boolean }[]>`
         select public.is_participant(${data.conversationId}::uuid, ${context.userId}::uuid)
             or public.has_permission(${context.userId}::uuid, 'chat.manage') as allowed
@@ -206,18 +261,25 @@ export const getUserChatMessages = createServerFn({ method: "GET" })
       // arrives as its correction, never as the original, and the moderator and
       // reason stay internal. Managers receive the original and the overlay.
       const manager = await isChatManager(tx, context.userId);
-      const [result] = await tx<{ messages: unknown }[]>`
+      const [result] = await tx<{ messages: ChatMessage[] | null }[]>`
         with page as (
           select m.*
             from public.messages m
            where m.conversation_id = ${data.conversationId}::uuid
-              and (public.has_permission(${context.userId}::uuid, 'chat.manage')
-                   or not exists (
-                     select 1 from public.chat_message_moderation mm
-                      where mm.message_id = m.id and mm.action = 'hidden'
-                   ))
+              and (
+                ${data.cursor === null}::boolean
+                or (m.created_at, m.id) < (
+                  ${data.cursor?.createdAt ?? null}::timestamptz,
+                  ${data.cursor?.id ?? null}::uuid
+                )
+              )
+               and (public.has_permission(${context.userId}::uuid, 'chat.manage')
+                    or not exists (
+                      select 1 from public.chat_message_moderation mm
+                       where mm.message_id = m.id and mm.action = 'hidden'
+                    ))
             order by m.created_at desc, m.id desc
-           limit ${data.limit}
+            limit ${data.limit + 1}
         )
         select coalesce(jsonb_agg(
           jsonb_build_object(
@@ -256,7 +318,8 @@ export const getUserChatMessages = createServerFn({ method: "GET" })
         ), '[]'::jsonb) as messages
           from page m
       `;
-      return (result?.messages ?? []) as ChatMessage[];
+      const all = result?.messages ?? [];
+      return buildChatMessagePage(all, data.limit);
     }),
   );
 
@@ -321,6 +384,7 @@ export const sendUserChatMessage = createServerFn({ method: "POST" })
       >
     > =>
       chatDatabase(context, async (tx) => {
+        await requireChatConsent(tx, context.userId);
         const [authorization] = await tx<{ participant: boolean; allowed: boolean }[]>`
         select public.is_participant(${data.conversationId}::uuid, ${context.userId}::uuid) as participant,
                public.has_permission(${context.userId}::uuid, 'message.send') as allowed
@@ -454,6 +518,9 @@ export const addUserChatAttachment = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<Attachment> =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
+      const rejection = chatFileRejection(data.fileName, data.mimeType);
+      if (rejection) throw new Error(rejection);
       const [allowed] = await tx<{ allowed: boolean }[]>`
         select public.has_permission(${context.userId}::uuid, 'attachment.upload')
            and public.is_participant(${data.conversationId}::uuid, ${context.userId}::uuid)
@@ -500,6 +567,7 @@ export const acknowledgeUserChatMessages = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       if (data.messageIds.length === 0) return;
       const [eligible] = await tx<{ count: number; allowed: boolean }[]>`
         select count(*)::int as count,
@@ -534,6 +602,7 @@ export const markUserChatConversationRead = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const updated = await tx`
         update public.conversation_participants
            set last_read_at = now()
@@ -554,6 +623,7 @@ export const updateUserChatReaction = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [allowed] = await tx<{ allowed: boolean }[]>`
         select public.has_permission(${context.userId}::uuid, 'message.react')
            and exists (select 1 from public.messages m
@@ -585,6 +655,7 @@ export const updateUserChatBookmark = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [allowed] = await tx<{ allowed: boolean }[]>`
         select public.has_permission(${context.userId}::uuid, 'message.bookmark')
            and exists (select 1 from public.messages m
@@ -618,6 +689,7 @@ export const updateUserChatMembership = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [membership] = await tx<{ conversation_id: string }[]>`
         update public.conversation_participants
            set favorite = coalesce(${data.favorite ?? null}, favorite),
@@ -640,6 +712,7 @@ export const searchUserChatMessages = createServerFn({ method: "GET" })
   })
   .handler(async ({ data, context }) =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [allowed] = await tx<{ allowed: boolean }[]>`
         select public.has_permission(${context.userId}::uuid, 'search.messages')
           and (${data.conversationId ?? null}::uuid is null or public.is_participant(
@@ -678,6 +751,7 @@ export const getUserChatSharedMedia = createServerFn({ method: "GET" })
   })
   .handler(async ({ data, context }): Promise<Attachment[]> =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [participant] = await tx<{ allowed: boolean }[]>`
         select public.is_participant(${data.conversationId}::uuid, ${context.userId}::uuid) as allowed
       `;
@@ -702,6 +776,7 @@ export const searchUserChatDirectory = createServerFn({ method: "GET" })
   }))
   .handler(async ({ data, context }): Promise<Profile[]> =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       // The directory is for people who choose participants. A customer never
       // does (the server opens their support conversation), so a customer
       // cannot list the platform's accounts.
@@ -738,6 +813,7 @@ export const updateUserChatPresence = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       await tx`update public.profiles
         set presence = ${data.presence}, last_seen_at = now()
         where id = ${context.userId}::uuid`;
@@ -773,6 +849,7 @@ export const createUserChatConversation = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) =>
     chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [authorization] = await tx<{ can_create: boolean; can_run: boolean }[]>`
         select public.has_permission(${context.userId}::uuid, 'conversation.create') as can_create,
                public.chat_can_run_conversations(${context.userId}::uuid) as can_run
@@ -810,12 +887,22 @@ export const createUserChatConversation = createServerFn({ method: "POST" })
 export const prepareUserChatUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (input: { conversationId: string; messageId: string; fileName: string; sizeBytes: number }) => {
+    (input: {
+      conversationId: string;
+      messageId: string;
+      fileName: string;
+      mimeType: string;
+      sizeBytes: number;
+    }) => {
       if (!input || !UUID.test(input.conversationId) || !UUID.test(input.messageId)) {
         throw new Error("A valid message and conversation are required.");
       }
       const fileName = (input.fileName ?? "").trim();
       if (!fileName || fileName.length > 255) throw new Error("Invalid file name.");
+      const mimeType = (input.mimeType ?? "").trim().toLowerCase();
+      if (!mimeType || mimeType.length > 128) throw new Error("A supported file type is required.");
+      const rejection = chatFileRejection(fileName, mimeType);
+      if (rejection) throw new Error(rejection);
       if (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 0) {
         throw new Error("Invalid file size.");
       }
@@ -823,6 +910,7 @@ export const prepareUserChatUpload = createServerFn({ method: "POST" })
         conversationId: input.conversationId,
         messageId: input.messageId,
         fileName,
+        mimeType,
         sizeBytes: input.sizeBytes,
       };
     },
@@ -833,6 +921,7 @@ export const prepareUserChatUpload = createServerFn({ method: "POST" })
       throw new Error("Files can be at most 25 MB.");
     }
     await chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [allowed] = await tx<{ allowed: boolean }[]>`
         select public.has_permission(${context.userId}::uuid, 'attachment.upload')
            and public.is_participant(${data.conversationId}::uuid, ${context.userId}::uuid)
@@ -860,6 +949,7 @@ export const getUserChatAttachmentUrl = createServerFn({ method: "GET" })
   })
   .handler(async ({ data, context }) => {
     const attachment = await chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [row] = await tx<
         { storage_path: string; file_name: string; can_read: boolean; can_download: boolean }[]
       >`
@@ -937,6 +1027,7 @@ export const translateUserChatMessages = createServerFn({ method: "POST" })
     if (!limited.ok) throw new Error(limited.error);
 
     const rows = await chatDatabase(context, async (tx) => {
+      await requireChatConsent(tx, context.userId);
       const [access] = await tx<{ allowed: boolean; manager: boolean }[]>`
         select public.is_participant(${data.conversationId}::uuid, ${context.userId}::uuid)
                or public.has_permission(${context.userId}::uuid, 'chat.manage') as allowed,

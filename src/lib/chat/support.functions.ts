@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { chatRateLimit } from "@/lib/chat/limits.server";
+import { requireChatConsent } from "@/lib/chat/consent.server";
 
 /**
  * Opens (or returns) the one Software Vala support conversation of the signed-in
@@ -27,6 +28,7 @@ export const openSupportConversation = createServerFn({ method: "POST" })
       return await withChatIdentity(
         userId,
         async (tx) => {
+          await requireChatConsent(tx, userId);
           const [allowed] = await tx<{ allowed: boolean }[]>`
             select public.has_permission(${userId}::uuid, 'message.send') as allowed
           `;

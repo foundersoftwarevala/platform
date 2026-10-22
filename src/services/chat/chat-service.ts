@@ -5,6 +5,7 @@ import {
   createUserChatConversation,
   getUserChatAttachmentUrl,
   getUserChatConversations,
+  getUserChatConsent,
   getUserChatMessages,
   getUserChatPermissions,
   getUserChatProfile,
@@ -15,6 +16,7 @@ import {
   searchUserChatDirectory,
   searchUserChatMessages,
   sendUserChatMessage,
+  setUserChatConsent,
   translateUserChatMessages,
   updateUserChatBookmark,
   updateUserChatMembership,
@@ -24,6 +26,8 @@ import {
   type ChatTranslation,
 } from "@/lib/chat/user-data.functions";
 import type { ChatMessage, ConversationSummary, MediaKind, Profile } from "./types";
+import type { ChatMessageCursor, ChatMessagePage } from "./types";
+import type { ChatConsentState } from "@/lib/chat/consent.server";
 import { storageUrl } from "./upload";
 
 /** Data-access layer for the user chat. Components never talk to the database directly. */
@@ -60,14 +64,23 @@ export async function fetchConversations(userId: string): Promise<ConversationSu
   return getUserChatConversations();
 }
 
-/** Latest `limit` messages, oldest first. Older history is loaded on request, never all at once. */
+export async function fetchMyChatConsent(): Promise<ChatConsentState> {
+  return getUserChatConsent();
+}
+
+export async function saveMyChatConsent(granted: boolean): Promise<ChatConsentState> {
+  return setUserChatConsent({ data: { granted } });
+}
+
+/** Fetch one indexed keyset page; older messages use the oldest row as cursor. */
 export async function fetchMessages(
   conversationId: string,
   userId: string,
-  limit = 100,
-): Promise<ChatMessage[]> {
+  cursor: ChatMessageCursor | null,
+  limit = 50,
+): Promise<ChatMessagePage> {
   void userId;
-  return getUserChatMessages({ data: { conversationId, limit } });
+  return getUserChatMessages({ data: { conversationId, limit, cursor } });
 }
 
 export async function insertMessage(input: {
@@ -193,6 +206,7 @@ export async function prepareUpload(input: {
   conversationId: string;
   messageId: string;
   fileName: string;
+  mimeType: string;
   sizeBytes: number;
 }): Promise<{ path: string; signedPath: string }> {
   return prepareUserChatUpload({ data: input });
