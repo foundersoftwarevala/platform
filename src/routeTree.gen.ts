@@ -284,6 +284,7 @@ import { Route as ApiApplicationsSubmitRouteImport } from './routes/api/applicat
 import { Route as ApiAuthorEarningsRouteImport } from './routes/api/author/earnings'
 import { Route as ApiAuthorProductsRouteImport } from './routes/api/author/products'
 import { Route as ApiControlPanelCockpitRouteImport } from './routes/api/control-panel/cockpit'
+import { Route as ApiAssistRecordingRouteImport } from './routes/api/assist/recording'
 import { Route as ApiControlPanelFeedRouteImport } from './routes/api/control-panel/feed'
 import { Route as ApiControlPanelPartnersRouteImport } from './routes/api/control-panel/partners'
 import { Route as ApiDemoAssignRouteImport } from './routes/api/demo/assign'
@@ -1795,6 +1796,11 @@ const ApiControlPanelPartnersRoute = ApiControlPanelPartnersRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDemoAssignRoute = ApiDemoAssignRouteImport.update({
+const ApiAssistRecordingRoute = ApiAssistRecordingRouteImport.update({
+  id: '/api/assist/recording',
+  path: '/api/assist/recording',
+  getParentRoute: () => rootRouteImport,
+} as any)
   id: '/api/demo/assign',
   path: '/api/demo/assign',
   getParentRoute: () => rootRouteImport,
@@ -2633,6 +2639,7 @@ export interface FileRoutesByFullPath {
   '/api/partner/quote': typeof ApiPartnerQuoteRoute
   '/api/payment/initiate': typeof ApiPaymentInitiateRoute
   '/api/payment/status': typeof ApiPaymentStatusRoute
+  '/api/assist/recording': typeof ApiAssistRecordingRoute
   '/api/payment/webhook': typeof ApiPaymentWebhookRoute
   '/api/qr/$code': typeof ApiQrCodeRoute
   '/api/reseller/referral': typeof ApiResellerReferralRoute
@@ -3008,6 +3015,7 @@ export interface FileRoutesByTo {
   '/api/seo/console': typeof ApiSeoConsoleRoute
   '/api/seo/generate-tags': typeof ApiSeoGenerateTagsRoute
   '/api/seo/score': typeof ApiSeoScoreRoute
+  '/api/assist/recording': typeof ApiAssistRecordingRoute
   '/api/seo/search-performance': typeof ApiSeoSearchPerformanceRoute
   '/api/track/ref': typeof ApiTrackRefRoute
   '/api/vala-ai/$': typeof ApiValaAiSplatRoute
@@ -3395,6 +3403,7 @@ export interface FileRoutesById {
   '/vala-ai/projects/$projectId': typeof ValaAiProjectsProjectIdRoute
   '/vala-ai/tasks/$taskId': typeof ValaAiTasksTaskIdRoute
   '/ai-ceo/agents/': typeof AiCeoAgentsIndexRoute
+  '/api/assist/recording': typeof ApiAssistRecordingRoute
   '/ai-ceo/tasks/': typeof AiCeoTasksIndexRoute
   '/ams/awards/': typeof AmsAwardsIndexRoute
   '/ams/collection/': typeof AmsCollectionIndexRoute
@@ -3783,6 +3792,7 @@ export interface FileRouteTypes {
     | '/vala-ai/projects/'
     | '/ams/awards/$id/edit'
     | '/ams/awards/libraries/achievements'
+    | '/api/assist/recording'
     | '/ams/awards/libraries/badges'
     | '/ams/awards/libraries/ranks'
     | '/ams/awards/libraries/trophies'
@@ -4158,6 +4168,7 @@ export interface FileRouteTypes {
     | '/ams/awards/rules/xp'
     | '/api/account/invoice/$id'
     | '/api/orders/$id/fulfil'
+    | '/api/assist/recording'
     | '/api/proxy/demo/$'
     | '/api/qr/scan/$code'
   id:
@@ -4544,6 +4555,7 @@ export interface RootRouteChildren {
   AiApiManagerRoute: typeof AiApiManagerRoute
   AiCeoRoute: typeof AiCeoRouteWithChildren
   AmsRoute: typeof AmsRouteWithChildren
+    | '/api/assist/recording'
   AmsManagerRoute: typeof AmsManagerRoute
   ApplicationManagerRoute: typeof ApplicationManagerRoute
   AssistManagerRoute: typeof AssistManagerRoute
@@ -4760,6 +4772,7 @@ declare module '@tanstack/react-router' {
     '/ams-manager': {
       id: '/ams-manager'
       path: '/ams-manager'
+  ApiAssistRecordingRoute: typeof ApiAssistRecordingRoute
       fullPath: '/ams-manager'
       preLoaderRoute: typeof AmsManagerRouteImport
       parentRoute: typeof rootRouteImport
@@ -6781,6 +6794,13 @@ declare module '@tanstack/react-router' {
       parentRoute: typeof rootRouteImport
     }
     '/api/influencer/referral': {
+    '/api/assist/recording': {
+      id: '/api/assist/recording'
+      path: '/api/assist/recording'
+      fullPath: '/api/assist/recording'
+      preLoaderRoute: typeof ApiAssistRecordingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
       id: '/api/influencer/referral'
       path: '/api/influencer/referral'
       fullPath: '/api/influencer/referral'
@@ -8062,3 +8082,4 @@ declare module '@tanstack/react-start' {
     config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }
+  ApiAssistRecordingRoute: ApiAssistRecordingRoute,
