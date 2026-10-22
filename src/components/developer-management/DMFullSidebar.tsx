@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   FileText,
   Settings,
+  Handshake,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -36,6 +37,7 @@ export type DMScreen =
   | 'onboarding_requests'
   | 'role_skill_mapping'
   | 'task_management'
+  | 'task_promises'
   | 'sprint_milestone'
   | 'build_assignment'
   | 'code_submission'
@@ -62,6 +64,7 @@ const sidebarItems: SidebarItem[] = [
   { id: 'onboarding_requests', label: 'Onboarding Requests', icon: UserPlus, badge: 3 },
   { id: 'role_skill_mapping', label: 'Role & Skill Mapping', icon: Layers },
   { id: 'task_management', label: 'Task Management', icon: ListTodo, badge: 12 },
+  { id: 'task_promises', label: 'Task Promises', icon: Handshake },
   { id: 'sprint_milestone', label: 'Sprint / Milestone', icon: Target },
   { id: 'build_assignment', label: 'Build Assignment', icon: Hammer },
   { id: 'code_submission', label: 'Code Submission', icon: FileCode },

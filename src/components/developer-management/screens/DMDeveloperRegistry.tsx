@@ -4,7 +4,7 @@
  * DEBUG FIX: Connected to action logger for full traceability
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +36,9 @@ const getStatusBadge = (status: string, t: Translate) => {
   }
 };
 
-export const DMDeveloperRegistry: React.FC = () => {
+export const DMDeveloperRegistry: React.FC<{ focusDeveloperId?: string | null }> = ({
+  focusDeveloperId,
+}) => {
   const { t, formatDate } = useTranslation();
   const prompt = useDMPrompt();
   const [activeTab, setActiveTab] = useState('all');
@@ -104,6 +106,20 @@ export const DMDeveloperRegistry: React.FC = () => {
       setLoadingAction(null);
     }
   }, [logAction, registry, t, formatDate]);
+
+  const lastFocusedDeveloperId = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !focusDeveloperId ||
+      isLoading ||
+      lastFocusedDeveloperId.current === focusDeveloperId ||
+      !registry?.some((developer) => developer.id === focusDeveloperId)
+    ) {
+      return;
+    }
+    lastFocusedDeveloperId.current = focusDeveloperId;
+    void handleViewDeveloper(focusDeveloperId);
+  }, [focusDeveloperId, handleViewDeveloper, isLoading, registry]);
 
   // Assign Task: moves an open task to this developer through the Dev Manager
   // server function (reassignTask), which records who assigned it and writes

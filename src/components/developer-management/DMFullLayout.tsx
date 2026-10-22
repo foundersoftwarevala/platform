@@ -17,7 +17,7 @@ import { useCanonicalTasks, useDeliveryOverview, useDeveloperRegistry } from '@/
 import {
   LayoutDashboard, Users, UserPlus, Layers, ListTodo, Target, Hammer,
   FileCode, CheckCircle, Bug, TrendingUp, Wallet, Shield, Lock,
-  AlertTriangle, FileText, Settings, Code2,
+  AlertTriangle, FileText, Settings, Code2, Handshake,
 } from 'lucide-react';
 import { UnifiedShell, UnifiedNavGroup, UnifiedNavItem } from '@/components/unified/UnifiedShell';
 import { useTranslation } from '@/lib/i18n/use-translation';
@@ -28,6 +28,7 @@ import { DMDeveloperRegistry } from './screens/DMDeveloperRegistry';
 import { DMOnboardingRequests } from './screens/DMOnboardingRequests';
 import { DMRoleSkillMapping } from './screens/DMRoleSkillMapping';
 import { DMTaskManagement } from './screens/DMTaskManagement';
+import { DMTaskPromises } from './screens/DMTaskPromises';
 import { DMSprintMilestone } from './screens/DMSprintMilestone';
 import { DMBuildAssignment } from './screens/DMBuildAssignment';
 import { DMCodeSubmission } from './screens/DMCodeSubmission';
@@ -64,6 +65,7 @@ const GROUPS: NavGroupSource[] = [
     title: 'devmanager.nav.group_pipeline',
     items: [
       { id: 'task_management', label: 'devmanager.nav.task_management', icon: ListTodo },
+      { id: 'task_promises', label: 'devmanager.promises.manager_title', icon: Handshake },
       { id: 'sprint_milestone', label: 'devmanager.nav.sprint_milestone', icon: Target },
       { id: 'build_assignment', label: 'devmanager.nav.build_assignment', icon: Hammer },
       { id: 'code_submission', label: 'devmanager.nav.code_submission', icon: FileCode },
@@ -94,19 +96,33 @@ export const DMFullLayout: React.FC = () => {
   const { t } = useTranslation();
   const [activeScreen, setActiveScreen] = useState<DMScreen>('developer_dashboard');
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
+  const [focusedDeveloperId, setFocusedDeveloperId] = useState<string | null>(null);
 
   const renderScreen = () => {
     switch (activeScreen) {
       case 'developer_dashboard':
         return <DMDeveloperDashboard onNavigate={setActiveScreen} />;
       case 'developer_registry':
-        return <DMDeveloperRegistry />;
+        return <DMDeveloperRegistry focusDeveloperId={focusedDeveloperId} />;
       case 'onboarding_requests':
         return <DMOnboardingRequests />;
       case 'role_skill_mapping':
         return <DMRoleSkillMapping />;
       case 'task_management':
         return <DMTaskManagement focusTaskId={focusedTaskId} />;
+      case 'task_promises':
+        return (
+          <DMTaskPromises
+            onTaskClick={(taskId) => {
+              setFocusedTaskId(taskId);
+              setActiveScreen('task_management');
+            }}
+            onDeveloperClick={(developerId) => {
+              setFocusedDeveloperId(developerId);
+              setActiveScreen('developer_registry');
+            }}
+          />
+        );
       case 'sprint_milestone':
         return <DMSprintMilestone />;
       case 'build_assignment':
