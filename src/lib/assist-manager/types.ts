@@ -37,6 +37,10 @@ export interface EndUser {
 export interface AssistSession {
   id: string;
   session_code: string;
+  end_user_id?: string | null;
+  agent_id?: string | null;
+  target_user_id?: string | null;
+  operator_user_id?: string | null;
   assist_type: string;
   access_mode: AccessMode;
   status: SessionStatus;
@@ -53,6 +57,15 @@ export interface AssistSession {
   started_at: string | null;
   ended_at: string | null;
   end_reason: string | null;
+  consent_hash?: string | null;
+  consent_granted?: boolean;
+  consent_at?: string | null;
+  consent_by?: string | null;
+  consent_revoked_at?: string | null;
+  control_consent_at?: string | null;
+  control_consent_by?: string | null;
+  recording_url?: string | null;
+  recording_sha256?: string | null;
   created_at: string;
   end_user: EndUser | null;
   agent: Agent | null;

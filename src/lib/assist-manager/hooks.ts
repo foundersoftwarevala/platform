@@ -17,10 +17,12 @@ export const amKeys = {
   accessModes: ["am", "access-modes"] as const,
   settings: ["am", "settings"] as const,
   controlStates: ["am", "control-states"] as const,
+  logs: (id?: string) => ["am", "logs", id ?? "all"] as const,
+  pendingConsents: ["am", "pending-consents"] as const,
 };
 
 export const useSessions = () =>
-  useQuery({ queryKey: amKeys.sessions, queryFn: api.fetchSessions });
+  useQuery({ queryKey: amKeys.sessions, queryFn: api.fetchSessions, refetchInterval: 5000 });
 
 /** Sessions that are live (active or paused). */
 export const useLiveSessions = () => {
@@ -51,6 +53,17 @@ export const useSettings = () =>
   useQuery({ queryKey: amKeys.settings, queryFn: api.fetchSettings });
 export const useControlStates = () =>
   useQuery({ queryKey: amKeys.controlStates, queryFn: api.fetchControlStates });
+export const useAssistLogs = (sessionId?: string) =>
+  useQuery({
+    queryKey: amKeys.logs(sessionId),
+    queryFn: () => api.fetchAssistLogs(sessionId ? { sessionId } : {}),
+  });
+export const usePendingConsents = () =>
+  useQuery({
+    queryKey: amKeys.pendingConsents,
+    queryFn: api.getMyPendingConsents,
+    refetchInterval: 5000,
+  });
 
 export const useChatMessages = (sessionId: string | undefined) =>
   useQuery({
@@ -176,4 +189,22 @@ export const useUpdateTransferStatus = () =>
   useAmMutation(api.updateTransferStatus, {
     success: "Transfer updated",
     invalidate: [amKeys.transfers],
+  });
+
+export const useGrantConsent = () =>
+  useAmMutation(api.grantConsent, {
+    success: "Your consent has been recorded",
+    invalidate: [amKeys.pendingConsents, amKeys.sessions, amKeys.approvals],
+  });
+
+export const useDenyConsent = () =>
+  useAmMutation(api.denyConsent, {
+    success: "The assist request was denied",
+    invalidate: [amKeys.pendingConsents, amKeys.sessions],
+  });
+
+export const useSetControlAllowed = () =>
+  useAmMutation(api.setControlAllowed, {
+    success: (allowed) => (allowed ? "Remote control allowed" : "Remote control disabled"),
+    invalidate: [amKeys.sessions],
   });
