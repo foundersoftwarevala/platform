@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import {
   Sparkles,
   Globe2,
@@ -184,6 +185,7 @@ function DrawerBody({
   title: string;
   action?: DrawerAction;
 }) {
+    const { t: translateText } = useI18nSource();
   if (action === "ai-assistant") {
     return <SeoAiAssistant />;
   }
@@ -198,29 +200,26 @@ function DrawerBody({
             softwarevala.com
           </div>
           <div className="mt-1 text-[16px] font-bold text-[hsl(210_100%_75%)]">
-            {title} — Software Vala
-          </div>
+            {title} {translateText("seo.software_vala_99b0b4")}</div>
           <div className="text-[12px] text-muted-foreground">
-            Live SERP preview · Desktop · Google IN
-          </div>
+            {translateText("seo.live_serp_preview_desktop_google_in_6c9a63")}</div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg border border-border bg-background/40 p-3 text-[11px]">
             <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
-              Position
-            </div>
+              {translateText("seo.position_cf1c85")}</div>
             <div
               className="font-mono text-lg font-bold text-accent"
-              title="Not measured for a button label"
+              title={translateText("seo.not_measured_for_a_button_label_8cbfc4")}
             >
               —
             </div>
           </div>
           <div className="rounded-lg border border-border bg-background/40 p-3 text-[11px]">
-            <div className="text-[9px] uppercase tracking-wider text-muted-foreground">CTR</div>
+            <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{translateText("seo.ctr_f9c744")}</div>
             <div
               className="font-mono text-lg font-bold text-success"
-              title="Not measured for a button label"
+              title={translateText("seo.not_measured_for_a_button_label_8cbfc4")}
             >
               —
             </div>
@@ -233,7 +232,7 @@ function DrawerBody({
   if (kind === "download") {
     return (
       <div className="space-y-3">
-        <div className="text-[12px] text-muted-foreground">Choose export format for "{title}".</div>
+        <div className="text-[12px] text-muted-foreground">{translateText("seo.choose_export_format_for_fdb017")}{title}".</div>
         <div className="grid grid-cols-2 gap-2">
           {["CSV", "XLSX", "PDF", "JSON"].map((f) => (
             <label
@@ -255,8 +254,7 @@ function DrawerBody({
           trend graphs (last 30d)
         </label>
         <label className="flex items-center gap-2 text-[12px]">
-          <input type="checkbox" className="accent-[color:var(--accent)]" /> Email me the report
-        </label>
+          <input type="checkbox" className="accent-[color:var(--accent)]" /> {translateText("seo.email_me_the_report_ba9d26")}</label>
       </div>
     );
   }
@@ -265,10 +263,8 @@ function DrawerBody({
       <div className="space-y-3">
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-[12px] text-destructive">
           <div className="mb-1 font-bold uppercase tracking-wider">
-            This action cannot be undone.
-          </div>
-          "{title}" and its associated data will be permanently removed.
-        </div>
+            {translateText("seo.this_action_cannot_be_undone_951f49")}</div>
+          "{title}{translateText("seo.and_its_associated_data_will_be_permanently_0e48cc")}</div>
         <label className="flex items-center gap-2 text-[12px]">
           <input type="checkbox" className="accent-[color:var(--destructive)]" /> I understand this
           is permanent.
@@ -1272,7 +1268,7 @@ export function SeoCenter() {
       <div data-skip-drawer>
         <PageHeader
           eyebrow="SEO Manager · Enterprise"
-          title="SEO, Ranking & Blog Center"
+          title={t("seo.ui_seo_ranking_blog_center_fea379a2")}
           description="Semrush + Ahrefs + Search Console level control — indexing, keywords, schema, backlinks, blogs and AI, all inside your Marketplace Manager."
           actions={
             <>
@@ -1288,7 +1284,7 @@ export function SeoCenter() {
                 className="rounded-full border border-border bg-white/[0.03] px-5 py-2 text-[12px] font-bold tracking-tight text-foreground transition-all hover:border-accent/40 hover:bg-white/[0.06] hover:text-accent"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <RefreshCw className="h-3.5 w-3.5" /> Recrawl
+                  <RefreshCw className="h-3.5 w-3.5" /> {t("seo.ui_recrawl_0afe10a0")}
                 </span>
               </button>
               <button
@@ -1303,7 +1299,7 @@ export function SeoCenter() {
                 className="rounded-full border border-border bg-white/[0.03] px-5 py-2 text-[12px] font-bold tracking-tight text-foreground transition-all hover:border-accent/40 hover:bg-white/[0.06] hover:text-accent"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <Download className="h-3.5 w-3.5" /> Export Report
+                  <Download className="h-3.5 w-3.5" /> {t("seo.ui_export_report_95a441cf")}
                 </span>
               </button>
               <button
@@ -1318,7 +1314,7 @@ export function SeoCenter() {
                 className="rounded-full bg-accent px-5 py-2 text-[12px] font-bold tracking-tight text-accent-foreground shadow-[0_8px_24px_-8px_oklch(0.80_0.13_192/0.6),inset_0_1px_0_oklch(1_0_0/0.25)] transition-all hover:brightness-110"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" /> AI SEO Assistant
+                  <Sparkles className="h-3.5 w-3.5" /> {t("seo.ui_ai_seo_assistant_4182f5f3")}
                 </span>
               </button>
             </>
@@ -1780,7 +1776,7 @@ function DashboardModule() {
           <div className="mb-3 flex items-center justify-between">
             <div>
               <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                {t("seo.organic_performance")} {days} days recorded
+                {t("seo.organic_performance")} {days} {t("seo.ui_days_recorded_9595a93a")}
               </div>
               <div className="mt-0.5 text-sm font-bold">{t("seo.clicks_vs_impressions")}</div>
             </div>
@@ -1830,7 +1826,7 @@ function DashboardModule() {
 
         <Card>
           <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-            {t("seo.core_web_vitals_measured_over")} {days} days
+            {t("seo.core_web_vitals_measured_over")} {days} {t("seo.ui_days_5548ae4f")}
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -2547,21 +2543,21 @@ function IndexNowModule() {
       </Card>
       <Card>
         <div className="mb-3 text-[11px] font-bold uppercase tracking-wider text-accent">
-          Submit changed URLs
+          {t("seo.ui_submit_changed_urls_8c2c89ef")}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="space-y-1 text-[11px] text-muted-foreground">
-            Host
+            {t("seo.ui_host_3960ec4c")}
             <input
               value={host}
               onChange={(event) => setHost(event.target.value)}
-              placeholder="example.com"
+              placeholder={t("seo.ui_example_com_0caaf24a")}
               autoComplete="off"
               className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
             />
           </label>
           <label className="space-y-1 text-[11px] text-muted-foreground">
-            IndexNow key (not stored)
+            {t("seo.ui_indexnow_key_not_stored_0e884f30")}
             <input
               type="password"
               value={key}
@@ -2571,16 +2567,16 @@ function IndexNowModule() {
             />
           </label>
           <label className="space-y-1 text-[11px] text-muted-foreground md:col-span-2">
-            Key file URL (optional)
+            {t("seo.ui_key_file_url_optional_dfa4e3cc")}
             <input
               value={keyLocation}
               onChange={(event) => setKeyLocation(event.target.value)}
-              placeholder="https://example.com/<key>.txt"
+              placeholder={t("seo.ui_https_example_com_key_txt_61b86480")}
               className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
             />
           </label>
           <label className="space-y-1 text-[11px] text-muted-foreground md:col-span-2">
-            HTTPS URLs on that host, one per line (maximum 1,000)
+            {t("seo.ui_https_urls_on_that_host_one_per_line_maxim_f3c65233")}
             <textarea
               value={urlInput}
               onChange={(event) => setUrlInput(event.target.value)}
@@ -2610,7 +2606,7 @@ function IndexNowModule() {
             {submission.isPending ? "Submitting…" : `Submit ${urls.length || ""} URL(s)`}
           </button>
           <span className="text-[10px] text-muted-foreground">
-            Credentials are used for this request only and are not saved by the page.
+            {t("seo.ui_credentials_are_used_for_this_request_only_040db62f")}
           </span>
         </div>
         {submission.isError ? (
@@ -2625,7 +2621,7 @@ function IndexNowModule() {
                 onClick={() => submission.mutate(submission.variables)}
                 className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
               >
-                Retry
+                {t("seo.retry")}
               </button>
             ) : null}
           </div>
@@ -2642,7 +2638,7 @@ function IndexNowModule() {
                 onClick={() => submission.mutate(submission.variables)}
                 className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
               >
-                Retry
+                {t("seo.retry")}
               </button>
             ) : null}
           </div>
@@ -4481,7 +4477,7 @@ function HealthModule() {
         </div>
         {emptyRuns > 0 && !audits.loading && (
           <div className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-[11px] leading-relaxed text-warning">
-            The {emptyRuns} most recent {emptyRuns === 1 ? "audit run" : "audit runs"} recorded no
+            {t("seo.ui_the_93ef0dd8")} {emptyRuns} {t("seo.ui_most_recent_10a13beb")} {emptyRuns === 1 ? "audit run" : "audit runs"} recorded no
             score, no pages crawled and no breakdown. The figures above are from the last run that
             measured anything.
           </div>
@@ -4519,9 +4515,9 @@ function HealthModule() {
             {t("seo.issues_to_fix")}
           </div>
           <div className="flex gap-1">
-            <Chip tone="destructive">{figure(high.total, high)} high</Chip>
-            <Chip tone="warning">{figure(medium.total, medium)} medium</Chip>
-            <Chip>{figure(low.total, low)} low</Chip>
+            <Chip tone="destructive">{figure(high.total, high)} {t("seo.ui_high_9235afd3")}</Chip>
+            <Chip tone="warning">{figure(medium.total, medium)} {t("seo.ui_medium_20af4186")}</Chip>
+            <Chip>{figure(low.total, low)} {t("seo.ui_low_36a883e7")}</Chip>
           </div>
         </div>
         <div className="space-y-2">
@@ -4571,7 +4567,7 @@ function HealthModule() {
         </div>
         {grouped.length > 0 && (
           <div className="mt-3 border-t border-border pt-3 text-[10px] leading-relaxed text-muted-foreground">
-            Grouped from the {sample.rows.length} most recently detected of{" "}
+            {t("seo.ui_grouped_from_the_796f49a6")} {sample.rows.length} {t("seo.ui_most_recently_detected_of_b3cc3a9e")}{" "}
             {figure(sample.total, sample)} open issues. The counts on the chips above are of every
             issue at that severity, not of the sample.
           </div>
@@ -4824,7 +4820,7 @@ function PagesOfType({ kind, title, Icon }: { kind: string; title: string; Icon:
       )}
       {noDescription > 0 && (
         <div className="text-[10px] leading-relaxed text-muted-foreground">
-          {noDescription} of these {pages.rows.length} pages serve no meta description.
+          {noDescription} {t("seo.ui_of_these_8f41ed6b")} {pages.rows.length} {t("seo.ui_pages_serve_no_meta_description_c6be893d")}
         </div>
       )}
     </div>
@@ -5267,7 +5263,7 @@ function MetaManagerModule() {
               {t("seo.the_rules_in_the_order_they_are_applied")}
             </div>
           </div>
-          <Chip tone="accent">{figure(rules.total, rules)} rules</Chip>
+          <Chip tone="accent">{figure(rules.total, rules)} {t("seo.ui_rules_caa155ad")}</Chip>
         </div>
         <div className="space-y-3">
           {rules.rows.map((rule) => (
@@ -5278,7 +5274,7 @@ function MetaManagerModule() {
               <div className="flex items-center justify-between gap-2">
                 <div className="text-[13px] font-bold">{text(rule, "name")}</div>
                 <div className="flex items-center gap-1">
-                  <Chip tone="default">priority {num(rule, "priority")}</Chip>
+                  <Chip tone="default">{t("seo.ui_priority_3345867e")} {num(rule, "priority")}</Chip>
                   <Chip tone={text(rule, "status") === "active" ? "success" : "warning"}>
                     {text(rule, "status")}
                   </Chip>
@@ -5289,11 +5285,11 @@ function MetaManagerModule() {
               </div>
               <div className="mt-2 space-y-1 text-[11px]">
                 <div>
-                  <span className="text-muted-foreground">title</span>{" "}
+                  <span className="text-muted-foreground">{t("seo.ui_title_3c6de1b7")}</span>{" "}
                   <span className="font-mono">{text(rule, "title_template")}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">description</span>{" "}
+                  <span className="text-muted-foreground">{t("seo.ui_description_cb329146")}</span>{" "}
                   <span className="font-mono">{text(rule, "description_template")}</span>
                 </div>
                 {text(rule, "og_image_template", "") !== "" && (
@@ -5350,7 +5346,7 @@ function MetaManagerModule() {
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div>
-                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">H1</div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{t("seo.ui_h1_9667e8ea")}</div>
                 <div className="truncate">{text(page, "h1")}</div>
               </div>
               <div>
@@ -5463,7 +5459,7 @@ function SchemaModule() {
             </div>
             <div className="mt-3 text-sm font-bold">{type}</div>
             <div className="text-[11px] text-muted-foreground">
-              On {count.toLocaleString()} {count === 1 ? "record" : "records"}
+              {t("seo.ui_on_e0049a66")} {count.toLocaleString()} {count === 1 ? "record" : "records"}
             </div>
           </Card>
         ))}
@@ -5699,7 +5695,7 @@ function TagManagerModule() {
         </div>
       )}
       <div className="text-[10px] leading-relaxed text-muted-foreground">
-        {t("seo.counted_over")} {faqs.rows.length} questions and {content.rows.length} content
+        {t("seo.counted_over")} {faqs.rows.length} {t("seo.ui_questions_and_08807db7")} {content.rows.length} content
         items. No SEO score or trend is held against a tag, so neither is shown.
       </div>
     </div>
@@ -5744,14 +5740,14 @@ function KeywordCenterModule() {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <StatCard
-          label="Marketing keyword list"
+          label={t("seo.ui_marketing_keyword_list_6af99ad5")}
           value={figure(marketing.total, marketing)}
           tone="default"
           delta="a second table, marketing_seo_keywords"
           icon={<Hash className="h-4 w-4" />}
         />
         <StatCard
-          label="Seed keywords"
+          label={t("seo.ui_seed_keywords_e9f878da")}
           value={figure(seeds.total, seeds)}
           tone="premium"
           icon={<Sparkles className="h-4 w-4" />}
@@ -5848,7 +5844,7 @@ function KeywordCenterModule() {
       )}
       {keywords.rows.length > 0 && (
         <div className="text-[10px] leading-relaxed text-muted-foreground">
-          Showing the {keywords.rows.length} highest-volume of {figure(keywords.total, keywords)}{" "}
+          {t("seo.ui_showing_the_b4321433")} {keywords.rows.length} {t("seo.ui_highest_volume_of_28948679")} {figure(keywords.total, keywords)}{" "}
           keywords. The counters above are of every keyword, counted by the database rather than by
           this page. Most of the list is planned work rather than measured: a keyword with no
           position, volume or difficulty has not been researched yet, and shows zero rather than a
@@ -5900,8 +5896,8 @@ function KeywordClusterModule() {
   return (
     <div className="space-y-3">
       <div className="text-[10px] leading-relaxed text-muted-foreground">
-        Grouped by industry over the {keywords.rows.length} highest-volume of{" "}
-        {figure(keywords.total, keywords)} keywords, of which{" "}
+        {t("seo.ui_grouped_by_industry_over_the_3513f700")} {keywords.rows.length} {t("seo.ui_highest_volume_of_28948679")}{" "}
+        {figure(keywords.total, keywords)} {t("seo.ui_keywords_of_which_99da6ab6")}{" "}
         {countWhere(keywords.rows, (row) => num(row, "position") > 0)} have been measured. A cluster
         of planned keywords shows a volume of zero because nothing has researched them yet.
       </div>
@@ -5910,10 +5906,10 @@ function KeywordClusterModule() {
           <Card key={c.name}>
             <div className="flex items-center justify-between">
               <div className="text-[13px] font-bold">{c.name}</div>
-              <Chip tone="accent">{c.count} kws</Chip>
+              <Chip tone="accent">{c.count} {t("seo.ui_kws_3975e990")}</Chip>
             </div>
             <div className="mt-3 text-[11px] text-muted-foreground">
-              Mapped to {c.pages} {c.pages === 1 ? "page" : "pages"}
+              {t("seo.ui_mapped_to_142444c1")} {c.pages} {c.pages === 1 ? "page" : "pages"}
             </div>
             <div className="mt-3 flex flex-wrap gap-1">
               {c.intents.map((intent) => (
@@ -6114,8 +6110,8 @@ function RankingModule() {
       )}
       {rows.length > 0 && (
         <div className="text-[10px] leading-relaxed text-muted-foreground">
-          Folded from the {rankings.rows.length} most recent of {figure(rankings.total, rankings)}{" "}
-          daily measurements, which is why a keyword shows the number of days it was found in them.
+          {t("seo.ui_folded_from_the_f3de85cf")} {rankings.rows.length} {t("seo.ui_most_recent_of_75c5ba8e")} {figure(rankings.total, rankings)}{" "}
+          {t("seo.ui_daily_measurements_which_is_why_a_keyword__4c67bfda")}
         </div>
       )}
     </div>
@@ -6164,7 +6160,7 @@ function CompetitorModule() {
                   </div>
                 </div>
                 <Chip tone={authority >= 80 ? "premium" : authority >= 60 ? "accent" : "default"}>
-                  DA {authority}
+                  {t("seo.ui_da_593c3233")} {authority}
                 </Chip>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2 text-[11px]">
@@ -6213,7 +6209,7 @@ function CompetitorModule() {
                       >
                         <span className="truncate pr-2">{text(gap, "keyword")}</span>
                         <span className="shrink-0 font-mono tabular text-muted-foreground">
-                          them {text(gap, "their_position")} {t("seo.us")}{" "}
+                          {t("seo.ui_them_98910a6e")} {text(gap, "their_position")} {t("seo.us")}{" "}
                           {text(gap, "our_position")}
                         </span>
                       </div>
@@ -6812,8 +6808,8 @@ function CanonicalModule() {
         </div>
       )}
       <div className="text-[10px] leading-relaxed text-muted-foreground">
-        Product pages resolve from the product's own slug; {figure(urls.total, urls)} product{" "}
-        {urls.total === 1 ? "address is" : "addresses are"} recorded separately in the URL manager.
+        {t("seo.ui_product_pages_resolve_from_the_product_s_o_d45d3b6f")} {figure(urls.total, urls)} {t("seo.ui_product_38a00715")}{" "}
+        {urls.total === 1 ? "address is" : "addresses are"} {t("seo.ui_recorded_separately_in_the_url_manager_ebfd4eb1")}
       </div>
     </div>
   );
@@ -6987,7 +6983,7 @@ function RobotsModule() {
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-            robots.txt · as served
+            {t("seo.ui_robots_txt_as_served_9c7e6f9e")}
           </div>
           <PillButton variant="ghost" href={`${base}/robots.txt`} target="_blank">
             <span className="inline-flex items-center gap-1">
@@ -7132,7 +7128,7 @@ function IntlSeoModule() {
         </div>
       )}
 
-      <Toolbar title="Countries keywords are researched for" count={byCountry.length} />
+      <Toolbar title={t("seo.ui_countries_keywords_are_researched_for_152536b4")} count={byCountry.length} />
       <div className="flex flex-wrap gap-1.5">
         {byCountry.map((group) => (
           <Chip key={group.key} tone="default">
@@ -7142,7 +7138,7 @@ function IntlSeoModule() {
       </div>
       {byCountry.length > 0 && (
         <div className="text-[10px] leading-relaxed text-muted-foreground">
-          Counted over the {keywords.rows.length} highest-volume of{" "}
+          {t("seo.ui_counted_over_the_c69f8189")} {keywords.rows.length} {t("seo.ui_highest_volume_of_28948679")}{" "}
           {figure(keywords.total, keywords)} keywords. The platform records no hreflang and serves
           one set of pages, so there is no per-locale canonical to show.
         </div>
@@ -7321,18 +7317,18 @@ function AiWriterModule() {
       <Card>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="space-y-1 text-[11px] text-muted-foreground md:col-span-2">
-            Article topic
+            {t("seo.ui_article_topic_cd1c8525")}
             <textarea
               value={topic}
               onChange={(event) => setTopic(event.target.value)}
               rows={3}
               maxLength={1000}
-              placeholder="Describe the intended reader, subject, and useful angle"
+              placeholder={t("seo.ui_describe_the_intended_reader_subject_and_u_b398efc1")}
               className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
             />
           </label>
           <label className="space-y-1 text-[11px] text-muted-foreground">
-            Target keyword (optional)
+            {t("seo.ui_target_keyword_optional_5d59e7f6")}
             <input
               value={targetKeyword}
               onChange={(event) => setTargetKeyword(event.target.value)}
@@ -7341,7 +7337,7 @@ function AiWriterModule() {
             />
           </label>
           <label className="space-y-1 text-[11px] text-muted-foreground">
-            Language / locale
+            {t("seo.ui_language_locale_9fd3e741")}
             <input
               value={locale}
               onChange={(event) => setLocale(event.target.value)}
@@ -7365,7 +7361,7 @@ function AiWriterModule() {
             {generation.isPending ? "Generating draft…" : "Generate and save draft"}
           </button>
           <span className="text-[10px] text-muted-foreground">
-            AI estimates may need fact-checking and editorial review.
+            {t("seo.ui_ai_estimates_may_need_fact_checking_and_ed_ed036d8e")}
           </span>
         </div>
         {generation.isError ? (
@@ -7382,7 +7378,7 @@ function AiWriterModule() {
                 }
                 className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
               >
-                Retry
+                {t("seo.retry")}
               </button>
             ) : null}
           </div>
@@ -7391,7 +7387,7 @@ function AiWriterModule() {
           <div className="mt-4 space-y-2 rounded-lg border border-border bg-background/40 p-3">
             <div className="font-semibold">{generation.data.title}</div>
             <div className="text-[10px] text-muted-foreground">
-              Saved as draft · {generation.data.wordCount.toLocaleString()} words ·{" "}
+              {t("seo.ui_saved_as_draft_7d5e8280")} {generation.data.wordCount.toLocaleString()} {t("seo.ui_words_4e396351")}{" "}
               {generation.data.targetKeyword} · {generation.data.model}
             </div>
             <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed">
@@ -7531,17 +7527,17 @@ function AiKeywordModule() {
       <Card>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="space-y-1 text-[11px] text-muted-foreground">
-            Topic or seed phrase
+            {t("seo.ui_topic_or_seed_phrase_f12cea01")}
             <input
               value={topic}
               onChange={(event) => setTopic(event.target.value)}
               maxLength={500}
-              placeholder="e.g. inventory software for small retailers"
+              placeholder={t("seo.ui_e_g_inventory_software_for_small_retailers_22c7cf42")}
               className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-foreground"
             />
           </label>
           <label className="space-y-1 text-[11px] text-muted-foreground">
-            Language / locale
+            {t("seo.ui_language_locale_9fd3e741")}
             <input
               value={locale}
               onChange={(event) => setLocale(event.target.value)}
@@ -7565,7 +7561,7 @@ function AiKeywordModule() {
             {generation.isPending ? "Researching…" : "Generate keyword ideas"}
           </button>
           <span className="text-[10px] text-muted-foreground">
-            AI impact and confidence are estimates, not measured search metrics.
+            {t("seo.ui_ai_impact_and_confidence_are_estimates_not_49d0c624")}
           </span>
         </div>
         {generation.isError ? (
@@ -7584,14 +7580,14 @@ function AiKeywordModule() {
                 }
                 className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
               >
-                Retry
+                {t("seo.retry")}
               </button>
             ) : null}
           </div>
         ) : null}
         {generation.data ? (
           <p className="mt-3 text-[11px] text-success" role="status">
-            {generation.data.ideas.length} keyword idea(s) saved for review using{" "}
+            {generation.data.ideas.length} {t("seo.ui_keyword_idea_s_saved_for_review_using_9c0e0aeb")}{" "}
             {generation.data.model}.
           </p>
         ) : null}
@@ -7968,7 +7964,7 @@ function BulkOpsModule() {
         Flows are the other half of automation and were shown nowhere: an
         automation says what runs, a flow says what it runs in answer to.
       */}
-      <Toolbar title="Automation flows" count={flows.total} />
+      <Toolbar title={t("seo.ui_automation_flows_9a2e686a")} count={flows.total} />
       <Table
         head={["Flow", "Runs when", "Status", "Executions", "Conversion", "Updated"]}
         rows={flows.rows.map((row) => [
@@ -8274,7 +8270,7 @@ function SettingsModule() {
       )}
       {activity.rows.length > 0 && (
         <div className="text-[10px] leading-relaxed text-muted-foreground">
-          The {activity.rows.length} most recent of {figure(activity.total, activity)} recorded
+          {t("seo.ui_the_93ef0dd8")} {activity.rows.length} {t("seo.ui_most_recent_of_75c5ba8e")} {figure(activity.total, activity)} recorded
           changes. Every insert, update and delete against an SEO table is written here by the
           database itself.
         </div>

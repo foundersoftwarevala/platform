@@ -6,6 +6,7 @@
  * this project's own UI primitives and design tokens.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { ArrowDownUp, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -188,6 +189,7 @@ function ResourceSelect({
   value: string;
   onChange: (value: string) => void;
 }) {
+    const { t: translateText } = useI18nSource();
   const [search, setSearch] = useState("");
   const [options, setOptions] = useState<{ value: string; label: string }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -258,14 +260,14 @@ function ResourceSelect({
         disabled={loading && options.length === 0}
       >
         <option value="">—</option>
-        {selectedMissing && <option value={value}>Current selection ({value})</option>}
+        {selectedMissing && <option value={value}>{translateText("manager.current_selection_c2a292")}{value})</option>}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
       </select>
-      {loading && <span className="text-[10px] text-muted-foreground">Loading options…</span>}
+      {loading && <span className="text-[10px] text-muted-foreground">{translateText("manager.loading_options_574b9c")}</span>}
       {error && (
         <span role="alert" className="text-[10px] text-destructive">
           {error}

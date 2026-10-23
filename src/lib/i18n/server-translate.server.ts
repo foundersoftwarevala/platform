@@ -139,3 +139,11 @@ export async function serverTranslator(
     return variables ? formatMessage(found, variables, language.code) : found;
   };
 }
+
+export async function translateApiMessage(request: Request, key: MessageKey): Promise<string> {
+  const context = messageContext(key);
+  if (!context) return englishTranslator()(key);
+
+  const t = await serverTranslator(languageOf(request), [context], { waitMs: 1500 });
+  return t(key);
+}

@@ -2,8 +2,10 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useSyncExternalStore } from "react";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export function ResearchModule() {
+  const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname }).replace(
     /\/$/,
     "",
@@ -22,10 +24,10 @@ export function ResearchModule() {
                 query.getObserversCount() > 0 &&
                 query.state.status === "error",
             )
-            .map((query) => query.state.error?.message ?? "R&D data could not be loaded."),
+            .map((query) => query.state.error?.message ?? t("rd.data_load_failed")),
         ),
       ].join("\n"),
-    [cache],
+    [cache, t],
   );
   const errors = useSyncExternalStore(subscribe, snapshot, () => "");
   if (pathname === "/rd-manager/start" || pathname === "/rd-manager/track") {
@@ -39,17 +41,17 @@ export function ResearchModule() {
     <RequireRole role={["boss", "boss_owner", "admin", "super_admin", "founder", "owner"]}>
       <div className="rd-module rd-module-shell">
         <nav
-          aria-label="R&D module"
+          aria-label={t("rd.module_label")}
           className="flex flex-wrap items-center gap-4 border-b border-border px-5 py-3 text-sm"
         >
-          <Link to="/control-panel">Control Panel</Link>
-          <Link to="/rd-manager">Opportunities</Link>
-          <Link to="/rd-manager/lab">R&D Workspace</Link>
-          <Link to="/rd-manager/pro-manager">Pro Manager</Link>
+          <Link to="/control-panel">{t("rd.control_panel")}</Link>
+          <Link to="/rd-manager">{t("rd.opportunities")}</Link>
+          <Link to="/rd-manager/lab">{t("rd.workspace")}</Link>
+          <Link to="/rd-manager/pro-manager">{t("rd.pro_manager")}</Link>
           <Link to="/rd-manager/start" search={{}}>
-            Submit request
+            {t("rd.submit_request")}
           </Link>
-          <Link to="/rd-manager/track">Track request</Link>
+          <Link to="/rd-manager/track">{t("rd.track_request")}</Link>
         </nav>
         {errors && (
           <div
@@ -57,7 +59,7 @@ export function ResearchModule() {
             className="border-b border-danger/40 bg-danger/10 px-5 py-3 text-sm text-danger"
           >
             <p className="font-semibold">
-              R&amp;D data unavailable. Check the module migration and platform connection.
+              {t("rd.data_unavailable")}
             </p>
             <p className="whitespace-pre-wrap">{errors}</p>
           </div>

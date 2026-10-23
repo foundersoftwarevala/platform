@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { toast } from "sonner";
 import {
   ArrowLeft, Plus, Search, Target, BarChart3, CalendarClock, ListChecks,
@@ -42,6 +43,7 @@ const STAGES: { key: Stage; label: string; tone: string }[] = [
 const SOURCES = ["Website", "Referral", "Cold Outreach", "Event", "Partner", "Social", "Inbound Call", "Other"];
 
 export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
+    const { t: translateText } = useI18nSource();
   // Leads are rows in the leads table, which is what the manager reads.
   const crud = useResellerLeads();
   const [tab, setTab] = useState<Tab>("pipeline");
@@ -92,7 +94,7 @@ export function ResellerLeadsWorkspace({ onBack }: { onBack: () => void }) {
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand/15 text-[oklch(0.72_0.2_265)]"><Target className="h-4 w-4" /></div>
           <div>
             <nav className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <span>Reseller Dashboard</span><span>/</span><span className="text-foreground">Leads</span>
+              <span>{translateText("dashboard.reseller_dashboard_516400")}</span><span>/</span><span className="text-foreground">{translateText("dashboard.leads_f12ee6")}</span>
               {active && <><span>/</span><span className="text-foreground truncate max-w-[18ch]">{active.name}</span></>}
             </nav>
             <h1 className="text-xl md:text-2xl font-bold tracking-tight">Leads Pipeline</h1>

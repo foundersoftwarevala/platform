@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { Server, Eye, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +32,7 @@ const formatRelative = (value: string | null) => {
 };
 
 const SMServers = () => {
+    const { t: translateText } = useI18nSource();
   const [servers, setServers] = useState<ServerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -78,7 +80,7 @@ const SMServers = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Servers"
+        title={translateText("server_manager.servers_acca64")}
         subtitle="Registered server profiles; live resource metrics await agent heartbeats"
         action={
           <Button
@@ -88,8 +90,7 @@ const SMServers = () => {
             disabled={loading}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+            {translateText("server_manager.refresh_56e3ba")}</Button>
         }
       />
 
@@ -101,8 +102,7 @@ const SMServers = () => {
             size="sm"
             onClick={() => void loadServers()}
           >
-            Retry
-          </Button>
+            {translateText("server_manager.retry_9f5cd8")}</Button>
         </div>
       )}
 

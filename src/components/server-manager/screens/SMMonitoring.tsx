@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import {
   Activity, Cpu, HardDrive, Network, Clock,
   Pause, Play
@@ -29,6 +30,7 @@ interface Anomaly {
 }
 
 const SMMonitoring = () => {
+    const { t: translateText } = useI18nSource();
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState('1h');
@@ -103,13 +105,12 @@ const SMMonitoring = () => {
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive flex items-center justify-between gap-4">
           <span>{loadError}</span>
           <Button variant="outline" size="sm" onClick={() => void loadData()}>
-            Retry
-          </Button>
+            {translateText("server_manager.retry_9f5cd8")}</Button>
         </div>
       )}
 
       <PageHeader
-        title="Live Monitoring"
+        title={translateText("server_manager.live_monitoring_dee8fb")}
         subtitle="Live metrics are shown only from fresh, authenticated agent telemetry"
         action={
           <div className="flex items-center gap-3">
@@ -119,10 +120,10 @@ const SMMonitoring = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="15m">Last 15m</SelectItem>
-                <SelectItem value="1h">Last 1h</SelectItem>
-                <SelectItem value="6h">Last 6h</SelectItem>
-                <SelectItem value="24h">Last 24h</SelectItem>
+                <SelectItem value="15m">{translateText("server_manager.last_15m_d34538")}</SelectItem>
+                <SelectItem value="1h">{translateText("server_manager.last_1h_1ac7eb")}</SelectItem>
+                <SelectItem value="6h">{translateText("server_manager.last_6h_412425")}</SelectItem>
+                <SelectItem value="24h">{translateText("server_manager.last_24h_b11d22")}</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -139,13 +140,12 @@ const SMMonitoring = () => {
 
       {telemetry.error && (
         <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Agent telemetry is unavailable. Metrics are not shown as healthy.
-        </div>
+          {translateText("server_manager.agent_telemetry_is_unavailable_metrics_are_n_a1eda7")}</div>
       )}
 
       {newestMetricAt && (
         <p className="text-xs text-muted-foreground">
-          Source: Agent · Last updated: {new Date(newestMetricAt).toLocaleString()}
+          {translateText("server_manager.source_agent_last_updated_2835ff")}{new Date(newestMetricAt).toLocaleString()}
         </p>
       )}
 
@@ -155,7 +155,7 @@ const SMMonitoring = () => {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Cpu className="w-5 h-5 text-primary" />
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">CPU Usage</span>
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{translateText("server_manager.cpu_usage_42878c")}</span>
             </div>
           </div>
           <p className="mt-1 text-xl font-bold mb-2 text-muted-foreground">{latestValues.cpu === null ? '—' : `${latestValues.cpu.toFixed(1)}%`}</p>
@@ -166,7 +166,7 @@ const SMMonitoring = () => {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <HardDrive className="w-5 h-5 text-accent-pink" />
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">RAM Usage</span>
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{translateText("server_manager.ram_usage_ec1268")}</span>
             </div>
           </div>
           <p className="mt-1 text-xl font-bold mb-2 text-muted-foreground">{latestValues.ram === null ? '—' : `${latestValues.ram.toFixed(1)}%`}</p>

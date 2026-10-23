@@ -1,9 +1,11 @@
 import { ArrowUpRight, Building2, Plus, TrendingUp, UserPlus, Users, Wallet } from "lucide-react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { BarChart, DonutChart, LineChart } from "@/components/charts/Charts";
 import { useFranchise } from "@/lib/franchise-store";
 import { fmtMoney } from "@/lib/metrics";
 
 export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void }) {
+    const { t: translateText } = useI18nSource();
   const {
     branches,
     leads,
@@ -66,7 +68,7 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-4 depth-3d">
-        <div className="text-sm font-semibold">Assigned products</div>
+        <div className="text-sm font-semibold">{translateText("dashboard.assigned_products_14fe23")}</div>
         {products.length ? (
           <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {products.map((product) => (
@@ -105,8 +107,7 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
                       rel="noreferrer"
                       className="text-brand hover:underline"
                     >
-                      View demo
-                    </a>
+                      {translateText("dashboard.view_demo_20c9e1")}</a>
                   )}
                 </div>
               </article>
@@ -125,11 +126,11 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
         <div className="lg:col-span-2 rounded-2xl border border-border bg-card p-4 depth-3d">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-semibold">Network revenue</div>
-              <div className="text-xs text-muted-foreground">Total branch sales {fmtMoney(totalRevenue)}</div>
+              <div className="text-sm font-semibold">{translateText("dashboard.network_revenue_78368d")}</div>
+              <div className="text-xs text-muted-foreground">{translateText("dashboard.total_branch_sales_ef530d")}{fmtMoney(totalRevenue)}</div>
             </div>
             <button onClick={() => onOpen("revenue")} className="press-3d inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs hover:border-brand/60">
-              Details <ArrowUpRight className="h-3 w-3" />
+              {translateText("dashboard.details_dc3dec")}<ArrowUpRight className="h-3 w-3" />
             </button>
           </div>
           <div className="mt-3">

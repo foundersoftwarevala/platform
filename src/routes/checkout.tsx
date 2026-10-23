@@ -174,7 +174,7 @@ function CheckoutPage() {
             <div className="space-y-4">
               {paymentQuote.isPending && (
                 <div className="flex items-center gap-2 text-slate-400">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Verifying the current reseller discount…
+                  <Loader2 className="h-4 w-4 animate-spin" /> {t("checkout.verifying_discount")}
                 </div>
               )}
               {paymentQuote.isError && (

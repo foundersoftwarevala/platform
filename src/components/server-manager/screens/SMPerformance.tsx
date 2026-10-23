@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import {
   Target, BarChart3, Loader2,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ interface ServerPerf {
 }
 
 const SMPerformance = () => {
+    const { t: translateText } = useI18nSource();
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('24h');
   const [perfData, setPerfData] = useState<ServerPerf[]>([]);
@@ -63,13 +65,12 @@ const SMPerformance = () => {
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive flex items-center justify-between gap-4">
           <span>{loadError}</span>
           <Button variant="outline" size="sm" onClick={() => void loadData()}>
-            Retry
-          </Button>
+            {translateText("server_manager.retry_9f5cd8")}</Button>
         </div>
       )}
 
       <PageHeader
-        title="Performance & Tracking"
+        title={translateText("server_manager.performance_tracking_1df713")}
         subtitle="Performance trends use fresh agent telemetry; SLA compliance remains unverified"
         action={
           <Select value={timeRange} onValueChange={setTimeRange}>

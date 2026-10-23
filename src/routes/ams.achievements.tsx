@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { EngineDashboard, StatusChip } from "@/components/ams/shared/EngineDashboard";
 import { getUserAMSProfile } from "@/lib/ams/core.functions";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * Shows the signed-in user's actual unlocked achievements and available
@@ -24,15 +25,16 @@ export const Route = createFileRoute("/ams/achievements")({
   component: Page,
 });
 
-function chip(unlocked: boolean) {
+function chip(unlocked: boolean, labels: { unlocked: string; locked: string }) {
   return (
     <StatusChip tone={unlocked ? "success" : "muted"}>
-      {unlocked ? "Unlocked" : "Locked"}
+      {unlocked ? labels.unlocked : labels.locked}
     </StatusChip>
   );
 }
 
 function Page() {
+  const { t } = useTranslation();
   const fetchProfile = useServerFn(getUserAMSProfile);
   const profileQuery = useQuery({
     queryKey: ["ams", "core-profile"],
@@ -48,32 +50,35 @@ function Page() {
 
   return (
     <EngineDashboard
-      kicker="Developer AMS"
-      title="My Achievements"
+      kicker={t("ams.developer_ams")}
+      title={t("ams.my_achievements")}
       description={
         profileQuery.isPending
-          ? "Loading your achievement record…"
+          ? t("ams.loading_achievement_record")
           : profileQuery.isError
-            ? "Your achievement record is unavailable."
-            : `${unlocked} of ${achievements.length} available achievements unlocked.`
+            ? t("ams.achievement_record_unavailable")
+            : t("ams.achievements_unlocked_count", {
+                unlocked,
+                total: achievements.length,
+              })
       }
       kpis={[
-        { label: "Available", value: achievements.length },
-        { label: "Unlocked", value: unlocked },
-        { label: "Locked", value: achievements.length - unlocked },
-        { label: "Common", value: rarityCounts.common ?? 0 },
-        { label: "Rare", value: rarityCounts.rare ?? 0 },
-        { label: "Epic+", value: (rarityCounts.epic ?? 0) + (rarityCounts.legendary ?? 0) + (rarityCounts.mythic ?? 0) },
+        { label: t("ams.available"), value: achievements.length },
+        { label: t("ams.unlocked"), value: unlocked },
+        { label: t("ams.locked"), value: achievements.length - unlocked },
+        { label: t("ams.common"), value: rarityCounts.common ?? 0 },
+        { label: t("ams.rare"), value: rarityCounts.rare ?? 0 },
+        { label: t("ams.epic_plus"), value: (rarityCounts.epic ?? 0) + (rarityCounts.legendary ?? 0) + (rarityCounts.mythic ?? 0) },
       ]}
       filters={[
-        { label: "Type", key: "type", values: [] },
-        { label: "Status", key: "status", values: ["Unlocked", "Locked"] },
+        { label: t("ams.type"), key: "type", values: [] },
+        { label: t("ams.status"), key: "status", values: [t("ams.unlocked"), t("ams.locked")] },
       ]}
       columns={[
-        { key: "title", label: "Achievement" },
-        { key: "type", label: "Type" },
-        { key: "xp", label: "XP reward", align: "right" },
-        { key: "status", label: "Status" },
+        { key: "title", label: t("ams.achievement") },
+        { key: "type", label: t("ams.type") },
+        { key: "xp", label: t("ams.xp_reward"), align: "right" },
+        { key: "status", label: t("ams.status") },
       ]}
       rows={achievements.map((achievement) => ({
         id: achievement.id,
@@ -87,12 +92,15 @@ function Page() {
         ),
         type: <span className="capitalize">{achievement.type}</span>,
         xp: achievement.xpReward.toLocaleString(),
-        status: chip(achievement.unlocked),
+        status: chip(achievement.unlocked, {
+          unlocked: t("ams.unlocked"),
+          locked: t("ams.locked"),
+        }),
       }))}
       loading={profileQuery.isPending}
       error={profileQuery.isError ? profileQuery.error.message : null}
       onRetry={() => void profileQuery.refetch()}
-      emptyLabel="No achievements are available for this account."
+      emptyLabel={t("ams.no_achievements_available")}
     />
   );
 }

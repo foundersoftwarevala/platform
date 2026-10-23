@@ -87,13 +87,23 @@ Validation performed:
 - Full TypeScript check (`npx.cmd tsc --noEmit -p .`): passed (exit code 0).
 - The generated static source catalogue was refreshed and committed as
   `853bf27b0fe80c097e45dba1930929786a0dfc17`.
-- `npm run i18n:check`: **not clean**. On 2026-10-23, after marking the AYRA
-  product name as non-translatable, it still reports 1,474 hardcoded
-  user-facing strings across 62 files. The check was not bypassed by raising
-  `scripts/i18n-baseline.json`; the remaining strings need a separate,
-  repository-wide localization pass.
-- ESLint over the touched legacy AYRA files reports 61 Prettier formatting
-  findings; no unrelated bulk reformat was applied.
+- Historical localization checkpoint: `npm run i18n:check` reported 357
+  above-baseline findings in 43 files (exit code 1). That result, including
+  the recorded `SeoCenter` and `AffiliateWorkspace` counts, is superseded by
+  the current follow-up below. The baseline was not raised.
+- These latest localization edits are **local only**: they have not been
+  committed, pushed, built for production, or deployed. The deployed AMS
+  server-side RPC routing fix remains separate and unchanged.
+- Historical combined i18n/recognition test run: **488/491**. At that
+  checkpoint the message-catalogue gate failed; a glossary pipeline test
+  returned `null`, and a PostgreSQL enqueue-size test timed out. Those two
+  results were not attributed to this localization change and were not
+  re-run as part of the current focused validation.
+- A fresh full TypeScript check after the final message-key change passed
+  (`npx.cmd tsc --noEmit -p .`, exit code 0).
+- Historical AYRA-only ESLint run: 61 Prettier formatting findings; no
+  unrelated bulk reformat was applied. The current broader lint result is
+  recorded below.
 
 The AYRA-specific changes were committed and pushed on `main` as
 `1318f722163583099837d6030d1ad9e2e786765a`; the deployment status clarification
@@ -140,6 +150,39 @@ with status >= 400. The recognition detector's pending-RPC invocation was not
 separately observed, so that specific notification path remains **YELLOW:
 not directly verified**.
 
-The i18n gate remains **FAIL** with the 1,474 findings above. The external AYRA
-repository and its license remain unverified; no external code is claimed as
-integrated.
+## Current localization follow-up
+
+- `npm run i18n:check`: **PASS** (exit code 0): 4,562 keyed messages,
+  178 exempt strings, and 14,091 remaining hardcoded strings, with no
+  above-baseline findings. The existing baseline was reduced in 28 files;
+  no baseline value increased. The static source catalogue was regenerated.
+- Localized the remaining over-baseline UI copy and API error responses.
+  API errors use the request's locale through the shared server translator;
+  the English source remains the fallback. Added a regression test for the
+  request-language/module behavior.
+- Full `npx.cmd tsc --noEmit -p .`: **PASS** (exit code 0).
+- `npm.cmd run build`: **PASS**. The build emitted existing TanStack
+  `inputValidator()` deprecation notices.
+- `src/lib/i18n/__tests__/messages.test.ts`: **20/20 PASS**.
+- ESLint on changed source files is **NOT CLEAN**: 2,208 findings (2,201
+  errors, 7 warnings), predominantly Prettier formatting findings. Ten
+  non-Prettier findings are reported in `Celebration.tsx`,
+  `ResellerLeadsWorkspace.tsx`, `SeoCenter.tsx`, `HomeIndex.tsx`, and
+  `checkout.tsx`; they were not changed as part of this localization work.
+  The translator helper and its test pass ESLint with the Prettier rule
+  disabled. This is not a claim that the broader lint command passes.
+- The localization changes and this report are **local and uncommitted**.
+  No push, deployment, database write, or production restart was performed.
+  The current `main` worktree includes unrelated changes, and the production
+  Vala AI deployment preflight has since been verified read-only on the VPS:
+  the configured data directory exists outside the application tree, the
+  encryption-key format is valid (the value was not displayed), and the
+  backup wrapper, cron entry, and checksum files are present. These checks
+  do not mean this localization change has been deployed. No push, deployment,
+  database write, or production restart has yet occurred for this follow-up.
+  Therefore no new live-site or console verification is claimed. The last
+  documented production browser check remains the 2026-10-23 check above; the
+  pending-recognition notification invocation was not directly verified.
+
+The external AYRA repository and its license remain unverified; no external
+code is claimed as integrated.

@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { heroPublicQuery } from "@/lib/marketplace-content/heroQueries";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 const ICONS: Record<string, LucideIcon> = {
   Boxes, Crown, Rocket, Sparkles, Utensils, GraduationCap, Stethoscope, Store, Users,
@@ -15,6 +16,7 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 const HeroCarousel = () => {
+  const { t } = useTranslation();
   const { data: slides } = useSuspenseQuery(heroPublicQuery());
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -131,7 +133,7 @@ const HeroCarousel = () => {
               href="/request-software"
               className="sv-btn sv-btn-hero-glass !h-14 !rounded-2xl !px-8 !text-base"
             >
-              Request Your Software
+              {t("rd.request_page_title")}
             </a>
           </motion.div>
         </div>

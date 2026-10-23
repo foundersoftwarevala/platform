@@ -1,4 +1,5 @@
 import type { AgentMetricRow } from '@/lib/server-manager/agent-data';
+import { useTranslation } from '@/lib/i18n/use-translation';
 
 interface TelemetryTrendProps {
   samples: AgentMetricRow[];
@@ -7,8 +8,9 @@ interface TelemetryTrendProps {
 }
 
 export function TelemetryTrend({ samples, metric, label }: TelemetryTrendProps) {
+  const { t } = useTranslation();
   if (samples.length === 0) {
-    return <p className="text-muted-foreground text-sm">Waiting for fresh agent data.</p>;
+    return <p className="text-muted-foreground text-sm">{t('server_manager.telemetry.waiting')}</p>;
   }
 
   const ordered = [...samples].sort((a, b) => Date.parse(a.recorded_at) - Date.parse(b.recorded_at));
@@ -46,7 +48,7 @@ export function TelemetryTrend({ samples, metric, label }: TelemetryTrendProps) 
         />
       </svg>
       <p className="text-xs text-muted-foreground">
-        Source: Agent · {values.length} samples · Latest {values.at(-1)?.toFixed(1)}%
+        {t('server_manager.telemetry.source')} {values.length} {t('server_manager.telemetry.samples_latest')} {values.at(-1)?.toFixed(1)}%
       </p>
     </div>
   );

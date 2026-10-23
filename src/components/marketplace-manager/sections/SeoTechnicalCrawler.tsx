@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import type { ReactNode } from "react";
 
 import { Card, SubNav } from "../ui";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   useRunSeoProductCrawl,
   useSeoProductBrokenLinks,
@@ -36,6 +37,7 @@ function formatDate(value: string | null): string {
 }
 
 export function SeoTechnicalCrawler() {
+  const { t } = useTranslation();
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].label);
   const section = SECTIONS.find((item) => item.label === activeSection) ?? SECTIONS[0];
   const jobs = useSeoProductCrawlJobs(section.label === "Crawl Jobs");
@@ -54,7 +56,7 @@ export function SeoTechnicalCrawler() {
       void links.refetch();
       return;
     }
-    toast.info("API Integration Pending. Connect API to run.");
+    toast.info(t("seo.api_integration_pending"));
   };
 
   const actionLabel =
@@ -72,9 +74,9 @@ export function SeoTechnicalCrawler() {
       <tr>
         <td colSpan={section.columns.length} className="px-3 py-8 text-center" role="alert">
           <AlertTriangle className="mx-auto mb-2 h-5 w-5 text-destructive" />
-          <p className="text-muted-foreground">Failed to load crawl jobs.</p>
+          <p className="text-muted-foreground">{t("seo.failed_load_crawl_jobs")}</p>
           <button type="button" onClick={() => void jobs.refetch()} className="mt-2 underline">
-            Retry
+            {t("seo.retry")}
           </button>
         </td>
       </tr>
@@ -84,9 +86,9 @@ export function SeoTechnicalCrawler() {
       <tr>
         <td colSpan={section.columns.length} className="px-3 py-8 text-center" role="alert">
           <AlertTriangle className="mx-auto mb-2 h-5 w-5 text-destructive" />
-          <p className="text-muted-foreground">Failed to load broken links.</p>
+          <p className="text-muted-foreground">{t("seo.failed_load_broken_links")}</p>
           <button type="button" onClick={() => void links.refetch()} className="mt-2 underline">
-            Retry
+            {t("seo.retry")}
           </button>
         </td>
       </tr>
@@ -96,7 +98,7 @@ export function SeoTechnicalCrawler() {
       <tr>
         <td colSpan={section.columns.length} className="px-3 py-8 text-center" role="status">
           <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
-          Loading {section.label.toLowerCase()}…
+          {t("seo.loading")} {section.label.toLowerCase()}…
         </td>
       </tr>
     );
@@ -125,17 +127,17 @@ export function SeoTechnicalCrawler() {
           </a>
         </td>
         <td className="max-w-[320px] break-all px-3 py-2">{link.source_url ?? "—"}</td>
-        <td className="px-3 py-2">{link.http_status ?? "Connection error"}</td>
+        <td className="px-3 py-2">{link.http_status ?? t("seo.connection_error")}</td>
         <td className="whitespace-nowrap px-3 py-2 capitalize">{link.status}</td>
       </tr>
     ));
   } else {
     const emptyMessage =
       section.label === "Broken Links"
-        ? "No broken links detected."
+        ? t("seo.no_broken_links_detected")
         : section.label === "Crawl Jobs"
-          ? "No crawl jobs yet. Run a scan to begin."
-          : "No data available.";
+          ? t("seo.no_crawl_jobs_yet")
+          : t("seo.no_data_available");
     body = (
       <tr>
         <td
@@ -153,10 +155,9 @@ export function SeoTechnicalCrawler() {
   return (
     <div data-skip-drawer>
       <div className="mb-5">
-        <h2 className="text-xl font-bold">Technical SEO</h2>
+        <h2 className="text-xl font-bold">{t("seo.technical_seo")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Check up to 50 published Marketplace product pages per scan. Requests are limited to this
-          site and run at no more than 10 concurrent connections.
+          {t("seo.technical_seo_scan_description")}
         </p>
       </div>
       <SubNav
@@ -170,7 +171,7 @@ export function SeoTechnicalCrawler() {
             <h3 className="text-sm font-semibold">{section.label}</h3>
             {section.label === "Crawl Jobs" && (
               <p className="mt-1 text-xs text-muted-foreground">
-                The scan checks public product URLs without following off-site redirects.
+                {t("seo.scan_public_urls_note")}
               </p>
             )}
           </div>
@@ -189,7 +190,7 @@ export function SeoTechnicalCrawler() {
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            {section.label === "Crawl Jobs" && crawl.isPending ? "Scanning…" : actionLabel}
+            {section.label === "Crawl Jobs" && crawl.isPending ? t("seo.scanning") : actionLabel}
           </button>
         </div>
         <div className="overflow-x-auto rounded-lg border border-border">

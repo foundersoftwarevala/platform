@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 
 import { requireAuthor, rest } from "@/lib/marketplace/author-guard";
 
@@ -110,6 +111,7 @@ export const Route = createFileRoute("/api/seller/metrics")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireAuthor(request, {
           allowPending: true,
           sellerKinds: ["author", "vendor"],
@@ -261,7 +263,7 @@ export const Route = createFileRoute("/api/seller/metrics")({
           });
         } catch (error) {
           console.error("[seller metrics] database read failed", error);
-          return Response.json({ error: "Could not load your dashboard figures" }, { status: 502 });
+          return Response.json({ error: await translateText("dashboard.api_could_not_load_your_dashboard_figures_1d34ea6") }, { status: 502 });
         }
       },
     },

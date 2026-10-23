@@ -17,4 +17,9 @@ export const PAYMENT_MESSAGES = {
   "payment.back": "Back to the marketplace",
   "payment.contact_support": "Contact support",
   "payment.whatsapp": "WhatsApp us",
+  "payment.api_online_payment_is_not_configured_yet_pleas_78120d9": "Online payment is not configured yet. Please contact support.",
+  "payment.api_please_sign_in_to_pay_f92c956": "Please sign in to pay.",
+  "payment.api_please_sign_in_to_view_payment_pricing_7693cbf": "Please sign in to view payment pricing.",
+  "payment.api_could_not_price_the_current_cart_fbf3faa": "Could not price the current cart.",
+  "payment.api_the_current_cart_returned_an_invalid_subto_7364cc4": "The current cart returned an invalid subtotal.",
 } as const;

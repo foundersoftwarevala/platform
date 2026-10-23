@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { useServerFn } from "@/lib/serverFn";
 import { generateResellerAi, type ResellerAiTool } from "@/lib/reseller-dashboard.functions";
 import {
@@ -27,6 +28,7 @@ const TOOLS: Tool[] = [
 ];
 
 export function ResellerAISuitePage({ onBack }: { onBack: () => void }) {
+    const { t: translateText } = useI18nSource();
   const [active, setActive] = useState<Tool | null>(null);
 
   return (
@@ -38,11 +40,10 @@ export function ResellerAISuitePage({ onBack }: { onBack: () => void }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-[oklch(0.75_0.18_300)]" />
-            <h2 className="text-lg font-bold tracking-tight">Reseller AI Suite</h2>
+            <h2 className="text-lg font-bold tracking-tight">{translateText("dashboard.reseller_ai_suite_d83669")}</h2>
           </div>
           <p className="text-xs text-muted-foreground">
-            AI tools for sales, lead qualification and customer communication.
-          </p>
+            {translateText("dashboard.ai_tools_for_sales_lead_qualification_and_cu_b891c5")}</p>
         </div>
       </header>
 
@@ -62,8 +63,7 @@ export function ResellerAISuitePage({ onBack }: { onBack: () => void }) {
             <div className="mt-3 text-sm font-semibold">{t.title}</div>
             <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{t.desc}</div>
             <div className="mt-3 inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-              Open tool →
-            </div>
+              {translateText("dashboard.open_tool_1bd9d4")}</div>
           </button>
         ))}
       </div>

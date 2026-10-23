@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 import { jsPDF } from "jspdf";
 import { bearerToken, userFromBearerToken } from "@/lib/auth/bearer-user.server";
 import { parseIdempotencyKey } from "@/lib/server-manager/agent-contract";
@@ -45,36 +46,37 @@ export const Route = createFileRoute("/api/server-manager/invoices")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const { url, publishableKey, serviceKey } = config();
         if (!url || !publishableKey || !serviceKey) {
-          return Response.json({ error: "Invoice generation is unavailable" }, { status: 503 });
+          return Response.json({ error: await translateText("server_manager.api_invoice_generation_is_unavailable_826511a") }, { status: 503 });
         }
         if (
           request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !==
           "application/json"
         ) {
-          return Response.json({ error: "Content-Type must be application/json" }, { status: 415 });
+          return Response.json({ error: await translateText("server_manager.api_content_type_must_be_application_json_8066ca8") }, { status: 415 });
         }
         const token = bearerToken(request.headers.get("authorization"));
-        if (!token) return Response.json({ error: "Authentication required" }, { status: 401 });
+        if (!token) return Response.json({ error: await translateText("server_manager.api_authentication_required_682810d") }, { status: 401 });
         const user = await userFromBearerToken(token);
-        if (!user) return Response.json({ error: "Authentication required" }, { status: 401 });
+        if (!user) return Response.json({ error: await translateText("server_manager.api_authentication_required_682810d") }, { status: 401 });
 
         const idempotencyKey = parseIdempotencyKey(request.headers.get("idempotency-key"));
         if (!idempotencyKey) {
-          return Response.json({ error: "A UUID Idempotency-Key is required" }, { status: 400 });
+          return Response.json({ error: await translateText("server_manager.api_a_uuid_idempotency_key_is_required_a1fdf18") }, { status: 400 });
         }
         let body: unknown;
         try {
           body = JSON.parse(await readRequestText(request, 2048));
         } catch (error) {
           if (error instanceof RequestBodyTooLargeError) {
-            return Response.json({ error: "Invoice request is too large" }, { status: 413 });
+            return Response.json({ error: await translateText("server_manager.api_invoice_request_is_too_large_b483384") }, { status: 413 });
           }
-          return Response.json({ error: "Invalid JSON request" }, { status: 400 });
+          return Response.json({ error: await translateText("server_manager.api_invalid_json_request_650225d") }, { status: 400 });
         }
         if (!validRequest(body)) {
-          return Response.json({ error: "Invoice request fields are invalid" }, { status: 400 });
+          return Response.json({ error: await translateText("server_manager.api_invoice_request_fields_are_invalid_7d5ef9f") }, { status: 400 });
         }
 
         try {
@@ -94,7 +96,7 @@ export const Route = createFileRoute("/api/server-manager/invoices")({
             const status =
               errorBody.code === "P0002" ? 404 : errorBody.code === "42501" ? 403 : 422;
             return Response.json(
-              { error: "Invoice could not be generated for this subscription" },
+              { error: await translateText("server_manager.api_invoice_could_not_be_generated_for_this_su_4f732a6") },
               { status },
             );
           }
@@ -126,7 +128,7 @@ export const Route = createFileRoute("/api/server-manager/invoices")({
             typeof invoice.plan !== "string"
           ) {
             return Response.json(
-              { error: "Invoice data returned by the database is invalid" },
+              { error: await translateText("server_manager.api_invoice_data_returned_by_the_database_is_i_9fb8f25") },
               { status: 502 },
             );
           }
@@ -175,7 +177,7 @@ export const Route = createFileRoute("/api/server-manager/invoices")({
           );
           if (!uploadResponse.ok) {
             console.error("[server-manager/invoices] PDF upload failed", uploadResponse.status);
-            return Response.json({ error: "Invoice PDF could not be stored" }, { status: 502 });
+            return Response.json({ error: await translateText("server_manager.api_invoice_pdf_could_not_be_stored_8a0dada") }, { status: 502 });
           }
 
           const pathResponse = await fetch(
@@ -188,7 +190,7 @@ export const Route = createFileRoute("/api/server-manager/invoices")({
           );
           if (!pathResponse.ok) {
             console.error("[server-manager/invoices] PDF path update failed", pathResponse.status);
-            return Response.json({ error: "Invoice record could not be updated" }, { status: 502 });
+            return Response.json({ error: await translateText("server_manager.api_invoice_record_could_not_be_updated_134407b") }, { status: 502 });
           }
 
           const signedResponse = await fetch(
@@ -205,14 +207,14 @@ export const Route = createFileRoute("/api/server-manager/invoices")({
               signedResponse.status,
             );
             return Response.json(
-              { error: "Invoice download link could not be created" },
+              { error: await translateText("server_manager.api_invoice_download_link_could_not_be_created_941eefa") },
               { status: 502 },
             );
           }
           const signed = (await signedResponse.json()) as { signedURL?: unknown };
           if (typeof signed.signedURL !== "string") {
             return Response.json(
-              { error: "Invoice download link response is invalid" },
+              { error: await translateText("server_manager.api_invoice_download_link_response_is_invalid_4b41ab3") },
               { status: 502 },
             );
           }
@@ -230,7 +232,7 @@ export const Route = createFileRoute("/api/server-manager/invoices")({
           });
         } catch (error) {
           console.error("[server-manager/invoices] generation failed", error);
-          return Response.json({ error: "Invoice generation failed" }, { status: 502 });
+          return Response.json({ error: await translateText("server_manager.api_invoice_generation_failed_0a89541") }, { status: 502 });
         }
       },
     },

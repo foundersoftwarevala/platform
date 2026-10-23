@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -65,6 +66,7 @@ export function LeadDetailSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+    const { t: translateText } = useI18nSource();
   const qc = useQueryClient();
   const { t } = useTranslation();
   const { data: agents = [] } = useAgents();
@@ -122,7 +124,7 @@ export function LeadDetailSheet({
             <PriorityBadge priority={lead.priority} />
             <TemperatureBadge temperature={lead.temperature} />
             <span className="text-xs text-muted-foreground">
-              {lead.sub_source} • created {relTime(lead.created_at)}
+              {lead.sub_source} {translateText("sales_support.created_6a930d")}{relTime(lead.created_at)}
             </span>
           </div>
         </SheetHeader>
@@ -130,13 +132,13 @@ export function LeadDetailSheet({
         <div className="space-y-5 px-4 pb-8">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="stat-tile p-3">
-              <ScoreBar score={lead.ai_score} label="AI score" />
+              <ScoreBar score={lead.ai_score} label={translateText("sales_support.ai_score_dae088")} />
             </div>
             <div className="stat-tile p-3">
-              <ScoreBar score={lead.intent_score} label="Intent" />
+              <ScoreBar score={lead.intent_score} label={translateText("sales_support.intent_9c6e80")} />
             </div>
             <div className="stat-tile p-3">
-              <ScoreBar score={lead.conversion_probability} label="Conv. prob." />
+              <ScoreBar score={lead.conversion_probability} label={translateText("sales_support.conv_prob_f4d0ac")} />
             </div>
           </div>
 
@@ -156,8 +158,7 @@ export function LeadDetailSheet({
                 ).then((result) => result && window.open(`tel:${lead.phone}`, "_self"))
               }
             >
-              <Phone className="size-4" /> Call
-            </Button>
+              <Phone className="size-4" /> {translateText("sales_support.call_291a0a")}</Button>
             <Button
               size="sm"
               variant="secondary"

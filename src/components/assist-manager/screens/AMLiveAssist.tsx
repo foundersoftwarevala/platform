@@ -17,6 +17,7 @@ import {
   Square,
   Keyboard,
 } from "lucide-react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ import { useAM } from "../am-context";
 import { useAssistRealtime } from "../assist-realtime-context";
 
 export function AMLiveAssist() {
+    const { t: translateText } = useI18nSource();
   const { sessions, session, control, isLoading } = useActiveSession();
   const {
     isTarget,
@@ -83,9 +85,9 @@ export function AMLiveAssist() {
   if (!session) {
     return (
 <div className="space-y-6 p-6">
-        <ScreenHeader title="Live Assist" subtitle="Real-time assist stream and session controls" />
+        <ScreenHeader title={translateText("chat.live_assist_4e1896")} subtitle="Real-time assist stream and session controls" />
         <EmptyState
-          title="No live session"
+          title={translateText("chat.no_live_session_8e4993")}
           description="Approve a pending session to start assisting."
         />
       </div>
@@ -99,7 +101,7 @@ export function AMLiveAssist() {
     <ScrollArea className="h-full">
       <div className="space-y-6 p-6">
         <ScreenHeader
-          title="Live Assist"
+          title={translateText("chat.live_assist_4e1896")}
           subtitle={`Session ${session.session_code} · ${session.end_user?.device ?? "device"}`}
           actions={
             <>
@@ -155,8 +157,7 @@ export function AMLiveAssist() {
             </div>
             {isConnected && (
               <div className="absolute bottom-4 left-4 rounded-full bg-background/90 px-3 py-1 text-xs text-success">
-                Secure peer connection active
-              </div>
+                {translateText("chat.secure_peer_connection_active_e76886")}</div>
             )}
             <div className="absolute right-4 top-4">
               <Button size="sm" variant="secondary" onClick={() => setSection("screen_control")}>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { motion } from 'framer-motion';
 import {
   Brain, TrendingUp, AlertTriangle, CheckCircle, Zap, Shield,
@@ -41,6 +42,7 @@ const TYPE_ICONS: Record<string, typeof Brain> = {
 };
 
 const SMAIHealthSuggestions = () => {
+    const { t: translateText } = useI18nSource();
   const [insights, setInsights] = useState<InsightRow[]>([]);
   const [servers, setServers] = useState<Record<string, ServerLite>>({});
   const [loading, setLoading] = useState(true);
@@ -127,15 +129,14 @@ const SMAIHealthSuggestions = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="AI Health Suggestions"
+        title={translateText("server_manager.ai_health_suggestions_03bbf8")}
         subtitle="Read-only recommendations based on available infrastructure data"
         action={
           <div className="flex items-center gap-3">
             <ServerHealthBadge lastSeen={null} />
             <Button variant="outline" onClick={() => void load()} disabled={loading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+              {translateText("server_manager.refresh_56e3ba")}</Button>
           </div>
         }
       />
@@ -144,8 +145,7 @@ const SMAIHealthSuggestions = () => {
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive flex items-center justify-between gap-4">
           <span>{loadError}</span>
           <Button variant="outline" size="sm" onClick={() => void load()}>
-            Retry
-          </Button>
+            {translateText("server_manager.retry_9f5cd8")}</Button>
         </div>
       )}
 
@@ -187,12 +187,12 @@ const SMAIHealthSuggestions = () => {
 
       {loading ? (
         <div className="bento-card">
-          <CardContent className="p-10 text-center text-muted-foreground">Analyzing infrastructure…</CardContent>
+          <CardContent className="p-10 text-center text-muted-foreground">{translateText("server_manager.analyzing_infrastructure_be702a")}</CardContent>
         </div>
       ) : filtered.length === 0 ? (
         <div className="bento-card">
           <CardContent className="p-10 text-center text-muted-foreground">
-            No {filter === 'all' ? '' : filter} recommendations right now.
+            {translateText("server_manager.no_816c52")}{filter === 'all' ? '' : filter} recommendations right now.
           </CardContent>
         </div>
       ) : (

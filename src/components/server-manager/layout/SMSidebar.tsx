@@ -4,6 +4,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from '@/lib/i18n/use-translation';
 import type { ViewType } from './views';
 import { primaryItems, navGroups } from './views';
 
@@ -50,6 +51,7 @@ type Item = { id: ViewType; label: string; icon: LucideIcon };
 export function SMSidebar({
   activeView, onSelect, collapsed, onToggleCollapsed, mobileOpen, onCloseMobile, alertBadge,
 }: SMSidebarProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
@@ -89,7 +91,7 @@ export function SMSidebar({
         <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
         {!collapsed && <span className="truncate text-left flex-1">{item.label}</span>}
         {!collapsed && item.id === 'alerts' && alertBadge === null && (
-          <span className="rounded-md bg-surface px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground" aria-label="Alert count unknown">
+          <span className="rounded-md bg-surface px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground" aria-label={t("common.alert_count_unknown")}>
             ?
           </span>
         )}
@@ -109,13 +111,13 @@ export function SMSidebar({
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-primary-glow text-primary-foreground">
             <Server className="h-4 w-4" aria-hidden="true" />
           </span>
-          {!collapsed && <span className="truncate text-sm font-semibold tracking-tight">Server Manager</span>}
+          {!collapsed && <span data-no-translate className="truncate text-sm font-semibold tracking-tight">Server Manager</span>}
         </div>
         {!collapsed && (
           <button
             onClick={onToggleCollapsed}
             className="ml-auto hidden lg:grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Collapse sidebar"
+            aria-label={t("common.collapse_sidebar")}
           >
             <PanelLeftClose className="h-4 w-4" />
           </button>
@@ -123,7 +125,7 @@ export function SMSidebar({
         <button
           onClick={onCloseMobile}
           className="ml-auto lg:hidden grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground"
-          aria-label="Close menu"
+          aria-label={t("common.close_menu")}
         >
           <X className="h-4 w-4" />
         </button>
@@ -133,7 +135,7 @@ export function SMSidebar({
         <button
           onClick={onToggleCollapsed}
           className="mx-auto mt-3 hidden lg:grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"
-          aria-label="Expand sidebar"
+          aria-label={t("common.expand_sidebar")}
         >
           <PanelLeftOpen className="h-4 w-4" />
         </button>
@@ -146,15 +148,15 @@ export function SMSidebar({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Find a screen…"
-              aria-label="Find a screen"
+              placeholder={t("common.find_screen")}
+              aria-label={t("common.find_screen_label")}
               className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
             />
           </div>
         </div>
       )}
 
-      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-3" aria-label="Server Manager sections">
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-3" aria-label={t("common.server_manager_sections")}>
         <div className="space-y-0.5">
           {primaryItems.map((item) => (
             <ItemLink key={item.id} item={item} />
@@ -196,8 +198,8 @@ export function SMSidebar({
       {!collapsed && (
         <div className="shrink-0 border-t border-border p-3">
           <div className="rounded-xl border border-border bg-surface/60 px-3 py-2.5">
-            <p className="text-[11px] font-medium text-foreground">IP Locked · Audited</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">Infrastructure scope only</p>
+            <p className="text-[11px] font-medium text-foreground">{t("common.ip_locked_audited")}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("common.infrastructure_scope_only")}</p>
           </div>
         </div>
       )}
@@ -220,7 +222,7 @@ export function SMSidebar({
           <button
             className="absolute inset-0 bg-background/70 backdrop-blur-sm"
             onClick={onCloseMobile}
-            aria-label="Close menu overlay"
+            aria-label={t("common.close_menu_overlay")}
           />
           <div className="absolute inset-y-0 left-0 w-[280px] max-w-[85vw] border-r border-border bg-background shadow-2xl">
             {content}

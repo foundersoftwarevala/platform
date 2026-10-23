@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { toast } from "sonner";
 import {
   ArrowLeft, Plus, Search, UserCheck, Mail, Phone, Building2, MapPin, Star,
@@ -33,6 +34,7 @@ const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: s
 ];
 
 export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
+    const { t: translateText } = useI18nSource();
   // The clients themselves are rows in crm_customers, which is the table the
   // Reseller Manager's Customers wall reads.
   const crud = useResellerCustomers();
@@ -88,8 +90,8 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search clients…"
-                aria-label="Search clients"
+                placeholder={translateText("dashboard.search_clients_e2f2ed")}
+                aria-label={translateText("dashboard.search_clients_b50bf5")}
                 className="w-full rounded-lg bg-surface border border-border pl-8 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -97,16 +99,14 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
               onClick={() => { setAdding(true); setSelectedId(null); }}
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-brand text-brand-foreground px-3 py-2 text-xs font-semibold shadow-glow"
             >
-              <Plus className="h-3.5 w-3.5" /> New Client
-            </button>
+              <Plus className="h-3.5 w-3.5" /> {translateText("dashboard.new_client_902994")}</button>
           </div>
 
           <div className="max-h-[60vh] overflow-y-auto scrollbar-thin">
             {filtered.length === 0 ? (
               <div className="p-6 text-center text-xs text-muted-foreground">
                 <UserCheck className="mx-auto h-6 w-6 mb-2 opacity-60" />
-                No clients yet. Create your first to start tracking purchases & licenses.
-              </div>
+                {translateText("dashboard.no_clients_yet_create_your_first_to_start_tr_3b2c23")}</div>
             ) : (
               filtered.map((r) => (
                 <button
@@ -139,7 +139,7 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
                 void crud
                   .create({ name: values.name, extra: values.extra })
                   .then((rec) => {
-                    toast.success("Client created");
+                    toast.success(translateText("dashboard.client_created_481a66"));
                     setAdding(false);
                     setSelectedId((rec as { id?: string } | undefined)?.id ?? null);
                     setTab("profile");
@@ -161,7 +161,7 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
               onDelete={() => {
                 void crud
                   .remove(active.id)
-                  .then(() => { setSelectedId(null); toast.success("Client removed"); })
+                  .then(() => { setSelectedId(null); toast.success(translateText("dashboard.client_removed_7ab9a5")); })
                   .catch((error: unknown) =>
                     toast.error(error instanceof Error ? error.message : "That client was not removed."),
                   );
@@ -175,6 +175,7 @@ export function ResellerClientsWorkspace({ onBack }: { onBack: () => void }) {
 }
 
 function Header({ onBack, active, onClearActive }: { onBack: () => void; active: CrudRecord | null; onClearActive: () => void }) {
+    const { t: translateText } = useI18nSource();
   return (
     <div className="flex flex-wrap items-center gap-3">
       <button onClick={active ? onClearActive : onBack}
@@ -187,10 +188,10 @@ function Header({ onBack, active, onClearActive }: { onBack: () => void; active:
         </div>
         <div>
           <nav className="text-[11px] text-muted-foreground flex items-center gap-1">
-            <span>Reseller Dashboard</span><span>/</span><span className="text-foreground">Clients</span>
+            <span>{translateText("dashboard.reseller_dashboard_516400")}</span><span>/</span><span className="text-foreground">{translateText("dashboard.clients_28e22f")}</span>
             {active && <><span>/</span><span className="text-foreground truncate max-w-[18ch]">{active.name}</span></>}
           </nav>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Client Management</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">{translateText("dashboard.client_management_961013")}</h1>
         </div>
       </div>
     </div>

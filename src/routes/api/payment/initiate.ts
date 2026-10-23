@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 import {
   newTxnId, payuAmount, payuConfig, requestHash, usdToInr,
 } from "@/lib/commerce/payu";
@@ -52,17 +53,18 @@ export const Route = createFileRoute("/api/payment/initiate")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const config = payuConfig();
         if (!config) {
           return Response.json(
-            { error: "Online payment is not configured yet. Please contact support." },
+            { error: await translateText("payment.api_online_payment_is_not_configured_yet_pleas_78120d9") },
             { status: 503 },
           );
         }
 
         const user = await currentUser(request);
         if (!user) {
-          return Response.json({ error: "Please sign in to pay." }, { status: 401 });
+          return Response.json({ error: await translateText("payment.api_please_sign_in_to_pay_f92c956") }, { status: 401 });
         }
 
         let body: { orderId?: string; firstname?: string; phone?: string };

@@ -39,6 +39,8 @@ export const APPLY_MESSAGES = {
     "Email delivery is not configured. Decision emails remain queued; they have not been delivered.",
   "apply.queue.email_pending":
     "Decision saved. Email delivery has not been confirmed; check the email queue.",
+  "apply.queue.request_failed": "The request did not go through.",
+  "apply.queue.document_open_failed": "The document could not be opened.",
   "apply.queue.shortlist": "Shortlist",
   "apply.queue.employee_notice":
     "Employee approval means shortlisting only. It is not a job offer and does not grant internal access.",
@@ -57,6 +59,7 @@ export const APPLY_MESSAGES = {
   "apply.queue.empty": "No applications here.",
   "apply.queue.review": ["Start review", "moves an application to in review"],
   "apply.queue.approve": ["Approve", "approves an application"],
+  "apply.queue.approved": ["Approved", "an application has been approved"],
   "apply.queue.reject": ["Reject", "rejects an application"],
   "apply.queue.reason": "Reason for rejection (sent to the applicant)",
   "apply.queue.confirm_reject": "Reject application",
@@ -82,4 +85,6 @@ export const APPLY_MESSAGES = {
   "apply.queue.reinstate": ["Reinstate", "approves a suspended account again"],
   "apply.queue.suspend_reason": "Reason for suspension (sent to the applicant)",
   "apply.queue.confirm_suspend": "Suspend",
+  "apply.api_application_counts_could_not_be_read_527dfa1": "Application counts could not be read.",
+  "apply.api_the_reseller_manager_view_only_supports_re_f28dd08": "The Reseller Manager view only supports reseller applications.",
 } as const;

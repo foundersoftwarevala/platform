@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { motion } from 'framer-motion';
 import {
   Receipt, Server, TrendingUp, Calendar,
@@ -16,6 +17,7 @@ type Instance = Tables<'server_instances'>;
 type Invoice = Tables<'server_invoices'>;
 
 const SMBilling = () => {
+    const { t: translateText } = useI18nSource();
   const [servers, setServers] = useState<Instance[] | null>(null);
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,14 +56,13 @@ const SMBilling = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Billing & Usage" subtitle="Recorded invoice entries; subscription charges and PDF downloads are not configured" />
+      <PageHeader title={translateText("server_manager.billing_usage_d58e61")} subtitle="Recorded invoice entries; subscription charges and PDF downloads are not configured" />
 
       {loadError && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive flex items-center justify-between gap-4">
           <span>{loadError}</span>
           <Button variant="outline" size="sm" onClick={() => void loadData()}>
-            Retry
-          </Button>
+            {translateText("server_manager.retry_9f5cd8")}</Button>
         </div>
       )}
 
@@ -70,10 +71,10 @@ const SMBilling = () => {
         <div className="bento-card premium-halo hover-lift shimmer-sweep enter-soft !p-4">
           <div className="flex items-center gap-2 mb-2">
             <Receipt className="w-4 h-4 text-primary" />
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Current Month</span>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{translateText("server_manager.current_month_3d16cb")}</span>
           </div>
           <p className="mt-1 text-xl font-bold text-muted-foreground">—</p>
-          <p className="text-xs text-muted-foreground">Subscription data unavailable</p>
+          <p className="text-xs text-muted-foreground">{translateText("server_manager.subscription_data_unavailable_09cbcd")}</p>
         </div>
 
         <div className="bento-card premium-halo hover-lift shimmer-sweep enter-soft !p-4">

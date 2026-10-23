@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 import {
   deleteRecord,
@@ -71,6 +72,7 @@ function useInvalidate() {
 
 /** Row-level create/update/delete against the SEO tables. */
 export function useRecordActions() {
+  const { t } = useTranslation();
   const invalidate = useInvalidate();
   const insertFn = useServerFn(insertRecord);
   const updateFn = useServerFn(updateRecord);
@@ -79,7 +81,7 @@ export function useRecordActions() {
   const insert = useMutation({
     mutationFn: (input: InsertInput) => insertFn({ data: input }),
     onSuccess: () => {
-      toast.success("Created");
+      toast.success(t("seo.created"));
       void invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -88,7 +90,7 @@ export function useRecordActions() {
   const update = useMutation({
     mutationFn: (input: UpdateInput) => updateFn({ data: input }),
     onSuccess: () => {
-      toast.success("Saved");
+      toast.success(t("seo.saved"));
       void invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -97,7 +99,7 @@ export function useRecordActions() {
   const remove = useMutation({
     mutationFn: (input: DeleteInput) => deleteFn({ data: input }),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(t("seo.deleted"));
       void invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -137,8 +139,11 @@ export function useSiteAudit() {
 }
 
 export function useTechnicalChecks() {
+  const { t } = useTranslation();
   const run = useServerFn(runTechnicalChecks);
-  return useSeoOperation(run, (result) => `${result.checked} live technical checks completed`);
+  return useSeoOperation(run, (result) =>
+    t("seo.technical_checks_completed", { count: result.checked }),
+  );
 }
 
 export function useGenerateReport() {
@@ -147,12 +152,13 @@ export function useGenerateReport() {
 }
 
 export function useRecrawlUrl() {
+  const { t } = useTranslation();
   const invalidate = useInvalidate();
   const run = useServerFn(recrawlUrl);
   return useMutation({
     mutationFn: (id: string) => run({ data: { id } }),
     onSuccess: (result) => {
-      toast.success(`Live crawl completed · HTTP ${result.httpStatus}`);
+      toast.success(t("seo.live_crawl_completed", { status: result.httpStatus }));
       void invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -170,33 +176,39 @@ export function useAiGeneration() {
 }
 
 export function useSearchConsoleSync() {
+  const { t } = useTranslation();
   const sync = useServerFn(syncSearchConsole);
   return useMutation({
     mutationFn: (input: { siteUrl: string; days: number }) => sync({ data: input }),
     onSuccess: (result) =>
       toast.success(
-        `Search Console sync complete · ${result.rowsSynced.toLocaleString()} ranking row(s) saved`,
+        t("seo.search_console_sync_complete", {
+          count: result.rowsSynced,
+        }),
       ),
     onError: (e: Error) => toast.error(e.message),
   });
 }
 
 export function useGenerateSeoContentDraft() {
+  const { t } = useTranslation();
   const generate = useServerFn(generateSeoContentDraft);
   return useMutation({
     mutationFn: (input: { topic: string; targetKeyword?: string; locale: string }) =>
       generate({ data: input }),
-    onSuccess: (result) => toast.success(`Draft saved: ${result.title}`),
+    onSuccess: (result) => toast.success(t("seo.draft_saved", { title: result.title })),
     onError: (e: Error) => toast.error(e.message),
   });
 }
 
 export function useGenerateSeoKeywordIdeas() {
+  const { t } = useTranslation();
   const generate = useServerFn(generateSeoKeywordIdeas);
   return useMutation({
     mutationFn: (input: { topic: string; locale: string; count: number }) =>
       generate({ data: input }),
-    onSuccess: (result) => toast.success(`${result.ideas.length} keyword idea(s) saved for review`),
+    onSuccess: (result) =>
+      toast.success(t("seo.keyword_ideas_saved", { count: result.ideas.length })),
     onError: (e: Error) => toast.error(e.message),
   });
 }

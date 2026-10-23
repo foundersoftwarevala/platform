@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 
 import {
   APPLICATION_KINDS,
@@ -56,6 +57,7 @@ export const Route = createFileRoute("/api/applications/queue")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const auth = signedIn(request);
         if (!auth.ok) return auth.response;
 
@@ -76,7 +78,7 @@ export const Route = createFileRoute("/api/applications/queue")({
           } catch (error) {
             console.error("[applications] counts unavailable", error);
             return Response.json(
-              { error: "Application counts could not be read." },
+              { error: await translateText("apply.api_application_counts_could_not_be_read_527dfa1") },
               { status: 502 },
             );
           }
@@ -107,7 +109,7 @@ export const Route = createFileRoute("/api/applications/queue")({
         if (resellerManagerView) {
           if (kindParam !== "reseller")
             return Response.json(
-              { error: "The Reseller Manager view only supports reseller applications." },
+              { error: await translateText("apply.api_the_reseller_manager_view_only_supports_re_f28dd08") },
               { status: 400 },
             );
           if (!(await isResellerApplicationReader(auth.token))) return forbidden();

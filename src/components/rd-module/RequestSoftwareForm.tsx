@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   REQUEST_PDF_LIMIT,
   REQUEST_TEXT_LIMIT,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/rd-module/public-request";
 
 export function RequestSoftwareForm() {
+  const { t } = useTranslation();
   const { user, session, isLoading } = useAuth();
   const verified = Boolean(user?.email && user.email_confirmed_at);
   const [email, setEmail] = useState("");
@@ -38,7 +40,7 @@ export function RequestSoftwareForm() {
       setLinkSent(true);
     } catch (problem) {
       setError(
-        problem instanceof Error ? problem.message : "We could not send your verification link.",
+        problem instanceof Error ? problem.message : t("rd.verification_link_failed"),
       );
     } finally {
       setBusy(false);
@@ -48,15 +50,15 @@ export function RequestSoftwareForm() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!session?.access_token || !verified) {
-      setError("Please verify your email before submitting.");
+      setError(t("rd.verify_email_before_submit"));
       return;
     }
     setBusy(true);
     setError("");
     try {
-      if (!text.trim() && !pdf) throw new Error("Describe your software or attach a PDF.");
+      if (!text.trim() && !pdf) throw new Error(t("rd.describe_or_attach"));
       if (pdf && (pdf.size === 0 || pdf.size > REQUEST_PDF_LIMIT))
-        throw new Error("Choose a nonempty PDF, 10 MB or smaller.");
+        throw new Error(t("rd.choose_valid_pdf"));
       const id = submissionId ?? crypto.randomUUID();
       setSubmissionId(id);
       const body = new FormData();
@@ -77,37 +79,39 @@ export function RequestSoftwareForm() {
           "error" in result &&
           typeof result.error === "string"
             ? result.error
-            : "Your request could not be submitted. Please retry.";
+            : t("rd.submission_failed_retry");
         throw new Error(message);
       }
       setReceipt(softwareRequestReceiptSchema.parse(result));
     } catch (problem) {
-      setError(problem instanceof Error ? problem.message : "Your request could not be submitted.");
+      setError(
+        problem instanceof Error ? problem.message : t("rd.submission_failed"),
+      );
     } finally {
       setBusy(false);
     }
   }
 
-  if (isLoading) return <p role="status">Checking email verification...</p>;
+  if (isLoading) return <p role="status">{t("rd.checking_email_verification")}</p>;
   if (receipt)
     return (
       <section role="status" className="space-y-4 rounded-lg border border-border p-5">
-        <h2 className="text-lg font-semibold">Your request has been received</h2>
+        <h2 className="text-lg font-semibold">{t("rd.request_received")}</h2>
         <p>
-          Reference: <strong>{receipt.requestId}</strong>
+          {t("rd.request_reference", { reference: receipt.requestId })}
         </p>
         <p>
-          Assigned to the {receipt.assignedTo} inbox. We will review it and contact you by email.
+          {t("rd.request_assigned_inbox", { inbox: receipt.assignedTo })}
         </p>
         <p className="text-sm text-muted-foreground">
           {receipt.confirmation === "sent"
-            ? "Your confirmation email was sent."
+            ? t("rd.confirmation_sent")
             : receipt.confirmation === "queued"
-              ? "Your confirmation email is queued for delivery. Your request is saved."
-              : "Your request is saved. Confirmation email delivery could not be confirmed; keep your reference number."}
+              ? t("rd.confirmation_queued")
+              : t("rd.confirmation_unconfirmed")}
         </p>
         <a href="/" className="underline">
-          Back to homepage
+          {t("rd.back_to_homepage")}
         </a>
       </section>
     );
@@ -117,10 +121,10 @@ export function RequestSoftwareForm() {
       {!verified ? (
         <form onSubmit={verifyEmail} className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Verify your email to send a request. No password or signup form.
+            {t("rd.verify_email_explanation")}
           </p>
           <div className="space-y-2">
-            <Label htmlFor="request-email">Email address</Label>
+            <Label htmlFor="request-email">{t("rd.email_address")}</Label>
             <Input
               id="request-email"
               type="email"
@@ -135,35 +139,39 @@ export function RequestSoftwareForm() {
             />
           </div>
           <Button type="submit" disabled={busy}>
-            {busy ? "Sending..." : linkSent ? "Resend verification link" : "Send verification link"}
+            {busy
+              ? t("rd.sending")
+              : linkSent
+                ? t("rd.resend_verification_link")
+                : t("rd.send_verification_link")}
           </Button>
           {linkSent && (
             <p role="status" className="text-sm">
-              Check your email and open the verification link to return here. Check spam too.
+              {t("rd.check_verification_email")}
             </p>
           )}
         </form>
       ) : (
         <form onSubmit={submit} className="space-y-4">
           <p className="text-sm">
-            Verified email: <strong>{user?.email}</strong>
+            {t("rd.verified_email")}: <strong>{user?.email}</strong>
           </p>
           <div className="space-y-2">
-            <Label htmlFor="software-request">What software do you need?</Label>
+            <Label htmlFor="software-request">{t("rd.software_needed")}</Label>
             <Textarea
               id="software-request"
               rows={10}
               maxLength={REQUEST_TEXT_LIMIT}
               value={text}
               onChange={(event) => setText(event.target.value)}
-              placeholder="Type freely or paste from WhatsApp, an email or a document. No special format needed."
+              placeholder={t("rd.request_placeholder")}
             />
             <p className="text-xs text-muted-foreground">
-              Use any text format or language. Text, a PDF, or both.
+              {t("rd.accepted_formats")}
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="request-pdf">PDF attachment (optional, up to 10 MB)</Label>
+            <Label htmlFor="request-pdf">{t("rd.pdf_attachment_optional")}</Label>
             <Input
               id="request-pdf"
               type="file"
@@ -172,7 +180,7 @@ export function RequestSoftwareForm() {
             />
           </div>
           <div hidden aria-hidden="true">
-            <label htmlFor="request-website">Leave this empty</label>
+            <label htmlFor="request-website" data-no-translate>Leave this empty</label>
             <input
               id="request-website"
               name="website"
@@ -183,11 +191,10 @@ export function RequestSoftwareForm() {
             />
           </div>
           <Button type="submit" disabled={busy}>
-            {busy ? "Submitting..." : "Submit request"}
+            {busy ? t("rd.submitting") : t("rd.submit_request")}
           </Button>
           <p className="text-xs text-muted-foreground">
-            Your request and attachment are shared privately with the R&D team. Do not include
-            passwords or payment details.
+            {t("rd.privacy_notice")}
           </p>
         </form>
       )}

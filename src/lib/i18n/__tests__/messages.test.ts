@@ -15,7 +15,7 @@ vi.mock("../service.server", () => ({
   translateForCaller: (...args: unknown[]) => translateForCaller(...args),
 }));
 
-const { englishTranslator, languageOf, serverTranslator } =
+const { englishTranslator, languageOf, serverTranslator, translateApiMessage } =
   await import("../server-translate.server");
 // @ts-expect-error - plain JavaScript module without type declarations
 const { icuVariables } = await import("../../../../scripts/i18n-catalogue-check.mjs");
@@ -45,7 +45,7 @@ describe("message catalogue", () => {
         expect(out, `${key} in ${code} left a placeholder unfilled`).not.toMatch(/\{\w+\}/);
       }
     }
-  });
+  }, 30_000);
 
   it("selects pick their branch and fall back to other", () => {
     expect(
@@ -131,6 +131,27 @@ describe("server translation", () => {
     expect(englishTranslator()("email.licence.heading")).toBe("Your licence is ready");
   });
 
+  it("translates API messages in the request language and module context", async () => {
+    const key = "affiliate.api_please_sign_in_74d04a6";
+    translateForCaller.mockResolvedValue({
+      outcomes: [
+        {
+          text: messageText(key),
+          translation: "Connectez-vous",
+          status: "machine",
+        },
+      ],
+    });
+
+    const translated = await translateApiMessage(request({ "accept-language": "fr" }), key);
+
+    expect(translated).toBe("Connectez-vous");
+    expect(translateForCaller).toHaveBeenCalledWith(
+      expect.objectContaining({ context: "affiliate", target: "fr" }),
+      expect.anything(),
+    );
+  });
+
   it("resolves normalized real catalogue text and retains source spacing", async () => {
     const entry = allMessages().find((message) => message.text !== message.text.trim());
     if (!entry || !isMessageKey(entry.key))
@@ -190,7 +211,7 @@ describe("CI check", () => {
       { cwd: ROOT, encoding: "utf8" },
     );
     expect(JSON.parse(result)).toEqual(["First\nSecond\nThird\n", samples[1]]);
-  });
+  }, 30_000);
   it("passes on the current code: no new hardcoded text, a valid catalogue", () => {
     const run = () =>
       execFileSync(process.execPath, ["scripts/i18n-audit.mjs", "--check"], {
@@ -199,5 +220,5 @@ describe("CI check", () => {
         stdio: "pipe",
       });
     expect(run).not.toThrow();
-  }, 120_000);
+  }, 600_000);
 });

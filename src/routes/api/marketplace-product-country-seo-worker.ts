@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
@@ -29,15 +30,16 @@ export const Route = createFileRoute("/api/marketplace-product-country-seo-worke
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         if (!isAuthorized(request)) {
-          return Response.json({ error: "Unauthorized" }, { status: 401 });
+          return Response.json({ error: await translateText("seo.api_unauthorized_740b831") }, { status: 401 });
         }
 
         let input: z.infer<typeof tickInputSchema>;
         try {
           input = tickInputSchema.parse(await request.json());
         } catch {
-          return Response.json({ error: "Invalid worker metrics" }, { status: 400 });
+          return Response.json({ error: await translateText("seo.api_invalid_worker_metrics_f498524") }, { status: 400 });
         }
 
         try {
@@ -51,7 +53,7 @@ export const Route = createFileRoute("/api/marketplace-product-country-seo-worke
           return Response.json({ ...result, resellerCountrySeo });
         } catch (error) {
           console.error("[marketplace seo worker]", error);
-          return Response.json({ error: "Marketplace SEO worker tick failed." }, { status: 500 });
+          return Response.json({ error: await translateText("seo.api_marketplace_seo_worker_tick_failed_6ee8560") }, { status: 500 });
         }
       },
     },

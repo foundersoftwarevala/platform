@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { motion } from 'framer-motion';
 import {
   Cpu, HardDrive, Server, BarChart3, Loader2, Network,
@@ -20,6 +21,7 @@ interface ServerResource {
 }
 
 const SMResources = () => {
+    const { t: translateText } = useI18nSource();
   const [loading, setLoading] = useState(true);
   const [resourceData, setResourceData] = useState<ServerResource[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -76,7 +78,7 @@ const SMResources = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Resource Usage"
+        title={translateText("server_manager.resource_usage_eb5ad7")}
         subtitle="Profiled capacity; live CPU, memory, and storage usage await agent data"
         action={<ServerHealthBadge lastSeen={null} />}
       />
@@ -85,15 +87,13 @@ const SMResources = () => {
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive flex items-center justify-between gap-4">
           <span>{loadError}</span>
           <Button variant="outline" size="sm" onClick={() => void loadData()}>
-            Retry
-          </Button>
+            {translateText("server_manager.retry_9f5cd8")}</Button>
         </div>
       )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
-          <Loader2 className="w-6 h-6 animate-spin mr-2 text-primary" /> Loading resource data...
-        </div>
+          <Loader2 className="w-6 h-6 animate-spin mr-2 text-primary" /> {translateText("server_manager.loading_resource_data_812bd1")}</div>
       ) : (
         <>
           {/* Total Resources */}

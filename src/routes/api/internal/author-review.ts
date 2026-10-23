@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 
 import { requireInternalOperator, type GuardResult } from "@/lib/auth/internal-guard";
 import { bearerToken, userFromBearerToken } from "@/lib/auth/bearer-user.server";
@@ -59,6 +60,7 @@ export const Route = createFileRoute("/api/internal/author-review")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
 
@@ -73,7 +75,7 @@ export const Route = createFileRoute("/api/internal/author-review")({
             `&seller_id=not.is.null&order=updated_at.asc&limit=200`,
         );
         if (!response.ok) {
-          return Response.json({ error: "Could not read the review queue" }, { status: 502 });
+          return Response.json({ error: await translateText("manager.api_could_not_read_the_review_queue_bae339b") }, { status: 502 });
         }
         const products = (await response.json()) as { seller_id: string }[];
 
@@ -95,6 +97,7 @@ export const Route = createFileRoute("/api/internal/author-review")({
       },
 
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
 
@@ -102,12 +105,12 @@ export const Route = createFileRoute("/api/internal/author-review")({
         try {
           body = (await request.json()) as typeof body;
         } catch {
-          return Response.json({ error: "Expected a JSON body" }, { status: 400 });
+          return Response.json({ error: await translateText("manager.api_expected_a_json_body_0c4a10f") }, { status: 400 });
         }
 
         const productId = String(body.productId ?? "").trim();
         const decision = String(body.decision ?? "").trim();
-        if (!productId) return Response.json({ error: "productId is required" }, { status: 400 });
+        if (!productId) return Response.json({ error: await translateText("manager.api_productid_is_required_0cd1f15") }, { status: 400 });
         if (!EFFECTS[decision]) {
           return Response.json(
             { error: "Unknown decision", allowed: Object.keys(EFFECTS) },

@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { catalogueSlug } from "@/data/catalogue";
 import { useSavedProducts } from "@/lib/useSavedProducts";
@@ -3645,6 +3646,7 @@ const CountryRailCards = memo(function CountryRailCards({
 });
 
 const Index = () => {
+    const { t: translateText } = useI18nSource();
   const { t } = useTranslation();
   const counts = useCatalogueCounts();
   const [activeCategory, setActiveCategory] = useState("All");
@@ -3821,12 +3823,12 @@ const Index = () => {
             <div className="flex items-center gap-4">
               <img
                 src={softwareValaLogo}
-                alt="Software Vala"
+                alt={translateText("marketplace.software_vala_2f5584")}
                 className="h-14 w-14 rounded-full object-cover border-2 border-white shadow-lg"
               />
               <div>
-                <h1 className="text-white font-bold text-2xl">Software Vala</h1>
-                <p className="text-white/90 text-sm">- The Name of Trust</p>
+                <h1 className="text-white font-bold text-2xl">{translateText("marketplace.software_vala_2f5584")}</h1>
+                <p className="text-white/90 text-sm">{translateText("marketplace.the_name_of_trust_1a15d4")}</p>
               </div>
             </div>
           </div>
@@ -3860,10 +3862,10 @@ const Index = () => {
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                 <Input
-                  placeholder="Search software..."
+                  placeholder={translateText("marketplace.search_software_4df137")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  aria-label="Search the product catalogue"
+                  aria-label={translateText("marketplace.search_the_product_catalogue_323c98")}
                   className="pl-10 bg-[#1a2d4a] border-cyan-500/30 text-white placeholder:text-gray-400"
                 />
               </div>

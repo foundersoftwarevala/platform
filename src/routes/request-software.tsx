@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RequestSoftwareForm } from "@/components/rd-module/RequestSoftwareForm";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export const Route = createFileRoute("/request-software")({
   head: () => ({
@@ -16,14 +17,16 @@ export const Route = createFileRoute("/request-software")({
 });
 
 function RequestSoftwarePage() {
+  const { t } = useTranslation();
+
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-4 py-10 sm:py-16">
-      <a href="/" className="text-sm underline">
+      <a href="/" className="text-sm underline" data-no-translate>
         Software Vala
       </a>
-      <h1 className="mb-3 mt-6 text-3xl font-semibold">Request Your Software</h1>
+      <h1 className="mb-3 mt-6 text-3xl font-semibold">{t("rd.request_page_title")}</h1>
       <p className="mb-8 text-muted-foreground">
-        Tell us what you need. Keep it simple, in your own words.
+        {t("rd.request_page_intro")}
       </p>
       <RequestSoftwareForm />
     </main>

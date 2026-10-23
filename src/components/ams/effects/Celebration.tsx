@@ -16,6 +16,7 @@ import { getSoundPrefs, playSound, setSoundPrefs, subscribeSoundPrefs } from "@/
 import { recognitionArt } from "@/lib/ams/recognition-assets";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 // ──────────────────────────────────────────────────────────────
 // Types
@@ -235,6 +236,7 @@ function Overlay({
 }: {
   payload: CelebrationPayload; onClose: () => void; onSkipAll: () => void; waiting: number;
 }) {
+  const { t } = useTranslation();
   const meta = KIND_META[payload.kind];
   const rarity: Rarity = payload.rarity ?? meta.rarity;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -373,7 +375,7 @@ function Overlay({
             ref={closeRef}
             type="button"
             onClick={(e) => { e.stopPropagation(); onClose(); }}
-            aria-label="Close"
+            aria-label={t("common.close")}
             className="absolute right-2 top-2 z-10 grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-white/10 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f5d77a]"
           >
             <X className="h-4 w-4" />
@@ -395,13 +397,13 @@ function Overlay({
           {typeof payload.xp === "number" && payload.xp > 0 && (
             <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-gold bg-[oklch(0.18_0.03_250)] px-4 py-1.5 text-xs">
               <Sparkles className="h-3.5 w-3.5 text-[#f5d77a]" />
-              <span className="font-semibold text-[#f5d77a]">+<AnimatedNumber value={payload.xp} duration={900} /> XP</span>
+              <span className="font-semibold text-[#f5d77a]">+<AnimatedNumber value={payload.xp} duration={900} /> <span data-no-translate>XP</span></span>
             </div>
           )}
 
           {payload.extras && payload.extras.length > 0 && (
             <div className="mt-4 text-left">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Also earned</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{t("ams.also_earned")}</div>
               <ul className="mt-2 max-h-[28vh] space-y-1 overflow-y-auto pr-1 text-sm" data-recognition-extras>
                 {payload.extras.map((x) => (
                   <li key={x} className="flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5">
@@ -415,14 +417,14 @@ function Overlay({
           {payload.next && <p className="mt-4 text-xs text-muted-foreground">{payload.next}</p>}
 
           <div className="mt-6 flex items-center justify-center gap-4 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-            <span>Tap anywhere to dismiss</span>
+            <span>{t("ams.tap_to_dismiss")}</span>
             {waiting > 0 && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onSkipAll(); }}
                 className="rounded-full border border-white/15 px-3 py-1 tracking-[0.15em] hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f5d77a]"
               >
-                Skip {waiting} more
+                {t("ams.skip_more", { count: waiting })}
               </button>
             )}
           </div>
@@ -457,7 +459,7 @@ function XpNotice({ payload, onClose }: { payload: CelebrationPayload; onClose: 
       >
         <Sparkles className="h-4 w-4 shrink-0 text-[#f5d77a]" />
         <span className="text-sm font-semibold text-[#f5d77a]">
-          +<AnimatedNumber value={payload.xp ?? 0} duration={reduced ? 0 : 700} /> XP
+          +<AnimatedNumber value={payload.xp ?? 0} duration={reduced ? 0 : 700} /> <span data-no-translate>XP</span>
         </span>
         {payload.subtitle && <span className="min-w-0 truncate text-xs text-muted-foreground">{payload.subtitle}</span>}
       </button>
@@ -756,6 +758,7 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
       {current && (current.payload.kind === "xp" && !current.payload.extras?.length
         ? <XpNotice key={current.seq} payload={current.payload} onClose={close} />
         : <Overlay key={current.seq} payload={current.payload} onClose={close} onSkipAll={skipAll} waiting={queue.length} />)}
+      {/* i18n-ignore: CSS keyframes are not user-facing text. */}
       <style>{`
         @keyframes ams-pop {
           0% { transform: scale(0.6) translateY(20px); opacity: 0; }

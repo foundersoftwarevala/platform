@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 import { createHmac } from "node:crypto";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { queue } from "@/lib/commerce/mailer";
@@ -121,12 +122,13 @@ export const Route = createFileRoute("/api/internal/server-manager/alert-deliver
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
         const { url, key } = apiConfig();
         if (!url || !key) {
           return Response.json(
-            { error: "Alert delivery database configuration is unavailable" },
+            { error: await translateText("server_manager.api_alert_delivery_database_configuration_is_u_55f9cab") },
             { status: 503 },
           );
         }
@@ -139,13 +141,13 @@ export const Route = createFileRoute("/api/internal/server-manager/alert-deliver
           });
           if (!claimResponse.ok) {
             console.error("[server-manager/alerts] delivery claim failed", claimResponse.status);
-            return Response.json({ error: "Could not claim alert deliveries" }, { status: 502 });
+            return Response.json({ error: await translateText("server_manager.api_could_not_claim_alert_deliveries_ddc981c") }, { status: 502 });
           }
 
           const claimed: unknown = await claimResponse.json();
           if (!Array.isArray(claimed)) {
             return Response.json(
-              { error: "Alert delivery claim returned an invalid response" },
+              { error: await translateText("server_manager.api_alert_delivery_claim_returned_an_invalid_r_3c69d0b") },
               { status: 502 },
             );
           }
@@ -300,7 +302,7 @@ export const Route = createFileRoute("/api/internal/server-manager/alert-deliver
           });
         } catch (error) {
           console.error("[server-manager/alerts] delivery processing failed", error);
-          return Response.json({ error: "Alert delivery processing failed" }, { status: 502 });
+          return Response.json({ error: await translateText("server_manager.api_alert_delivery_processing_failed_287be9b") }, { status: 502 });
         }
       },
     },

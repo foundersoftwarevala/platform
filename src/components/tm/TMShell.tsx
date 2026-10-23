@@ -19,6 +19,7 @@ import {
   useTasks,
 } from "@/lib/tm/hooks";
 import { computeSLA } from "@/lib/tm/format";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { TMSidebar, TM_NAV, useTMSidebarState, type TMScreen } from "./TMSidebar";
 import { TMTaskDetail } from "./TMTaskDetail";
 import { TaskBuzzerAlert } from "./TaskBuzzerAlert";
@@ -46,6 +47,7 @@ import { TMSettings } from "./screens/TMSettings";
 
 export function TMShell() {
   useRealtimeTasks();
+  const { t } = useTranslation();
   const { roles } = useAuth();
   const canAccessBidding = roles.some((role) =>
     ["developer", "admin", "boss", "boss_owner", "founder", "super_admin"].includes(String(role)),
@@ -125,7 +127,7 @@ export function TMShell() {
     }
   };
 
-  const activeLabel = TM_NAV.find((item) => item.id === screen)?.label ?? "Task Manager";
+  const activeLabel = TM_NAV.find((item) => item.id === screen)?.label ?? t("common.task_manager");
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -147,7 +149,7 @@ export function TMShell() {
           <button
             className="icon3d grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground lg:hidden"
             onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
+            aria-label={t("common.open_menu")}
           >
             <Menu className="h-[18px] w-[18px]" />
           </button>
@@ -158,13 +160,13 @@ export function TMShell() {
               to="/dashboard/bidding"
               className="hidden h-9 items-center rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
             >
-              Bidding
+              {t("common.bidding")}
             </Link>
           )}
           <button
             className="icon3d hidden h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground sm:grid"
             onClick={() => setScreen("task_inbox")}
-            aria-label="Search tasks"
+            aria-label={t("common.search_tasks")}
           >
             <Search className="h-[18px] w-[18px]" />
           </button>
@@ -176,7 +178,7 @@ export function TMShell() {
             <PopoverTrigger asChild>
               <button
                 className="icon3d relative grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:text-foreground"
-                aria-label="Notifications"
+                aria-label={t("common.notifications")}
               >
                 <Bell className="h-[18px] w-[18px]" />
                 {unread.length > 0 && (
@@ -188,9 +190,11 @@ export function TMShell() {
             </PopoverTrigger>
             <PopoverContent align="end" className="w-80 p-0">
               <div className="flex items-center justify-between border-b border-border p-3">
-                <p className="text-sm font-medium text-foreground">Notifications</p>
+                <p className="text-sm font-medium text-foreground">
+                  {t("common.notifications")}
+                </p>
                 <Button variant="ghost" size="sm" onClick={() => markAll.mutate(undefined)}>
-                  <CheckCheck className="mr-1 h-3 w-3" /> Mark all
+                  <CheckCheck className="mr-1 h-3 w-3" /> {t("common.mark_all")}
                 </Button>
               </div>
               <ScrollArea className="max-h-80">
@@ -207,14 +211,16 @@ export function TMShell() {
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm text-foreground">{item.title}</p>
-                        {!item.read && <Badge variant="outline">new</Badge>}
+                        {!item.read && <Badge variant="outline">{t("common.new")}</Badge>}
                       </div>
                       <p className="text-xs text-muted-foreground">{item.message}</p>
                       <p className="text-xs text-muted-foreground">{relativeTime(item.created_at)}</p>
                     </button>
                   ))}
                   {(notifications ?? []).length === 0 && (
-                    <p className="p-4 text-center text-sm text-muted-foreground">No notifications</p>
+                    <p className="p-4 text-center text-sm text-muted-foreground">
+                      {t("common.no_notifications")}
+                    </p>
                   )}
                 </div>
               </ScrollArea>

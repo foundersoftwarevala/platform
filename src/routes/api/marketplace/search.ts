@@ -1,4 +1,5 @@
 import { rateLimited } from "@/lib/server/rate-limit";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { toCard } from "@/lib/marketplace/catalog-card";
@@ -181,9 +182,10 @@ async function withPricing(url: string, rows: ProductRow[]) {
 }
 
 export async function answer(request: Request): Promise<Response> {
+        const translateText = translateApiMessage.bind(null, request);
         const url = process.env.SUPABASE_URL?.trim();
         if (!url || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-          return Response.json({ products: [], error: "Catalogue is not configured" }, { status: 503 });
+          return Response.json({ products: [], error: await translateText("marketplace.api_catalogue_is_not_configured_961bc7f") }, { status: 503 });
         }
 
         const params = new URL(request.url).searchParams;
@@ -194,7 +196,7 @@ export async function answer(request: Request): Promise<Response> {
         const limit = Math.min(Math.max(Number(params.get("limit") ?? 12) || 12, 1), 40);
         const requestedOffset = Number(params.get("offset") ?? 0);
         if (!Number.isSafeInteger(requestedOffset) || requestedOffset < 0 || requestedOffset > 1_000_000) {
-          return Response.json({ error: "Invalid search offset" }, { status: 400 });
+          return Response.json({ error: await translateText("marketplace.api_invalid_search_offset_f484d6e") }, { status: 400 });
         }
         const offset = requestedOffset;
         const asCards = params.get("format") === "cards";
@@ -216,7 +218,7 @@ export async function answer(request: Request): Promise<Response> {
           );
           if (!categoryResponse.ok) {
             console.error("[search] category lookup failed", categoryResponse.status, await categoryResponse.text());
-            return Response.json({ cards: [], products: [], error: "Search is unavailable" }, { status: 502 });
+            return Response.json({ cards: [], products: [], error: await translateText("marketplace.api_search_is_unavailable_9a0fa23") }, { status: 502 });
           }
           const found = (await categoryResponse.json()) as ProductRow[];
           if (found[0]?.id) categoryFilter = `&category_id=eq.${String(found[0].id)}`;
@@ -323,7 +325,7 @@ export async function answer(request: Request): Promise<Response> {
             if (!response.ok) {
               console.error("[search] catalogue page failed", response.status, await response.text());
               return Response.json(
-                { cards: [], terms: words, error: "Search is unavailable" },
+                { cards: [], terms: words, error: await translateText("marketplace.api_search_is_unavailable_9a0fa23") },
                 { status: 502 },
               );
             }

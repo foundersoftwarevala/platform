@@ -14,6 +14,7 @@ import {
   Snowflake,
   Eye,
 } from "lucide-react";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -58,6 +59,7 @@ const MODES: {
 ];
 
 export function AMScreenControl() {
+    const { t: translateText } = useI18nSource();
   const { sessions, session, control, isLoading } = useActiveSession();
   const { data: accessModes = [] } = useAccessModes();
   const updateControl = useUpdateControlState();
@@ -83,9 +85,9 @@ export function AMScreenControl() {
   if (!session) {
     return (
 <div className="space-y-6 p-6">
-        <ScreenHeader title="Screen Control" subtitle="Remote control permissions and access modes" />
+        <ScreenHeader title={translateText("chat.screen_control_904378")} subtitle="Remote control permissions and access modes" />
         <EmptyState
-          title="No session to control"
+          title={translateText("chat.no_session_to_control_8db9d4")}
           description="Screen control activates once a session is live."
         />
       </div>
@@ -104,7 +106,7 @@ export function AMScreenControl() {
     <ScrollArea className="h-full">
       <div className="space-y-6 p-6">
         <ScreenHeader
-          title="Screen Control"
+          title={translateText("chat.screen_control_904378")}
           subtitle="Remote control permissions and access modes"
           actions={<SessionPicker sessions={sessions} value={session.id} />}
         />
@@ -112,11 +114,11 @@ export function AMScreenControl() {
         {isTarget && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Allow Control</CardTitle>
+              <CardTitle className="text-base">{translateText("chat.allow_control_ae25d8")}</CardTitle>
             </CardHeader>
             <CardContent className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium">Allow control requests over DataChannel</p>
+                <p className="text-sm font-medium">{translateText("chat.allow_control_requests_over_datachannel_37eab2")}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   You can revoke this at any time. Browser-only control requests do not operate
                   your mouse or keyboard; operating-system control requires a separately installed
@@ -129,7 +131,7 @@ export function AMScreenControl() {
                 onCheckedChange={(allowed) =>
                   setControlAllowed.mutate({ sessionId: session.id, allowed })
                 }
-                aria-label="Allow remote control requests"
+                aria-label={translateText("chat.allow_remote_control_requests_e87691")}
               />
             </CardContent>
           </Card>
@@ -137,7 +139,7 @@ export function AMScreenControl() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Control Mode</CardTitle>
+            <CardTitle className="text-base">{translateText("chat.control_mode_44c142")}</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {MODES.map((mode) => {

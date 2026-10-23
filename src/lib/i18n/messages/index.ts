@@ -26,6 +26,7 @@
  * validates keys, variables and ICU syntax.
  */
 import { ACCOUNT_MESSAGES } from "./account";
+import { AFFILIATE_MESSAGES } from "./affiliate";
 import { APPLY_MESSAGES } from "./apply";
 import { INFLUENCER_MESSAGES } from "./influencer";
 import { AUTH_MESSAGES } from "./auth";
@@ -49,10 +50,19 @@ import { STOREADMIN_MESSAGES } from "./storeadmin";
 import { WALLET_MESSAGES } from "./wallet";
 import { LANGUAGES_MESSAGES } from "./languages";
 import { SALES_SUPPORT_MESSAGES } from "./sales_support";
+import { AMS_MESSAGES } from "./ams";
+import { BIDDING_MESSAGES } from "./bidding";
+import { RD_MESSAGES } from "./rd";
+import { SERVER_MANAGER_MESSAGES } from "./server_manager";
 
 export type MessageSource = string | readonly [text: string, description: string];
 
 export const MODULES = {
+  affiliate: AFFILIATE_MESSAGES,
+  ams: AMS_MESSAGES,
+  bidding: BIDDING_MESSAGES,
+  rd: RD_MESSAGES,
+  server_manager: SERVER_MANAGER_MESSAGES,
   account: ACCOUNT_MESSAGES,
   apply: APPLY_MESSAGES,
   influencer: INFLUENCER_MESSAGES,

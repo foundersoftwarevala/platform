@@ -64,7 +64,11 @@ type Detail = Summary & {
 /** A decision that must say why. */
 const NEEDS_REASON = new Set(["rejected", "suspended"]);
 
-async function api<T>(input: string, init: RequestInit = {}): Promise<T> {
+async function api<T>(
+  input: string,
+  init: RequestInit = {},
+  fallbackMessage: string,
+): Promise<T> {
   const response = await fetch(input, {
     ...init,
     headers: {
@@ -74,12 +78,12 @@ async function api<T>(input: string, init: RequestInit = {}): Promise<T> {
     },
   });
   const body = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw new Error(body.error ?? "The request did not go through");
+  if (!response.ok) throw new Error(body.error ?? fallbackMessage);
   return body;
 }
 
 /** Opens a document in a new tab. It is fetched with the reviewer's own token; no lasting link exists. */
-async function openDocument(id: string) {
+async function openDocument(id: string, fallbackMessage: string) {
   const tab = window.open("", "_blank");
   try {
     const response = await fetch(`/api/applications/documents?id=${encodeURIComponent(id)}`, {
@@ -87,7 +91,7 @@ async function openDocument(id: string) {
     });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error ?? "The document could not be opened");
+      throw new Error(body.error ?? fallbackMessage);
     }
     const url = URL.createObjectURL(await response.blob());
     if (tab) tab.location.href = url;
@@ -107,6 +111,8 @@ function ApplicationDetails({ kind, id }: { kind: Kind; id: string }) {
     queryFn: () =>
       api<{ application: Detail }>(
         `/api/applications/queue?kind=${kind}&id=${encodeURIComponent(id)}`,
+        {},
+        t("apply.queue.request_failed"),
       ),
   });
 
@@ -156,7 +162,9 @@ function ApplicationDetails({ kind, id }: { kind: Kind; id: string }) {
               <li key={doc.id} data-document={doc.field}>
                 <button
                   type="button"
-                  onClick={() => void openDocument(doc.id)}
+                  onClick={() =>
+                    void openDocument(doc.id, t("apply.queue.document_open_failed"))
+                  }
                   className="inline-flex items-center gap-1.5 text-primary underline-offset-2 hover:underline"
                 >
                   <FileText className="h-4 w-4" /> {doc.label}
@@ -216,6 +224,8 @@ export function RoleApplicationsQueue({
     queryFn: () =>
       api<ApplicationCounts & { emailProviderConfigured: boolean }>(
         "/api/applications/queue?counts=true",
+        {},
+        t("apply.queue.request_failed"),
       ),
     enabled: kind === "all" && !readOnly,
     refetchInterval: 15_000,
@@ -225,6 +235,8 @@ export function RoleApplicationsQueue({
     queryFn: async () => {
       const result = await api<{ rows: Summary[] }>(
         `/api/applications/queue?kind=${showing}&filter=${readOnly ? "reseller-manager" : filter}`,
+        {},
+        t("apply.queue.request_failed"),
       );
       return result.rows;
     },
@@ -233,16 +245,20 @@ export function RoleApplicationsQueue({
 
   const decide = useMutation({
     mutationFn: (v: { kind: Kind; id: string; status: string; reason: string | null }) =>
-      api<{ email?: { reason?: string; sent: number } }>("/api/applications/queue", {
-        method: "POST",
-        body: JSON.stringify({
-          action: "decide",
-          kind: v.kind,
-          id: v.id,
-          status: v.status,
-          reason: v.reason,
-        }),
-      }),
+      api<{ email?: { reason?: string; sent: number } }>(
+        "/api/applications/queue",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "decide",
+            kind: v.kind,
+            id: v.id,
+            status: v.status,
+            reason: v.reason,
+          }),
+        },
+        t("apply.queue.request_failed"),
+      ),
     onSuccess: (data, v) => {
       toast.success(t("apply.queue.decided", { status: v.status }));
       if (data.email && !data.email.sent) toast.warning(t("apply.queue.email_pending"));
@@ -420,7 +436,9 @@ export function RoleApplicationsQueue({
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className="rounded-full border border-border px-2 py-0.5 text-xs">
-                    {r.kind === "reseller" && r.status === "active" ? "Approved" : r.status}
+                    {r.kind === "reseller" && r.status === "active"
+                      ? t("apply.queue.approved")
+                      : r.status}
                   </span>
                   {r.actions.length > 0 &&
                     !readOnly &&

@@ -678,4 +678,13 @@ export const MANAGER_MESSAGES = {
     "{code} scheduled — pending approval",
     "code is the maintenance window reference",
   ],
+  "manager.current_selection_c2a292": "Current selection (",
+  "manager.loading_options_574b9c": "Loading options…",
+  "manager.api_could_not_read_the_review_queue_bae339b": "Could not read the review queue",
+  "manager.api_expected_a_json_body_0c4a10f": "Expected a JSON body",
+  "manager.api_productid_is_required_0cd1f15": "productId is required",
+  "manager.api_not_configured_811931b": "Not configured",
+  "manager.api_unknown_resource_c547f96": "Unknown resource",
+  "manager.api_invalid_request_c2ba81a": "Invalid request",
+  "manager.api_choose_the_reseller_who_owns_this_customer_a9cc228": "Choose the reseller who owns this customer.",
 } as const;

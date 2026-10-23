@@ -7,9 +7,10 @@ import {
   submitBid,
   withdrawBid,
 } from "@/lib/bidding/core.functions";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "The request failed.";
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function BidAmount({ amount, currency }: { amount: string; currency: string }) {
@@ -21,6 +22,7 @@ function BidAmount({ amount, currency }: { amount: string; currency: string }) {
 }
 
 export function BiddingWorkspace() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const load = useServerFn(getBiddingWorkspace);
   const submit = useServerFn(submitBid);
@@ -39,17 +41,17 @@ export function BiddingWorkspace() {
     mutationFn: (data: { taskId: string; amount: string; proposal: string }) =>
       submit({ data }),
     onSuccess: refresh,
-    onError: (error) => setActionError(errorMessage(error)),
+    onError: (error) => setActionError(errorMessage(error, t("bidding.request_failed"))),
   });
   const withdrawMutation = useMutation({
     mutationFn: (data: { bidId: string }) => withdraw({ data }),
     onSuccess: refresh,
-    onError: (error) => setActionError(errorMessage(error)),
+    onError: (error) => setActionError(errorMessage(error, t("bidding.request_failed"))),
   });
   const acceptMutation = useMutation({
     mutationFn: (data: { bidId: string }) => accept({ data }),
     onSuccess: refresh,
-    onError: (error) => setActionError(errorMessage(error)),
+    onError: (error) => setActionError(errorMessage(error, t("bidding.request_failed"))),
   });
 
   function onSubmit(event: FormEvent<HTMLFormElement>, taskId: string) {
@@ -67,14 +69,14 @@ export function BiddingWorkspace() {
   if (query.isLoading) {
     return (
       <main className="mx-auto max-w-6xl p-6 text-sm text-muted-foreground" role="status">
-        Loading bidding workspace…
+        {t("bidding.loading_workspace")}
       </main>
     );
   }
   if (query.error || !query.data) {
     return (
       <main className="mx-auto max-w-6xl p-6 text-sm text-destructive" role="alert">
-        {errorMessage(query.error)}
+        {errorMessage(query.error, t("bidding.request_failed"))}
       </main>
     );
   }
@@ -92,11 +94,10 @@ export function BiddingWorkspace() {
   return (
     <main className="mx-auto max-w-6xl space-y-8 p-4 md:p-8">
       <header className="space-y-2">
-        <p className="text-sm font-medium text-primary">Task Manager</p>
-        <h1 className="text-3xl font-bold tracking-tight">Task bidding</h1>
+        <p className="text-sm font-medium text-primary">{t("bidding.task_manager")}</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t("bidding.title")}</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Developers can bid on unassigned tasks routed to the developer pool.
-          A manager’s acceptance assigns the task and closes the other submitted bids.
+          {t("bidding.description")}
         </p>
       </header>
 
@@ -109,14 +110,14 @@ export function BiddingWorkspace() {
       {data.isManager ? (
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold">Submitted bids</h2>
+            <h2 className="text-xl font-semibold">{t("bidding.submitted_bids")}</h2>
             <p className="text-sm text-muted-foreground">
-              Accepting a bid claims the task for that developer.
+              {t("bidding.acceptance_explanation")}
             </p>
           </div>
           {submittedBids.length === 0 ? (
             <p className="rounded-lg border p-5 text-sm text-muted-foreground">
-              No submitted bids.
+              {t("bidding.no_submitted_bids")}
             </p>
           ) : (
             <div className="space-y-3">
@@ -138,7 +139,9 @@ export function BiddingWorkspace() {
                     </div>
                     <p className="whitespace-pre-wrap text-sm">{bid.proposal}</p>
                     <p className="text-xs text-muted-foreground">
-                      Submitted {new Date(bid.createdAt).toLocaleString()}
+                      {t("bidding.submitted_at", {
+                        date: new Date(bid.createdAt).toLocaleString(),
+                      })}
                     </p>
                     <button
                       type="button"
@@ -146,7 +149,9 @@ export function BiddingWorkspace() {
                       onClick={() => acceptMutation.mutate({ bidId: bid.id })}
                       className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {acceptMutation.isPending ? "Accepting…" : "Accept and assign"}
+                      {acceptMutation.isPending
+                        ? t("bidding.accepting")
+                        : t("bidding.accept_and_assign")}
                     </button>
                   </article>
                 );
@@ -157,14 +162,14 @@ export function BiddingWorkspace() {
       ) : (
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold">Open tasks</h2>
+            <h2 className="text-xl font-semibold">{t("bidding.open_tasks")}</h2>
             <p className="text-sm text-muted-foreground">
-              You can edit one submitted bid per task until a manager decides it.
+              {t("bidding.edit_bid_explanation")}
             </p>
           </div>
           {data.tasks.length === 0 ? (
             <p className="rounded-lg border p-5 text-sm text-muted-foreground">
-              There are no tasks currently open for developer bids.
+              {t("bidding.no_open_tasks")}
             </p>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -184,15 +189,17 @@ export function BiddingWorkspace() {
                     )}
                     <dl className="grid grid-cols-2 gap-2 text-sm">
                       <div>
-                        <dt className="text-muted-foreground">Reference cost</dt>
+                        <dt className="text-muted-foreground">{t("bidding.reference_cost")}</dt>
                         <dd>
                           <BidAmount amount={task.referenceAmount} currency={task.currency} />
                         </dd>
                       </div>
                       <div>
-                        <dt className="text-muted-foreground">Deadline</dt>
+                        <dt className="text-muted-foreground">{t("bidding.deadline")}</dt>
                         <dd>
-                          {task.deadline ? new Date(task.deadline).toLocaleString() : "Not set"}
+                          {task.deadline
+                            ? new Date(task.deadline).toLocaleString()
+                            : t("bidding.not_set")}
                         </dd>
                       </div>
                     </dl>
@@ -201,7 +208,7 @@ export function BiddingWorkspace() {
                       onSubmit={(event) => onSubmit(event, task.id)}
                     >
                       <label className="grid gap-1 text-sm">
-                        Your bid ({task.currency})
+                        {t("bidding.your_bid", { currency: task.currency })}
                         <input
                           className="h-10 rounded-md border bg-background px-3"
                           name="amount"
@@ -213,7 +220,7 @@ export function BiddingWorkspace() {
                         />
                       </label>
                       <label className="grid gap-1 text-sm">
-                        Proposal
+                        {t("bidding.proposal")}
                         <textarea
                           className="min-h-24 rounded-md border bg-background p-3"
                           name="proposal"
@@ -230,10 +237,10 @@ export function BiddingWorkspace() {
                           className="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
                         >
                           {submitMutation.isPending
-                            ? "Saving…"
+                            ? t("bidding.saving")
                             : existing
-                              ? "Update bid"
-                              : "Submit bid"}
+                              ? t("bidding.update_bid")
+                              : t("bidding.submit_bid")}
                         </button>
                         {existing && (
                           <button
@@ -242,7 +249,7 @@ export function BiddingWorkspace() {
                             onClick={() => withdrawMutation.mutate({ bidId: existing.id })}
                             className="h-10 rounded-md border px-4 text-sm font-medium disabled:opacity-50"
                           >
-                            Withdraw bid
+                            {t("bidding.withdraw_bid")}
                           </button>
                         )}
                       </div>
@@ -257,10 +264,10 @@ export function BiddingWorkspace() {
 
       {!data.isManager && (
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Your bid history</h2>
+          <h2 className="text-xl font-semibold">{t("bidding.bid_history")}</h2>
           {data.bids.length === 0 ? (
             <p className="rounded-lg border p-5 text-sm text-muted-foreground">
-              You have not submitted a bid.
+              {t("bidding.no_bid_history")}
             </p>
           ) : (
             <div className="space-y-3">

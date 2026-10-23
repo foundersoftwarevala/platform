@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 
 import {
   currentUser,
@@ -28,10 +29,11 @@ export const Route = createFileRoute("/api/affiliate/account")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireAffiliate(request, { allowPending: true });
         if (!gate.ok) return gate.response;
         const token = bearer(request);
-        if (!token) return Response.json({ error: "Please sign in" }, { status: 401 });
+        if (!token) return Response.json({ error: await translateText("affiliate.api_please_sign_in_74d04a6") }, { status: 401 });
         try {
           return Response.json(await getAffiliateDashboard(token));
         } catch (error) {
@@ -44,11 +46,12 @@ export const Route = createFileRoute("/api/affiliate/account")({
       },
 
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         let body: Record<string, unknown>;
         try {
           body = (await request.json()) as Record<string, unknown>;
         } catch {
-          return Response.json({ error: "Expected a JSON body" }, { status: 400 });
+          return Response.json({ error: await translateText("affiliate.api_expected_a_json_body_0c4a10f") }, { status: 400 });
         }
         const action = String(body.action ?? "apply");
 
@@ -66,7 +69,7 @@ export const Route = createFileRoute("/api/affiliate/account")({
         if (action === "apply") {
           const user = await currentUser(request);
           const token = bearer(request);
-          if (!user || !token) return Response.json({ error: "Please sign in" }, { status: 401 });
+          if (!user || !token) return Response.json({ error: await translateText("affiliate.api_please_sign_in_74d04a6") }, { status: 401 });
 
           const existing = await partnerForUser(user.id);
           if (existing) {
@@ -104,7 +107,7 @@ export const Route = createFileRoute("/api/affiliate/account")({
           const amount = typeof body.amount === "number" ? body.amount : Number(body.amount);
           const currency = typeof body.currency === "string" ? body.currency : "";
           if (!token || !Number.isFinite(amount) || amount <= 0 || !currency) {
-            return Response.json({ error: "A positive amount and currency are required" }, { status: 400 });
+            return Response.json({ error: await translateText("affiliate.api_a_positive_amount_and_currency_are_require_1dee912") }, { status: 400 });
           }
           try {
             const payout = await requestAffiliatePayout(token, amount, currency);
@@ -124,11 +127,11 @@ export const Route = createFileRoute("/api/affiliate/account")({
             `marketplace_referral_codes?select=id&affiliate_partner_id=eq.${encodeURIComponent(gate.partner.id)}&limit=200`,
           );
           if (!countResponse.ok) {
-            return Response.json({ error: "Could not check your referral-link limit" }, { status: 502 });
+            return Response.json({ error: await translateText("affiliate.api_could_not_check_your_referral_link_limit_a149140") }, { status: 502 });
           }
           const countRows: unknown = await countResponse.json();
           if (!Array.isArray(countRows)) {
-            return Response.json({ error: "Referral-link count response was invalid" }, { status: 502 });
+            return Response.json({ error: await translateText("affiliate.api_referral_link_count_response_was_invalid_2f79313") }, { status: 502 });
           }
           const count = countRows.length;
           if (count >= 50) {

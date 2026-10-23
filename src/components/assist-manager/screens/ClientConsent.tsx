@@ -8,14 +8,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { useDenyConsent, useGrantConsent, usePendingConsents } from "@/lib/assist-manager/hooks";
 
 function toHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function createConsentHash(sessionId: string): Promise<string> {
-  if (!globalThis.crypto?.subtle) throw new Error("Secure consent recording is not available in this browser.");
+async function createConsentHash(sessionId: string, unavailableMessage: string): Promise<string> {
+  if (!globalThis.crypto?.subtle) throw new Error(unavailableMessage);
   const nonce = globalThis.crypto.getRandomValues(new Uint8Array(32));
   const material = new TextEncoder().encode(
     `${sessionId}:${new Date().toISOString()}:${toHex(nonce)}:assist-screen-capture-consent-v1`,
@@ -24,6 +25,7 @@ async function createConsentHash(sessionId: string): Promise<string> {
 }
 
 export function ClientConsent() {
+  const { t } = useTranslation();
   const { data: pending = [] } = usePendingConsents();
   const grantConsent = useGrantConsent();
   const denyConsent = useDenyConsent();
@@ -35,10 +37,15 @@ export function ClientConsent() {
     if (!session) return;
     setError(null);
     try {
-      const consentHash = await createConsentHash(session.id);
+      const consentHash = await createConsentHash(
+        session.id,
+        t("common.secure_consent_unavailable"),
+      );
       await grantConsent.mutateAsync({ sessionId: session.id, consentHash });
     } catch (consentError) {
-      setError(consentError instanceof Error ? consentError.message : "Consent could not be recorded.");
+      setError(
+        consentError instanceof Error ? consentError.message : t("common.consent_record_failed"),
+      );
     }
   };
 
@@ -48,10 +55,13 @@ export function ClientConsent() {
     try {
       await denyConsent.mutateAsync({
         sessionId: session.id,
+        // i18n-ignore: persisted canonical audit reason, kept language-stable across operators.
         reason: "The target declined the Assist request.",
       });
     } catch (consentError) {
-      setError(consentError instanceof Error ? consentError.message : "The request could not be denied.");
+      setError(
+        consentError instanceof Error ? consentError.message : t("common.consent_deny_failed"),
+      );
     }
   };
 
@@ -63,11 +73,9 @@ export function ClientConsent() {
         onPointerDownOutside={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Allow Assist screen sharing?</DialogTitle>
+          <DialogTitle>{t("common.assist_consent_title")}</DialogTitle>
           <DialogDescription>
-            A support session is requesting access to a selected application window. Your screen is
-            sent through a blue privacy mask. Sharing starts only after manager approval and your
-            consent have both been recorded.
+            {t("common.assist_consent_description")}
           </DialogDescription>
         </DialogHeader>
         {session && (
@@ -75,23 +83,22 @@ export function ClientConsent() {
             <p className="font-medium">{session.session_code}</p>
             <p className="mt-1 text-muted-foreground">{session.purpose ?? session.assist_type}</p>
             <p className="mt-2 text-xs text-muted-foreground">
-              No window capture begins until you choose Allow and then explicitly start sharing.
+              {t("common.assist_consent_start_notice")}
             </p>
           </div>
         )}
         {pending.length > 1 && (
           <p className="text-xs text-muted-foreground">
-            {pending.length - 1} additional request{pending.length === 2 ? "" : "s"} will be shown
-            after this decision.
+            {t("common.assist_consent_pending_count", { count: pending.length - 1 })}
           </p>
         )}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={() => void deny()}>
-            Deny
+            {t("common.assist_consent_deny")}
           </Button>
           <Button disabled={busy} onClick={() => void allow()}>
-            {busy ? "Saving…" : "Allow"}
+            {busy ? t("common.assist_consent_saving") : t("common.assist_consent_allow")}
           </Button>
         </DialogFooter>
       </DialogContent>

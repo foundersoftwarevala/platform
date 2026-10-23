@@ -31,4 +31,5 @@ export const CHECKOUT_MESSAGES = {
     "Reseller discount applies only with an active membership plan — list price shown.",
   "checkout.start_failed":
     "The payment could not be started. The order is saved and nothing was charged.",
+  "checkout.verifying_discount": "Verifying the current reseller discount…",
 } as const;

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import { motion } from 'framer-motion';
 import {
   Rocket, CheckCircle2, Clock, XCircle, RefreshCw,
@@ -47,6 +48,7 @@ const formatDuration = (secs: number | null) => {
 };
 
 const SMDeployments = () => {
+    const { t: translateText } = useI18nSource();
   const [deployments, setDeployments] = useState<DeploymentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [envFilter, setEnvFilter] = useState('all');
@@ -140,7 +142,7 @@ const SMDeployments = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Deployments"
+        title={translateText("server_manager.deployments_8d458e")}
         subtitle="Recorded deployment history; deployment actions are not connected."
         action={
           <Button variant="outline" onClick={() => void loadData()}>

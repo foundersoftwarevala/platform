@@ -8,6 +8,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   getResellerAccountSettings,
   listResellerKycDocuments,
@@ -58,6 +59,7 @@ function Field({
 }
 
 function ResellerSettingsSecurity({ featureKey }: Props) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const settingsQuery = useQuery({
     queryKey: ["reseller-account-settings"],
@@ -115,14 +117,14 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
       .catch((error: unknown) => {
         if (cancelled) return;
         setFactorError(
-          error instanceof Error ? error.message : "Authentication factors could not be loaded.",
+          error instanceof Error ? error.message : t("reseller.auth_factors_load_failed"),
         );
         setFactorLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [featureKey]);
+  }, [featureKey, t]);
 
   function setValue(key: string, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -133,9 +135,9 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
     try {
       await saveResellerAccountSettings({ data: fields });
       await queryClient.invalidateQueries({ queryKey: ["reseller-account-settings"] });
-      toast.success("Settings saved.");
+      toast.success(t("reseller.settings_saved"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Settings could not be saved.");
+      toast.error(error instanceof Error ? error.message : t("reseller.settings_save_failed"));
     } finally {
       setSaving(false);
     }
@@ -145,20 +147,20 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
     if (!file) return;
     const permitted = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
     if (!permitted.includes(file.type)) {
-      toast.error("Choose a PDF, JPEG, PNG or WebP file.");
+      toast.error(t("reseller.kyc_file_type"));
       return;
     }
     if (file.size < 1 || file.size > 10 * 1024 * 1024) {
-      toast.error("The document must be smaller than 10 MB.");
+      toast.error(t("reseller.kyc_file_size"));
       return;
     }
     setUploading(true);
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
-      if (!userData.user) throw new Error("Sign in again before uploading KYC documents.");
+      if (!userData.user) throw new Error(t("reseller.sign_in_before_kyc"));
       const resellerId = settingsQuery.data?.profile.resellerId;
-      if (!resellerId) throw new Error("The reseller profile is not available.");
+      if (!resellerId) throw new Error(t("reseller.profile_unavailable"));
       const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, "_").slice(-180) || "document";
       const storagePath = `${userData.user.id}/${resellerId}/${crypto.randomUUID()}-${safeName}`;
       const uploaded = await supabase.storage
@@ -179,8 +181,8 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
         const cleanup = await supabase.storage.from("reseller-kyc-documents").remove([storagePath]);
         if (cleanup.error) {
           throw new Error(
-            `${error instanceof Error ? error.message : "The document record could not be saved."} ` +
-              `The uploaded file could not be removed: ${cleanup.error.message}`,
+            `${error instanceof Error ? error.message : t("reseller.kyc_record_save_failed")} ` +
+              t("reseller.kyc_file_remove_failed", { error: cleanup.error.message }),
           );
         }
         throw error;
@@ -189,10 +191,10 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
         queryClient.invalidateQueries({ queryKey: ["reseller-kyc-documents"] }),
         queryClient.invalidateQueries({ queryKey: ["reseller-account-settings"] }),
       ]);
-      toast.success("KYC document uploaded and submitted for review.");
+      toast.success(t("reseller.kyc_uploaded"));
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "The KYC document could not be uploaded.",
+        error instanceof Error ? error.message : t("reseller.kyc_upload_failed"),
       );
     } finally {
       setUploading(false);
@@ -202,11 +204,11 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (password.length < 12) {
-      toast.error("Use a password with at least 12 characters.");
+      toast.error(t("reseller.password_minimum"));
       return;
     }
     if (password !== passwordConfirm) {
-      toast.error("The passwords do not match.");
+      toast.error(t("reseller.password_mismatch"));
       return;
     }
     setChangingPassword(true);
@@ -215,9 +217,9 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
       if (error) throw error;
       setPassword("");
       setPasswordConfirm("");
-      toast.success("Password changed.");
+      toast.success(t("reseller.password_changed"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "The password could not be changed.");
+      toast.error(error instanceof Error ? error.message : t("reseller.password_change_failed"));
     } finally {
       setChangingPassword(false);
     }
@@ -228,14 +230,14 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
     try {
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: "Reseller dashboard authenticator",
+        friendlyName: t("reseller.authenticator_name"),
       });
       if (error) throw error;
       setEnrollment({ id: data.id, qrCode: data.totp.qr_code });
       setVerificationCode("");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Two-factor setup could not be started.",
+        error instanceof Error ? error.message : t("reseller.mfa_setup_failed"),
       );
     } finally {
       setMfaBusy(false);
@@ -259,12 +261,12 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
       setVerificationCode("");
       setFactors((current) => [
         ...current,
-        { id: enrollment.id, friendly_name: "Reseller dashboard authenticator" },
+        { id: enrollment.id, friendly_name: t("reseller.authenticator_name") },
       ]);
-      toast.success("Two-factor authentication is enabled.");
+      toast.success(t("reseller.mfa_enabled"));
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "The verification code was not accepted.",
+        error instanceof Error ? error.message : t("reseller.mfa_code_rejected"),
       );
     } finally {
       setMfaBusy(false);
@@ -277,10 +279,10 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
       const { error } = await supabase.auth.mfa.unenroll({ factorId });
       if (error) throw error;
       setFactors((current) => current.filter((factor) => factor.id !== factorId));
-      toast.success("Two-factor authentication was removed.");
+      toast.success(t("reseller.mfa_removed"));
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "The authenticator could not be removed.",
+        error instanceof Error ? error.message : t("reseller.authenticator_remove_failed"),
       );
     } finally {
       setMfaBusy(false);
@@ -291,7 +293,7 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
     ["profile", "company", "payment", "bank", "upi", "kyc"].includes(featureKey) &&
     settingsQuery.isPending
   ) {
-    return <div className="p-6 text-sm text-muted-foreground">Loading reseller account…</div>;
+    return <div className="p-6 text-sm text-muted-foreground">{t("reseller.loading_account")}</div>;
   }
   if (
     settingsQuery.isError &&
@@ -318,24 +320,26 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
         }}
       >
         <Field
-          label="Full name"
+          label={t("reseller.full_name")}
           value={values.name ?? ""}
           onChange={(value) => setValue("name", value)}
           required
         />
-        <Field label="Email" value={values.email ?? ""} />
+        <Field label={t("reseller.email")} value={values.email ?? ""} />
         <Field
-          label="Phone"
+          label={t("reseller.phone")}
           value={values.phone ?? ""}
           onChange={(value) => setValue("phone", value)}
         />
         <Field
-          label="Timezone"
+          label={t("reseller.timezone")}
           value={values.timezone ?? "UTC"}
           onChange={(value) => setValue("timezone", value)}
         />
         <div className="md:col-span-2">
-          <SaveButton busy={saving}>Save Profile</SaveButton>
+          <SaveButton busy={saving} savingLabel={t("reseller.saving")}>
+            {t("reseller.save_profile")}
+          </SaveButton>
         </div>
       </form>
     );
@@ -358,32 +362,32 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
         }}
       >
         <Field
-          label="Company name"
+          label={t("reseller.company_name")}
           value={values.companyName ?? ""}
           onChange={(value) => setValue("companyName", value)}
         />
         <Field
-          label="Legal name"
+          label={t("reseller.legal_name")}
           value={values.legalName ?? ""}
           onChange={(value) => setValue("legalName", value)}
         />
         <Field
-          label="GSTIN"
+          label={t("reseller.gstin")}
           value={values.gstNumber ?? ""}
           onChange={(value) => setValue("gstNumber", value)}
         />
         <Field
-          label="PAN"
+          label={t("reseller.pan")}
           value={values.panNumber ?? ""}
           onChange={(value) => setValue("panNumber", value)}
         />
         <Field
-          label="Region"
+          label={t("reseller.region")}
           value={values.region ?? ""}
           onChange={(value) => setValue("region", value)}
         />
         <label className="block space-y-1.5 text-xs md:col-span-2">
-          <span className="font-medium">Company address</span>
+          <span className="font-medium">{t("reseller.company_address")}</span>
           <textarea
             className={inputClass}
             value={values.companyAddress ?? ""}
@@ -392,7 +396,9 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
           />
         </label>
         <div className="md:col-span-2">
-          <SaveButton busy={saving}>Save Company Details</SaveButton>
+          <SaveButton busy={saving} savingLabel={t("reseller.saving")}>
+            {t("reseller.save_company_details")}
+          </SaveButton>
         </div>
       </form>
     );
@@ -419,41 +425,40 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
         {featureKey === "payment" && (
           <>
             <label className="block space-y-1.5 text-xs md:col-span-2">
-              <span className="font-medium">Preferred payout method</span>
+              <span className="font-medium">{t("reseller.preferred_payout_method")}</span>
               <select
                 className={inputClass}
                 value={values.payoutMethod ?? "bank"}
                 onChange={(event) => setValue("payoutMethod", event.currentTarget.value)}
               >
-                <option value="bank">Bank account</option>
-                <option value="upi">UPI</option>
+                <option value="bank">{t("reseller.bank_account")}</option>
+                <option value="upi">{t("reseller.upi")}</option>
               </select>
             </label>
             <p className="text-xs text-muted-foreground md:col-span-2">
-              These details are used for reseller payout instructions. Software Vala does not
-              initiate a payment from this form.
+              {t("reseller.payout_instructions_notice")}
             </p>
           </>
         )}
         {featureKey === "bank" && (
           <>
             <Field
-              label="Account holder name"
+              label={t("reseller.account_holder_name")}
               value={values.bankAccountHolder ?? ""}
               onChange={(value) => setValue("bankAccountHolder", value)}
             />
             <Field
-              label="Bank name"
+              label={t("reseller.bank_name")}
               value={values.bankName ?? ""}
               onChange={(value) => setValue("bankName", value)}
             />
             <Field
-              label="Account number"
+              label={t("reseller.account_number")}
               value={values.bankAccountNumber ?? ""}
               onChange={(value) => setValue("bankAccountNumber", value)}
             />
             <Field
-              label="IFSC code"
+              label={t("reseller.ifsc_code")}
               value={values.bankIfsc ?? ""}
               onChange={(value) => setValue("bankIfsc", value)}
             />
@@ -461,20 +466,20 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
         )}
         {featureKey === "upi" && (
           <Field
-            label="UPI ID / VPA"
+            label={t("reseller.upi_id")}
             value={values.upiVpa ?? ""}
             onChange={(value) => setValue("upiVpa", value)}
-            placeholder="name@bank"
+            placeholder={t("reseller.upi_placeholder")}
           />
         )}
         <div className="md:col-span-2">
-          <SaveButton busy={saving}>
-            Save{" "}
+          <SaveButton busy={saving} savingLabel={t("reseller.saving")}>
+            {t("reseller.save")}{" "}
             {featureKey === "payment"
-              ? "Payment Preference"
+              ? t("reseller.payment_preference")
               : featureKey === "bank"
-                ? "Bank Details"
-                : "UPI Details"}
+                ? t("reseller.bank_details")
+                : t("reseller.upi_details")}
           </SaveButton>
         </div>
       </form>
@@ -485,10 +490,10 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
     return (
       <form className="grid gap-4 p-6 md:max-w-xl" onSubmit={(event) => void changePassword(event)}>
         <p className="text-xs text-muted-foreground">
-          Use at least 12 characters. Your password is updated through your signed-in account.
+          {t("reseller.password_update_notice")}
         </p>
         <Field
-          label="New password"
+          label={t("reseller.new_password")}
           value={password}
           onChange={setPassword}
           type="password"
@@ -496,14 +501,16 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
           autoComplete="new-password"
         />
         <Field
-          label="Confirm new password"
+          label={t("reseller.confirm_new_password")}
           value={passwordConfirm}
           onChange={setPasswordConfirm}
           type="password"
           required
           autoComplete="new-password"
         />
-        <SaveButton busy={changingPassword}>Change Password</SaveButton>
+        <SaveButton busy={changingPassword} savingLabel={t("reseller.saving")}>
+          {t("reseller.change_password")}
+        </SaveButton>
       </form>
     );
   }
@@ -512,10 +519,10 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
     return (
       <div className="space-y-4 p-6">
         <p className="text-xs text-muted-foreground">
-          Use an authenticator app to add a time-based one-time password (TOTP) factor.
+          {t("reseller.authenticator_setup_notice")}
         </p>
         {factorLoading ? (
-          <p className="text-sm text-muted-foreground">Checking authentication factors…</p>
+          <p className="text-sm text-muted-foreground">{t("reseller.checking_auth_factors")}</p>
         ) : null}
         {factorError ? (
           <p role="alert" className="text-sm text-destructive">
@@ -529,8 +536,8 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
               className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-4"
             >
               <span className="text-sm">
-                {factor.friendly_name || "Authenticator app"}{" "}
-                <span className="text-muted-foreground">— enabled</span>
+                {factor.friendly_name || t("reseller.authenticator_app")}{" "}
+                <span className="text-muted-foreground">{t("reseller.enabled")}</span>
               </span>
               <button
                 type="button"
@@ -538,7 +545,7 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
                 onClick={() => void removeMfaFactor(factor.id)}
                 className="rounded-lg border border-border px-3 py-2 text-xs font-semibold disabled:opacity-60"
               >
-                Remove
+                {t("reseller.remove")}
               </button>
             </div>
           ))}
@@ -549,22 +556,24 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
           >
             <img
               src={enrollment.qrCode}
-              alt="Scan this QR code with your authenticator app"
+              alt={t("reseller.authenticator_qr_alt")}
               className="h-40 w-40 rounded-lg border border-border bg-white p-2"
             />
             <div className="space-y-3">
               <p className="text-sm font-medium">
-                Scan the QR code, then enter the 6-digit code from your authenticator.
+                {t("reseller.authenticator_verify_instructions")}
               </p>
               <Field
-                label="Authenticator code"
+                label={t("reseller.authenticator_code")}
                 value={verificationCode}
                 onChange={setVerificationCode}
                 inputMode="numeric"
                 placeholder="123456"
                 required
               />
-              <SaveButton busy={mfaBusy}>Verify and Enable 2FA</SaveButton>
+              <SaveButton busy={mfaBusy} savingLabel={t("reseller.saving")}>
+                {t("reseller.verify_enable_2fa")}
+              </SaveButton>
             </div>
           </form>
         ) : factors.length === 0 && !factorLoading ? (
@@ -574,7 +583,7 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
             onClick={() => void startMfaEnrollment()}
             className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground disabled:opacity-60"
           >
-            Set up authenticator
+            {t("reseller.setup_authenticator")}
           </button>
         ) : null}
       </div>
@@ -585,17 +594,16 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
     return (
       <div className="space-y-5 p-6">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-medium">Verification status:</span>
+          <span className="font-medium">{t("reseller.verification_status")}</span>
           <span className="rounded-full border border-border px-2.5 py-1 text-xs capitalize">
-            {settingsQuery.data?.profile.kycStatus ?? "unverified"}
+            {settingsQuery.data?.profile.kycStatus ?? t("reseller.unverified")}
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Upload identity or business documents as PDF, JPEG, PNG or WebP (maximum 10 MB per file).
-          Documents are stored privately.
+          {t("reseller.kyc_upload_instructions")}
         </p>
         <label className="inline-flex cursor-pointer items-center rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground has-[:disabled]:cursor-wait">
-          {uploading ? "Uploading…" : "Upload KYC Document"}
+          {uploading ? t("reseller.uploading") : t("reseller.upload_kyc")}
           <input
             type="file"
             className="sr-only"
@@ -608,7 +616,7 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
           />
         </label>
         {documentsQuery.isPending ? (
-          <p className="text-sm text-muted-foreground">Loading submitted documents…</p>
+          <p className="text-sm text-muted-foreground">{t("reseller.loading_documents")}</p>
         ) : null}
         {documentsQuery.isError ? (
           <p role="alert" className="text-sm text-destructive">
@@ -629,7 +637,7 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
                   rel="noreferrer"
                   className="text-xs font-semibold text-brand underline"
                 >
-                  Open private document
+                  {t("reseller.open_private_document")}
                 </a>
               </li>
             ))}
@@ -641,19 +649,27 @@ function ResellerSettingsSecurity({ featureKey }: Props) {
 
   return (
     <div className="p-6 text-sm text-muted-foreground">
-      This security feature is not configured yet.
+      {t("reseller.security_not_configured")}
     </div>
   );
 }
 
-function SaveButton({ busy, children }: { busy: boolean; children: ReactNode }) {
+function SaveButton({
+  busy,
+  savingLabel,
+  children,
+}: {
+  busy: boolean;
+  savingLabel: string;
+  children: ReactNode;
+}) {
   return (
     <button
       type="submit"
       disabled={busy}
       className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground disabled:cursor-wait disabled:opacity-60"
     >
-      {busy ? "Saving…" : children}
+      {busy ? savingLabel : children}
     </button>
   );
 }

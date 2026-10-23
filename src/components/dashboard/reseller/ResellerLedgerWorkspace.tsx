@@ -3,6 +3,7 @@ import { ArrowLeft, Banknote, Loader2, RotateCcw, TrendingUp, Wallet } from "luc
 
 import { useServerFn } from "@/lib/serverFn";
 import { getResellerLedger, type ResellerLedger } from "@/lib/reseller-dashboard.functions";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
  * The reseller's own money, read-only: commission earned, revenue referred, and
@@ -14,27 +15,6 @@ import { getResellerLedger, type ResellerLedger } from "@/lib/reseller-dashboard
  */
 
 type View = "commissions" | "revenue" | "renewals";
-
-const VIEW_META: Record<View, { eyebrow: string; title: string; intro: string; icon: typeof Wallet }> = {
-  commissions: {
-    eyebrow: "Earnings",
-    title: "Commission Ledger",
-    intro: "Every commission line credited to you, with the order behind it and where it stands.",
-    icon: Wallet,
-  },
-  revenue: {
-    eyebrow: "Performance",
-    title: "Revenue Referred",
-    intro: "The order value you have referred, and the commission it produced.",
-    icon: TrendingUp,
-  },
-  renewals: {
-    eyebrow: "Lifecycle",
-    title: "Renewals",
-    intro: "Your memberships and when each one comes up for renewal.",
-    icon: RotateCcw,
-  },
-};
 
 const money = (v: number, c = "USD") =>
   `${c === "USD" ? "$" : `${c} `}${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -71,13 +51,33 @@ function TableShell({ head, children }: { head: React.ReactNode; children: React
 }
 
 export function ResellerLedgerWorkspace({ view, onBack }: { view: View; onBack: () => void }) {
+  const { t } = useTranslation();
   const fetchLedger = useServerFn(getResellerLedger);
   const q = useQuery({
     queryKey: ["reseller-ledger"],
     queryFn: () => fetchLedger() as Promise<ResellerLedger>,
     staleTime: 20_000,
   });
-  const meta = VIEW_META[view];
+  const meta = {
+    commissions: {
+      eyebrow: t("reseller.ledger_earnings"),
+      title: t("reseller.ledger_commission_title"),
+      intro: t("reseller.ledger_commission_intro"),
+      icon: Wallet,
+    },
+    revenue: {
+      eyebrow: t("reseller.ledger_performance"),
+      title: t("reseller.ledger_revenue_title"),
+      intro: t("reseller.ledger_revenue_intro"),
+      icon: TrendingUp,
+    },
+    renewals: {
+      eyebrow: t("reseller.ledger_lifecycle"),
+      title: t("reseller.ledger_renewals_title"),
+      intro: t("reseller.ledger_renewals_intro"),
+      icon: RotateCcw,
+    },
+  }[view];
   const Icon = meta.icon;
 
   const totals = (() => {
@@ -98,7 +98,7 @@ export function ResellerLedgerWorkspace({ view, onBack }: { view: View; onBack: 
           onClick={onBack}
           className="inline-flex items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-2 text-sm hover:bg-card"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to Dashboard
+          <ArrowLeft className="h-4 w-4" /> {t("reseller.ledger_back")}
         </button>
         <div className="flex items-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand/15 text-[oklch(0.72_0.2_265)]">
@@ -114,31 +114,30 @@ export function ResellerLedgerWorkspace({ view, onBack }: { view: View; onBack: 
 
       {q.isLoading ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading your ledger…
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("reseller.ledger_loading")}
         </p>
       ) : q.error ? (
         <p className="text-sm text-destructive">{(q.error as Error).message}</p>
       ) : q.data && !q.data.linked ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center">
           <Banknote className="mx-auto h-7 w-7 text-muted-foreground" />
-          <p className="mt-3 text-sm font-semibold">No reseller record linked to this account yet</p>
+          <p className="mt-3 text-sm font-semibold">{t("reseller.ledger_unlinked_title")}</p>
           <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-            Commission, revenue and renewals appear here once your reseller account is approved and linked.
-            Until then there is nothing to show — the figures are not hidden, they do not exist yet.
+            {t("reseller.ledger_unlinked_message")}
           </p>
         </div>
       ) : view === "renewals" ? (
         (q.data?.memberships ?? []).length === 0 ? (
-          <Empty text="No memberships yet." />
+          <Empty text={t("reseller.ledger_no_memberships")} />
         ) : (
           <TableShell
             head={
               <tr>
-                <th className="p-2 text-left">Plan</th>
-                <th className="p-2 text-left">State</th>
-                <th className="p-2 text-left">Activated</th>
-                <th className="p-2 text-left">Expires</th>
-                <th className="p-2 text-left">Renews</th>
+                <th className="p-2 text-left">{t("reseller.ledger_plan")}</th>
+                <th className="p-2 text-left">{t("reseller.ledger_state")}</th>
+                <th className="p-2 text-left">{t("reseller.ledger_activated")}</th>
+                <th className="p-2 text-left">{t("reseller.ledger_expires")}</th>
+                <th className="p-2 text-left">{t("reseller.ledger_renews")}</th>
               </tr>
             }
           >
@@ -156,22 +155,32 @@ export function ResellerLedgerWorkspace({ view, onBack }: { view: View; onBack: 
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Stat label={view === "revenue" ? "Revenue referred" : "Commission earned"} value={money(view === "revenue" ? totals.revenue : totals.earned)} />
-            <Stat label="Released & payable" value={money(totals.available)} />
-            <Stat label="Paid" value={money(totals.paid)} />
-            <Stat label="Lines" value={String((q.data?.commissions ?? []).length)} />
+            <Stat
+              label={
+                view === "revenue"
+                  ? t("reseller.ledger_revenue_referred")
+                  : t("reseller.ledger_commission_earned")
+              }
+              value={money(view === "revenue" ? totals.revenue : totals.earned)}
+            />
+            <Stat label={t("reseller.ledger_released_payable")} value={money(totals.available)} />
+            <Stat label={t("reseller.ledger_paid")} value={money(totals.paid)} />
+            <Stat
+              label={t("reseller.ledger_lines")}
+              value={String((q.data?.commissions ?? []).length)}
+            />
           </div>
           {(q.data?.commissions ?? []).length === 0 ? (
-            <Empty text="No sale has been attributed to you yet." />
+            <Empty text={t("reseller.ledger_no_attributed_sales")} />
           ) : (
             <TableShell
               head={
                 <tr>
-                  <th className="p-2 text-left">Date</th>
-                  <th className="p-2 text-left">Order</th>
-                  <th className="p-2 text-right">Order value</th>
-                  <th className="p-2 text-right">Commission</th>
-                  <th className="p-2 text-left">Status</th>
+                  <th className="p-2 text-left">{t("reseller.ledger_date")}</th>
+                  <th className="p-2 text-left">{t("reseller.ledger_order")}</th>
+                  <th className="p-2 text-right">{t("reseller.ledger_order_value")}</th>
+                  <th className="p-2 text-right">{t("reseller.ledger_commission")}</th>
+                  <th className="p-2 text-left">{t("reseller.ledger_status")}</th>
                 </tr>
               }
             >

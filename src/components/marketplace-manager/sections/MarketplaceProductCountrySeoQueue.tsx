@@ -1,5 +1,6 @@
 import { Card } from "../ui";
 import { Loader2, Pause, Play, RefreshCw, Sparkles } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 import {
   useMarketplaceProductCountrySeoProgress,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/use-seo-actions";
 
 export function MarketplaceProductCountrySeoQueue() {
+  const { t } = useTranslation();
   const processBatch = useProcessMarketplaceProductCountrySeoBatch();
   const worker = useMarketplaceProductCountrySeoWorkerStatus();
   const setWorkerEnabled = useSetMarketplaceProductCountrySeoWorkerEnabled();
@@ -25,12 +27,9 @@ export function MarketplaceProductCountrySeoQueue() {
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold">Bulk Generation Status</div>
+          <div className="text-sm font-bold">{t("seo.bulk_generation_status")}</div>
           <p className="mt-1 max-w-3xl text-[11px] leading-relaxed text-muted-foreground">
-            Eligible public products are lazily paired with all 100 Marketplace countries. The
-            background worker handles one pair at a time, prefers Ollama Local, and is restricted to
-            approved Free providers. Paid providers are never used by this queue. Pause takes effect
-            after any in-progress pair finishes.
+            {t("seo.marketplace_seo_queue_description")}
           </p>
         </div>
         <button
@@ -40,47 +39,47 @@ export function MarketplaceProductCountrySeoQueue() {
           className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-2 text-[11px] font-semibold disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${progress.isFetching ? "animate-spin" : ""}`} />
-          Refresh
+          {t("seo.refresh")}
         </button>
       </div>
 
       {progress.isError ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[11px] text-destructive">
-          <span role="alert">Marketplace SEO queue progress could not be loaded.</span>
+          <span role="alert">{t("seo.marketplace_seo_queue_load_failed")}</span>
           <button
             type="button"
             onClick={() => void progress.refetch()}
             className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
           >
-            Retry
+            {t("seo.retry")}
           </button>
         </div>
       ) : progress.isLoading ? (
         <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Reading SEO generation progress…
+          {t("seo.reading_seo_generation_progress")}
         </div>
       ) : (
         <>
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-[11px]">
             <span>
-              Total pairs <strong>{counts?.total.toLocaleString() ?? 0}</strong>
+              {t("seo.total_pairs")} <strong>{counts?.total.toLocaleString() ?? 0}</strong>
             </span>
             <span>
-              Processed <strong>{processed.toLocaleString()}</strong>
+              {t("seo.processed")} <strong>{processed.toLocaleString()}</strong>
             </span>
             <span>
-              Complete <strong>{counts?.completed.toLocaleString() ?? 0}</strong> /{" "}
+              {t("seo.complete")} <strong>{counts?.completed.toLocaleString() ?? 0}</strong> /{" "}
               <strong>{counts?.total.toLocaleString() ?? 0}</strong>
             </span>
-            <span>Remaining {counts?.pending.toLocaleString() ?? 0}</span>
-            <span>Processing {counts?.processing.toLocaleString() ?? 0}</span>
-            <span>Failed {counts?.failed.toLocaleString() ?? 0}</span>
+            <span>{t("seo.remaining")} {counts?.pending.toLocaleString() ?? 0}</span>
+            <span>{t("seo.processing")} {counts?.processing.toLocaleString() ?? 0}</span>
+            <span>{t("seo.failed")} {counts?.failed.toLocaleString() ?? 0}</span>
           </div>
           <div
             className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
             role="progressbar"
-            aria-label="Marketplace product-country SEO generation"
+            aria-label={t("seo.marketplace_product_country_seo_generation")}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={percent}
@@ -105,10 +104,10 @@ export function MarketplaceProductCountrySeoQueue() {
                 <Play className="h-3.5 w-3.5" />
               )}
               {setWorkerEnabled.isPending
-                ? "Updating worker…"
+                ? t("seo.updating_worker")
                 : worker.data?.enabled
-                  ? "Pause"
-                  : "Resume"}
+                  ? t("seo.pause")
+                  : t("seo.resume")}
             </button>
             <button
               type="button"
@@ -121,7 +120,7 @@ export function MarketplaceProductCountrySeoQueue() {
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              {processBatch.isPending ? "Processing one…" : "Process one now"}
+              {processBatch.isPending ? t("seo.processing_one") : t("seo.process_one_now")}
             </button>
             <button
               type="button"
@@ -134,30 +133,32 @@ export function MarketplaceProductCountrySeoQueue() {
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
-              Retry next 50 failed
+              {t("seo.retry_next_50_failed")}
             </button>
           </div>
           {worker.isError ? (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-[11px] text-destructive">
-              <span role="alert">Background worker status could not be loaded.</span>
+              <span role="alert">{t("seo.background_worker_status_load_failed")}</span>
               <button
                 type="button"
                 onClick={() => void worker.refetch()}
                 className="rounded-md border border-destructive/40 px-3 py-1 font-semibold"
               >
-                Retry
+                {t("seo.retry")}
               </button>
             </div>
           ) : worker.isLoading ? (
             <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Reading worker status…
+              {t("seo.reading_worker_status")}
             </div>
           ) : worker.data ? (
             <div className="mt-3 space-y-1 text-[11px] text-muted-foreground" aria-live="polite">
               <div>
-                Worker <strong>{worker.data.enabled ? "Running" : "Paused"}</strong>
-                {" · "}Current AI provider <strong>{worker.data.current_provider}</strong>
+                {t("seo.worker")}{" "}
+                <strong>{worker.data.enabled ? t("seo.running") : t("seo.paused")}</strong>
+                {" · "}{t("seo.current_ai_provider")}{" "}
+                <strong>{worker.data.current_provider}</strong>
               </div>
               {worker.data.pause_reason ? (
                 <div role="status">{worker.data.pause_reason}</div>
@@ -169,8 +170,8 @@ export function MarketplaceProductCountrySeoQueue() {
               ) : null}
               {worker.data.host_load_1m !== null || worker.data.available_memory_bytes !== null ? (
                 <div>
-                  Host load (1 min) {worker.data.host_load_1m?.toFixed(2) ?? "—"}
-                  {" · "}Available memory{" "}
+                  {t("seo.host_load_1_min")} {worker.data.host_load_1m?.toFixed(2) ?? "—"}
+                  {" · "}{t("seo.available_memory")}{" "}
                   {worker.data.available_memory_bytes === null
                     ? "—"
                     : `${(worker.data.available_memory_bytes / 1024 ** 3).toFixed(1)} GiB`}
@@ -182,8 +183,8 @@ export function MarketplaceProductCountrySeoQueue() {
       )}
       {processBatch.data?.apiConfigurationPending && (
         <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-800 dark:text-amber-200">
-          <strong>Pending API configuration.</strong> Configure a valid, active AI provider in AI
-          API Manager, then retry the failed items. No content was generated for those items.
+          <strong>{t("seo.pending_api_configuration")}</strong>{" "}
+          {t("seo.configure_ai_provider_before_retry")}
         </div>
       )}
     </Card>

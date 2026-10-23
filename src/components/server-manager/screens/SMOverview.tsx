@@ -8,8 +8,10 @@ import { useServerDashboard } from '@/hooks/useServerDashboard';
 import { ServerHealthBadge } from '../layout/ServerHealthBadge';
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '../layout/PageShell';
+import { useTranslation } from '@/lib/i18n/use-translation';
 
 const SMOverview = () => {
+  const { t } = useTranslation();
   const { summary, loading, error: summaryError, refresh } = useServerDashboard(5000);
   const [recentAlerts, setRecentAlerts] = useState<Array<{
     id: string;
@@ -41,10 +43,10 @@ const SMOverview = () => {
         setLastUpdate(new Date());
       } catch (error) {
         if (cancelled) return;
-        const message = error instanceof Error ? error.message : 'Unable to load alerts';
+        const message = error instanceof Error ? error.message : t('server_manager.overview.alerts_unavailable');
         console.error('[server-manager] alerts fetch failed', error);
         setAlertsError(message);
-        toast.error(`Could not load alerts: ${message}`);
+        toast.error(t('server_manager.overview.load_alerts_failed', { message }));
       } finally {
         if (!cancelled) setAlertsLoading(false);
       }
@@ -57,22 +59,22 @@ const SMOverview = () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [isAutoRefresh]);
+  }, [isAutoRefresh, t]);
 
 
   const stats = [
-    { label: 'Total Servers', value: summary.total_servers?.toString() ?? '—', icon: Server, color: 'text-primary' },
-    { label: 'Online', value: summary.online?.toString() ?? '—', icon: Activity, color: 'text-muted-foreground' },
-    { label: 'Offline', value: summary.offline?.toString() ?? '—', icon: WifiOff, color: 'text-muted-foreground' },
-    { label: 'Warnings', value: summary.warnings?.toString() ?? '—', icon: AlertTriangle, color: 'text-accent-amber' },
-    { label: 'Critical Alerts', value: summary.critical_alerts?.toString() ?? '—', icon: AlertTriangle, color: 'text-destructive' },
+    { label: t('server_manager.overview.total_servers'), value: summary.total_servers?.toString() ?? '—', icon: Server, color: 'text-primary' },
+    { label: t('server_manager.overview.online'), value: summary.online?.toString() ?? '—', icon: Activity, color: 'text-muted-foreground' },
+    { label: t('server_manager.overview.offline'), value: summary.offline?.toString() ?? '—', icon: WifiOff, color: 'text-muted-foreground' },
+    { label: t('server_manager.overview.warnings'), value: summary.warnings?.toString() ?? '—', icon: AlertTriangle, color: 'text-accent-amber' },
+    { label: t('server_manager.overview.critical_alerts'), value: summary.critical_alerts?.toString() ?? '—', icon: AlertTriangle, color: 'text-destructive' },
   ];
 
   const resourceData = [
-    { label: 'CPU', value: summary.avg_cpu, rate: null, color: 'bg-primary' },
-    { label: 'RAM', value: summary.avg_ram, rate: null, color: 'bg-accent-pink' },
-    { label: 'Network In', value: null, rate: summary.network_throughput.in, color: 'bg-accent-emerald' },
-    { label: 'Network Out', value: null, rate: summary.network_throughput.out, color: 'bg-accent-amber' },
+    { label: t('server_manager.overview.cpu'), value: summary.avg_cpu, rate: null, color: 'bg-primary' },
+    { label: t('server_manager.overview.ram'), value: summary.avg_ram, rate: null, color: 'bg-accent-pink' },
+    { label: t('server_manager.overview.network_in'), value: null, rate: summary.network_throughput.in, color: 'bg-accent-emerald' },
+    { label: t('server_manager.overview.network_out'), value: null, rate: summary.network_throughput.out, color: 'bg-accent-amber' },
   ];
 
   const getSeverityColor = (severity: string) => {
@@ -86,8 +88,8 @@ const SMOverview = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Server Overview"
-        subtitle="Server profiles are visible; live health and resource telemetry require an enrolled agent."
+        title={t('server_manager.overview.title')}
+        subtitle={t('server_manager.overview.subtitle')}
         action={
           <div className="flex flex-wrap items-center gap-3">
             <ServerHealthBadge lastSeen={summary.last_seen} />
@@ -97,12 +99,12 @@ const SMOverview = () => {
               ) : (
                 <WifiOff className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
               )}
-              <span>Auto-refresh {isAutoRefresh ? 'ON' : 'OFF'}</span>
+              <span>{t('server_manager.overview.auto_refresh')} {isAutoRefresh ? t('server_manager.overview.on') : t('server_manager.overview.off')}</span>
             </div>
             <Button
               variant="outline"
               size="sm"
-              aria-label="Refresh infrastructure data"
+              aria-label={t('server_manager.overview.refresh_infrastructure')}
               onClick={() => {
                 refresh();
                 setLastUpdate(new Date());
@@ -110,16 +112,16 @@ const SMOverview = () => {
               disabled={loading}
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-              Refresh
+              {t('server_manager.overview.refresh')}
             </Button>
             <Button
               size="sm"
               variant={isAutoRefresh ? 'default' : 'secondary'}
               aria-pressed={isAutoRefresh}
-              aria-label={isAutoRefresh ? 'Pause auto-refresh' : 'Resume auto-refresh'}
+              aria-label={isAutoRefresh ? `${t('server_manager.overview.pause')} ${t('server_manager.overview.auto_refresh')}` : `${t('server_manager.overview.resume')} ${t('server_manager.overview.auto_refresh')}`}
               onClick={() => setIsAutoRefresh(!isAutoRefresh)}
             >
-              {isAutoRefresh ? 'Pause' : 'Resume'}
+              {isAutoRefresh ? t('server_manager.overview.pause') : t('server_manager.overview.resume')}
             </Button>
           </div>
         }
@@ -127,13 +129,13 @@ const SMOverview = () => {
 
       {summaryError && (
         <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          Server health is unknown because status data could not be loaded.
+          {t('server_manager.overview.health_unknown')}
         </div>
       )}
 
       {lastUpdate && (
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          Last updated: {lastUpdate.toLocaleTimeString()}
+          {t('server_manager.overview.last_updated')} {lastUpdate.toLocaleTimeString()}
         </p>
       )}
 
@@ -161,7 +163,7 @@ const SMOverview = () => {
 
       {/* Resource Heatmap */}
       <div className="bento-card premium-halo hover-lift enter-soft">
-        <h3 className="text-sm font-semibold tracking-tight mb-4">Resource Utilization (Live)</h3>
+        <h3 className="text-sm font-semibold tracking-tight mb-4">{t('server_manager.overview.resource_utilization')}</h3>
         <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
           {resourceData.map((res) => (
             <div key={res.label} className="space-y-2">
@@ -190,7 +192,7 @@ const SMOverview = () => {
 
       {/* Recent Alerts */}
       <div className="bento-card premium-halo hover-lift enter-soft">
-        <h3 className="text-sm font-semibold tracking-tight mb-4">Recent Alerts</h3>
+        <h3 className="text-sm font-semibold tracking-tight mb-4">{t('server_manager.overview.recent_alerts')}</h3>
         {alertsLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -199,14 +201,14 @@ const SMOverview = () => {
           </div>
         ) : alertsError ? (
           <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-4">
-            <p className="text-sm font-medium text-destructive">Alerts could not be loaded</p>
+            <p className="text-sm font-medium text-destructive">{t('server_manager.overview.alerts_unavailable')}</p>
             <p className="mt-1 text-xs text-muted-foreground">{alertsError}</p>
           </div>
         ) : recentAlerts.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
             <BellOff className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-            <p className="text-sm font-medium text-foreground">No active alerts</p>
-            <p className="max-w-sm text-xs text-muted-foreground">No active alerts are recorded.</p>
+            <p className="text-sm font-medium text-foreground">{t('server_manager.overview.no_active_alerts')}</p>
+            <p className="max-w-sm text-xs text-muted-foreground">{t('server_manager.overview.no_alerts_recorded')}</p>
           </div>
         ) : (
 
@@ -232,7 +234,7 @@ const SMOverview = () => {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        🔄 Real-time data — Auto-refreshing every 5 seconds
+        🔄 {t('server_manager.overview.realtime_refresh_note')}
       </p>
     </div>
   );

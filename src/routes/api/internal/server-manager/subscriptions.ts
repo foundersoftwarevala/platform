@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { queue } from "@/lib/commerce/mailer";
 
@@ -63,12 +64,13 @@ export const Route = createFileRoute("/api/internal/server-manager/subscriptions
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
         const { url, key } = config();
         if (!url || !key) {
           return Response.json(
-            { error: "Subscription lifecycle configuration is unavailable" },
+            { error: await translateText("server_manager.api_subscription_lifecycle_configuration_is_un_e36f911") },
             { status: 503 },
           );
         }
@@ -81,13 +83,13 @@ export const Route = createFileRoute("/api/internal/server-manager/subscriptions
           });
           if (!response.ok) {
             console.error("[server-manager/subscriptions] lifecycle sweep failed", response.status);
-            return Response.json({ error: "Subscription lifecycle sweep failed" }, { status: 502 });
+            return Response.json({ error: await translateText("server_manager.api_subscription_lifecycle_sweep_failed_88425e2") }, { status: 502 });
           }
 
           const result: unknown = await response.json();
           if (!Array.isArray(result)) {
             return Response.json(
-              { error: "Subscription lifecycle returned an invalid response" },
+              { error: await translateText("server_manager.api_subscription_lifecycle_returned_an_invalid_3a002e0") },
               { status: 502 },
             );
           }
@@ -201,7 +203,7 @@ export const Route = createFileRoute("/api/internal/server-manager/subscriptions
         } catch (error) {
           console.error("[server-manager/subscriptions] lifecycle processing failed", error);
           return Response.json(
-            { error: "Subscription lifecycle processing failed" },
+            { error: await translateText("server_manager.api_subscription_lifecycle_processing_failed_0e061a7") },
             { status: 502 },
           );
         }

@@ -3,6 +3,7 @@ import { RefreshCw, Play, Database } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, SubNav } from "../ui";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export type SeoFrameworkPhase =
   | "backlinks-foundation"
@@ -167,13 +168,14 @@ const PHASES: Record<SeoFrameworkPhase, { title: string; sections: Section[] }> 
 };
 
 export function SeoFrameworkTabs({ phase }: { phase: SeoFrameworkPhase }) {
+  const { t } = useTranslation();
   const config = PHASES[phase];
   const [activeSection, setActiveSection] = useState(config.sections[0].label);
   const section =
     config.sections.find((item) => item.label === activeSection) ?? config.sections[0];
 
   const notifyPending = () => {
-    toast.info("API Integration Pending. Connect API to run.");
+    toast.info(t("seo.api_integration_pending"));
   };
   const actionLabel = {
     refresh: "Refresh Data",
@@ -187,9 +189,7 @@ export function SeoFrameworkTabs({ phase }: { phase: SeoFrameworkPhase }) {
     <div data-skip-drawer>
       <div className="mb-5">
         <h2 className="text-xl font-bold">{config.title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Foundation tables are ready. Connect a data provider before refreshing or running scans.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t("seo.foundation_tables_ready")}</p>
       </div>
 
       <SubNav
@@ -202,7 +202,9 @@ export function SeoFrameworkTabs({ phase }: { phase: SeoFrameworkPhase }) {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold">{section.label}</h3>
-            <p className="mt-1 text-xs text-muted-foreground">Storage: {section.table}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("seo.storage")} {section.table}
+            </p>
           </div>
           <button
             type="button"
@@ -241,7 +243,7 @@ export function SeoFrameworkTabs({ phase }: { phase: SeoFrameworkPhase }) {
                   role="status"
                 >
                   <Database className="mx-auto mb-2 h-5 w-5 opacity-60" />
-                  <span>No data available. Connect an API to populate this section.</span>
+                  <span>{t("seo.no_data_available_connect_api")}</span>
                 </td>
               </tr>
             </tbody>

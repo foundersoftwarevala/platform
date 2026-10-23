@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 import { requireAuthor, rest, supabaseUrl } from "@/lib/marketplace/author-guard";
 
 const BUCKET = "marketplace-product-files";
@@ -120,11 +121,12 @@ export const Route = createFileRoute("/api/author/product-files")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireAuthor(request, { allowPending: true });
         if (!gate.ok) return gate.response;
         const productId = new URL(request.url).searchParams.get("product_id") ?? "";
         if (!UUID.test(productId)) {
-          return Response.json({ error: "A valid product_id is required" }, { status: 400 });
+          return Response.json({ error: await translateText("marketplace.api_a_valid_product_id_is_required_cce3624") }, { status: 400 });
         }
         const state = await getProductState(productId, gate.seller.id);
         if ("error" in state) {
@@ -145,23 +147,24 @@ export const Route = createFileRoute("/api/author/product-files")({
         );
         if (!response.ok) {
           console.error("[author product files] list failed", response.status);
-          return Response.json({ error: "Could not load product files" }, { status: 502 });
+          return Response.json({ error: await translateText("marketplace.api_could_not_load_product_files_6e01d1c") }, { status: 502 });
         }
         return Response.json({ files: await response.json() });
       },
 
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireAuthor(request);
         if (!gate.ok) return gate.response;
         if (!supabaseUrl() || !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
           return Response.json(
-            { error: "Product file storage is not configured" },
+            { error: await translateText("marketplace.api_product_file_storage_is_not_configured_494fece") },
             { status: 503 },
           );
         }
         const key = validIdempotencyKey(request);
         if (!key) {
-          return Response.json({ error: "A UUID Idempotency-Key is required" }, { status: 400 });
+          return Response.json({ error: await translateText("marketplace.api_a_uuid_idempotency_key_is_required_a1fdf18") }, { status: 400 });
         }
 
         if (
@@ -170,31 +173,31 @@ export const Route = createFileRoute("/api/author/product-files")({
         ) {
           const length = Number(request.headers.get("content-length") ?? 0);
           if (length > MAX_FILE_BYTES + 65536) {
-            return Response.json({ error: "Files must be 50 MiB or smaller" }, { status: 413 });
+            return Response.json({ error: await translateText("marketplace.api_files_must_be_50_mib_or_smaller_c7e8636") }, { status: 413 });
           }
           let form: FormData;
           try {
             form = await request.formData();
           } catch {
-            return Response.json({ error: "Invalid multipart upload" }, { status: 400 });
+            return Response.json({ error: await translateText("marketplace.api_invalid_multipart_upload_da04f33") }, { status: 400 });
           }
           const productId = String(form.get("product_id") ?? "");
           const file = form.get("file");
           if (!UUID.test(productId) || !(file instanceof File)) {
             return Response.json(
-              { error: "A valid product_id and file are required" },
+              { error: await translateText("marketplace.api_a_valid_product_id_and_file_are_required_cd08689") },
               { status: 400 },
             );
           }
           if (file.size < 1 || file.size > MAX_FILE_BYTES) {
             return Response.json(
-              { error: "Files must be between 1 byte and 50 MiB" },
+              { error: await translateText("marketplace.api_files_must_be_between_1_byte_and_50_mib_d15d68e") },
               { status: 413 },
             );
           }
           const mimeType = file.type.trim().toLowerCase();
           if (!ALLOWED_TYPES.has(mimeType)) {
-            return Response.json({ error: "This file type is not supported" }, { status: 415 });
+            return Response.json({ error: await translateText("marketplace.api_this_file_type_is_not_supported_210338e") }, { status: 415 });
           }
           const state = await getProductState(productId, gate.seller.id);
           if ("error" in state) {
@@ -212,7 +215,7 @@ export const Route = createFileRoute("/api/author/product-files")({
             !["draft", "changes_requested", "rejected"].includes(state.product.moderation_status)
           ) {
             return Response.json(
-              { error: "Files can only be added to an editable product" },
+              { error: await translateText("marketplace.api_files_can_only_be_added_to_an_editable_pro_e41dad3") },
               { status: 409 },
             );
           }
@@ -221,12 +224,12 @@ export const Route = createFileRoute("/api/author/product-files")({
             existing = await findByIdempotency(gate.seller.id, key);
           } catch (error) {
             console.error("[author product files] idempotency check failed", error);
-            return Response.json({ error: "Could not verify the upload request" }, { status: 502 });
+            return Response.json({ error: await translateText("marketplace.api_could_not_verify_the_upload_request_a8e0ff2") }, { status: 502 });
           }
           if (existing) {
             if (existing.product_id !== productId) {
               return Response.json(
-                { error: "Idempotency-Key was already used for another product" },
+                { error: await translateText("marketplace.api_idempotency_key_was_already_used_for_anoth_ae83ee1") },
                 { status: 409 },
               );
             }
@@ -251,7 +254,7 @@ export const Route = createFileRoute("/api/author/product-files")({
           });
           if (!uploaded.ok) {
             console.error("[author product files] storage upload failed", uploaded.status);
-            return Response.json({ error: "The file could not be stored" }, { status: 502 });
+            return Response.json({ error: await translateText("marketplace.api_the_file_could_not_be_stored_12f68ec") }, { status: 502 });
           }
 
           const inserted = await rest("marketplace_product_files", {
@@ -284,7 +287,7 @@ export const Route = createFileRoute("/api/author/product-files")({
               if (retry?.product_id === productId)
                 return Response.json({ file: retry, replayed: true });
             }
-            return Response.json({ error: "File metadata could not be saved" }, { status: 502 });
+            return Response.json({ error: await translateText("marketplace.api_file_metadata_could_not_be_saved_e2d8e5b") }, { status: 502 });
           }
           const [saved] = (await inserted.json()) as ProductFile[];
           if (!saved) {
@@ -303,7 +306,7 @@ export const Route = createFileRoute("/api/author/product-files")({
                 { metadata: removed.status, object: objectRemoved.status, fileId },
               );
             }
-            return Response.json({ error: "File creation could not be verified" }, { status: 502 });
+            return Response.json({ error: await translateText("marketplace.api_file_creation_could_not_be_verified_e97e9f7") }, { status: 502 });
           }
           const audited = await recordEvent({
             sellerId: gate.seller.id,
@@ -331,7 +334,7 @@ export const Route = createFileRoute("/api/author/product-files")({
               });
             }
             return Response.json(
-              { error: "Upload could not be audited; the file was rolled back" },
+              { error: await translateText("marketplace.api_upload_could_not_be_audited_the_file_was_r_6f16608") },
               { status: 502 },
             );
           }
@@ -342,7 +345,7 @@ export const Route = createFileRoute("/api/author/product-files")({
         try {
           body = await request.json();
         } catch {
-          return Response.json({ error: "Expected a JSON download request" }, { status: 400 });
+          return Response.json({ error: await translateText("marketplace.api_expected_a_json_download_request_1585b6a") }, { status: 400 });
         }
         if (
           typeof body !== "object" ||
@@ -353,7 +356,7 @@ export const Route = createFileRoute("/api/author/product-files")({
           typeof (body as Record<string, unknown>).file_id !== "string" ||
           !UUID.test((body as Record<string, unknown>).file_id as string)
         ) {
-          return Response.json({ error: "Invalid product file download request" }, { status: 400 });
+          return Response.json({ error: await translateText("marketplace.api_invalid_product_file_download_request_1ee2fdd") }, { status: 400 });
         }
         const fileId = (body as { file_id: string }).file_id;
         const fileResponse = await rest(
@@ -362,16 +365,16 @@ export const Route = createFileRoute("/api/author/product-files")({
         );
         if (!fileResponse.ok) {
           console.error("[author product files] download lookup failed", fileResponse.status);
-          return Response.json({ error: "Could not verify file ownership" }, { status: 502 });
+          return Response.json({ error: await translateText("marketplace.api_could_not_verify_file_ownership_a6bda5e") }, { status: 502 });
         }
         const [file] = (await fileResponse.json()) as Pick<
           ProductFile,
           "id" | "product_id" | "storage_path" | "seller_id"
         >[];
-        if (!file) return Response.json({ error: "Product file not found" }, { status: 404 });
+        if (!file) return Response.json({ error: await translateText("marketplace.api_product_file_not_found_1eab97b") }, { status: 404 });
         const state = await getProductState(file.product_id, gate.seller.id);
         if ("error" in state) {
-          return Response.json({ error: "Could not verify product ownership" }, { status: 502 });
+          return Response.json({ error: await translateText("marketplace.api_could_not_verify_product_ownership_5a5b56d") }, { status: 502 });
         }
         const signed = await fetch(
           `${supabaseUrl().replace(/\/+$/, "")}/storage/v1/object/sign/${BUCKET}/${file.storage_path
@@ -387,14 +390,14 @@ export const Route = createFileRoute("/api/author/product-files")({
         if (!signed.ok) {
           console.error("[author product files] signed URL failed", signed.status);
           return Response.json(
-            { error: "A private download link could not be created" },
+            { error: await translateText("marketplace.api_a_private_download_link_could_not_be_creat_9abe6a6") },
             { status: 502 },
           );
         }
         const result = (await signed.json()) as { signedURL?: string };
         if (!result.signedURL) {
           return Response.json(
-            { error: "Storage did not return a signed download link" },
+            { error: await translateText("marketplace.api_storage_did_not_return_a_signed_download_l_d725a2b") },
             { status: 502 },
           );
         }
@@ -408,7 +411,7 @@ export const Route = createFileRoute("/api/author/product-files")({
         });
         if (!audited) {
           console.error("[author product files] download audit failed", fileId);
-          return Response.json({ error: "Download could not be audited" }, { status: 502 });
+          return Response.json({ error: await translateText("marketplace.api_download_could_not_be_audited_e2af156") }, { status: 502 });
         }
         return Response.json({
           url: `${supabaseUrl().replace(/\/+$/, "")}/storage/v1${result.signedURL}`,

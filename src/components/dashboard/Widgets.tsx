@@ -1,4 +1,5 @@
 import { formatDistanceToNowStrict } from "date-fns";
+import { useTranslation as useI18nSource } from "@/lib/i18n/use-translation";
 import {
   Trophy, Shield, Award, Zap, ArrowUpCircle, Crown, Flame, History, Target,
   Compass, Swords, Calendar, CalendarDays, Gift, Wallet, Coins, CircleDollarSign,
@@ -31,15 +32,16 @@ type HeatmapEntry = Pick<TimelineEntry, "created_at" | "unlocked_at" | "earned_a
 const fmt = new Intl.NumberFormat();
 
 export function Row1Totals({ data }: { data: Data }) {
+    const { t: translateText } = useI18nSource();
   const t = data.totals;
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-      <StatCard label="Highest-role XP" value={<AnimatedNumber value={t.xp} />} sub="highest individual role" icon={<Zap className="h-5 w-5" />} accent="xp" />
-      <StatCard label="Highest-role level" value={data.progression.currentLevel?.level_number ?? "—"} sub={data.progression.currentLevel?.name ?? "no levels yet"} icon={<ArrowUpCircle className="h-5 w-5" />} accent="primary" />
-      <StatCard label="Highest-role rank" value={data.progression.currentRank?.name ?? "—"} sub={data.progression.currentRank ? `#${data.progression.currentRank.rank_number}` : "no ranks yet"} icon={<Crown className="h-5 w-5" />} accent="legendary" />
-      <StatCard label="Achievements" value={`${t.achievementsEarned}/${t.achievementsCatalog}`} sub="unlocked / total" icon={<Trophy className="h-5 w-5" />} accent="trophy" />
-      <StatCard label="Badges" value={`${t.badgesEarned}/${t.badgesCatalog}`} sub="earned / total" icon={<Shield className="h-5 w-5" />} accent="secondary" />
-      <StatCard label="Trophies" value={`${t.trophiesEarned}/${t.trophiesCatalog}`} sub="earned / total" icon={<Award className="h-5 w-5" />} accent="trophy" />
+      <StatCard label={translateText("dashboard.highest_role_xp_ed2e57")} value={<AnimatedNumber value={t.xp} />} sub="highest individual role" icon={<Zap className="h-5 w-5" />} accent="xp" />
+      <StatCard label={translateText("dashboard.highest_role_level_6c70dc")} value={data.progression.currentLevel?.level_number ?? "—"} sub={data.progression.currentLevel?.name ?? "no levels yet"} icon={<ArrowUpCircle className="h-5 w-5" />} accent="primary" />
+      <StatCard label={translateText("dashboard.highest_role_rank_1c5bed")} value={data.progression.currentRank?.name ?? "—"} sub={data.progression.currentRank ? `#${data.progression.currentRank.rank_number}` : "no ranks yet"} icon={<Crown className="h-5 w-5" />} accent="legendary" />
+      <StatCard label={translateText("dashboard.achievements_a6634f")} value={`${t.achievementsEarned}/${t.achievementsCatalog}`} sub="unlocked / total" icon={<Trophy className="h-5 w-5" />} accent="trophy" />
+      <StatCard label={translateText("dashboard.badges_2c578d")} value={`${t.badgesEarned}/${t.badgesCatalog}`} sub="earned / total" icon={<Shield className="h-5 w-5" />} accent="secondary" />
+      <StatCard label={translateText("dashboard.trophies_3a1ef6")} value={`${t.trophiesEarned}/${t.trophiesCatalog}`} sub="earned / total" icon={<Award className="h-5 w-5" />} accent="trophy" />
     </div>
   );
 }

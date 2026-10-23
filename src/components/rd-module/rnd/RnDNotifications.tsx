@@ -5,6 +5,7 @@ import { Button } from "@/components/rd-module/ui/button";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/use-translation";
 import { rndKeys, useNotifications } from "@/hooks/rd-module/useRnDData";
 import { dismissNotification, markNotificationsRead } from "@/lib/rd-module/rnd-data.functions";
 
@@ -43,6 +44,7 @@ const getNotificationColor = (type: string) => {
 };
 
 export const RnDNotifications = () => {
+  const { t } = useTranslation();
   const query = useNotifications();
   const items = query.data ?? [];
   const cache = useQueryClient();
@@ -65,14 +67,14 @@ export const RnDNotifications = () => {
           >
             <Bell className="w-5 h-5 text-violet-400" />
           </motion.div>
-          <h3 className="font-semibold text-white">R&D Alerts</h3>
+          <h3 className="font-semibold text-white">{t("rd.alerts_title")}</h3>
           {unreadCount > 0 && (
             <motion.span
               className="px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-400 text-xs"
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              {unreadCount} new
+              {t("rd.alerts_new_count", { count: unreadCount })}
             </motion.span>
           )}
         </div>
@@ -83,13 +85,13 @@ export const RnDNotifications = () => {
           onClick={() => action.mutate(null)}
           className="text-xs text-slate-400 hover:text-white"
         >
-          Mark all read
+          {t("rd.alerts_mark_all_read")}
         </Button>
       </div>
 
       {query.isPending && (
         <p role="status" className="text-sm text-slate-400">
-          Loading R&amp;D alerts...
+          {t("rd.alerts_loading")}
         </p>
       )}
       {(query.error || action.error) && (
@@ -98,7 +100,7 @@ export const RnDNotifications = () => {
         </p>
       )}
       {!query.isPending && !query.error && items.length === 0 && (
-        <p className="text-sm text-slate-400">No R&amp;D alerts.</p>
+        <p className="text-sm text-slate-400">{t("rd.alerts_empty")}</p>
       )}
       <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
         <AnimatePresence>
@@ -138,7 +140,7 @@ export const RnDNotifications = () => {
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:bg-slate-700"
-                  aria-label={`Dismiss ${notification.title}`}
+                  aria-label={t("rd.alerts_dismiss", { title: notification.title })}
                   disabled={action.isPending}
                   onClick={() => action.mutate(notification.id)}
                 >
@@ -151,7 +153,7 @@ export const RnDNotifications = () => {
       </div>
 
       <div className="mt-4 pt-3 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
-        <span>Latest R&amp;D alerts. Updates automatically every 15 seconds.</span>
+        <span>{t("rd.alerts_footer")}</span>
       </div>
     </Card>
   );

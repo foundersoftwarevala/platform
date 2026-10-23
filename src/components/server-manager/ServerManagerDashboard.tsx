@@ -13,6 +13,7 @@ import { SMSidebar, useSidebarState } from './layout/SMSidebar';
 import { PageShell } from './layout/PageShell';
 import type { ViewType } from './layout/views';
 import { useNavigate } from '@/hooks/useNavigate';
+import { useTranslation } from '@/lib/i18n/use-translation';
 
 // Screens are code-split so the initial dashboard payload stays small.
 const SMOverview = lazy(() => import('./screens/SMOverview'));
@@ -68,6 +69,7 @@ const SCREENS: Record<ViewType, React.ComponentType> = {
 const isViewType = (value: string): value is ViewType => Object.hasOwn(SCREENS, value);
 
 const ServerManagerDashboard = () => {
+  const { t } = useTranslation();
   const [sessionTime, setSessionTime] = useState('00:00:00');
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebarState();
   const { summary, error: summaryError } = useServerDashboard(10000);
@@ -134,7 +136,7 @@ const ServerManagerDashboard = () => {
     } catch (error) {
       console.error('[server-manager] session audit failed', error);
       auditFailed = true;
-      toast.error('Could not record the logout audit event. Signing out anyway.');
+      toast.error(t('server_manager.dashboard.audit_logout_failed'));
     }
 
     const { error: signOutError } = await supabase.auth.signOut();
@@ -144,7 +146,7 @@ const ServerManagerDashboard = () => {
       return;
     }
 
-    if (!auditFailed) toast.success('Session ended and audit event recorded');
+    if (!auditFailed) toast.success(t('server_manager.dashboard.session_end_audited'));
     void navigate('/login', { replace: true });
   };
 

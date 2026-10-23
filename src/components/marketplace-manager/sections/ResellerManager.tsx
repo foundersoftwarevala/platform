@@ -214,10 +214,10 @@ function ResellerProfile({ id, onBack }: { id: string; onBack: () => void }) {
           )}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Revenue referred" value={money(totals.revenue)} />
+            <StatCard label={t("reseller.ledger_revenue_referred")} value={money(totals.revenue)} />
             <StatCard label="In holding" value={money(totals.pending)} tone="warning" />
-            <StatCard label="Released & payable" value={money(totals.available)} tone="success" />
-            <StatCard label="Paid" value={money(totals.paid)} />
+            <StatCard label={t("reseller.ledger_released_payable")} value={money(totals.available)} tone="success" />
+            <StatCard label={t("reseller.ledger_paid")} value={money(totals.paid)} />
           </div>
 
           {/* -------------------------------------------------- referral */}
@@ -611,13 +611,13 @@ export function ResellerManager() {
         <StatCard label="Referral links" value={String(d?.referral_codes ?? "—")} tone="premium" />
         <StatCard label="Visits tracked" value={String(d?.clicks ?? "—")} />
         <StatCard label="Referred orders" value={String(d?.conversions ?? "—")} />
-        <StatCard label="Revenue referred" value={money(d?.revenue)} />
+        <StatCard label={t("reseller.ledger_revenue_referred")} value={money(d?.revenue)} />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Commission earned" value={money(d?.commission_total)} />
+        <StatCard label={t("reseller.ledger_commission_earned")} value={money(d?.commission_total)} />
         <StatCard label="In holding" value={money(d?.commission_pending)} tone="warning" />
-        <StatCard label="Released & payable" value={money(d?.commission_available)} tone="success" />
+        <StatCard label={t("reseller.ledger_released_payable")} value={money(d?.commission_available)} tone="success" />
         <StatCard label="Paid out" value={money(d?.payouts_paid)} />
       </div>
 
@@ -659,8 +659,8 @@ export function ResellerManager() {
             <table className="w-full text-left text-xs">
               <thead className="text-muted-foreground">
                 <tr>
-                  <th className="py-2 pr-3">Reseller</th>
-                  <th className="py-2 pr-3">Plan</th>
+                  <th className="py-2 pr-3">{t("reseller.queue.col_reseller")}</th>
+                  <th className="py-2 pr-3">{t("reseller.ledger_plan")}</th>
                   <th className="py-2 pr-3">Expiry date</th>
                   <th className="py-2">Current discount</th>
                 </tr>
@@ -730,7 +730,7 @@ export function ResellerManager() {
             disabled={rows.length === 0}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted disabled:opacity-50"
           >
-            <Download className="h-3.5 w-3.5" /> Export
+            <Download className="h-3.5 w-3.5" /> {t("reseller.export")}
           </button>
         </div>
 

@@ -1,5 +1,6 @@
 import type { MouseEventHandler, ReactNode } from "react";
 
+import { useTranslation } from "@/lib/i18n/use-translation";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -19,6 +20,7 @@ function preserveEditableContextMenu(target: EventTarget | null): boolean {
 }
 
 export function GlobalContextMenu({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const handleContextMenuCapture: MouseEventHandler<HTMLDivElement> = (event) => {
     if (preserveEditableContextMenu(event.target)) event.stopPropagation();
   };
@@ -31,9 +33,15 @@ export function GlobalContextMenu({ children }: { children: ReactNode }) {
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={() => window.history.back()}>Go back</ContextMenuItem>
-        <ContextMenuItem onSelect={() => window.history.forward()}>Go forward</ContextMenuItem>
-        <ContextMenuItem onSelect={() => window.location.reload()}>Reload page</ContextMenuItem>
+        <ContextMenuItem onSelect={() => window.history.back()}>
+          {t("common.go_back")}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => window.history.forward()}>
+          {t("common.go_forward")}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => window.location.reload()}>
+          {t("common.reload_page")}
+        </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );

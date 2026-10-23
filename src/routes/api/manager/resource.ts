@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { STOREFRONT_TABLES, catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
 import { readResourceRows, storeOwns } from "@/lib/seo/seo-store.server";
@@ -4250,16 +4251,17 @@ export const Route = createFileRoute("/api/manager/resource")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
-        if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
+        if (!url()) return Response.json({ error: await translateText("manager.api_not_configured_811931b") }, { status: 503 });
 
         const params = new URL(request.url).searchParams;
         const name = (params.get("resource") ?? "").trim();
         const resource = resourceNamed(name);
         if (!resource) {
           return Response.json(
-            { error: "Unknown resource", available: Object.keys(RESOURCES) },
+            { error: await translateText("manager.api_unknown_resource_c547f96"), available: Object.keys(RESOURCES) },
             { status: 400 },
           );
         }
@@ -4397,19 +4399,20 @@ export const Route = createFileRoute("/api/manager/resource")({
       },
 
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
-        if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
+        if (!url()) return Response.json({ error: await translateText("manager.api_not_configured_811931b") }, { status: 503 });
 
         let body: { resource?: string; values?: Record<string, unknown> };
         try {
           body = await request.json();
         } catch {
-          return Response.json({ error: "Invalid request" }, { status: 400 });
+          return Response.json({ error: await translateText("manager.api_invalid_request_c2ba81a") }, { status: 400 });
         }
 
         const resource = resourceNamed(String(body.resource ?? ""));
-        if (!resource) return Response.json({ error: "Unknown resource" }, { status: 400 });
+        if (!resource) return Response.json({ error: await translateText("manager.api_unknown_resource_c547f96") }, { status: 400 });
         if (!resource.creatable?.length) {
           return Response.json(
             { error: `${resource.label} cannot be created here` },
@@ -4437,7 +4440,7 @@ export const Route = createFileRoute("/api/manager/resource")({
           const resellerId = body.values?.reseller_id;
           if (typeof resellerId !== "string" || !UUID.test(resellerId)) {
             return Response.json(
-              { error: "Choose the reseller who owns this customer." },
+              { error: await translateText("manager.api_choose_the_reseller_who_owns_this_customer_a9cc228") },
               { status: 400 },
             );
           }

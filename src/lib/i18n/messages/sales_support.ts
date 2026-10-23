@@ -97,4 +97,9 @@ export const SALES_SUPPORT_MESSAGES = {
   "sales_support.support.all_linked": "All Support team records are linked.",
   "sales_support.support.select_account": "Select a Support account",
   "sales_support.support.link_account": "Link account",
+  "sales_support.created_6a930d": "• created",
+  "sales_support.ai_score_dae088": "AI score",
+  "sales_support.intent_9c6e80": "Intent",
+  "sales_support.conv_prob_f4d0ac": "Conv. prob.",
+  "sales_support.call_291a0a": "Call",
 } as const;

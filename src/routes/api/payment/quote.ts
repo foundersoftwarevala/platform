@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 import {
   referralAttributionForRequest,
   resellerPricingForReferral,
@@ -25,10 +26,11 @@ export const Route = createFileRoute("/api/payment/quote")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         const user = await currentUser(request);
         if (!user)
           return Response.json(
-            { error: "Please sign in to view payment pricing." },
+            { error: await translateText("payment.api_please_sign_in_to_view_payment_pricing_7693cbf") },
             { status: 401 },
           );
 
@@ -44,7 +46,7 @@ export const Route = createFileRoute("/api/payment/quote")({
           body: "{}",
         });
         if (!quoteResponse.ok) {
-          return Response.json({ error: "Could not price the current cart." }, { status: 502 });
+          return Response.json({ error: await translateText("payment.api_could_not_price_the_current_cart_fbf3faa") }, { status: 502 });
         }
         const quote = (await quoteResponse.json()) as {
           subtotal?: number;
@@ -54,7 +56,7 @@ export const Route = createFileRoute("/api/payment/quote")({
         const subtotal = Number(quote.subtotal);
         if (!Number.isFinite(subtotal) || subtotal < 0) {
           return Response.json(
-            { error: "The current cart returned an invalid subtotal." },
+            { error: await translateText("payment.api_the_current_cart_returned_an_invalid_subto_7364cc4") },
             { status: 502 },
           );
         }

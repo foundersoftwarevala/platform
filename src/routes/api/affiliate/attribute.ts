@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { translateApiMessage } from "@/lib/i18n/server-translate.server";
 
 import {
   REFERRAL_COOKIE,
@@ -31,11 +32,12 @@ export const Route = createFileRoute("/api/affiliate/attribute")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const translateText = translateApiMessage.bind(null, request);
         let body: { orderId?: string };
         try {
           body = (await request.json()) as { orderId?: string };
         } catch {
-          return Response.json({ error: "Expected a JSON body" }, { status: 400 });
+          return Response.json({ error: await translateText("affiliate.api_expected_a_json_body_0c4a10f") }, { status: 400 });
         }
         const orderId = String(body.orderId ?? "").trim();
         if (!orderId) return Response.json({ error: "orderId is required" }, { status: 400 });
