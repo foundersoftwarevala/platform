@@ -52,17 +52,19 @@ export const Route = createFileRoute("/ams")({
 function AmsManagerLayout() {
   return (
     <RequireRole role={["developer", "support"]}>
-      <TooltipProvider delayDuration={250}>
-        <RouteHistoryProvider>
-          {/* Celebrations come from the one provider at the root; a second one
-              here gave AMS Manager its own queue and its own sound switch. */}
-          <AppShell>
-            <Outlet />
-          </AppShell>
-          <RouteHistoryPanel />
-          <Toaster richColors position="bottom-right" />
-        </RouteHistoryProvider>
-      </TooltipProvider>
+      <div className="creator-theme min-h-screen">
+        <TooltipProvider delayDuration={250}>
+          <RouteHistoryProvider>
+            {/* Celebrations come from the one provider at the root; a second one
+                here gave AMS Manager its own queue and its own sound switch. */}
+            <AppShell>
+              <Outlet />
+            </AppShell>
+            <RouteHistoryPanel />
+            <Toaster richColors position="bottom-right" />
+          </RouteHistoryProvider>
+        </TooltipProvider>
+      </div>
     </RequireRole>
   );
 }

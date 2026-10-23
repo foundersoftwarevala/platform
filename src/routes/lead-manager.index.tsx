@@ -85,7 +85,7 @@ function LeadManagerPage() {
   const title = sourceFilter?.label ?? titleFor(section);
 
   return (
-    <div className="creator-theme mm-scope flex min-h-screen w-full bg-background text-foreground">
+    <div className="creator-theme flex min-h-screen w-full bg-background text-foreground">
       <AppSidebar
         section={section}
         onSelectSection={setSection}

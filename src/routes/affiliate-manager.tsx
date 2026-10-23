@@ -14,7 +14,10 @@ export const Route = createFileRoute("/affiliate-manager")({
   head: () => ({
     meta: [
       { title: "Affiliate Manager — Software Vala Boss Panel" },
-      { name: "description", content: "Global affiliate, referral, commission and payout control center." },
+      {
+        name: "description",
+        content: "Global affiliate, referral, commission and payout control center.",
+      },
     ],
   }),
   // Operator console — it used to render in full to anonymous visitors.
@@ -30,7 +33,7 @@ export const Route = createFileRoute("/affiliate-manager")({
 /** Wall-level failure surface so one broken workspace never blanks the panel. */
 function WallError({ error, reset }: { error: Error; reset: () => void }) {
   return (
-    <div className="grid min-h-dvh place-items-center bg-background p-6">
+    <div className="creator-theme grid min-h-dvh place-items-center bg-background p-6">
       <div
         role="alert"
         className="w-full max-w-md rounded-lg border border-destructive/30 bg-surface p-6 text-center"
@@ -53,7 +56,7 @@ function WallError({ error, reset }: { error: Error; reset: () => void }) {
 
 function WallNotFound() {
   return (
-    <div className="grid min-h-dvh place-items-center bg-background p-6">
+    <div className="creator-theme grid min-h-dvh place-items-center bg-background p-6">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center">
         <h1 className="font-display text-lg font-semibold">Workspace not found</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -72,7 +75,7 @@ function AffiliateManagerLayout() {
   const sidebar = useSidebarState();
 
   return (
-    <div className="flex min-h-dvh bg-background text-foreground">
+    <div className="creator-theme flex min-h-dvh bg-background text-foreground">
       <AppSidebar
         collapsed={sidebar.collapsed}
         onToggleCollapsed={sidebar.toggleCollapsed}

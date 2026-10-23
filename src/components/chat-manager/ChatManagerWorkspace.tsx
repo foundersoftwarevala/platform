@@ -118,8 +118,8 @@ const groups = [
 
 function LoadingAccess() {
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-950 px-4 text-slate-100">
-      <div className="flex items-center gap-3 text-sm text-slate-300" role="status">
+    <main className="creator-theme grid min-h-screen place-items-center bg-background px-4 text-foreground">
+      <div className="flex items-center gap-3 text-sm text-muted-foreground" role="status">
         <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
         Checking Chat Manager access…
       </div>
@@ -129,18 +129,18 @@ function LoadingAccess() {
 
 function DeniedAccess() {
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-950 px-4 text-slate-100">
-      <Card className="max-w-md border-white/10 bg-slate-900 p-6">
+    <main className="creator-theme grid min-h-screen place-items-center bg-background px-4 text-foreground">
+      <Card className="max-w-md border-border bg-card p-6">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-amber-300" />
           <div>
             <h1 className="font-semibold">Chat Manager access required</h1>
-            <p className="mt-2 text-sm text-slate-300">
+            <p className="mt-2 text-sm text-muted-foreground">
               This account does not have the chat.manage permission. Ask a workspace administrator
               to grant access.
             </p>
             <Link
-              className="mt-4 inline-flex text-sm font-medium text-sky-300 hover:text-sky-200"
+              className="mt-4 inline-flex text-sm font-medium text-primary hover:text-primary/80"
               to="/control-panel"
             >
               Return to Control Panel
@@ -235,23 +235,25 @@ function ChatManagerContent() {
 
   const sidebar = (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r border-white/10 bg-slate-950 text-slate-100 transition-transform duration-200 ${sidebarWidth} ${
+      className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r border-border bg-background text-foreground transition-transform duration-200 ${sidebarWidth} ${
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       } lg:static lg:translate-x-0`}
     >
-      <div className="flex h-[72px] shrink-0 items-center gap-3 border-b border-white/10 px-4">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-400/15 text-sm font-black text-sky-300 ring-1 ring-sky-300/20">
+      <div className="flex h-[72px] shrink-0 items-center gap-3 border-b border-border px-4">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-sm font-black text-primary ring-1 ring-primary/20">
           SV
         </div>
         {!collapsed ? (
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">Chat Manager</p>
-            <p className="mt-0.5 truncate text-xs text-slate-400">Software Vala · Connect Hub</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              Software Vala · Connect Hub
+            </p>
           </div>
         ) : null}
         <button
           type="button"
-          className="ml-auto rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white lg:hidden"
+          className="ml-auto rounded-lg p-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground lg:hidden"
           aria-label="Close navigation"
           onClick={() => setMobileOpen(false)}
         >
@@ -264,11 +266,11 @@ function ChatManagerContent() {
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="flex h-10 w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.035] px-3 text-left text-sm text-slate-400 transition hover:border-white/20 hover:bg-white/[0.06]"
+            className="flex h-10 w-full items-center gap-2 rounded-lg border border-border bg-surface px-3 text-left text-sm text-muted-foreground transition hover:border-primary/40 hover:bg-muted/60"
           >
             <Search className="h-4 w-4" />
             <span className="flex-1">Find a section…</span>
-            <kbd className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">
+            <kbd className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
               Ctrl K
             </kbd>
           </button>
@@ -292,7 +294,7 @@ function ChatManagerContent() {
           return (
             <div key={group.label}>
               {!collapsed ? (
-                <p className="mb-2 flex items-center gap-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <p className="mb-2 flex items-center gap-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                   <GroupIcon className="h-3.5 w-3.5" />
                   {group.label}
                 </p>
@@ -310,11 +312,11 @@ function ChatManagerContent() {
                       onClick={() => selectSection(section.label)}
                       className={`group flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition ${
                         selected
-                          ? "bg-sky-400/15 font-medium text-sky-200 ring-1 ring-inset ring-sky-300/20"
-                          : "text-slate-400 hover:bg-white/[0.055] hover:text-slate-100"
+                          ? "bg-primary/15 font-medium text-primary ring-1 ring-inset ring-primary/20"
+                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       }`}
                     >
-                      <Icon className={`h-4 w-4 shrink-0 ${selected ? "text-sky-300" : ""}`} />
+                      <Icon className={`h-4 w-4 shrink-0 ${selected ? "text-primary" : ""}`} />
                       {!collapsed ? (
                         <span className="min-w-0 flex-1 truncate">{section.label}</span>
                       ) : null}
@@ -326,7 +328,7 @@ function ChatManagerContent() {
                         </span>
                       ) : null}
                       {!collapsed && selected ? (
-                        <Check className="h-3.5 w-3.5 text-sky-300" />
+                        <Check className="h-3.5 w-3.5 text-primary" />
                       ) : null}
                     </button>
                   );
@@ -337,13 +339,13 @@ function ChatManagerContent() {
         })}
       </nav>
 
-      <div className="shrink-0 border-t border-white/10 p-3">
+      <div className="shrink-0 border-t border-border p-3">
         {!collapsed ? (
-          <div className="mb-2 flex items-center gap-2 rounded-lg bg-white/[0.035] px-3 py-2.5">
+          <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface px-3 py-2.5">
             {overview.error ? (
               <>
                 <span className="h-2 w-2 rounded-full bg-rose-400" />
-                <span className="min-w-0 flex-1 truncate text-xs text-slate-300">
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                   Data unavailable
                 </span>
                 <AlertTriangle className="h-3.5 w-3.5 text-rose-300" />
@@ -356,10 +358,10 @@ function ChatManagerContent() {
                       ? "bg-emerald-400"
                       : realtimeState === "unavailable"
                         ? "bg-amber-400"
-                        : "animate-pulse bg-slate-400"
+                        : "animate-pulse bg-muted-foreground"
                   }`}
                 />
-                <span className="min-w-0 flex-1 truncate text-xs text-slate-300">
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                   {overview.isLoading
                     ? "Loading chat data…"
                     : realtimeState === "live"
@@ -368,7 +370,7 @@ function ChatManagerContent() {
                         ? "Realtime not available"
                         : "Realtime connecting"}
                 </span>
-                <span className="text-[10px] text-slate-500">
+                <span className="text-[10px] text-muted-foreground">
                   {counts ? `${counts.open} open` : ""}
                 </span>
               </>
@@ -379,7 +381,7 @@ function ChatManagerContent() {
           <Link
             to="/control-panel"
             title="Return to Control Panel"
-            className="flex min-h-10 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 text-sm text-slate-400 transition hover:bg-white/[0.055] hover:text-white"
+            className="flex min-h-10 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
           >
             <ChevronLeft className="h-4 w-4 shrink-0" />
             {!collapsed ? <span className="truncate">Control Panel</span> : null}
@@ -388,7 +390,7 @@ function ChatManagerContent() {
             type="button"
             onClick={() => setCollapsed((value) => !value)}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="hidden rounded-lg p-2 text-slate-500 transition hover:bg-white/[0.055] hover:text-white lg:inline-flex"
+            className="hidden rounded-lg p-2 text-muted-foreground transition hover:bg-muted/60 hover:text-foreground lg:inline-flex"
           >
             {collapsed ? (
               <PanelLeftOpen className="h-4 w-4" />
@@ -402,7 +404,7 @@ function ChatManagerContent() {
   );
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div className="creator-theme flex h-screen w-screen overflow-hidden bg-background text-foreground">
       {mobileOpen ? (
         <button
           type="button"
@@ -413,29 +415,29 @@ function ChatManagerContent() {
       ) : null}
       {sidebar}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-white/10 bg-slate-950/95 px-4 backdrop-blur md:px-6">
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur md:px-6">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
             aria-label="Open navigation"
-            className="rounded-lg p-2 text-slate-400 transition hover:bg-white/[0.06] hover:text-white lg:hidden"
+            className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted/60 hover:text-foreground lg:hidden"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="hidden min-w-0 items-center gap-2 text-xs text-slate-500 sm:flex">
+          <div className="hidden min-w-0 items-center gap-2 text-xs text-muted-foreground sm:flex">
             <span>Connect Hub</span>
             <ChevronDown className="h-3 w-3 -rotate-90" />
-            <span className="truncate text-slate-300">{active.label}</span>
+            <span className="truncate text-foreground">{active.label}</span>
           </div>
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="ml-auto flex h-10 w-full max-w-[360px] items-center gap-2 rounded-lg border border-white/10 bg-white/[0.035] px-3 text-left text-sm text-slate-400 transition hover:border-white/20 hover:bg-white/[0.06] sm:ml-0"
+            className="ml-auto flex h-10 w-full max-w-[360px] items-center gap-2 rounded-lg border border-border bg-surface px-3 text-left text-sm text-muted-foreground transition hover:border-primary/40 hover:bg-muted/60 sm:ml-0"
           >
             <Search className="h-4 w-4" />
             <span className="flex-1 truncate">Search Chat Manager…</span>
             <Command className="hidden h-3.5 w-3.5 sm:block" />
-            <kbd className="text-[10px] text-slate-500">K</kbd>
+            <kbd className="text-[10px] text-muted-foreground">K</kbd>
           </button>
           <div className="ml-auto hidden items-center gap-3 sm:flex">
             <div
@@ -453,7 +455,7 @@ function ChatManagerContent() {
               type="button"
               size="sm"
               variant="outline"
-              className="border-white/10 bg-white/[0.035] text-slate-200 hover:bg-white/[0.08]"
+              className="border-border bg-surface text-foreground hover:bg-muted/70"
               onClick={() => void queryClient.invalidateQueries({ queryKey: ["chat-manager"] })}
             >
               Refresh
@@ -463,10 +465,10 @@ function ChatManagerContent() {
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1500px] px-4 py-5 md:px-6 md:py-7">
-            <div className="min-w-0 rounded-xl border border-white/[0.08] bg-slate-900/50 p-3 shadow-2xl shadow-black/10 sm:p-5 md:p-6">
+            <div className="min-w-0 rounded-xl border border-border bg-card p-3 shadow-xl sm:p-5 md:p-6">
               <ActiveSection />
             </div>
-            <footer className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.08] pt-4 text-[11px] text-slate-500">
+            <footer className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4 text-[11px] text-muted-foreground">
               <span className="flex items-center gap-2">
                 {overview.error ? (
                   <>
@@ -493,7 +495,7 @@ function ChatManagerContent() {
 
       {paletteOpen ? (
         <div
-          className="fixed inset-0 z-[60] flex items-start justify-center bg-black/70 px-3 pt-[12vh] backdrop-blur-sm"
+          className="fixed inset-0 z-[60] flex items-start justify-center bg-background/80 px-3 pt-[12vh] backdrop-blur-sm"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setPaletteOpen(false);
@@ -503,10 +505,10 @@ function ChatManagerContent() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="chat-manager-search-title"
-            className="w-full max-w-xl overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/50"
+            className="w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
           >
-            <div className="flex items-center gap-3 border-b border-white/10 px-4">
-              <Search className="h-4 w-4 shrink-0 text-slate-400" />
+            <div className="flex items-center gap-3 border-b border-border px-4">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <label
                 className="sr-only"
                 id="chat-manager-search-title"
@@ -525,9 +527,9 @@ function ChatManagerContent() {
                   }
                 }}
                 placeholder="Search sections…"
-                className="h-12 border-0 bg-transparent px-0 text-slate-100 shadow-none focus-visible:ring-0"
+                className="h-12 border-0 bg-transparent px-0 text-foreground shadow-none focus-visible:ring-0"
               />
-              <kbd className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500">
+              <kbd className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
                 ESC
               </kbd>
             </div>
@@ -541,14 +543,14 @@ function ChatManagerContent() {
                     onClick={() => selectSection(section.label)}
                     className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition ${
                       section.label === active.label
-                        ? "bg-sky-400/10 text-sky-100"
-                        : "text-slate-200 hover:bg-white/[0.06]"
+                        ? "bg-primary/10 text-primary"
+                        : "text-foreground/90 hover:bg-muted/60"
                     }`}
                   >
-                    <Icon className="h-4 w-4 shrink-0 text-sky-300" />
+                    <Icon className="h-4 w-4 shrink-0 text-primary" />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium">{section.label}</span>
-                      <span className="mt-0.5 block truncate text-xs text-slate-500">
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                         {section.description}
                       </span>
                     </span>
@@ -557,12 +559,12 @@ function ChatManagerContent() {
                 );
               })}
               {filteredSections.length === 0 ? (
-                <p className="px-3 py-8 text-center text-sm text-slate-400">
+                <p className="px-3 py-8 text-center text-sm text-muted-foreground">
                   No matching Chat Manager sections.
                 </p>
               ) : null}
             </div>
-            <div className="flex items-center gap-2 border-t border-white/10 px-4 py-3 text-[10px] text-slate-500">
+            <div className="flex items-center gap-2 border-t border-border px-4 py-3 text-[10px] text-muted-foreground">
               <span>Enter to open</span>
               <span>·</span>
               <span>Esc to close</span>
@@ -598,13 +600,13 @@ export function ChatManagerWorkspace() {
   if (!userId) return <LoadingAccess />;
   if (access.error) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-950 px-4 text-slate-100">
-        <Card className="max-w-md border-white/10 bg-slate-900 p-6">
+      <main className="creator-theme grid min-h-screen place-items-center bg-background px-4 text-foreground">
+        <Card className="max-w-md border-border bg-card p-6">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-1 h-5 w-5 shrink-0 text-rose-300" />
             <div>
               <h1 className="font-semibold">Could not verify Chat Manager access</h1>
-              <p className="mt-2 text-sm text-slate-300">{access.error.message}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{access.error.message}</p>
             </div>
           </div>
         </Card>

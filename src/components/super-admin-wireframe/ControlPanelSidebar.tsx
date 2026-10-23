@@ -226,7 +226,7 @@ export const ControlPanelSidebar = memo<ControlPanelSidebarProps>(({
         {!compact && (
           <div className="min-w-0">
             <h1 className="text-base font-bold text-white tracking-tight truncate">Control Panel</h1>
-            <p className="text-[10px] text-white/60 font-medium">Super Admin</p>
+            <p className="text-[10px] text-white/60 font-medium">Management Console</p>
           </div>
         )}
         <button

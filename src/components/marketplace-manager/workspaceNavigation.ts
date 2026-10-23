@@ -56,3 +56,9 @@ export function hrefWithMarketplaceSection(href: string, section: string): strin
   url.searchParams.set("section", section);
   return `${url.pathname}${url.search}${url.hash}`;
 }
+
+export function urlWithMarketplaceSection(href: string, section: string, baseUrl?: string): URL {
+  const url = new URL(href, baseUrl);
+  url.searchParams.set("section", section);
+  return url;
+}

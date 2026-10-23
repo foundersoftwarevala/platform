@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import { Crown, Trophy, Award, Sparkles, Star, Diamond, Gift, ScrollText, IdCard, Medal, X } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { claimAmsRecognitions, type Recognition } from "@/lib/ams/recognition.functions";
 import trophy3d from "@/assets/trophy-3d.png";
 import medal3d from "@/assets/medal-3d.png";
 import badge3d from "@/assets/badge-3d.png";
@@ -47,31 +48,6 @@ export interface CelebrationPayload {
    * XP): the kind's display palette still applies, but no rarity is claimed.
    */
   showRarity?: boolean;
-}
-
-/**
- * One recognition exactly as the server describes it (ams_recognition_payload):
- * built from the ledger line and the catalogue, never from anything a screen
- * was told.
- */
-export interface Recognition {
-  ledger_id: string;
-  role: string;
-  type: string;
-  tier: "standard" | "legendary" | "legacy";
-  name: string;
-  description: string | null;
-  reason: string | null;
-  rarity: string | null;
-  stage: number | null;
-  previous_stage: number | null;
-  rank: string | null;
-  level: string | null;
-  xp: number;
-  total_xp: number;
-  priority: number | null;
-  next: { stage: number; title: string; min_xp: number } | null;
-  created_at: string;
 }
 
 interface CelebrationCtx {
@@ -598,16 +574,18 @@ const momentOf = (r: Recognition) => `${r.role}|${r.created_at}`;
  * owed a presentation. A chunk that failed never takes a chunk that succeeded
  * down with it.
  */
-async function claimRecognitions(ids: string[]): Promise<{ won: Recognition[]; failed: string[] }> {
+async function claimRecognitions(
+  ids: string[],
+  claim: (ledgerIds: string[]) => Promise<Recognition[]>,
+): Promise<{ won: Recognition[]; failed: string[] }> {
   const won: Recognition[] = [];
   const failed: string[] = [];
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);
     try {
-      const { data, error } = await supabase.rpc("ams_recognition_claim" as never, { p_ledger_ids: chunk } as never);
-      if (error) throw error;
-      won.push(...((data as { claimed?: Recognition[] } | null)?.claimed ?? []).filter(Boolean));
-    } catch {
+      won.push(...(await claim(chunk)));
+    } catch (error) {
+      console.error("AMS recognition claim failed", error);
       failed.push(...chunk);
     }
   }
@@ -615,6 +593,7 @@ async function claimRecognitions(ids: string[]): Promise<{ won: Recognition[]; f
 }
 
 export function CelebrationProvider({ children }: { children: React.ReactNode }) {
+  const claimServer = useServerFn(claimAmsRecognitions);
   const [queue, setQueue] = useState<Queued[]>([]);
   const [current, setCurrent] = useState<Queued | null>(null);
   const [soundOn, setSoundOnState] = useState(true);
@@ -626,6 +605,10 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
   queueRef.current = queue;
   const [wake, setWake] = useState(0);
   const qc = useQueryClient();
+  const claim = useCallback(
+    (ledgerIds: string[]) => claimServer({ data: { ledgerIds } }),
+    [claimServer],
+  );
 
   // A hidden tab starts nothing; coming back resumes the queue.
   useEffect(() => {
@@ -689,7 +672,7 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
     }
     advancing.current = true;
     let retryIn = 0;
-    claimRecognitions(head.recs.map((r) => r.ledger_id))
+    claimRecognitions(head.recs.map((r) => r.ledger_id), claim)
       .then(({ won, failed }) => {
         const failedRecs = head.recs!.filter((r) => failed.includes(r.ledger_id));
         const attempts = (head.attempts ?? 0) + 1;
@@ -729,7 +712,7 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
         if (retryIn) setTimeout(release, retryIn);
         else release();
       });
-  }, [queue, current, wake, qc]);
+  }, [queue, current, wake, qc, claim]);
 
   const close = useCallback(() => {
     setCurrent(null);
@@ -746,9 +729,9 @@ export function CelebrationProvider({ children }: { children: React.ReactNode })
   const skipAll = useCallback(() => {
     const ids = queueRef.current.flatMap((x) => (x.recs ?? []).map((r) => r.ledger_id));
     setQueue([]);
-    if (ids.length) void claimRecognitions(ids);
+    if (ids.length) void claimRecognitions(ids, claim);
     close();
-  }, [close]);
+  }, [claim, close]);
 
   const value = useMemo(() => ({ celebrate, presentRecognitions, soundOn, setSoundOn }), [celebrate, presentRecognitions, soundOn, setSoundOn]);
 

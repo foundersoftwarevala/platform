@@ -16,7 +16,7 @@ export function AmsManagerPanel() {
   const { data } = useSuspenseQuery(dashboardOptions(fetchDashboard));
 
   return (
-    <div className="ams-manager-panel max-h-[calc(100vh-150px)] space-y-6 overflow-y-auto rounded-2xl border border-white/10 bg-[#0b1020] p-4 text-foreground shadow-[0_24px_70px_-35px_rgba(80,80,255,0.8)] md:p-6">
+    <div className="ams-manager-panel max-h-[calc(100vh-150px)] space-y-6 overflow-y-auto rounded-2xl border border-border bg-card p-4 text-foreground shadow-xl md:p-6">
       <div className="flex items-end justify-between">
         <div>
           <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">AMS Manager · Command Center</div>

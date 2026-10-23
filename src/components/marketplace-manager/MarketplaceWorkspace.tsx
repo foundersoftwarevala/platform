@@ -12,6 +12,7 @@ import {
   hrefWithMarketplaceSection,
   parseFilterParams,
   resolveMarketplaceSection,
+  urlWithMarketplaceSection,
 } from "./workspaceNavigation";
 import { DashboardSection as DashboardFallback } from "./sections/DashboardSection";
 import { AiChatPanel } from "./AiChatPanel";
@@ -63,12 +64,12 @@ export function MarketplaceWorkspace() {
       setActive(section);
       const filters = parseFilterParams(section, window.location.search);
       if (requested !== section || filters.invalidParameters.length > 0) {
-        const nextUrl = new URL(hrefWithMarketplaceSection(window.location.href, section));
+        const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        const nextUrl = urlWithMarketplaceSection(currentHref, section, window.location.href);
         for (const parameter of filters.invalidParameters) {
           nextUrl.searchParams.delete(parameter);
         }
         const nextHref = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
-        const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
         if (nextHref !== currentHref) navigate(nextHref, { replace: true });
       }
     };

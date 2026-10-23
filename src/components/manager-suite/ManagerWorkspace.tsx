@@ -45,7 +45,7 @@ export function ManagerWorkspace({
   const isDashboard = /dashboard|console/i.test(active);
 
   return (
-    <div className="creator-theme mm-scope flex min-h-screen w-full">
+    <div className="creator-theme flex min-h-screen w-full">
       <CreatorSidebar
         collapsed={collapsed}
         onToggleCollapsed={() => setCollapsed((v) => !v)}

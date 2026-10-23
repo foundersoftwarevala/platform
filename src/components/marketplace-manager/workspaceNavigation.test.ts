@@ -6,6 +6,7 @@ import {
   hrefWithMarketplaceSection,
   parseFilterParams,
   resolveMarketplaceSection,
+  urlWithMarketplaceSection,
 } from "./workspaceNavigation";
 
 describe("Marketplace Manager workspace navigation", () => {
@@ -56,6 +57,16 @@ describe("Marketplace Manager workspace navigation", () => {
         "Products",
       ),
     ).toBe("/marketplace-manager?status=draft&range=30d&product=sku&section=Products#list");
+  });
+
+  it("resolves a relative section URL against the current page", () => {
+    expect(
+      urlWithMarketplaceSection(
+        "?status=draft#list",
+        "Products",
+        "https://example.test/marketplace-manager",
+      ).href,
+    ).toBe("https://example.test/marketplace-manager?status=draft&section=Products#list");
   });
 
   it("declares filter schemas only for product queue sections", () => {

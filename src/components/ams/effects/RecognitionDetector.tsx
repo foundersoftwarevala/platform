@@ -1,8 +1,14 @@
 import { useEffect, useRef } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import { unlockAudioOnFirstGesture } from "@/lib/ams/ui-sound";
-import { useCelebration, type Recognition } from "./Celebration";
+import {
+  getAmsRecognitionPending,
+  peekAmsRecognitions,
+  type Recognition,
+} from "@/lib/ams/recognition.functions";
+import { useCelebration } from "./Celebration";
 
 /**
  * The one place a recognition reaches the screen.
@@ -37,6 +43,8 @@ const lookback = () => new Date(Date.now() - LOOKBACK_MS).toISOString();
 
 export function RecognitionDetector() {
   const { presentRecognitions } = useCelebration();
+  const fetchPending = useServerFn(getAmsRecognitionPending);
+  const fetchRecognitions = useServerFn(peekAmsRecognitions);
   const pending = useRef(new Set<string>());
   const handled = useRef(new Set<string>());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,12 +72,15 @@ export function RecognitionDetector() {
       try {
         const unseen: Recognition[] = [];
         for (let i = 0; i < ids.length; i += 50) {
-          const { data, error } = await supabase.rpc("ams_recognition_peek" as never, { p_ledger_ids: ids.slice(i, i + 50) } as never);
-          if (error) throw error;
-          unseen.push(...((data as { recognitions?: Recognition[] } | null)?.recognitions ?? []).filter(Boolean));
+          unseen.push(
+            ...(await fetchRecognitions({
+              data: { ledgerIds: ids.slice(i, i + 50) },
+            })),
+          );
         }
         if (unseen.length > 0) presentRecognitions(unseen);
-      } catch {
+      } catch (error) {
+        console.error("AMS recognition lookup failed", error);
         // Not read, so not lost: the next catch-up finds them again.
         ids.forEach((id) => handled.current.delete(id));
       } finally {
@@ -91,9 +102,12 @@ export function RecognitionDetector() {
 
     const catchUp = async () => {
       if (!alive || !signedIn.current) return;
-      const { data } = await supabase.rpc("ams_recognition_pending" as never, { p_since: lookback() } as never);
-      const ids = (data as { pending?: string[] } | null)?.pending ?? [];
-      ids.forEach(offer);
+      try {
+        const ids = await fetchPending({ data: { since: lookback() } });
+        ids.forEach(offer);
+      } catch (error) {
+        console.error("AMS recognition catch-up failed", error);
+      }
     };
 
     const unsubscribe = subscribeNotificationStream((e) => {
@@ -148,7 +162,7 @@ export function RecognitionDetector() {
       if (poll) clearInterval(poll);
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [presentRecognitions]);
+  }, [fetchPending, fetchRecognitions, presentRecognitions]);
 
   return null;
 }
