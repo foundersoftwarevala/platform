@@ -61,11 +61,18 @@ payments, chat messages, or AMS records.
   summary also displays aggregate Chat session/message and AMS event/award
   counts.
 - **Live browser verification (2026-10-23):** signed in with the authorized
-  Boss account and opened `/ai-ceo`. The page rendered the AYRA
-  "READ-ONLY" banner before the existing "AI CEO Dashboard" banner. No
-  screenshot was captured.
-- The initial live browser check found two 404 responses for the cloud Supabase
-  RPC `ams_recognition_pending`, with matching browser console resource errors.
+  Boss account and opened `/ai-ceo`. The AYRA "READ-ONLY" banner rendered
+  above the existing "AI CEO Dashboard" banner. No screenshot was captured.
+- **Post-deploy browser verification (2026-10-23):** authenticated visits to
+  `/ai-ceo` and `/ai-ceo/ayra` rendered successfully. The AI CEO page loaded
+  its metrics; AYRA displayed live aggregate counts of 5 Chat sessions,
+  11 Chat messages, 1 AMS event, and 3 AMS awards. No browser console errors,
+  uncaught page errors, or HTTP responses with status >= 400 were captured
+  during those monitored visits. This confirms the aggregate AMS data path,
+  not that the recognition-notification detector invoked its pending RPC.
+- The initial live browser check had found two 404 responses for the Cloud
+  Supabase RPC `ams_recognition_pending`, with matching browser console errors;
+  those failures were the reason for the server-side routing fix below.
 
 ## Validation and deployment
 
@@ -126,13 +133,12 @@ AYRA banner lint clean. The existing `Celebration.tsx` file has pre-existing
 Prettier and unused-expression findings; semantic lint of the touched legacy
 components passes with those pre-existing findings excluded.
 
-The live `/ai-ceo` route returned HTTP 200 after deployment. A fresh
-authenticated browser verification of recognition loading was **not
-completed**: the shared browser session remained at "Checking workspace
-access..." / sign-in, so no claim is made that AMS records rendered or that
-the page had zero console errors after this deployment. The previous RPC
-404 was not reproduced during the unauthenticated post-deploy request, which
-does not prove the authenticated request path works.
+The live `/ai-ceo` and `/ai-ceo/ayra` routes were opened in an authenticated
+Boss browser session after deployment. Aggregate AMS data rendered on AYRA,
+and the monitored visits captured no console/page errors or HTTP responses
+with status >= 400. The recognition detector's pending-RPC invocation was not
+separately observed, so that specific notification path remains **YELLOW:
+not directly verified**.
 
 The i18n gate remains **FAIL** with the 1,474 findings above. The external AYRA
 repository and its license remain unverified; no external code is claimed as
