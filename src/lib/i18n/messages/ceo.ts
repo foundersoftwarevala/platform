@@ -360,6 +360,18 @@ export const CEO_MESSAGES = {
   ],
   "ceo.ayra_home_description":
     "Inspect task, developer wallet, payment, and aggregate Chat and AMS records without changing platform data.",
+  "ceo.ayra_home_syncing": ["SYNCING LIVE DATA", "AYRA dashboard status while live data loads"],
+  "ceo.ayra_home_unavailable": [
+    "LIVE FEED UNAVAILABLE",
+    "AYRA dashboard status when live data cannot be read",
+  ],
+  "ceo.ayra_home_live": ["LIVE · READ-ONLY", "AYRA dashboard status when live data is available"],
+  "ceo.ayra_home_active_tasks": ["Active tasks", "current active task count in the AYRA banner"],
+  "ceo.ayra_home_broken_promises": [
+    "Broken promises",
+    "current broken promise count in the AYRA banner",
+  ],
+  "ceo.ayra_home_priority_alerts": ["Priority alerts", "current alert count in the AYRA banner"],
   "ceo.ayra_home_open": ["Open AYRA", "link from the AI CEO dashboard to the AYRA page"],
   "ceo.ayra_subtitle":
     "What AYRA is connected to, what she is not and why, and what she has been asked to do. A capability that is absent is listed with its reason, because accepting work that cannot be done is worse than refusing it.",
@@ -413,7 +425,10 @@ export const CEO_MESSAGES = {
   "ceo.ayra_thinking": "Ayra is checking records; the local model may take a moment…",
   "ceo.ayra_chat_failed": "Ayra could not complete the inspection: {error}",
   "ceo.ayra_question_placeholder": "What is the status of the platform?",
-  "ceo.ayra_question_label": ["Ask Ayra a read-only question", "accessible label for Ayra chat input"],
+  "ceo.ayra_question_label": [
+    "Ask Ayra a read-only question",
+    "accessible label for Ayra chat input",
+  ],
   "ceo.ayra_send": ["Ask", "button that sends a question to Ayra"],
   "ceo.ayra_inspected": "Inspected: {tools}",
   "ceo.ayra_feed_data_error": "Unknown error",
