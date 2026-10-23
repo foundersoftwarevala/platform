@@ -33,5 +33,15 @@ the current page URL; this does not alter appearance or layout.
 ## Verification
 
 UI source and targeted navigation tests are checked in this release. Live
-browser verification and production build/deployment status are recorded in
-`PHASE-19-LIVE-E2E-TEST.md` after the deployment check completes.
+browser verification is recorded in
+[PHASE-19-LIVE-E2E-TEST.md](./PHASE-19-LIVE-E2E-TEST.md).
+
+The deployed production build returned HTTP 200 for the homepage,
+Control Panel, Marketplace Manager, and AMS routes inspected. Marketplace
+Manager’s dashboard and Products section rendered, including the product
+table; AMS overview and Notifications rendered, with Notifications showing
+its explicit empty state. The tested pages had no browser console errors or
+HTTP responses at or above 400. A Control Panel reload did record an aborted
+Supabase `HEAD` request; it did not prevent the page from rendering and is
+called out in the E2E report. This browser pass did not exercise every manager,
+role login, or data-mutating action.
