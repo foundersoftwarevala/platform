@@ -16,6 +16,10 @@ type PlatformHealth = {
   brokenPromises: number;
   pendingPayments: number;
   duePayments: number;
+  chatSessions: number;
+  chatMessages: number;
+  amsEvents: number;
+  amsAwards: number;
   alerts: AyraAlert[];
 };
 
@@ -62,20 +66,30 @@ function iso(value: Date | string | null): string | null {
 export async function getPlatformHealth(actorId: string): Promise<PlatformHealth> {
   await recordAyraInspection(actorId, "getPlatformHealth", {});
   return withTaskTransaction(actorId, async (tx) => {
-    const [counts] = await tx<{
-      as_of: Date | string;
-      active_tasks: string;
-      broken_promises: string;
-      pending_payments: string;
-      due_payments: string;
-    }[]>`
+    const [counts] = await tx<
+      {
+        as_of: Date | string;
+        active_tasks: string;
+        broken_promises: string;
+        pending_payments: string;
+        due_payments: string;
+        chat_sessions: string;
+        chat_messages: string;
+        ams_events: string;
+        ams_awards: string;
+      }[]
+    >`
       select
         now() as as_of,
         (select count(*) from public.tasks
           where status in ('assigned', 'in_progress', 'submitted'))::text as active_tasks,
         (select count(*) from public.task_promises where status = 'broken')::text as broken_promises,
         (select count(*) from public.tasks where payment_status <> 'paid')::text as pending_payments,
-        (select count(*) from public.tasks where payment_status = 'due')::text as due_payments
+        (select count(*) from public.tasks where payment_status = 'due')::text as due_payments,
+        (select count(*) from public.chat_sessions)::text as chat_sessions,
+        (select count(*) from public.chat_messages)::text as chat_messages,
+        (select count(*) from public.ams_activity_events)::text as ams_events,
+        (select count(*) from public.ams_award_ledger)::text as ams_awards
     `;
     if (!counts) throw new Error("Platform health query returned no result.");
 
@@ -112,6 +126,10 @@ export async function getPlatformHealth(actorId: string): Promise<PlatformHealth
       brokenPromises: Number(counts.broken_promises),
       pendingPayments: Number(counts.pending_payments),
       duePayments: Number(counts.due_payments),
+      chatSessions: Number(counts.chat_sessions),
+      chatMessages: Number(counts.chat_messages),
+      amsEvents: Number(counts.ams_events),
+      amsAwards: Number(counts.ams_awards),
       alerts: alerts.map((alert) => ({
         id: alert.id,
         kind: alert.kind,

@@ -35,6 +35,7 @@ import {
   type ActivityEvent,
 } from "@/hooks/useCEOSuggestions";
 import { CommandCenterIntelligence } from "@/components/ai-ceo/sections/CommandCenterIntelligence";
+import { AyraHomeBanner } from "@/components/ai-ceo/AyraHomeBanner";
 import { toast } from "sonner";
 
 /**
@@ -134,6 +135,8 @@ const AICEODashboardMain = () => {
 
   return (
     <PageShell>
+      <AyraHomeBanner />
+
       <PageBanner
         icon={Brain}
         title="AI CEO Dashboard"

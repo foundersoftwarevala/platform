@@ -350,6 +350,17 @@ export const CEO_MESSAGES = {
 
   // AYRA: the Founder's executive secretary.
   "ceo.ayra_title": ["AYRA", "name of the Founder's executive secretary"],
+  "ceo.ayra_home_read_only": [
+    "READ-ONLY",
+    "AYRA access is limited to read-only platform inspection",
+  ],
+  "ceo.ayra_home_title": [
+    "Read-only platform intelligence",
+    "AYRA banner heading on the AI CEO dashboard",
+  ],
+  "ceo.ayra_home_description":
+    "Inspect task, developer wallet, payment, and aggregate Chat and AMS records without changing platform data.",
+  "ceo.ayra_home_open": ["Open AYRA", "link from the AI CEO dashboard to the AYRA page"],
   "ceo.ayra_subtitle":
     "What AYRA is connected to, what she is not and why, and what she has been asked to do. A capability that is absent is listed with its reason, because accepting work that cannot be done is worse than refusing it.",
   "ceo.ayra_loading": "Reading the capability register…",
@@ -392,11 +403,12 @@ export const CEO_MESSAGES = {
     "identifiers shown for a developer and task in an alert",
   ],
   "ceo.ayra_feed_counts":
-    "Counts as of {date} · {active} active tasks · {broken} broken promises · {pending} unpaid tasks",
+    "Counts as of {date} · {active} active tasks · {broken} broken promises · {pending} unpaid tasks · {chatSessions} Chat sessions · {chatMessages} Chat messages · {amsEvents} AMS events · {amsAwards} AMS awards",
   "ceo.ayra_ask": ["Ask Ayra", "heading over the read-only Ayra chat"],
   "ceo.ayra_chat_description":
-    "Read-only answers from task, wallet, promise, and payment records.",
-  "ceo.ayra_chat_empty": "Ask about platform health, a developer, finances, or a task.",
+    "Read-only answers from task, wallet, promise, and payment records, plus aggregate Chat and AMS counts.",
+  "ceo.ayra_chat_empty":
+    "Ask about platform health, Chat and AMS activity counts, a developer, finances, or a task.",
   "ceo.ayra_you": ["You", "label for the signed-in user's Ayra chat message"],
   "ceo.ayra_thinking": "Ayra is checking records; the local model may take a moment…",
   "ceo.ayra_chat_failed": "Ayra could not complete the inspection: {error}",

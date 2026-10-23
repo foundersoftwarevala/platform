@@ -101,6 +101,10 @@ export function AyraLiveFeedChat() {
                 active: feed.data.activeTasks,
                 broken: feed.data.brokenPromises,
                 pending: feed.data.pendingPayments,
+                chatSessions: feed.data.chatSessions,
+                chatMessages: feed.data.chatMessages,
+                amsEvents: feed.data.amsEvents,
+                amsAwards: feed.data.amsAwards,
               })}
             </p>
           )}
