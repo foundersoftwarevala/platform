@@ -64,10 +64,8 @@ payments, chat messages, or AMS records.
   Boss account and opened `/ai-ceo`. The page rendered the AYRA
   "READ-ONLY" banner before the existing "AI CEO Dashboard" banner. No
   screenshot was captured.
-- The same live browser check found two 404 responses for the cloud Supabase
+- The initial live browser check found two 404 responses for the cloud Supabase
   RPC `ams_recognition_pending`, with matching browser console resource errors.
-  The dashboard also displayed "AI requests failed". These are live issues,
-  not claimed as fixed by the AYRA deployment.
 
 ## Validation and deployment
 
@@ -82,8 +80,11 @@ Validation performed:
 - Full TypeScript check (`npx.cmd tsc --noEmit -p .`): passed (exit code 0).
 - The generated static source catalogue was refreshed and committed as
   `853bf27b0fe80c097e45dba1930929786a0dfc17`.
-- `npm run i18n:check`: **not clean** after the catalogue refresh; it still
-  reports hardcoded user-facing strings in multiple existing source files.
+- `npm run i18n:check`: **not clean**. On 2026-10-23, after marking the AYRA
+  product name as non-translatable, it still reports 1,474 hardcoded
+  user-facing strings across 62 files. The check was not bypassed by raising
+  `scripts/i18n-baseline.json`; the remaining strings need a separate,
+  repository-wide localization pass.
 - ESLint over the touched legacy AYRA files reports 61 Prettier formatting
   findings; no unrelated bulk reformat was applied.
 
@@ -93,17 +94,46 @@ is `42ea51cc435fb60a30a53610728b46d66471a22b`. The source catalogue refresh is
 `853bf27b0fe80c097e45dba1930929786a0dfc17`.
 
 **Production deployment completed 2026-10-23** through
-`scripts/ops/sv-deploy.sh`. The VPS is on `main` at
-`853bf27b0fe80c097e45dba1930929786a0dfc17`. The script built the staged
-release, verified the manifest, passed the port-3011 homepage smoke test
-(HTTP 200), swapped the build, and restarted PM2. Its final checks reported
-the live homepage HTTP 200 and exactly one `softwarevala-staging` process
-holding port 3000 (PID 387589; PM2 status online at verification). The prior
-build is retained at `/var/www/softwarevala/.output.prev-20261023-054632`.
+`scripts/ops/sv-deploy.sh`. The first production deployment completed on 2026-10-23 at
+`853bf27b0fe80c097e45dba1930929786a0dfc17`. A follow-up for AMS recognition
+RPC routing was pushed as
+`dcdbeb11a87db4e546cc567ff1adc14529851b83` and deployed through the same
+guarded script. The VPS script verified the manifest, passed the port-3011
+homepage smoke test (HTTP 200), swapped the build, restarted PM2, and reported
+the live homepage HTTP 200 with one `softwarevala-staging` process holding
+port 3000 (PID 463793; online at verification).
 
-The authenticated live page confirms the banner renders in the requested
-position. The deployment is **not error-free**: the live `/ai-ceo` view still
-receives the `ams_recognition_pending` Supabase RPC 404 and shows
-"AI requests failed". That database/API issue was not changed as part of this
-code deployment. The external AYRA repository and its license remain
-unverified; no external code is claimed as integrated.
+## AMS recognition RPC follow-up (2026-10-23)
+
+Read-only inspection of the configured `sv_platform` database confirmed these
+existing functions and service-role execute grants:
+
+- `ams_recognition_pending(timestamptz) -> jsonb`
+- `ams_recognition_peek(uuid[]) -> jsonb`
+- `ams_recognition_claim(uuid[]) -> jsonb`
+
+No database migration was needed or applied. The browser had been calling the
+Supabase Cloud RPC directly even though the production functions live in
+`sv_platform`. The pending, detail, and claim operations now call authenticated
+TanStack server functions that execute those existing functions inside the
+canonical `sv_platform` caller-scoped transaction. Their inputs and JSON
+results are validated; the database continues to restrict each request to the
+signed-in user's own recognition records.
+
+Validation: the focused recognition contract tests pass (4/4), the complete
+TypeScript check passes (exit 0), and the new server-function/test files plus
+AYRA banner lint clean. The existing `Celebration.tsx` file has pre-existing
+Prettier and unused-expression findings; semantic lint of the touched legacy
+components passes with those pre-existing findings excluded.
+
+The live `/ai-ceo` route returned HTTP 200 after deployment. A fresh
+authenticated browser verification of recognition loading was **not
+completed**: the shared browser session remained at "Checking workspace
+access..." / sign-in, so no claim is made that AMS records rendered or that
+the page had zero console errors after this deployment. The previous RPC
+404 was not reproduced during the unauthenticated post-deploy request, which
+does not prove the authenticated request path works.
+
+The i18n gate remains **FAIL** with the 1,474 findings above. The external AYRA
+repository and its license remain unverified; no external code is claimed as
+integrated.
