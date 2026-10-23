@@ -15,7 +15,7 @@ export function AyraHomeBanner() {
         <div className="min-w-0">
           <div className="mb-2 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary-foreground/80">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
-            <span>AYRA</span>
+            <span data-no-translate>AYRA</span>
             <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px]">
               <Eye className="h-3 w-3" aria-hidden="true" />
               {t("ceo.ayra_home_read_only")}

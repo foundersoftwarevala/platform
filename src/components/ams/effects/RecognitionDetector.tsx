@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getAmsRecognitionsByLedgerIds,
+  getPendingAmsRecognitions,
+} from "@/lib/ams/recognition.functions";
 import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import { unlockAudioOnFirstGesture } from "@/lib/ams/ui-sound";
 import { useCelebration, type Recognition } from "./Celebration";
@@ -64,14 +68,17 @@ export function RecognitionDetector() {
       try {
         const unseen: Recognition[] = [];
         for (let i = 0; i < ids.length; i += 50) {
-          const { data, error } = await supabase.rpc("ams_recognition_peek" as never, { p_ledger_ids: ids.slice(i, i + 50) } as never);
-          if (error) throw error;
-          unseen.push(...((data as { recognitions?: Recognition[] } | null)?.recognitions ?? []).filter(Boolean));
+          unseen.push(
+            ...(await getAmsRecognitionsByLedgerIds({
+              data: { ledgerIds: ids.slice(i, i + 50) },
+            })),
+          );
         }
         if (unseen.length > 0) presentRecognitions(unseen);
-      } catch {
+      } catch (error) {
         // Not read, so not lost: the next catch-up finds them again.
         ids.forEach((id) => handled.current.delete(id));
+        console.error("[ams-recognition] Could not load pending recognition details.", error);
       } finally {
         reading.current = false;
         if (pending.current.size > 0) schedule();
@@ -91,9 +98,12 @@ export function RecognitionDetector() {
 
     const catchUp = async () => {
       if (!alive || !signedIn.current) return;
-      const { data } = await supabase.rpc("ams_recognition_pending" as never, { p_since: lookback() } as never);
-      const ids = (data as { pending?: string[] } | null)?.pending ?? [];
-      ids.forEach(offer);
+      try {
+        const ids = await getPendingAmsRecognitions({ data: { since: lookback() } });
+        ids.forEach(offer);
+      } catch (error) {
+        console.error("[ams-recognition] Could not check pending recognitions.", error);
+      }
     };
 
     const unsubscribe = subscribeNotificationStream((e) => {

@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import { Crown, Trophy, Award, Sparkles, Star, Diamond, Gift, ScrollText, IdCard, Medal, X } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { claimAmsRecognitions } from "@/lib/ams/recognition.functions";
 import trophy3d from "@/assets/trophy-3d.png";
 import medal3d from "@/assets/medal-3d.png";
 import badge3d from "@/assets/badge-3d.png";
@@ -604,9 +604,7 @@ async function claimRecognitions(ids: string[]): Promise<{ won: Recognition[]; f
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);
     try {
-      const { data, error } = await supabase.rpc("ams_recognition_claim" as never, { p_ledger_ids: chunk } as never);
-      if (error) throw error;
-      won.push(...((data as { claimed?: Recognition[] } | null)?.claimed ?? []).filter(Boolean));
+      won.push(...(await claimAmsRecognitions({ data: { ledgerIds: chunk } })));
     } catch {
       failed.push(...chunk);
     }
