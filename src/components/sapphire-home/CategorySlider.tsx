@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import {
   Sparkles, GraduationCap, Stethoscope, Utensils, Hotel, Home, Car, Plane,
   CreditCard, Factory, Users, Truck, Building, Megaphone, Wallet, Briefcase,
@@ -30,40 +30,13 @@ const CATEGORIES = [
   { icon: Headphones, name: "Support", color: "from-teal-500 to-cyan-700", link: "/#Support" },
 ];
 
-// Duplicate the list so the auto-scroll can loop seamlessly.
-const LOOP = [...CATEGORIES, ...CATEGORIES];
 const DRAG_THRESHOLD = 4;
 
 const CategorySlider = () => {
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const pausedRef = useRef(false);
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
   const startPointerX = useRef(0);
   const lastPointerX = useRef(0);
-
-  // Native scrolling stays reliable after hydration and keeps touch/trackpad controls fluid.
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
-    const timer = window.setInterval(() => {
-      if (pausedRef.current || draggingRef.current) return;
-      // Distance travelled, with the page's direction as the sign: in a
-      // right-to-left language scrollLeft is negative, and read as a plain
-      // number the loop clamped at 0 and the strip stood still.
-      const sign = getComputedStyle(viewport).direction === "rtl" ? -1 : 1;
-      const half = viewport.scrollWidth / 2;
-      let travelled = Math.abs(viewport.scrollLeft);
-      if (travelled >= half - 2) {
-        travelled -= half;
-        viewport.scrollLeft = sign * travelled;
-      }
-      viewport.scrollTo({ left: sign * (travelled + 180), behavior: "auto" });
-    }, 2200);
-    return () => window.clearInterval(timer);
-  }, []);
 
   // Capture only after an intentional horizontal drag so links remain clickable.
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -91,17 +64,12 @@ const CategorySlider = () => {
   };
 
   return (
-    <section
-      className="relative py-3 bg-gradient-to-b from-[#0a1628] via-[#0d1e36]/70 to-transparent"
-      onMouseEnter={() => { pausedRef.current = true; }}
-      onMouseLeave={() => { pausedRef.current = false; }}
-    >
+    <section className="relative py-3 bg-gradient-to-b from-[#0a1628] via-[#0d1e36]/70 to-transparent">
       <div className="max-w-7xl mx-auto px-4 relative">
         <div className="pointer-events-none absolute inset-y-0 left-4 z-10 w-16 bg-gradient-to-r from-[#0a1628] to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-4 z-10 w-16 bg-gradient-to-l from-[#0a1628] to-transparent" />
 
         <div
-          ref={viewportRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -111,11 +79,11 @@ const CategorySlider = () => {
           <div
             className="flex w-max gap-3"
           >
-          {LOOP.map((cat, i) => {
+          {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
             return (
               <a
-                key={`${cat.name}-${i}`}
+                key={cat.name}
                 href={cat.link}
                 onClick={(e) => {
                   if (movedRef.current) {
