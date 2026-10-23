@@ -81,8 +81,13 @@ Validation performed:
 - ESLint over the touched legacy AYRA files reports 61 Prettier formatting
   findings; no unrelated bulk reformat was applied.
 
-The AYRA-specific local changes are prepared for a scoped commit on `main`;
-they are not pushed or deployed. The requested external module cannot be
-integrated or verified until its source and license are accessible. Production
-deployment also requires the documented Vala AI backup/setup preconditions;
-a production restart was not attempted.
+The AYRA-specific changes were committed and pushed on `main` as
+`1318f722163583099837d6030d1ad9e2e786765a`. They are **not deployed**. The
+requested external module cannot be integrated or verified until its source
+and license are accessible.
+
+Production deployment was not attempted: this session has no supported remote
+SSH/VPS tool, and the documented deploy script would ship the entire `main`
+tree, including the Vala AI integration. Its production runbook requires
+additional backup/setup and acceptance checks before deployment. No VPS restart
+or live post-deploy screenshot is claimed.
