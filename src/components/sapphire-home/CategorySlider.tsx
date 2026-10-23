@@ -32,13 +32,15 @@ const CATEGORIES = [
 
 // Duplicate the list so the auto-scroll can loop seamlessly.
 const LOOP = [...CATEGORIES, ...CATEGORIES];
+const DRAG_THRESHOLD = 4;
 
 const CategorySlider = () => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
-  const lastPointer = useRef({ x: 0, t: 0 });
+  const startPointerX = useRef(0);
+  const lastPointerX = useRef(0);
 
   // Native scrolling stays reliable after hydration and keeps touch/trackpad controls fluid.
   useEffect(() => {
@@ -63,41 +65,29 @@ const CategorySlider = () => {
     return () => window.clearInterval(timer);
   }, []);
 
-  // Horizontal mouse-wheel / trackpad support (non-passive so the page never scrolls with it)
-  useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      e.preventDefault();
-      const norm = dx * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
-      el.scrollLeft += norm;
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
-
-  // Pointer drag (unified mouse + touch) with momentum handoff
+  // Capture only after an intentional horizontal drag so links remain clickable.
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     draggingRef.current = true;
     movedRef.current = false;
-    lastPointer.current = { x: e.clientX, t: performance.now() };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    startPointerX.current = e.clientX;
+    lastPointerX.current = e.clientX;
   };
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!draggingRef.current) return;
-    const now = performance.now();
-    const dx = e.clientX - lastPointer.current.x;
-    const dt = Math.max((now - lastPointer.current.t) / 1000, 0.001);
-    if (Math.abs(dx) > 2) movedRef.current = true;
-    e.currentTarget.scrollLeft -= dx;
-    void dt;
-    lastPointer.current = { x: e.clientX, t: now };
+    const dx = e.clientX - lastPointerX.current;
+    if (!movedRef.current && Math.abs(e.clientX - startPointerX.current) > DRAG_THRESHOLD) {
+      movedRef.current = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    if (movedRef.current) e.currentTarget.scrollLeft -= dx;
+    lastPointerX.current = e.clientX;
   };
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   };
 
   return (
@@ -127,7 +117,12 @@ const CategorySlider = () => {
               <a
                 key={`${cat.name}-${i}`}
                 href={cat.link}
-                onClick={(e) => { if (movedRef.current) e.preventDefault(); }}
+                onClick={(e) => {
+                  if (movedRef.current) {
+                    e.preventDefault();
+                    movedRef.current = false;
+                  }
+                }}
                 draggable={false}
                 className={`group relative flex-shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-br ${cat.color} text-white text-sm font-bold whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_10px_26px_-12px_rgba(0,0,0,0.85)] border border-white/25 transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] hover:-translate-y-1`}
               >
