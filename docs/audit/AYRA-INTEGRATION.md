@@ -60,9 +60,14 @@ payments, chat messages, or AMS records.
   unchanged AI CEO banner and links to `/ai-ceo/ayra`. The AYRA live-feed
   summary also displays aggregate Chat session/message and AMS event/award
   counts.
-- **Screenshots:** no before/after screenshots were captured. This workspace
-  had no shared browser page, and the changed local build has not been deployed
-  for a live visual comparison.
+- **Live browser verification (2026-10-23):** signed in with the authorized
+  Boss account and opened `/ai-ceo`. The page rendered the AYRA
+  "READ-ONLY" banner before the existing "AI CEO Dashboard" banner. No
+  screenshot was captured.
+- The same live browser check found two 404 responses for the cloud Supabase
+  RPC `ams_recognition_pending`, with matching browser console resource errors.
+  The dashboard also displayed "AI requests failed". These are live issues,
+  not claimed as fixed by the AYRA deployment.
 
 ## Validation and deployment
 
@@ -75,19 +80,30 @@ Validation performed:
   touched AYRA files: passed.
 - Production build: passed.
 - Full TypeScript check (`npx.cmd tsc --noEmit -p .`): passed (exit code 0).
-- `npm run i18n:check`: **not clean**; it reported that the repository's
-  generated static source catalogue is stale. This was not updated because it
-  contains unrelated workspace-wide changes.
+- The generated static source catalogue was refreshed and committed as
+  `853bf27b0fe80c097e45dba1930929786a0dfc17`.
+- `npm run i18n:check`: **not clean** after the catalogue refresh; it still
+  reports hardcoded user-facing strings in multiple existing source files.
 - ESLint over the touched legacy AYRA files reports 61 Prettier formatting
   findings; no unrelated bulk reformat was applied.
 
 The AYRA-specific changes were committed and pushed on `main` as
-`1318f722163583099837d6030d1ad9e2e786765a`. They are **not deployed**. The
-requested external module cannot be integrated or verified until its source
-and license are accessible.
+`1318f722163583099837d6030d1ad9e2e786765a`; the deployment status clarification
+is `42ea51cc435fb60a30a53610728b46d66471a22b`. The source catalogue refresh is
+`853bf27b0fe80c097e45dba1930929786a0dfc17`.
 
-Production deployment was not attempted: this session has no supported remote
-SSH/VPS tool, and the documented deploy script would ship the entire `main`
-tree, including the Vala AI integration. Its production runbook requires
-additional backup/setup and acceptance checks before deployment. No VPS restart
-or live post-deploy screenshot is claimed.
+**Production deployment completed 2026-10-23** through
+`scripts/ops/sv-deploy.sh`. The VPS is on `main` at
+`853bf27b0fe80c097e45dba1930929786a0dfc17`. The script built the staged
+release, verified the manifest, passed the port-3011 homepage smoke test
+(HTTP 200), swapped the build, and restarted PM2. Its final checks reported
+the live homepage HTTP 200 and exactly one `softwarevala-staging` process
+holding port 3000 (PID 387589; PM2 status online at verification). The prior
+build is retained at `/var/www/softwarevala/.output.prev-20261023-054632`.
+
+The authenticated live page confirms the banner renders in the requested
+position. The deployment is **not error-free**: the live `/ai-ceo` view still
+receives the `ams_recognition_pending` Supabase RPC 404 and shows
+"AI requests failed". That database/API issue was not changed as part of this
+code deployment. The external AYRA repository and its license remain
+unverified; no external code is claimed as integrated.
