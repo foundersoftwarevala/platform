@@ -3,6 +3,10 @@
 /* Scoped to .mpc-home so the rest of the app is untouched.             */
 /* ------------------------------------------------------------------ */
 
+html:has(.sapphire-home) {
+  scroll-behavior: auto;
+}
+
 .mpc-home {
   --premium-canvas: oklch(0.205 0.07 252);
   --premium-canvas-deep: oklch(0.155 0.055 258);
