@@ -171,18 +171,31 @@ not directly verified**.
   `checkout.tsx`; they were not changed as part of this localization work.
   The translator helper and its test pass ESLint with the Prettier rule
   disabled. This is not a claim that the broader lint command passes.
-- The localization changes and this report are **local and uncommitted**.
-  No push, deployment, database write, or production restart was performed.
-  The current `main` worktree includes unrelated changes, and the production
-  Vala AI deployment preflight has since been verified read-only on the VPS:
-  the configured data directory exists outside the application tree, the
+- The localization follow-up was committed and pushed to `main` as
+  `301aed7b38f2d1e3bb3e593eaee388ae74382fa4`. The commit contains the
+  localization changes and this report; unrelated auth/security work in the
+  shared worktree was not staged.
+- The Vala AI deployment preflight was verified read-only on the VPS: its
+  configured data directory exists outside the application tree, the
   encryption-key format is valid (the value was not displayed), and the
-  backup wrapper, cron entry, and checksum files are present. These checks
-  do not mean this localization change has been deployed. No push, deployment,
-  database write, or production restart has yet occurred for this follow-up.
-  Therefore no new live-site or console verification is claimed. The last
-  documented production browser check remains the 2026-10-23 check above; the
-  pending-recognition notification invocation was not directly verified.
+  backup wrapper, cron entry, and checksum files are present.
+- **Production deployment completed 2026-10-23** from
+  `301aed7b38f2d1e3bb3e593eaee388ae74382fa4` using
+  `scripts/ops/sv-deploy.sh`. The script verified the build manifest, served
+  the staging homepage on port 3011 with HTTP 200, restarted the production
+  process, and verified the live site with HTTP 200 and one PM2 process on
+  port 3000. Independent HTTP checks also returned 200 for `/ai-ceo` and
+  `/ai-ceo/ayra`.
+- Post-deploy browser verification rendered the AYRA read-only banner and
+  existing AI CEO dashboard on `/ai-ceo`. On `/ai-ceo/ayra`, live data showed
+  5 Chat sessions, 11 Chat messages, 1 AMS event, and 3 AMS awards. The
+  monitored visits captured no browser console errors, uncaught page errors,
+  or HTTP responses with status >= 400.
+- The production AMS recognition RPC routing fix remains deployed; no database
+  migration or business-data write was made for this localization follow-up.
+  The notification detector's `ams_recognition_pending` invocation was not
+  directly observed during these browser checks and remains **YELLOW: not
+  directly verified**.
 
 The external AYRA repository and its license remain unverified; no external
 code is claimed as integrated.
