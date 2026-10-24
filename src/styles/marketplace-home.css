@@ -189,9 +189,9 @@
 }
 
 /* Utility strip cloned from the feature strip */
-.feature-clone { height: 16.5px; }
+.feature-clone { min-height: 16.5px; }
 .feature-clone > div {
-  height: 16.5px;
+  min-height: 16.5px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -219,7 +219,7 @@
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 .feature-clone .tb-pill { line-height: 1.5; height: 16.5px; }
-.feature-clone .kr-stagger { display: flex; align-items: center; height: 16.5px; }
+.feature-clone .kr-stagger { display: flex; align-items: center; min-height: 16.5px; }
 
 /* kill dull/flat surfaces inside the homepage only */
 .mpc-home [class*="bg-gray-9"],
