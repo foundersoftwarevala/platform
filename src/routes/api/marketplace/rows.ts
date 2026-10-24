@@ -148,7 +148,14 @@ export const Route = createFileRoute("/api/marketplace/rows")({
                 `&limit=1000&offset=${offset}`,
               { headers: admin() },
             );
-            if (!productResponse.ok) break;
+            if (!productResponse.ok) {
+              console.error(
+                "[rows] product count page read failed",
+                offset,
+                productResponse.status,
+              );
+              return Response.json({ rows: [], error: "Could not load rows" }, { status: 502 });
+            }
             const page = (await productResponse.json()) as { category_id: string | null }[];
             for (const row of page) {
               if (row.category_id)

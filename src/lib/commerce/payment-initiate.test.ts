@@ -154,6 +154,66 @@ describe("starting a payment", () => {
     expect(order.status).toBe("paid");
   });
 
+  it("returns a server error when the order read fails", async () => {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL, init?: RequestInit) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith("/marketplace_orders") && (init?.method ?? "GET") === "GET") {
+          return json({ error: "database unavailable" }, 503);
+        }
+        return original(input, init);
+      }),
+    );
+
+    const response = await start();
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ error: "Could not load order" });
+    expect(order.txnid).toBeNull();
+  });
+
+  it("returns not found only when the order read succeeds with no matching order", async () => {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL, init?: RequestInit) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith("/marketplace_orders") && (init?.method ?? "GET") === "GET") {
+          return json([]);
+        }
+        return original(input, init);
+      }),
+    );
+
+    const response = await start();
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: "Order not found" });
+  });
+
+  it("does not start payment when the order line currency read fails", async () => {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL, init?: RequestInit) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith("/marketplace_order_items")) {
+          return json({ error: "database unavailable" }, 503);
+        }
+        return original(input, init);
+      }),
+    );
+
+    const response = await start();
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({ error: "Could not verify order currency" });
+    expect(order.txnid).toBeNull();
+    expect(intents[0]?.status).toBe("pending");
+  });
+
   it("charges a rupee order the same amount again on a retry", async () => {
     order.currency = "INR";
     order.total = 4999;

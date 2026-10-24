@@ -74,15 +74,31 @@ export const Route = createFileRoute("/api/payment/initiate")({
         if (!orderId) return Response.json({ error: "An order is required" }, { status: 400 });
 
         // The order, and its owner, come from the database — not the request.
-        const orderResponse = await fetch(
-          `${url()}/rest/v1/marketplace_orders` +
-            `?select=id,buyer_id,user_id,status,total,currency,txnid,amount_inr,fx_rate,payu_status,metadata` +
-            `&id=eq.${encodeURIComponent(orderId)}&limit=1`,
-          { headers: admin() },
-        );
-        const orders = orderResponse.ok
-          ? ((await orderResponse.json()) as Record<string, unknown>[])
-          : [];
+        let orderResponse: Response;
+        try {
+          orderResponse = await fetch(
+            `${url()}/rest/v1/marketplace_orders` +
+              `?select=id,buyer_id,user_id,status,total,currency,txnid,amount_inr,fx_rate,payu_status,metadata` +
+              `&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+            { headers: admin() },
+          );
+        } catch (error) {
+          console.error("[payment] order read failed", error);
+          return Response.json({ error: "Could not load order" }, { status: 500 });
+        }
+        if (!orderResponse.ok) {
+          console.error("[payment] order read failed", orderResponse.status);
+          return Response.json({ error: "Could not load order" }, { status: 500 });
+        }
+        let orders: Record<string, unknown>[];
+        try {
+          const responseBody: unknown = await orderResponse.json();
+          if (!Array.isArray(responseBody)) throw new Error("Expected an array of orders");
+          orders = responseBody as Record<string, unknown>[];
+        } catch (error) {
+          console.error("[payment] order response invalid", error);
+          return Response.json({ error: "Could not load order" }, { status: 500 });
+        }
         const order = orders[0];
         if (!order) return Response.json({ error: "Order not found" }, { status: 404 });
 
@@ -123,16 +139,23 @@ export const Route = createFileRoute("/api/payment/initiate")({
         // order whose lines are in another currency than the order itself
         // (one historical order is INR 2490 made of USD lines) cannot be
         // charged correctly in either, so it is refused rather than guessed.
-        let lines: { product_name: string | null; currency: string | null }[] = [];
+        let lines: { product_name: string | null; currency: string | null }[];
         try {
           const lineResponse = await fetch(
             `${url()}/rest/v1/marketplace_order_items?select=product_name,currency` +
               `&order_id=eq.${encodeURIComponent(orderId)}`,
             { headers: admin() },
           );
-          if (lineResponse.ok) lines = (await lineResponse.json()) as typeof lines;
-        } catch {
-          lines = [];
+          if (!lineResponse.ok) {
+            console.error("[payment] order line currency read failed", lineResponse.status);
+            return Response.json({ error: "Could not verify order currency" }, { status: 502 });
+          }
+          const responseBody: unknown = await lineResponse.json();
+          if (!Array.isArray(responseBody)) throw new Error("Expected an array of order lines");
+          lines = responseBody as typeof lines;
+        } catch (error) {
+          console.error("[payment] order line currency read failed", error);
+          return Response.json({ error: "Could not verify order currency" }, { status: 502 });
         }
         if (lines.some((line) => line.currency && line.currency.toUpperCase() !== orderCurrency)) {
           await logPaymentEvent(orderId, "payment_refused_mixed_currency", {
