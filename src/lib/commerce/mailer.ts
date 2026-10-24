@@ -165,19 +165,38 @@ async function deliver(message: Message): Promise<{ sent: boolean; detail: strin
 export async function send(
   message: Message,
 ): Promise<{ queued: boolean; sent: boolean; reason: string }> {
+  const id = await queue(message, "pending");
+  if (!id) {
+    return { queued: false, sent: false, reason: "could not persist email before delivery" };
+  }
+
   const result = await deliver(message);
-  const id = await queue(
-    message,
-    result.sent ? "sent" : "pending",
-    result.sent ? undefined : result.detail,
-    // A first attempt that failed is still an attempt. Recording it here is
-    // what lets the retry cap mean something later.
-    result.sent ? 0 : 1,
-  );
+  const attempted = providerConfigured() !== null;
+  const updatedAt = new Date().toISOString();
+  const recorded = await fetch(`${url()}/rest/v1/email_outbox?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { ...admin(), Prefer: "return=representation" },
+    body: JSON.stringify({
+      status: result.sent ? "sent" : "pending",
+      attempts: attempted ? 1 : 0,
+      last_error: result.sent ? null : result.detail,
+      sent_at: result.sent ? updatedAt : null,
+      updated_at: updatedAt,
+    }),
+  });
+  if (!recorded.ok) {
+    console.error("[mail] delivery state could not be recorded", id, recorded.status);
+    throw new Error("Email delivery state could not be recorded; verify before retrying.");
+  }
+  const updatedRows = (await recorded.json()) as { id: string }[];
+  if (updatedRows.length !== 1 || updatedRows[0]?.id !== id) {
+    throw new Error("Email delivery state update did not confirm the queued row.");
+  }
+
   if (!result.sent) {
     console.warn(`[mail] queued but not sent to ${message.to}: ${result.detail}`);
   }
-  return { queued: Boolean(id), sent: result.sent, reason: result.detail };
+  return { queued: true, sent: result.sent, reason: result.detail };
 }
 
 /**

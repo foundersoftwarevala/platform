@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sendQueued } from "./mailer";
+import { send, sendQueued } from "./mailer";
 
 beforeEach(() => {
   vi.stubEnv("SUPABASE_URL", "https://db.fixture.invalid");
@@ -63,6 +63,71 @@ describe("application decision email delivery", () => {
     expect(JSON.parse(String(patch?.body))).toMatchObject({
       status: "pending",
       last_error: "Provider unavailable",
+    });
+  });
+
+  describe("immediate email delivery", () => {
+    it("persists pending before delivery and records success on the same row", async () => {
+      vi.stubEnv("RESEND_API_KEY", "fixture-provider");
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(Response.json([{ id: "outbox-fixture" }], { status: 201 }))
+        .mockResolvedValueOnce(Response.json({ id: "provider-fixture" }))
+        .mockResolvedValueOnce(Response.json([{ id: "outbox-fixture" }]));
+
+      expect(
+        await send({
+          to: "applicant@fixture.invalid",
+          subject: "Application decision",
+          html: "<p>Shortlisted</p>",
+        }),
+      ).toMatchObject({ queued: true, sent: true });
+
+      const calls = vi.mocked(fetch).mock.calls;
+      expect(String(calls[0][0])).toContain("/email_outbox");
+      expect(JSON.parse(String(calls[0][1]?.body))).toMatchObject({ status: "pending" });
+      expect(String(calls[1][0])).toBe("https://api.resend.com/emails");
+      expect(String(calls[2][0])).toContain("id=eq.outbox-fixture");
+      expect(JSON.parse(String(calls[2][1]?.body))).toMatchObject({
+        status: "sent",
+        attempts: 1,
+      });
+    });
+
+    it("does not send if the pending outbox insert fails", async () => {
+      vi.stubEnv("RESEND_API_KEY", "fixture-provider");
+      vi.mocked(fetch).mockResolvedValueOnce(new Response("Database unavailable", { status: 503 }));
+
+      expect(
+        await send({
+          to: "applicant@fixture.invalid",
+          subject: "Application decision",
+          html: "<p>Shortlisted</p>",
+        }),
+      ).toMatchObject({ queued: false, sent: false });
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves a provider failure pending and records its retry reason", async () => {
+      vi.stubEnv("RESEND_API_KEY", "fixture-provider");
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(Response.json([{ id: "outbox-fixture" }], { status: 201 }))
+        .mockResolvedValueOnce(new Response("Provider unavailable", { status: 503 }))
+        .mockResolvedValueOnce(Response.json([{ id: "outbox-fixture" }]));
+
+      expect(
+        await send({
+          to: "applicant@fixture.invalid",
+          subject: "Application decision",
+          html: "<p>Shortlisted</p>",
+        }),
+      ).toMatchObject({ queued: true, sent: false });
+
+      const [, , patch] = vi.mocked(fetch).mock.calls;
+      expect(JSON.parse(String(patch[1]?.body))).toMatchObject({
+        status: "pending",
+        attempts: 1,
+        last_error: "Provider unavailable",
+      });
     });
   });
   it("does not report success when recording the delivery outcome fails", async () => {
