@@ -11,12 +11,22 @@ const metric = (key: MetricKey, value: number) => ({
   deltaPct: null,
 });
 
+function attributedCount(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`Influencer ${label} count is unavailable; update the summary migration.`);
+  }
+  return value;
+}
+
 export const influencerDashboardQueryOptions = () => queryOptions({
   queryKey: ["influencer-dashboard", "workflow-tables"],
   staleTime: 30_000,
   queryFn: async (): Promise<DashboardAnalytics> => {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return emptyDashboardAnalytics("7d");
+    const { data: session, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw new Error(sessionError.message);
+    if (!session.session) return emptyDashboardAnalytics("7d");
 
     const { data: profileData, error: profileError } = await supabase
       .from("influencer_profiles")
@@ -28,6 +38,18 @@ export const influencerDashboardQueryOptions = () => queryOptions({
     if (!profileData) return emptyDashboardAnalytics("7d");
 
     const profileId = profileData.id;
+    const attributionResponse = await fetch("/api/influencer/metrics", {
+      headers: { Authorization: `Bearer ${session.session.access_token}` },
+    });
+    if (!attributionResponse.ok) {
+      const detail = await attributionResponse.text();
+      throw new Error(`Influencer attribution metrics are unavailable: ${detail.slice(0, 160)}`);
+    }
+    const attributionData = (await attributionResponse.json()) as {
+      metrics?: Record<string, unknown>;
+    };
+    const sales = attributedCount(attributionData.metrics?.sales, "sales");
+    const leads = attributedCount(attributionData.metrics?.leads, "leads");
 
     const [profiles, applications, assignments, payouts, earnings, socials] = await Promise.all([
       supabase.from("influencer_profiles").select("id, status, full_name, email, country, region, niche").eq("id", profileId).limit(2000),
@@ -86,13 +108,8 @@ export const influencerDashboardQueryOptions = () => queryOptions({
     metrics.reach = metric("reach", verifiedFollowers);
     metrics.campaigns = metric("campaigns", campaignRows.length);
     metrics.applications = metric("applications", pendingApplications);
-    // Attributed sales require the referral chain (marketplace_order_attributions),
-    // which nothing writes to yet — so this is genuinely zero rather than a
-    // borrowed count of click-activity rows.
-    metrics.sales = metric("sales", 0);
-    // Likewise leads: the leads table carries no influencer or campaign column,
-    // so no lead can be attributed to this influencer yet.
-    metrics.leads = metric("leads", 0);
+    metrics.sales = metric("sales", sales);
+    metrics.leads = metric("leads", leads);
     // The verified clicks the influencer really has produced — the metric the
     // compensation rules are actually priced on, and what the old "sales"
     // number was counting rows of.
@@ -142,11 +159,8 @@ export const influencerProgrammeQueryOptions = () =>
       metrics.applications = metric("applications", Number(summary.applications_pending ?? 0));
       metrics.commissions = metric("commissions", Number(summary.earnings_net ?? 0));
       metrics.payouts = metric("payouts", Number(summary.payouts_total ?? 0));
-      // Left at zero on purpose: the referral chain that would attribute a sale
-      // or a lead to an influencer is not written to yet, and the summary says
-      // so in its own `unattributable` field rather than borrowing a number.
-      metrics.sales = metric("sales", 0);
-      metrics.leads = metric("leads", 0);
+      metrics.sales = metric("sales", attributedCount(summary.sales, "sales"));
+      metrics.leads = metric("leads", attributedCount(summary.leads, "leads"));
 
       return {
         ...base,

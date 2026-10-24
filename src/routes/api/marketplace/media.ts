@@ -37,13 +37,13 @@ function admin(): Record<string, string> {
   return { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
 }
 
-async function rows<T = Record<string, unknown>>(path: string): Promise<T[]> {
-  try {
-    const response = await fetch(`${url()}/rest/v1/${path}`, { headers: admin() });
-    if (!response.ok) return [];
-    return (await response.json()) as T[];
-  } catch {
-    return [];
+class MediaReadError extends Error {
+  constructor(
+    readonly source: string,
+    readonly status?: number,
+  ) {
+    super(status ? `${source} read failed (${status})` : `${source} read failed`);
+    this.name = "MediaReadError";
   }
 }
 
@@ -58,17 +58,23 @@ type StorageObject = {
 };
 
 async function listBucket(bucket: string, prefix = ""): Promise<StorageObject[]> {
+  let response: Response;
   try {
-    const response = await fetch(`${url()}/storage/v1/object/list/${bucket}`, {
+    response = await fetch(`${url()}/storage/v1/object/list/${bucket}`, {
       method: "POST",
       headers: admin(),
       body: JSON.stringify({ prefix, limit: 200, sortBy: { column: "name", order: "asc" } }),
     });
-    if (!response.ok) return [];
-    return (await response.json()) as StorageObject[];
   } catch {
-    return [];
+    throw new MediaReadError(`storage/${bucket}`);
   }
+  if (!response.ok) throw new MediaReadError(`storage/${bucket}`, response.status);
+  const data = (await response.json()) as unknown;
+  if (!Array.isArray(data)) throw new MediaReadError(`storage/${bucket}`);
+  if (data.length === 200) {
+    console.warn(`[media] storage/${bucket} listing may be truncated at 200 entries`);
+  }
+  return data as StorageObject[];
 }
 
 /**
@@ -79,7 +85,10 @@ async function listBucket(bucket: string, prefix = ""): Promise<StorageObject[]>
  * at a fixed number of prefixes, because section 46 is right that a media
  * library must not try to load everything.
  */
-async function walkBucket(bucket: string): Promise<{ path: string; object: StorageObject }[]> {
+async function walkBucket(
+  bucket: string,
+  notes: string[],
+): Promise<{ path: string; object: StorageObject }[]> {
   const top = await listBucket(bucket);
   const out: { path: string; object: StorageObject }[] = [];
   const folders: string[] = [];
@@ -90,6 +99,11 @@ async function walkBucket(bucket: string): Promise<{ path: string; object: Stora
       folders.push(entry.name);
     }
   }
+  if (folders.length > 25) {
+    notes.push(
+      `Storage listing for ${bucket} includes 25 of ${folders.length} folders; its asset count is partial.`,
+    );
+  }
   for (const folder of folders.slice(0, 25)) {
     const inner = await listBucket(bucket, `${folder}/`);
     for (const entry of inner) {
@@ -99,6 +113,44 @@ async function walkBucket(bucket: string): Promise<{ path: string; object: Stora
     }
   }
   return out;
+}
+
+async function allRows<T>(path: string, source: string, orderBy = "id"): Promise<T[]> {
+  const pageSize = 200;
+  const all: T[] = [];
+  let offset = 0;
+  let total: number | null = null;
+
+  while (total === null || offset < total) {
+    let response: Response;
+    try {
+      response = await fetch(
+        `${url()}/rest/v1/${path}&order=${orderBy}.asc&limit=${pageSize}&offset=${offset}`,
+        { headers: { ...admin(), Prefer: "count=exact" } },
+      );
+    } catch {
+      throw new MediaReadError(source);
+    }
+    if (!response.ok) throw new MediaReadError(source, response.status);
+
+    const data = (await response.json()) as unknown;
+    if (!Array.isArray(data)) throw new MediaReadError(source);
+    const count = /\/(\d+|\*)$/.exec(response.headers.get("content-range") ?? "")?.[1];
+    if (count === undefined || count === "*") throw new MediaReadError(`${source} count`);
+    total = Number(count);
+    if (!Number.isSafeInteger(total) || total < 0) {
+      throw new MediaReadError(`${source} count`);
+    }
+
+    all.push(...(data as T[]));
+    offset += data.length;
+    if (data.length === 0 && offset < total) {
+      throw new MediaReadError(`${source} pagination`);
+    }
+    if (offset >= total) break;
+  }
+
+  return all;
 }
 
 /* ----------------------------------------------------------------- model */
@@ -142,7 +194,8 @@ function kindOf(mime: string | null, extension: string | null): Kind {
   }
   if (m.startsWith("video/") || ["mp4", "mov", "webm", "mkv"].includes(e)) return "video";
   if (m === "application/pdf" || e === "pdf") return "document";
-  if (["doc", "docx", "txt", "csv", "xls", "xlsx", "ppt", "pptx", "md"].includes(e)) return "document";
+  if (["doc", "docx", "txt", "csv", "xls", "xlsx", "ppt", "pptx", "md"].includes(e))
+    return "document";
   if (m.includes("zip") || ["zip", "tar", "gz", "7z", "rar"].includes(e)) return "archive";
   if (m.startsWith("application/") && m.includes("json")) return "document";
   return "other";
@@ -157,17 +210,35 @@ function kindOf(mime: string | null, extension: string | null): Kind {
 async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: string[] }> {
   const notes: string[] = [];
 
-  const bucketList = (
-    (await fetch(`${url()}/storage/v1/bucket`, { headers: admin() })
-      .then((r) => (r.ok ? r.json() : []))
-      .catch(() => [])) as { name: string; public: boolean }[]
-  ).filter((bucket) => MARKETPLACE_STORAGE_BUCKETS.has(bucket.name));
+  let bucketResponse: Response;
+  try {
+    bucketResponse = await fetch(`${url()}/storage/v1/bucket`, { headers: admin() });
+  } catch {
+    throw new MediaReadError("storage buckets");
+  }
+  if (!bucketResponse.ok) throw new MediaReadError("storage buckets", bucketResponse.status);
+  const bucketData = (await bucketResponse.json()) as unknown;
+  if (
+    !Array.isArray(bucketData) ||
+    bucketData.some(
+      (bucket) =>
+        typeof bucket !== "object" ||
+        bucket === null ||
+        typeof (bucket as { name?: unknown }).name !== "string" ||
+        typeof (bucket as { public?: unknown }).public !== "boolean",
+    )
+  ) {
+    throw new MediaReadError("storage buckets");
+  }
+  const bucketList = (bucketData as { name: string; public: boolean }[]).filter((bucket) =>
+    MARKETPLACE_STORAGE_BUCKETS.has(bucket.name),
+  );
 
   const assets: Asset[] = [];
 
   // 1. Real files in real buckets.
   for (const bucket of bucketList) {
-    const objects = await walkBucket(bucket.name);
+    const objects = await walkBucket(bucket.name, notes);
     for (const { path, object } of objects) {
       const extension = extensionOf(path);
       const mime = object.metadata?.mimetype ?? null;
@@ -175,9 +246,12 @@ async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: s
         asset_id: `storage:${bucket.name}:${path}`,
         source: `storage/${bucket.name}`,
         authority:
-          bucket.name === "legal-documents" ? "Legal Manager"
-            : bucket.name === "franchise-documents" ? "Franchise Manager"
-              : bucket.name === "developer-task-files" ? "Task Manager"
+          bucket.name === "legal-documents"
+            ? "Legal Manager"
+            : bucket.name === "franchise-documents"
+              ? "Franchise Manager"
+              : bucket.name === "developer-task-files"
+                ? "Task Manager"
                 : "Marketplace Manager",
         filename: path.split("/").pop() ?? path,
         display_name: path,
@@ -185,7 +259,8 @@ async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: s
         extension,
         kind: kindOf(mime, extension),
         size_bytes: object.metadata?.size ?? null,
-        width: null, height: null,
+        width: null,
+        height: null,
         checksum: null,
         storage_path: `${bucket.name}/${path}`,
         is_public: Boolean(bucket.public),
@@ -199,8 +274,10 @@ async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: s
 
   // 2. brand_assets - the one table here that already looks like a media
   //    table, checksum and dimensions included.
-  const brand = await rows<Record<string, unknown>>(
+  const brand = await allRows<Record<string, unknown>>(
     "brand_assets?select=key,name,asset_type,mime_type,size_bytes,width,height,public_path,sha256,approved,active,created_at",
+    "brand_assets",
+    "key",
   );
   for (const b of brand) {
     const extension = extensionOf(String(b.public_path ?? b.key ?? ""));
@@ -231,8 +308,9 @@ async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: s
 
   // 3. Module documents. Metadata only - the file itself stays with the
   //    manager that owns it, which is section 54's rule generalised.
-  const franchise = await rows<Record<string, unknown>>(
+  const franchise = await allRows<Record<string, unknown>>(
     "franchise_documents?select=id,name,doc_type,file_url,status,uploaded_at,created_at",
+    "franchise_documents",
   );
   for (const f of franchise) {
     const extension = extensionOf(String(f.file_url ?? f.name ?? ""));
@@ -242,9 +320,13 @@ async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: s
       authority: "Franchise Manager",
       filename: String(f.name ?? f.id),
       display_name: `${f.name ?? f.id}${f.doc_type ? ` (${f.doc_type})` : ""}`,
-      mime_type: null, extension,
+      mime_type: null,
+      extension,
       kind: kindOf(null, extension) === "other" ? "document" : kindOf(null, extension),
-      size_bytes: null, width: null, height: null, checksum: null,
+      size_bytes: null,
+      width: null,
+      height: null,
+      checksum: null,
       storage_path: null,
       is_public: false,
       status: String(f.status ?? "unknown"),
@@ -254,15 +336,19 @@ async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: s
     });
   }
 
-  const legal = await rows<Record<string, unknown>>("legal_documents?select=id");
+  const legal = await allRows<Record<string, unknown>>(
+    "legal_documents?select=id",
+    "legal_documents",
+  );
   if (legal.length) {
     notes.push(
       `${legal.length} legal document(s) exist. They are counted and not listed: the Legal Manager is authoritative for them and this screen must not become a second way to reach their content.`,
     );
   }
 
-  const training = await rows<Record<string, unknown>>(
+  const training = await allRows<Record<string, unknown>>(
     "bot_training_documents?select=id,title,source_type,status,created_at",
+    "bot_training_documents",
   );
   for (const t of training) {
     assets.push({
@@ -271,9 +357,15 @@ async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: s
       authority: "Chatbot Manager",
       filename: String(t.title ?? t.id),
       display_name: String(t.title ?? t.id),
-      mime_type: null, extension: null, kind: "document",
-      size_bytes: null, width: null, height: null, checksum: null,
-      storage_path: null, is_public: false,
+      mime_type: null,
+      extension: null,
+      kind: "document",
+      size_bytes: null,
+      width: null,
+      height: null,
+      checksum: null,
+      storage_path: null,
+      is_public: false,
       status: String(t.status ?? "unknown"),
       uploaded_at: (t.created_at as string) ?? null,
       missing_file: false,
@@ -294,8 +386,9 @@ async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: s
  * actually exists on this catalogue.
  */
 async function referenceReport(assets: Asset[]) {
-  const products = await rows<Record<string, unknown>>(
-    "marketplace_products?select=id,name,slug,cover_image,icon,logo,thumbnail_url,favicon,visible,content_status&limit=1000",
+  const products = await allRows<Record<string, unknown>>(
+    "marketplace_products?select=id,name,slug,cover_image,icon,logo,thumbnail_url,favicon,visible,content_status",
+    "marketplace_products",
   );
 
   const referenced = new Set<string>();
@@ -335,10 +428,11 @@ async function referenceReport(assets: Asset[]) {
     products_without_image: products.length - withImage,
     products_with_icon_name_only: iconNameOnly,
     published_without_image: published.filter(
-      (p) => !["cover_image", "logo", "thumbnail_url"].some((f) => {
-        const v = p[f as keyof typeof p];
-        return typeof v === "string" && v.trim();
-      }),
+      (p) =>
+        !["cover_image", "logo", "thumbnail_url"].some((f) => {
+          const v = p[f as keyof typeof p];
+          return typeof v === "string" && v.trim();
+        }),
     ).length,
     orphan_candidates: assets.filter((a) => a.references === 0 && !a.missing_file).length,
     referenced: assets.filter((a) => a.references > 0).length,
@@ -348,26 +442,44 @@ async function referenceReport(assets: Asset[]) {
 /* ---------------------------------------------------------------- audit */
 
 async function audit(
-  request: Request, action: string, after: unknown, reason: string,
-): Promise<void> {
+  request: Request,
+  action: string,
+  after: unknown,
+  reason: string,
+): Promise<boolean> {
   try {
     const authorization = request.headers.get("authorization");
     const anon =
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    const response = await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "media", p_entity_id: null,
-        p_before: null, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "media",
+        p_entity_id: null,
+        p_before: null,
+        p_after: after,
+        p_reason: reason,
       }),
     });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("[media] audit failed", response.status, detail.slice(0, 300));
+      return false;
+    }
+    return true;
   } catch (error) {
     console.error("[media] audit failed", error);
+    return false;
   }
 }
 
@@ -377,7 +489,8 @@ const SORTS: Record<string, (a: Asset, b: Asset) => number> = {
   name_asc: (a, b) => a.display_name.localeCompare(b.display_name),
   name_desc: (a, b) => b.display_name.localeCompare(a.display_name),
   largest: (a, b) => (b.size_bytes ?? -1) - (a.size_bytes ?? -1),
-  smallest: (a, b) => (a.size_bytes ?? Number.MAX_SAFE_INTEGER) - (b.size_bytes ?? Number.MAX_SAFE_INTEGER),
+  smallest: (a, b) =>
+    (a.size_bytes ?? Number.MAX_SAFE_INTEGER) - (b.size_bytes ?? Number.MAX_SAFE_INTEGER),
 };
 
 export const Route = createFileRoute("/api/marketplace/media")({
@@ -397,26 +510,49 @@ export const Route = createFileRoute("/api/marketplace/media")({
         };
         if (!may("media_view")) {
           await recordDenial(request, {
-            action: "media_view", permission: "marketplace.media.view",
-            roles: caller.roles, entityType: "media", recordId: null,
+            action: "media_view",
+            permission: "marketplace.media.view",
+            roles: caller.roles,
+            entityType: "media",
+            recordId: null,
             why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
-            { ok: false, reason: "permission_denied", message: "Permission marketplace.media.view is required." },
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: "Permission marketplace.media.view is required.",
+            },
             { status: 403 },
           );
         }
 
-        const { assets, buckets, notes } = await collect();
-        const references = await referenceReport(assets);
+        let assets: Asset[];
+        let buckets: string[];
+        let notes: string[];
+        let references: Awaited<ReturnType<typeof referenceReport>>;
+        try {
+          ({ assets, buckets, notes } = await collect());
+          references = await referenceReport(assets);
+        } catch (error) {
+          if (!(error instanceof MediaReadError)) throw error;
+          console.error("[media] source read failed", error.message);
+          return Response.json(
+            { error: "Could not read the media library", source: error.source },
+            { status: 502 },
+          );
+        }
 
         // Section 28. Metadata only; no storage credential and no signed URL
         // is ever put in an export.
         if (params.get("format") === "csv") {
           if (!may("export")) {
             await recordDenial(request, {
-              action: "media_export", permission: "marketplace.export",
-              roles: caller.roles, entityType: "media", recordId: null,
+              action: "media_export",
+              permission: "marketplace.export",
+              roles: caller.roles,
+              entityType: "media",
+              recordId: null,
               why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
             });
             return Response.json({ ok: false, reason: "permission_denied" }, { status: 403 });
@@ -425,16 +561,41 @@ export const Route = createFileRoute("/api/marketplace/media")({
             const text = v === null || v === undefined ? "" : String(v);
             return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
           };
-          const lines = ["asset_id,source,authority,filename,kind,mime,size_bytes,checksum,status,public,references,uploaded_at"];
+          const lines = [
+            "asset_id,source,authority,filename,kind,mime,size_bytes,checksum,status,public,references,uploaded_at",
+          ];
           for (const a of assets) {
-            lines.push([
-              a.asset_id, a.source, a.authority, a.filename, a.kind, a.mime_type ?? "",
-              a.size_bytes ?? "", a.checksum ?? "", a.status, a.is_public, a.references,
-              a.uploaded_at ?? "",
-            ].map(cell).join(","));
+            lines.push(
+              [
+                a.asset_id,
+                a.source,
+                a.authority,
+                a.filename,
+                a.kind,
+                a.mime_type ?? "",
+                a.size_bytes ?? "",
+                a.checksum ?? "",
+                a.status,
+                a.is_public,
+                a.references,
+                a.uploaded_at ?? "",
+              ]
+                .map(cell)
+                .join(","),
+            );
           }
-          await audit(request, "Media metadata exported", { rows: assets.length },
-            "Media library metadata exported as CSV from the Marketplace Manager.");
+          const auditRecorded = await audit(
+            request,
+            "Media metadata exported",
+            { rows: assets.length },
+            "Media library metadata exported as CSV from the Marketplace Manager.",
+          );
+          if (!auditRecorded) {
+            return Response.json(
+              { error: "Could not record the media export audit" },
+              { status: 502 },
+            );
+          }
           return new Response(lines.join("\n"), {
             headers: {
               "Content-Type": "text/csv; charset=utf-8",
@@ -456,8 +617,20 @@ export const Route = createFileRoute("/api/marketplace/media")({
         if (source !== "all") filtered = filtered.filter((a) => a.source === source);
         if (q) {
           filtered = filtered.filter((a) =>
-            [a.display_name, a.filename, a.asset_id, a.mime_type, a.extension, a.source, a.status]
-              .some((v) => String(v ?? "").toLowerCase().includes(q)));
+            [
+              a.display_name,
+              a.filename,
+              a.asset_id,
+              a.mime_type,
+              a.extension,
+              a.source,
+              a.status,
+            ].some((v) =>
+              String(v ?? "")
+                .toLowerCase()
+                .includes(q),
+            ),
+          );
         }
         filtered = [...filtered].sort(SORTS[sort] ?? SORTS.newest);
 
@@ -473,7 +646,8 @@ export const Route = createFileRoute("/api/marketplace/media")({
           ok: true,
           total: assets.length,
           matched: filtered.length,
-          page, size,
+          page,
+          size,
           assets: filtered.slice((page - 1) * size, page * size),
           sources: [...new Set(assets.map((a) => a.source))].sort(),
           buckets,
@@ -484,7 +658,8 @@ export const Route = createFileRoute("/api/marketplace/media")({
             by_kind_count: countByKind,
             // Section 47, exactly as it asks.
             quota_bytes: null,
-            quota_note: "Provider quota unavailable — Supabase does not expose a storage quota through its API, so no total or remaining figure is shown rather than an invented one.",
+            quota_note:
+              "Provider quota unavailable — Supabase does not expose a storage quota through its API, so no total or remaining figure is shown rather than an invented one.",
             files_missing: assets.filter((a) => a.missing_file).length,
           },
           references,
@@ -532,12 +707,17 @@ export const Route = createFileRoute("/api/marketplace/media")({
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
         const decision = resolveAction({
-          roles: caller.roles, action: "media_download", permissions: matrix,
+          roles: caller.roles,
+          action: "media_download",
+          permissions: matrix,
         });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action: "media_download", permission: "marketplace.media.download",
-            roles: caller.roles, entityType: "media", recordId: body.asset_id ?? null,
+            action: "media_download",
+            permission: "marketplace.media.download",
+            roles: caller.roles,
+            entityType: "media",
+            recordId: body.asset_id ?? null,
             why: `${decision.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
@@ -550,8 +730,10 @@ export const Route = createFileRoute("/api/marketplace/media")({
         if (!assetId.startsWith("storage:")) {
           return Response.json(
             {
-              ok: false, reason: "not_downloadable",
-              message: "Only a file that actually sits in storage can be signed for. Rows from a module table are metadata; that module serves its own file.",
+              ok: false,
+              reason: "not_downloadable",
+              message:
+                "Only a file that actually sits in storage can be signed for. Rows from a module table are metadata; that module serves its own file.",
             },
             { status: 400 },
           );
@@ -576,12 +758,19 @@ export const Route = createFileRoute("/api/marketplace/media")({
           return Response.json({ ok: false, reason: "invalid_path" }, { status: 400 });
         }
         if (bucket === "legal-documents") {
-          await audit(request, "Legal document download refused", { asset_id: assetId },
-            "Media Library will not sign a legal document; the Legal Manager is authoritative for those.");
+          const auditRecorded = await audit(
+            request,
+            "Legal document download refused",
+            { asset_id: assetId },
+            "Media Library will not sign a legal document; the Legal Manager is authoritative for those.",
+          );
           return Response.json(
             {
-              ok: false, reason: "legal_authority",
-              message: "This document belongs to the Legal Manager. Its access rules are authoritative and this screen does not go around them.",
+              ok: false,
+              reason: "legal_authority",
+              auditRecorded,
+              message:
+                "This document belongs to the Legal Manager. Its access rules are authoritative and this screen does not go around them.",
             },
             { status: 403 },
           );
@@ -618,19 +807,38 @@ export const Route = createFileRoute("/api/marketplace/media")({
         // Each segment encoded, so "#" or "?" in a file name is part of the
         // name rather than the end of the URL.
         const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-        const response = await fetch(`${url()}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${encodedPath}`, {
-          method: "POST", headers: admin(), body: JSON.stringify({ expiresIn: 300 }),
-        });
+        const response = await fetch(
+          `${url()}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${encodedPath}`,
+          {
+            method: "POST",
+            headers: admin(),
+            body: JSON.stringify({ expiresIn: 300 }),
+          },
+        );
         if (!response.ok) {
           return Response.json(
-            { ok: false, reason: "sign_failed", message: "That file could not be signed for download." },
+            {
+              ok: false,
+              reason: "sign_failed",
+              message: "That file could not be signed for download.",
+            },
             { status: 502 },
           );
         }
         const signed = (await response.json()) as { signedURL?: string };
-        await audit(request, "Media download signed", { asset_id: assetId, expires_in: 300 },
+        const auditRecorded = await audit(
+          request,
+          "Media download signed",
+          { asset_id: assetId, expires_in: 300 },
           String(body.reason ?? "").slice(0, 300) ||
-            `A five-minute download link was issued for ${assetId}.`);
+            `A five-minute download link was issued for ${assetId}.`,
+        );
+        if (!auditRecorded) {
+          return Response.json(
+            { error: "Could not record the download audit; no link was issued" },
+            { status: 502 },
+          );
+        }
         return Response.json({
           ok: true,
           asset_id: assetId,

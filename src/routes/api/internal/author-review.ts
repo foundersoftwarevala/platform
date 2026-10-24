@@ -2,7 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { requireInternalOperator, type GuardResult } from "@/lib/auth/internal-guard";
 import { bearerToken, userFromBearerToken } from "@/lib/auth/bearer-user.server";
-import { REVIEW_TRANSITIONS, rest } from "@/lib/marketplace/author-guard";
+import {
+  AuthorBackendError,
+  readAllRows,
+  REVIEW_TRANSITIONS,
+  rest,
+} from "@/lib/marketplace/author-guard";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -68,14 +73,18 @@ export const Route = createFileRoute("/api/internal/author-review")({
           ? `moderation_status=eq.${encodeURIComponent(state)}`
           : `moderation_status=in.(submitted,under_review,changes_requested)`;
 
-        const response = await rest(
-          `marketplace_products?select=${QUEUE_FIELDS}&${filter}` +
-            `&seller_id=not.is.null&order=updated_at.asc&limit=200`,
-        );
-        if (!response.ok) {
+        let products: { seller_id: string }[];
+        try {
+          products = await readAllRows(
+            `marketplace_products?select=${QUEUE_FIELDS}&${filter}` +
+              `&seller_id=not.is.null&order=updated_at.asc,id.asc`,
+            "Review queue read",
+          );
+        } catch (error) {
+          if (!(error instanceof AuthorBackendError)) throw error;
+          console.error("[author review] queue read failed", error.message);
           return Response.json({ error: "Could not read the review queue" }, { status: 502 });
         }
-        const products = (await response.json()) as { seller_id: string }[];
 
         // Attach the author behind each submission so a reviewer sees who it is from.
         const sellerIds = Array.from(new Set(products.map((p) => p.seller_id).filter(Boolean)));
@@ -85,10 +94,12 @@ export const Route = createFileRoute("/api/internal/author-review")({
           const sellerResponse = await rest(
             `marketplace_sellers?select=id,display_name,slug,status&id=in.(${list})`,
           );
-          if (sellerResponse.ok) {
-            const rows = (await sellerResponse.json()) as { id: string }[];
-            sellers = Object.fromEntries(rows.map((r) => [r.id, r]));
+          if (!sellerResponse.ok) {
+            console.error("[author review] seller queue lookup failed", sellerResponse.status);
+            return Response.json({ error: "Could not read the review queue" }, { status: 502 });
           }
+          const rows = (await sellerResponse.json()) as { id: string }[];
+          sellers = Object.fromEntries(rows.map((r) => [r.id, r]));
         }
 
         return Response.json({ count: products.length, products, sellers });
@@ -127,10 +138,17 @@ export const Route = createFileRoute("/api/internal/author-review")({
         const currentResponse = await rest(
           `marketplace_products?select=id,seller_id,moderation_status,name&id=eq.${encodeURIComponent(productId)}&limit=1`,
         );
+        if (!currentResponse.ok) {
+          console.error("[author review] current state read failed", currentResponse.status);
+          return Response.json(
+            { error: "Could not verify the product's current review state" },
+            { status: 502 },
+          );
+        }
         const current = (
           (await currentResponse.json()) as {
             seller_id: string | null;
-            moderation_status: string;
+            moderation_status: string | null;
             name: string;
           }[]
         )[0];
@@ -140,6 +158,20 @@ export const Route = createFileRoute("/api/internal/author-review")({
             { error: "This is a platform product, not an author submission" },
             { status: 409 },
           );
+        }
+
+        const sellerResponse = await rest(
+          `marketplace_sellers?select=id,owner_user_id&id=eq.${encodeURIComponent(current.seller_id)}&limit=1`,
+        );
+        if (!sellerResponse.ok) {
+          console.error("[author review] author lookup failed", sellerResponse.status);
+          return Response.json({ error: "Could not verify the product's author" }, { status: 502 });
+        }
+        const seller = (
+          (await sellerResponse.json()) as { id: string; owner_user_id: string | null }[]
+        )[0];
+        if (!seller?.owner_user_id) {
+          return Response.json({ error: "Could not verify the product's author" }, { status: 502 });
         }
 
         const from = String(current.moderation_status ?? "draft");
@@ -164,30 +196,80 @@ export const Route = createFileRoute("/api/internal/author-review")({
           if (reviewer) patch.approved_by = reviewer;
         }
 
-        const patched = await rest(`marketplace_products?id=eq.${encodeURIComponent(productId)}`, {
-          method: "PATCH",
-          headers: { Prefer: "return=representation" },
-          body: JSON.stringify(patch),
-        });
+        const statusFilter =
+          current.moderation_status === null
+            ? "moderation_status=is.null"
+            : `moderation_status=eq.${encodeURIComponent(current.moderation_status)}`;
+        const patched = await rest(
+          `marketplace_products?id=eq.${encodeURIComponent(productId)}` +
+            `&seller_id=eq.${encodeURIComponent(current.seller_id)}&${statusFilter}`,
+          {
+            method: "PATCH",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify(patch),
+          },
+        );
         if (!patched.ok) {
           const detail = await patched.text();
           console.error("[author review] patch failed", patched.status, detail.slice(0, 300));
           return Response.json({ error: "Could not record the decision" }, { status: 502 });
         }
 
-        // Tell the author. A decision they never hear about is not a decision.
-        await rest("notifications", {
-          method: "POST",
-          headers: { Prefer: "return=minimal" },
-          body: JSON.stringify({
-            title: `Your product "${current.name}" is now ${decision.replace(/_/g, " ")}`,
-            body: String(body.reason ?? "").trim() || null,
-            kind: "author_review",
-          }),
-        }).catch(() => undefined);
-
         const rows = (await patched.json()) as unknown[];
-        return Response.json({ ok: true, productId, from, to: decision, product: rows[0] });
+        if (!rows.length) {
+          return Response.json(
+            { error: "The product review state changed; reload before trying again" },
+            { status: 409 },
+          );
+        }
+
+        try {
+          const notification = await rest("notifications", {
+            method: "POST",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({
+              user_id: seller.owner_user_id,
+              title: `Your product "${current.name}" is now ${decision.replace(/_/g, " ")}`,
+              body: String(body.reason ?? "").trim() || null,
+              kind: "author_review",
+            }),
+          });
+          if (!notification.ok) {
+            const detail = await notification.text();
+            console.error(
+              "[author review] notification failed",
+              notification.status,
+              detail.slice(0, 300),
+            );
+            return Response.json(
+              {
+                error: "The review decision was recorded, but the author notification failed",
+                decisionRecorded: true,
+                notificationSent: false,
+              },
+              { status: 502 },
+            );
+          }
+        } catch (error) {
+          console.error("[author review] notification request failed", error);
+          return Response.json(
+            {
+              error: "The review decision was recorded, but the author notification failed",
+              decisionRecorded: true,
+              notificationSent: false,
+            },
+            { status: 502 },
+          );
+        }
+
+        return Response.json({
+          ok: true,
+          productId,
+          from,
+          to: decision,
+          product: rows[0],
+          notificationSent: true,
+        });
       },
     },
   },

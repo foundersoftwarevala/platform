@@ -34,7 +34,9 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export type GuardResult = { ok: true; via: string } | { ok: false; response: Response };
+export type GuardResult =
+  | { ok: true; via: string; role?: string; roles?: string[] }
+  | { ok: false; response: Response };
 
 function deny(message: string, status = 401): GuardResult {
   return { ok: false, response: Response.json({ error: message }, { status }) };
@@ -111,7 +113,8 @@ export async function requireInternalOperator(input: RequestLike): Promise<Guard
       if (value) held.push(value);
     }
 
-    const role = held.find((value) => OPERATOR_ROLES.has(value));
+    const roles = held.filter((value) => OPERATOR_ROLES.has(value));
+    const role = roles.find((value) => value === "admin" || value === "boss") ?? roles[0];
     if (!role) {
       // Names who can, because the screens in front of this are opened by
       // support as well as developers - RouteAccessGate admits both - and a
@@ -121,7 +124,7 @@ export async function requireInternalOperator(input: RequestLike): Promise<Guard
         403,
       );
     }
-    return { ok: true, via: `operator:${role}` };
+    return { ok: true, via: `operator:${role}`, role, roles };
   } catch (error) {
     console.error("[internal guard] check failed", error);
     return deny("Could not verify your access.", 503);

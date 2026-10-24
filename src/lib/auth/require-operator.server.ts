@@ -31,7 +31,7 @@ export async function requireOperator(
    * console's own functions also serve the seo and marketing staff the route
    * gate already lets in. Nothing else is widened.
    */
-  options: { alsoAllow?: string[] } = {},
+  options: { alsoAllow?: string[]; allowedRoles?: string[] } = {},
 ): Promise<Operator> {
   const { getRequestHeader } = await import("@tanstack/react-start/server");
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
@@ -50,7 +50,14 @@ export async function requireOperator(
 
   const roles = (rows ?? []).map((r) => String(r.role));
   const also = new Set(options.alsoAllow ?? []);
-  if (!roles.some((r) => isOperatorRole(r) || also.has(r))) {
+  const allowed = options.allowedRoles
+    ? new Set(options.allowedRoles)
+    : null;
+  if (
+    !roles.some((r) =>
+      allowed ? allowed.has(r) : isOperatorRole(r) || also.has(r),
+    )
+  ) {
     throw new Error(`${action} needs operator rights.`);
   }
 

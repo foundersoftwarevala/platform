@@ -541,47 +541,10 @@ const RESOURCES: Record<string, Resource> = {
       "created_at",
       "updated_at",
     ],
-    editable: ["full_name", "email", "country", "region", "niche", "status"],
+    editable: ["full_name", "email", "country", "region", "niche"],
     searchable: ["email", "status"],
     order: "created_at.desc",
     label: "Influencer",
-  },
-  /**
-   * The rest of the influencer programme.
-   *
-   * Influencer Manager's list sections rendered nothing at all - not an error,
-   * an empty table - because a ManagerWall only reads a real table when its
-   * config names a `resource`, and none of the influencer walls named one. They
-   * fell back to `seed: []`. Only influencer_profiles had a resource here at
-   * all, so the other seven tables had no way to reach a screen.
-   *
-   * Each is read-only except where an operator genuinely decides something: a
-   * payout's status, an application's status, an account's verification. The
-   * amounts, the handles and the follower counts are the record of what
-   * happened and are not editable from a console.
-   */
-  influencer_applications: {
-    table: "influencer_applications",
-    select: [
-      "id",
-      "application_number",
-      "full_name",
-      "email",
-      "phone",
-      "country",
-      "region",
-      "niche",
-      "followers",
-      "engagement_rate",
-      "status",
-      "rejection_reason",
-      "reviewed_at",
-      "created_at",
-    ],
-    editable: ["status", "rejection_reason"],
-    searchable: ["full_name", "email", "status", "application_number"],
-    order: "created_at.desc",
-    label: "Influencer application",
   },
   influencer_social_accounts: {
     table: "influencer_social_accounts",
@@ -643,7 +606,9 @@ const RESOURCES: Record<string, Resource> = {
       "processed_at",
       "created_at",
     ],
-    editable: ["status", "provider_reference"],
+    // Legacy payouts have no transition RPC. Keep this ledger read-only; all
+    // status changes must use the canonical partner_payouts transition path.
+    editable: [],
     searchable: ["status", "currency", "provider_reference"],
     order: "created_at.desc",
     label: "Influencer payout",
@@ -1973,23 +1938,10 @@ const RESOURCES: Record<string, Resource> = {
   // Money owed and money paid. The amounts are earned, not typed in.
   franchise_royalties: {
     table: "franchise_royalties",
-    select: [
-      "id",
-      "franchise_id",
-      "period",
-      "gross_sales",
-      "royalty_rate",
-      "royalty_due",
-      "commission_due",
-      "paid_amount",
-      "status",
-      "due_date",
-      "paid_at",
-      "created_at",
-    ],
-    editable: ["status"],
+    select: ["id", "franchise_id", "period", "gross_sales", "royalty_due", "paid_amount", "status"],
+    editable: [],
     searchable: ["period", "status"],
-    order: "due_date.desc",
+    order: "period.desc",
     retirable: false,
     label: "Franchise royalties",
   },
@@ -2707,6 +2659,9 @@ const RESOURCES: Record<string, Resource> = {
   // sale produced; an operator decides only whether to approve or reverse.
   partner_commissions: {
     table: "partner_commissions",
+    // Keep the shared partner wall out of the influencer ledger. Influencer
+    // commission access is restricted to the dedicated manager resources.
+    scope: "partner_kind=neq.influencer",
     select: [
       "id",
       "partner_kind",
@@ -2895,6 +2850,18 @@ const RESOURCES: Record<string, Resource> = {
       "completed_at",
     ],
     editable: ["status", "payment_method", "provider", "provider_reference", "failure_reason"],
+    transitions: {
+      column: "status",
+      allowed: {
+        approved: ["requested"],
+        processing: ["approved"],
+        completed: ["processing"],
+        failed: ["approved", "processing"],
+        cancelled: ["requested", "approved"],
+      },
+      refused: "A payout moves requested, approved, processing, completed.",
+    },
+    stampOn: { approved: ["approved_at"], completed: ["completed_at"] },
     searchable: ["status", "provider_reference"],
     order: "requested_at.desc",
     retirable: false,
@@ -4232,6 +4199,15 @@ function resourceNamed(name: string): Resource | undefined {
   return Object.prototype.hasOwnProperty.call(RESOURCES, name) ? RESOURCES[name] : undefined;
 }
 
+function resourceAccessDenied(name: string, roles: string[] | undefined): boolean {
+  const restricted = name === "influencer" || name.startsWith("influencer_") || name === "partner_payouts";
+  return restricted && !roles?.some((role) => role === "admin" || role === "boss");
+}
+
+function resourceAccessDeniedResponse(): Response {
+  return Response.json({ error: "Insufficient permissions" }, { status: 403 });
+}
+
 export const Route = createFileRoute("/api/manager/resource")({
   server: {
     handlers: {
@@ -4249,6 +4225,7 @@ export const Route = createFileRoute("/api/manager/resource")({
             { status: 400 },
           );
         }
+        if (resourceAccessDenied(name, gate.roles)) return resourceAccessDeniedResponse();
 
         const limit = Math.min(Math.max(Number(params.get("limit") ?? 50) || 50, 1), 200);
         const offset = Math.max(Number(params.get("offset") ?? 0) || 0, 0);
@@ -4396,6 +4373,8 @@ export const Route = createFileRoute("/api/manager/resource")({
 
         const resource = resourceNamed(String(body.resource ?? ""));
         if (!resource) return Response.json({ error: "Unknown resource" }, { status: 400 });
+        if (resourceAccessDenied(String(body.resource ?? ""), gate.roles))
+          return resourceAccessDeniedResponse();
         if (!resource.creatable?.length) {
           return Response.json(
             { error: `${resource.label} cannot be created here` },
@@ -4461,7 +4440,10 @@ export const Route = createFileRoute("/api/manager/resource")({
           const rows = (await response.json()) as Record<string, unknown>[];
           if (review && !rows[0]?.id) {
             console.error("[manager] product create returned no id");
-            return Response.json({ error: "Product creation could not be verified" }, { status: 502 });
+            return Response.json(
+              { error: "Product creation could not be verified" },
+              { status: 502 },
+            );
           }
           if (review) logProductReview(review, "manager products", String(rows[0].id));
           // The storefront caches what this table holds; empty them so the saved
@@ -4498,6 +4480,8 @@ export const Route = createFileRoute("/api/manager/resource")({
         const resource = resourceNamed(String(params.get("resource") ?? ""));
         const id = String(params.get("id") ?? "");
         if (!resource) return Response.json({ error: "Unknown resource" }, { status: 400 });
+        if (resourceAccessDenied(String(params.get("resource") ?? ""), gate.roles))
+          return resourceAccessDeniedResponse();
         if (!resource.archive) {
           return Response.json(
             { error: `${resource.label} cannot be retired here` },
@@ -4564,6 +4548,8 @@ export const Route = createFileRoute("/api/manager/resource")({
 
         const resource = resourceNamed(String(body.resource ?? ""));
         if (!resource) return Response.json({ error: "Unknown resource" }, { status: 400 });
+        if (resourceAccessDenied(String(body.resource ?? ""), gate.roles))
+          return resourceAccessDeniedResponse();
         if (!resource.editable.length) {
           return Response.json({ error: `${resource.label} is read only` }, { status: 403 });
         }

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { requireAuthor, rest } from "@/lib/marketplace/author-guard";
+import { AuthorBackendError, readAllRows, requireAuthor } from "@/lib/marketplace/author-guard";
 
 /**
  * Real dashboard numbers for a vendor or author.
@@ -42,47 +42,85 @@ export const Route = createFileRoute("/api/seller/metrics")({
         const sellerId = gate.seller.id;
 
         const now = new Date();
-        const startOfDay = new Date(Date.UTC(
-          now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
-        )).toISOString();
-        const startOfMonth = new Date(Date.UTC(
-          now.getUTCFullYear(), now.getUTCMonth(), 1,
-        )).toISOString();
+        const startOfDay = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+        ).toISOString();
+        const startOfMonth = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+        ).toISOString();
 
-        const [productsRes, itemsRes, commissionsRes] = await Promise.all([
-          rest(
-            `marketplace_products?select=id,moderation_status,visible,downloads` +
-              `&seller_id=eq.${encodeURIComponent(sellerId)}&limit=2000`,
-          ),
-          rest(
-            `marketplace_order_items?select=id,order_id,line_total,created_at` +
-              `&seller_id=eq.${encodeURIComponent(sellerId)}&limit=2000`,
-          ),
-          rest(
-            `marketplace_commissions?select=id,order_item_id,gross_amount,seller_amount,status,created_at` +
-              `&seller_id=eq.${encodeURIComponent(sellerId)}&limit=2000`,
-          ),
-        ]);
-
-        const products = productsRes.ok
-          ? ((await productsRes.json()) as { moderation_status: string; visible: boolean; downloads: number | null }[])
-          : [];
-        const items = itemsRes.ok ? ((await itemsRes.json()) as OrderItem[]) : [];
-        const commissions = commissionsRes.ok
-          ? ((await commissionsRes.json()) as
-              { order_item_id: string; gross_amount: number | string; seller_amount: number | string;
-                status: string; created_at: string }[])
-          : [];
+        let products: {
+          moderation_status: string;
+          visible: boolean;
+          downloads: number | null;
+        }[];
+        let items: OrderItem[];
+        let commissions: {
+          order_item_id: string;
+          gross_amount: number | string;
+          seller_amount: number | string;
+          status: string;
+          created_at: string;
+        }[];
+        try {
+          [products, items, commissions] = await Promise.all([
+            readAllRows<{
+              moderation_status: string;
+              visible: boolean;
+              downloads: number | null;
+            }>(
+              `marketplace_products?select=id,moderation_status,visible,downloads` +
+                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=id.asc`,
+              "Product metrics read",
+            ),
+            readAllRows<OrderItem>(
+              `marketplace_order_items?select=id,order_id,line_total,created_at` +
+                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=id.asc`,
+              "Order item metrics read",
+            ),
+            readAllRows<{
+              order_item_id: string;
+              gross_amount: number | string;
+              seller_amount: number | string;
+              status: string;
+              created_at: string;
+            }>(
+              `marketplace_commissions?select=id,order_item_id,gross_amount,seller_amount,status,created_at` +
+                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=id.asc`,
+              "Commission metrics read",
+            ),
+          ]);
+        } catch (error) {
+          if (!(error instanceof AuthorBackendError)) throw error;
+          console.error("[seller metrics] source read failed", error.message);
+          return Response.json({ error: "Could not read your seller metrics" }, { status: 502 });
+        }
 
         // The orders behind this seller's lines, for status and buyer counts.
-        let orders: { id: string; status: string; buyer_id: string | null; created_at: string }[] = [];
+        let orders: { id: string; status: string; buyer_id: string | null; created_at: string }[] =
+          [];
         const orderIds = Array.from(new Set(items.map((i) => i.order_id).filter(Boolean)));
-        if (orderIds.length) {
-          const list = orderIds.slice(0, 500).map((id) => `"${id}"`).join(",");
-          const ordersRes = await rest(
-            `marketplace_orders?select=id,status,buyer_id,created_at&id=in.(${list})&limit=1000`,
+        try {
+          const orderPages = await Promise.all(
+            Array.from({ length: Math.ceil(orderIds.length / 200) }, (_, page) => {
+              const ids = orderIds.slice(page * 200, (page + 1) * 200);
+              const list = ids.map((id) => `"${id}"`).join(",");
+              return readAllRows<{
+                id: string;
+                status: string;
+                buyer_id: string | null;
+                created_at: string;
+              }>(
+                `marketplace_orders?select=id,status,buyer_id,created_at&id=in.(${list})&order=id.asc`,
+                "Order metrics read",
+              );
+            }),
           );
-          if (ordersRes.ok) orders = await ordersRes.json();
+          orders = orderPages.flat();
+        } catch (error) {
+          if (!(error instanceof AuthorBackendError)) throw error;
+          console.error("[seller metrics] orders read failed", error.message);
+          return Response.json({ error: "Could not read your seller metrics" }, { status: 502 });
         }
 
         const live = commissions.filter((c) => c.status !== "reversed");
@@ -90,9 +128,11 @@ export const Route = createFileRoute("/api/seller/metrics")({
 
         const published = products.filter((p) => p.visible === true).length;
         const drafts = products.filter((p) =>
-          ["draft", "changes_requested", "rejected"].includes(String(p.moderation_status))).length;
+          ["draft", "changes_requested", "rejected"].includes(String(p.moderation_status)),
+        ).length;
         const inReview = products.filter((p) =>
-          ["submitted", "under_review"].includes(String(p.moderation_status))).length;
+          ["submitted", "under_review"].includes(String(p.moderation_status)),
+        ).length;
 
         const paidOrders = orders.filter((o) => o.status === "paid");
         const buyers = paidOrders.map((o) => o.buyer_id).filter(Boolean) as string[];
@@ -102,10 +142,14 @@ export const Route = createFileRoute("/api/seller/metrics")({
         }, {});
 
         const revenueToday = money(
-          live.filter((c) => c.created_at >= startOfDay).reduce((s, c) => s + num(c.gross_amount), 0),
+          live
+            .filter((c) => c.created_at >= startOfDay)
+            .reduce((s, c) => s + num(c.gross_amount), 0),
         );
         const revenueMonth = money(
-          live.filter((c) => c.created_at >= startOfMonth).reduce((s, c) => s + num(c.gross_amount), 0),
+          live
+            .filter((c) => c.created_at >= startOfMonth)
+            .reduce((s, c) => s + num(c.gross_amount), 0),
         );
 
         /**
@@ -124,7 +168,8 @@ export const Route = createFileRoute("/api/seller/metrics")({
           "orders-pending": orders.filter((o) => o.status === "pending_payment").length,
           "orders-completed": paidOrders.length,
           "orders-cancelled": orders.filter((o) =>
-            ["cancelled", "payment_failed"].includes(String(o.status))).length,
+            ["cancelled", "payment_failed"].includes(String(o.status)),
+          ).length,
           sales: live.length,
 
           // money

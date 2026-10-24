@@ -53,9 +53,10 @@ export const Route = createFileRoute("/influencer-manager")({
   }),
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(moduleAnalyticsQueryOptions("influencer", "7d")),
-  // Operator console — it used to render in full to anonymous visitors.
+  // The database manager policy and protected service-role resources admit
+  // only admin and boss; do not use RequireRole's broader operator bypass.
   component: () => (
-    <RequireRole role={["finance", "support", "sales_support_manager"]}>
+    <RequireRole role={["admin", "boss"]} allowOperators={false}>
       <ManagerWorkspace
         primary={influencerPrimary}
         groups={influencerGroups}

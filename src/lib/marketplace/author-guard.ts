@@ -22,15 +22,20 @@ export type Seller = {
   payout_currency: string | null;
 };
 
+export class AuthorBackendError extends Error {
+  constructor(operation: string, status?: number) {
+    super(status ? `${operation} failed (${status})` : `${operation} failed`);
+    this.name = "AuthorBackendError";
+  }
+}
+
 export function supabaseUrl(): string {
   return process.env.SUPABASE_URL?.trim() ?? "";
 }
 
 function publishableKey(): string {
   return (
-    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ??
-    process.env.SUPABASE_ANON_KEY?.trim() ??
-    ""
+    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? ""
   );
 }
 
@@ -52,6 +57,47 @@ export async function rest(path: string, init: RequestInit = {}): Promise<Respon
   });
 }
 
+/** Read a complete, stably ordered PostgREST result instead of trusting its row cap. */
+export async function readAllRows<T>(path: string, operation: string): Promise<T[]> {
+  const pageSize = 200;
+  const all: T[] = [];
+  let offset = 0;
+  let total: number | null = null;
+
+  while (total === null || offset < total) {
+    let response: Response;
+    try {
+      response = await rest(`${path}&limit=${pageSize}&offset=${offset}`, {
+        headers: { Prefer: "count=exact" },
+      });
+    } catch {
+      throw new AuthorBackendError(operation);
+    }
+    if (!response.ok) throw new AuthorBackendError(operation, response.status);
+
+    const rows = (await response.json()) as unknown;
+    if (!Array.isArray(rows)) throw new AuthorBackendError(`${operation} response`);
+    const contentRange = response.headers.get("content-range") ?? "";
+    const count = /\/(\d+|\*)$/.exec(contentRange)?.[1];
+    if (count === undefined || count === "*") {
+      throw new AuthorBackendError(`${operation} count`);
+    }
+    total = Number(count);
+    if (!Number.isSafeInteger(total) || total < 0) {
+      throw new AuthorBackendError(`${operation} count`);
+    }
+
+    all.push(...(rows as T[]));
+    offset += rows.length;
+    if (rows.length === 0 && offset < total) {
+      throw new AuthorBackendError(`${operation} pagination`);
+    }
+    if (offset >= total) break;
+  }
+
+  return all;
+}
+
 /**
  * The signed-in user, proven by asking Supabase Auth to resolve the bearer
  * token. A forged or expired token resolves to null.
@@ -59,32 +105,38 @@ export async function rest(path: string, init: RequestInit = {}): Promise<Respon
 export async function currentUser(request: Request): Promise<AuthUser | null> {
   const authorization = request.headers.get("authorization");
   if (!supabaseUrl() || !publishableKey() || !authorization) return null;
+  let response: Response;
   try {
-    const response = await fetch(`${supabaseUrl()}/auth/v1/user`, {
+    response = await fetch(`${supabaseUrl()}/auth/v1/user`, {
       headers: { apikey: publishableKey(), Authorization: authorization },
     });
-    if (!response.ok) return null;
-    const user = (await response.json()) as { id?: string; email?: string };
-    return user?.id ? { id: user.id, email: user.email ?? "" } : null;
   } catch {
-    return null;
+    throw new AuthorBackendError("Authentication lookup");
   }
+  if (response.status === 401 || response.status === 403) return null;
+  if (!response.ok) throw new AuthorBackendError("Authentication lookup", response.status);
+  const user = (await response.json()) as { id?: string; email?: string };
+  return user?.id ? { id: user.id, email: user.email ?? "" } : null;
 }
 
 /** The seller record this user owns, whatever its status. */
 export async function sellerForUser(userId: string): Promise<Seller | null> {
-  const response = await rest(
-    `marketplace_sellers?select=id,owner_user_id,display_name,slug,status,payout_currency` +
-      `&owner_user_id=eq.${encodeURIComponent(userId)}&limit=1`,
-  );
-  if (!response.ok) return null;
+  let response: Response;
+  try {
+    response = await rest(
+      `marketplace_sellers?select=id,owner_user_id,display_name,slug,status,payout_currency` +
+        `&owner_user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+    );
+  } catch {
+    throw new AuthorBackendError("Author account lookup");
+  }
+  if (!response.ok) throw new AuthorBackendError("Author account lookup", response.status);
   const rows = (await response.json()) as Seller[];
   return rows[0] ?? null;
 }
 
 export type AuthorContext =
-  | { ok: true; user: AuthUser; seller: Seller }
-  | { ok: false; response: Response };
+  { ok: true; user: AuthUser; seller: Seller } | { ok: false; response: Response };
 
 function deny(message: string, status: number): { ok: false; response: Response } {
   return { ok: false, response: Response.json({ error: message }, { status }) };
@@ -102,10 +154,24 @@ export async function requireAuthor(
   if (!supabaseUrl() || !serviceKey()) {
     return deny("The marketplace backend is not configured", 503);
   }
-  const user = await currentUser(request);
+  let user: AuthUser | null;
+  try {
+    user = await currentUser(request);
+  } catch (error) {
+    if (!(error instanceof AuthorBackendError)) throw error;
+    console.error("[author guard] authentication lookup failed", error.message);
+    return deny("Could not verify your sign-in", 502);
+  }
   if (!user) return deny("Please sign in", 401);
 
-  const seller = await sellerForUser(user.id);
+  let seller: Seller | null;
+  try {
+    seller = await sellerForUser(user.id);
+  } catch (error) {
+    if (!(error instanceof AuthorBackendError)) throw error;
+    console.error("[author guard] seller lookup failed", error.message);
+    return deny("Could not verify your author account", 502);
+  }
   if (!seller) {
     return deny("This account is not registered as an author on the marketplace", 403);
   }
@@ -120,11 +186,16 @@ export async function requireAuthor(
 
 /** Confirm a product belongs to this seller. Ownership is read, never supplied. */
 export async function ownsProduct(sellerId: string, productId: string): Promise<boolean> {
-  const response = await rest(
-    `marketplace_products?select=id&id=eq.${encodeURIComponent(productId)}` +
-      `&seller_id=eq.${encodeURIComponent(sellerId)}&limit=1`,
-  );
-  if (!response.ok) return false;
+  let response: Response;
+  try {
+    response = await rest(
+      `marketplace_products?select=id&id=eq.${encodeURIComponent(productId)}` +
+        `&seller_id=eq.${encodeURIComponent(sellerId)}&limit=1`,
+    );
+  } catch {
+    throw new AuthorBackendError("Product ownership lookup");
+  }
+  if (!response.ok) throw new AuthorBackendError("Product ownership lookup", response.status);
   return ((await response.json()) as unknown[]).length > 0;
 }
 
@@ -156,12 +227,41 @@ export const REVIEW_TRANSITIONS: Record<string, string[]> = {
 
 /** Fields an author is allowed to set on their own product. */
 export const AUTHOR_EDITABLE = [
-  "name", "slug", "description", "features", "tech_stack", "technology",
-  "frontend", "backend", "database", "mobile", "cloud", "integrations",
-  "demo_url", "public_repo_url", "documentation", "thumbnail_url", "cover_image",
-  "logo", "icon", "favicon", "tags", "search_keywords", "languages", "industry_label",
-  "target_audience", "subcategory", "category_id", "software_type", "modules",
-  "benefits", "roles", "version", "price_label", "price_period", "currency",
+  "name",
+  "slug",
+  "description",
+  "features",
+  "tech_stack",
+  "technology",
+  "frontend",
+  "backend",
+  "database",
+  "mobile",
+  "cloud",
+  "integrations",
+  "demo_url",
+  "public_repo_url",
+  "documentation",
+  "thumbnail_url",
+  "cover_image",
+  "logo",
+  "icon",
+  "favicon",
+  "tags",
+  "search_keywords",
+  "languages",
+  "industry_label",
+  "target_audience",
+  "subcategory",
+  "category_id",
+  "software_type",
+  "modules",
+  "benefits",
+  "roles",
+  "version",
+  "price_label",
+  "price_period",
+  "currency",
 ] as const;
 
 /**

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { requireAuthor, rest } from "@/lib/marketplace/author-guard";
+import { AuthorBackendError, readAllRows, requireAuthor } from "@/lib/marketplace/author-guard";
 
 /**
  * What this author has actually earned.
@@ -44,31 +44,32 @@ export const Route = createFileRoute("/api/author/earnings")({
         if (!gate.ok) return gate.response;
         const sellerId = gate.seller.id;
 
-        const [commissionsResponse, payoutsResponse, productsResponse] = await Promise.all([
-          rest(
-            `marketplace_commissions?select=id,order_item_id,gross_amount,commission_amount,seller_amount,status,created_at` +
-              `&seller_id=eq.${encodeURIComponent(sellerId)}&order=created_at.desc&limit=1000`,
-          ),
-          rest(
-            `marketplace_payouts?select=id,amount,currency,status,created_at,provider_reference` +
-              `&seller_id=eq.${encodeURIComponent(sellerId)}&order=created_at.desc&limit=200`,
-          ),
-          rest(
-            `marketplace_products?select=id&seller_id=eq.${encodeURIComponent(sellerId)}&limit=1000`,
-          ),
-        ]);
-
-        if (!commissionsResponse.ok) {
+        let commissions: CommissionRow[];
+        let payouts: { amount: number | string; status: string }[];
+        let products: { id: string }[];
+        try {
+          [commissions, payouts, products] = await Promise.all([
+            readAllRows<CommissionRow>(
+              `marketplace_commissions?select=id,order_item_id,gross_amount,commission_amount,seller_amount,status,created_at` +
+                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=created_at.desc,id.asc`,
+              "Commission read",
+            ),
+            readAllRows<{ amount: number | string; status: string }>(
+              `marketplace_payouts?select=id,amount,currency,status,created_at,provider_reference` +
+                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=created_at.desc,id.asc`,
+              "Payout read",
+            ),
+            readAllRows<{ id: string }>(
+              `marketplace_products?select=id&seller_id=eq.${encodeURIComponent(sellerId)}&order=id.asc`,
+              "Product count read",
+            ),
+          ]);
+        } catch (error) {
+          if (!(error instanceof AuthorBackendError)) throw error;
+          console.error("[author earnings] source read failed", error.message);
           return Response.json({ error: "Could not read your earnings" }, { status: 502 });
         }
-
-        const commissions = (await commissionsResponse.json()) as CommissionRow[];
-        const payouts = payoutsResponse.ok
-          ? ((await payoutsResponse.json()) as { amount: number | string; status: string }[])
-          : [];
-        const productCount = productsResponse.ok
-          ? ((await productsResponse.json()) as unknown[]).length
-          : 0;
+        const productCount = products.length;
 
         const live = commissions.filter((c) => c.status !== "reversed");
         const reversedRows = commissions.filter((c) => c.status === "reversed");
@@ -77,19 +78,24 @@ export const Route = createFileRoute("/api/author/earnings")({
         const platformFee = money(live.reduce((sum, c) => sum + num(c.commission_amount), 0));
         const earned = money(live.reduce((sum, c) => sum + num(c.seller_amount), 0));
         const pending = money(
-          live.filter((c) => c.status === "pending").reduce((sum, c) => sum + num(c.seller_amount), 0),
+          live
+            .filter((c) => c.status === "pending")
+            .reduce((sum, c) => sum + num(c.seller_amount), 0),
         );
         const approved = money(
-          live.filter((c) => c.status === "approved" || c.status === "payable")
+          live
+            .filter((c) => c.status === "approved" || c.status === "payable")
             .reduce((sum, c) => sum + num(c.seller_amount), 0),
         );
         const reversed = money(reversedRows.reduce((sum, c) => sum + num(c.seller_amount), 0));
         const paidOut = money(
-          payouts.filter((p) => p.status === "paid" || p.status === "completed")
+          payouts
+            .filter((p) => p.status === "paid" || p.status === "completed")
             .reduce((sum, p) => sum + num(p.amount), 0),
         );
         const pendingPayout = money(
-          payouts.filter((p) => p.status === "pending" || p.status === "processing")
+          payouts
+            .filter((p) => p.status === "pending" || p.status === "processing")
             .reduce((sum, p) => sum + num(p.amount), 0),
         );
 

@@ -1,13 +1,62 @@
-import { ArrowUpRight, Building2, Plus, TrendingUp, UserPlus, Users, Wallet } from "lucide-react";
+import {
+  ArrowUpRight,
+  Banknote,
+  Building2,
+  Coins,
+  Plus,
+  Target,
+  TrendingUp,
+  UserPlus,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { BarChart, DonutChart, LineChart } from "@/components/charts/Charts";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useFranchise } from "@/lib/franchise-store";
 import { fmtMoney } from "@/lib/metrics";
 
 export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void }) {
-  const { branches, leads, employees, payments, revenueByPeriod, loading, error, note } = useFranchise();
+  const {
+    branches,
+    leads,
+    employees,
+    payments,
+    revenueByPeriod,
+    loading,
+    error,
+    note,
+    reload,
+    totalBranches,
+    totalLeads,
+    totalEmployees,
+    totalRoyaltyDue,
+    totalPaidAmount,
+  } = useFranchise();
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        aria-live="assertive"
+        className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 text-center"
+      >
+        <p className="text-sm font-medium text-destructive">Failed to load</p>
+        <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+        <button
+          type="button"
+          onClick={() => void reload()}
+          className="mt-3 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium hover:border-brand/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const totalRevenue = branches.reduce((s, b) => s + b.monthlyRevenue, 0);
-  const pipeline = leads.filter((l) => l.stage !== "won" && l.stage !== "lost").reduce((s, l) => s + l.value, 0);
+  const pipeline = leads
+    .filter((l) => l.stage !== "won" && l.stage !== "lost")
+    .reduce((s, l) => s + l.value, 0);
   // The franchise's own recorded revenue per period. It used to be each
   // branch's generated trend line multiplied by 900.
   const revenueTrend = revenueByPeriod;
@@ -28,20 +77,58 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
 
   const activity = [
     ...payments.slice(0, 4).map((p) => ({
-      id: p.id, when: p.date, text: `Invoice ${p.invoice} • ${fmtMoney(p.amount)} — ${p.status}`, module: "payments",
+      id: p.id,
+      when: p.date,
+      text: `Invoice ${p.invoice} • ${fmtMoney(p.amount)} — ${p.status}`,
+      module: "payments",
     })),
     ...leads.slice(0, 4).map((l) => ({
-      id: l.id, when: l.createdAt, text: `Lead ${l.company} moved to ${l.stage} • ${fmtMoney(l.value)}`, module: "leads",
+      id: l.id,
+      when: l.createdAt,
+      text: `Lead ${l.company} moved to ${l.stage} • ${fmtMoney(l.value)}`,
+      module: "leads",
     })),
-  ].sort((a, b) => +new Date(b.when) - +new Date(a.when)).slice(0, 6);
+  ]
+    .sort((a, b) => +new Date(b.when) - +new Date(a.when))
+    .slice(0, 6);
+
+  const kpis = [
+    { label: "Branches", value: totalBranches, icon: Building2 },
+    { label: "Leads", value: totalLeads, icon: Target },
+    { label: "Employees", value: totalEmployees, icon: Users },
+    { label: "Royalty due", value: totalRoyaltyDue, icon: Coins },
+    { label: "Paid amount", value: totalPaidAmount, icon: Banknote },
+  ];
 
   return (
     <div className="space-y-4 ams-cascade">
-      {(loading || error || note) && (
-        <div role={error ? "alert" : undefined} className="rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-          {loading ? "Loading your franchise…" : error ? `Your franchise could not be read: ${error}` : note}
+      {(loading || note) && (
+        <div className="rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+          {loading ? "Loading your franchise…" : note}
         </div>
       )}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {kpis.map((kpi) => (
+          <div
+            key={kpi.label}
+            aria-label={`${kpi.label} KPI`}
+            data-testid={`franchise-kpi-${kpi.label.toLowerCase().replaceAll(" ", "-")}`}
+            className="rounded-xl border border-border bg-card p-3"
+          >
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <kpi.icon className="h-3.5 w-3.5 text-brand" aria-hidden="true" />
+              {kpi.label}
+            </div>
+            {loading ? (
+              <Skeleton className="mt-2 h-6 w-16" aria-label={`Loading ${kpi.label}`} />
+            ) : (
+              <div className="mt-2 text-lg font-semibold" aria-live="polite">
+                {kpi.value}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
       <div className="flex flex-wrap gap-2">
         {quickActions.map((a) => (
           <button
@@ -60,9 +147,14 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold">Network revenue</div>
-              <div className="text-xs text-muted-foreground">Total branch sales {fmtMoney(totalRevenue)}</div>
+              <div className="text-xs text-muted-foreground">
+                Total branch sales {fmtMoney(totalRevenue)}
+              </div>
             </div>
-            <button onClick={() => onOpen("revenue")} className="press-3d inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs hover:border-brand/60">
+            <button
+              onClick={() => onOpen("revenue")}
+              className="press-3d inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs hover:border-brand/60"
+            >
               Details <ArrowUpRight className="h-3 w-3" />
             </button>
           </div>
@@ -82,11 +174,18 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
         <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold">Branch performance</div>
-            <button onClick={() => onOpen("branches")} className="text-xs text-muted-foreground hover:text-foreground">View all {branches.length}</button>
+            <button
+              onClick={() => onOpen("branches")}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              View all {branches.length}
+            </button>
           </div>
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {topBranches.map((b) => {
-              const pct = b.target ? Math.min(100, Math.round((b.monthlyRevenue / b.target) * 100)) : null;
+              const pct = b.target
+                ? Math.min(100, Math.round((b.monthlyRevenue / b.target) * 100))
+                : null;
               return (
                 <button
                   key={b.id}
@@ -96,19 +195,37 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold">{b.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{b.city} • {b.region}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {b.city} • {b.region}
+                      </div>
                     </div>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] capitalize ${
-                      b.status === "active" ? "bg-success/15 text-success" : b.status === "paused" ? "bg-destructive/15 text-destructive" : "bg-warning/15 text-warning"
-                    }`}>{b.status}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] capitalize ${
+                        b.status === "active"
+                          ? "bg-success/15 text-success"
+                          : b.status === "paused"
+                            ? "bg-destructive/15 text-destructive"
+                            : "bg-warning/15 text-warning"
+                      }`}
+                    >
+                      {b.status}
+                    </span>
                   </div>
-                  <div className="mt-2 text-lg font-black tracking-tight">{fmtMoney(b.monthlyRevenue)}</div>
+                  <div className="mt-2 text-lg font-black tracking-tight">
+                    {fmtMoney(b.monthlyRevenue)}
+                  </div>
                   <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-brand transition-all duration-700" style={{ width: `${pct ?? 0}%` }} />
+                    <div
+                      className="h-full rounded-full bg-brand transition-all duration-700"
+                      style={{ width: `${pct ?? 0}%` }}
+                    />
                   </div>
                   <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
                     <span>{pct == null ? "No target set" : `${pct}% of target`}</span>
-                    <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{b.employees}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {b.employees}
+                    </span>
                   </div>
                 </button>
               );
@@ -128,11 +245,17 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
                 height={120}
                 format={(v) => `${v}`}
                 data={["new", "contacted", "qualified", "proposal", "won"].map((s) => ({
-                  label: s.slice(0, 4), value: leads.filter((l) => l.stage === s).length,
+                  label: s.slice(0, 4),
+                  value: leads.filter((l) => l.stage === s).length,
                 }))}
               />
             </div>
-            <button onClick={() => onOpen("leads")} className="press-3d mt-3 w-full rounded-lg border border-border py-1.5 text-xs hover:border-brand/60">Open pipeline</button>
+            <button
+              onClick={() => onOpen("leads")}
+              className="press-3d mt-3 w-full rounded-lg border border-border py-1.5 text-xs hover:border-brand/60"
+            >
+              Open pipeline
+            </button>
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-4 depth-3d">
@@ -141,13 +264,19 @@ export function FranchiseHome({ onOpen }: { onOpen: (moduleKey: string) => void 
               {activity.map((a) => (
                 <li key={a.id}>
                   <button onClick={() => onOpen(a.module)} className="w-full text-left group">
-                    <div className="text-xs text-foreground/90 group-hover:text-brand transition">{a.text}</div>
-                    <div className="text-[10px] text-muted-foreground">{new Date(a.when).toLocaleDateString()}</div>
+                    <div className="text-xs text-foreground/90 group-hover:text-brand transition">
+                      {a.text}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {new Date(a.when).toLocaleDateString()}
+                    </div>
                   </button>
                 </li>
               ))}
             </ul>
-            <div className="mt-2 text-[11px] text-muted-foreground">{employees.length} employees across {branches.length} branches</div>
+            <div className="mt-2 text-[11px] text-muted-foreground">
+              {employees.length} employees across {branches.length} branches
+            </div>
           </div>
         </div>
       </div>

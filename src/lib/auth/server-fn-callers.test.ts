@@ -63,6 +63,26 @@ describe("requireOperator", () => {
     });
   });
 
+  it("can enforce an exact role allowlist for a service-role-backed function", async () => {
+    header = "Bearer fixture";
+    user = { id: "influencer-operator", email: "operator@example.test" };
+    const { requireOperator } = await import("./require-operator.server");
+
+    for (const role of ["marketing", "seo", "developer", "finance", "support"]) {
+      roles = [role];
+      await expect(
+        requireOperator("Reading influencer programme", { allowedRoles: ["admin", "boss"] }),
+      ).rejects.toThrow(/operator rights/);
+    }
+
+    for (const role of ["admin", "boss"]) {
+      roles = [role];
+      await expect(
+        requireOperator("Reading influencer programme", { allowedRoles: ["admin", "boss"] }),
+      ).resolves.toMatchObject({ roles: [role] });
+    }
+  });
+
   it("refuses a customer even where staff roles are allowed", async () => {
     header = "Bearer t";
     user = { id: "u3", email: "c@b.c" };

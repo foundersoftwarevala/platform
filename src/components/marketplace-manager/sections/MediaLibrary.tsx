@@ -159,6 +159,8 @@ export function MediaLibrary() {
       link.remove();
       URL.revokeObjectURL(href);
       setNote("Media metadata exported. No storage credential or signed link is included.");
+    } catch (cause) {
+      setNote(cause instanceof Error ? cause.message : "The media export could not be completed.");
     } finally {
       setBusy(null);
     }

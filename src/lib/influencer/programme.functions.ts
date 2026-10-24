@@ -39,6 +39,8 @@ export type InfluencerProgramme = {
   payouts_pending: number;
   invoices: number;
   compensation_rules: number;
+  sales: number;
+  leads: number;
   /** Numbers that cannot honestly be produced yet, and why. */
   unattributable: Record<string, string>;
 };
@@ -58,12 +60,14 @@ export const getInfluencerProgramme = createServerFn({ method: "GET" }).handler(
     // influencer_programme_summary() is SECURITY DEFINER with no caller check,
     // so "row level security decides" was not true: any account - and, through
     // its anon grant, anyone with the publishable key - read the programme's
-    // earnings and payout totals. The caller is checked here, against the roles
-    // the Influencer Manager admits (all of them operators), and the summary is
-    // read with the service key so the database can stop answering anyone else
+    // earnings and payout totals. The caller is checked against the same
+    // narrow operator roles as the influencer-manager database policy, and
+    // the summary is read with the service key so the database can stop answering anyone else
     // (20261107T239040_demo_and_influencer_summaries_service_only.sql).
     const { requireOperator } = await import("@/lib/auth/require-operator.server");
-    await requireOperator("Reading the influencer programme");
+    await requireOperator("Reading the influencer programme", {
+      allowedRoles: ["admin", "boss"],
+    });
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     if (!service) throw new Error("The database is not configured on this server.");
 

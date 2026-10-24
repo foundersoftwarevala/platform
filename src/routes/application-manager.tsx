@@ -34,7 +34,10 @@ export const Route = createFileRoute("/application-manager")({
     ],
   }),
   component: () => (
-    <RequireRole role={["marketing"]}>
+    <RequireRole
+      role={["marketing", "admin", "boss", "super_admin", "boss_owner", "founder"]}
+      allowOperators={false}
+    >
       <ApplicationManager />
     </RequireRole>
   ),

@@ -7,8 +7,10 @@ import {
 
 import {
   AUTHOR_TRANSITIONS,
+  AuthorBackendError,
   ownsProduct,
   pickAuthorFields,
+  readAllRows,
   requireAuthor,
   rest,
   slugify,
@@ -65,14 +67,18 @@ export const Route = createFileRoute("/api/author/products")({
         const gate = await requireAuthor(request, { allowPending: true });
         if (!gate.ok) return gate.response;
 
-        const response = await rest(
-          `marketplace_products?select=${SUMMARY}` +
-            `&seller_id=eq.${encodeURIComponent(gate.seller.id)}&order=updated_at.desc&limit=200`,
-        );
-        if (!response.ok) {
+        let products: unknown[];
+        try {
+          products = await readAllRows(
+            `marketplace_products?select=${SUMMARY}` +
+              `&seller_id=eq.${encodeURIComponent(gate.seller.id)}&order=updated_at.desc,id.asc`,
+            "Author product list read",
+          );
+        } catch (error) {
+          if (!(error instanceof AuthorBackendError)) throw error;
+          console.error("[author products] list read failed", error.message);
           return Response.json({ error: "Could not read your products" }, { status: 502 });
         }
-        const products = await response.json();
         return Response.json({
           seller: {
             id: gate.seller.id,
@@ -147,14 +153,28 @@ export const Route = createFileRoute("/api/author/products")({
           const rows = (await created.json()) as { id: string }[];
           if (!rows[0]?.id) {
             console.error("[author products] create returned no product");
-            return Response.json({ error: "Product creation could not be verified" }, { status: 502 });
+            return Response.json(
+              { error: "Product creation could not be verified" },
+              { status: 502 },
+            );
           }
           logProductReview(review, "author products", rows[0].id);
-          return Response.json({ ok: true, created: true, product: rows[0], review }, { status: 201 });
+          return Response.json(
+            { ok: true, created: true, product: rows[0], review },
+            { status: 201 },
+          );
         }
 
         // Everything below acts on an existing product, so ownership first.
-        if (!(await ownsProduct(gate.seller.id, id))) {
+        let owned: boolean;
+        try {
+          owned = await ownsProduct(gate.seller.id, id);
+        } catch (error) {
+          if (!(error instanceof AuthorBackendError)) throw error;
+          console.error("[author products] ownership lookup failed", error.message);
+          return Response.json({ error: "Could not verify product ownership" }, { status: 502 });
+        }
+        if (!owned) {
           return Response.json(
             { error: "That product does not belong to this author" },
             { status: 403 },
@@ -164,7 +184,17 @@ export const Route = createFileRoute("/api/author/products")({
         const currentResponse = await rest(
           `marketplace_products?select=id,moderation_status,content_status&id=eq.${encodeURIComponent(id)}&limit=1`,
         );
+        if (!currentResponse.ok) {
+          console.error("[author products] current state read failed", currentResponse.status);
+          return Response.json(
+            { error: "Could not verify the product's current review state" },
+            { status: 502 },
+          );
+        }
         const current = ((await currentResponse.json()) as { moderation_status: string }[])[0];
+        if (!current) {
+          return Response.json({ error: "Product no longer exists" }, { status: 404 });
+        }
         const state = String(current?.moderation_status ?? "draft");
 
         // ------------------------------------------------- submit / withdraw
@@ -177,17 +207,28 @@ export const Route = createFileRoute("/api/author/products")({
               { status: 409 },
             );
           }
-          const patched = await rest(`marketplace_products?id=eq.${encodeURIComponent(id)}`, {
-            method: "PATCH",
-            headers: { Prefer: "return=representation" },
-            body: JSON.stringify({
-              moderation_status: target,
-              content_status: target === "submitted" ? "in_review" : "draft",
-              updated_at: new Date().toISOString(),
-            }),
-          });
+          const patched = await rest(
+            `marketplace_products?id=eq.${encodeURIComponent(id)}` +
+              `&moderation_status=eq.${encodeURIComponent(state)}`,
+            {
+              method: "PATCH",
+              headers: { Prefer: "return=representation" },
+              body: JSON.stringify({
+                moderation_status: target,
+                content_status: target === "submitted" ? "in_review" : "draft",
+                updated_at: new Date().toISOString(),
+              }),
+            },
+          );
           if (!patched.ok) {
             return Response.json({ error: "Could not update the product" }, { status: 502 });
+          }
+          const rows = (await patched.json()) as unknown[];
+          if (!rows.length) {
+            return Response.json(
+              { error: "The product review state changed; reload before trying again" },
+              { status: 409 },
+            );
           }
           return Response.json({ ok: true, action, from: state, to: target });
         }
@@ -214,11 +255,15 @@ export const Route = createFileRoute("/api/author/products")({
             { status: 400 },
           );
         }
-        const patched = await rest(`marketplace_products?id=eq.${encodeURIComponent(id)}`, {
-          method: "PATCH",
-          headers: { Prefer: "return=representation" },
-          body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
-        });
+        const patched = await rest(
+          `marketplace_products?id=eq.${encodeURIComponent(id)}` +
+            `&moderation_status=eq.${encodeURIComponent(state)}`,
+          {
+            method: "PATCH",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
+          },
+        );
         if (!patched.ok) {
           const detail = await patched.text();
           return Response.json(
@@ -233,6 +278,12 @@ export const Route = createFileRoute("/api/author/products")({
           );
         }
         const rows = (await patched.json()) as unknown[];
+        if (!rows.length) {
+          return Response.json(
+            { error: "The product review state changed; reload before trying again" },
+            { status: 409 },
+          );
+        }
         return Response.json({ ok: true, updated: true, product: rows[0] });
       },
     },

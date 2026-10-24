@@ -1,7 +1,7 @@
 # Translation system guard: no new hardcoded user-facing text, and a valid
 # message catalogue (keys, variables, ICU, language codes). See
 # src/lib/i18n/DEVELOPER_GUIDE.md.
-name: i18n
+name: CI
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
     branches: [main]
 
 jobs:
-  i18n:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,5 +18,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx tsc --noEmit
       - run: npm run i18n:check
       - run: npx vitest run src/lib/i18n

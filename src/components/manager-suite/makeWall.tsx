@@ -1,14 +1,13 @@
 import type { WallConfig } from "./wall";
 import { StatusPill } from "./wall";
-import { Activity, CheckCircle2, Clock, Layers, Pause, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Layers, Pause, Trash2 } from "lucide-react";
+import type { ComponentType } from "react";
 
 const STATUSES = ["active", "pending", "review", "paused", "closed"] as const;
 
-/**
- * Standard wall for every manager surface that mirrors the upstream feature
- * without a bespoke schema: named records, owner, scope, value, status.
- */
-export function makeWall(opts: {
+export type WallStatus = "connected" | "coming_soon" | "removed";
+
+type MakeWallOptions = {
   scope: string;
   entity: string;
   eyebrow: string;
@@ -16,7 +15,45 @@ export function makeWall(opts: {
   subtitle: string;
   icon: React.ComponentType<{ className?: string }>;
   primaryLabel?: string;
-}): WallConfig {
+  status?: WallStatus;
+};
+
+type SectionComponent = ComponentType<{ onNavigate?: (id: string) => void }>;
+
+export function makeWall(opts: MakeWallOptions & { status: "coming_soon" }): SectionComponent;
+export function makeWall(opts: MakeWallOptions & { status: "removed" }): null;
+export function makeWall(opts: MakeWallOptions & { status?: "connected" }): WallConfig;
+/**
+ * Standard wall for every manager surface that mirrors the upstream feature
+ * without a bespoke schema: named records, owner, scope, value, status.
+ */
+export function makeWall(opts: MakeWallOptions): WallConfig | SectionComponent | null {
+  if (opts.status === "removed") return null;
+  if (opts.status === "coming_soon") {
+    return function ComingSoon({ onNavigate }) {
+      return (
+        <section
+          aria-labelledby="coming-soon-title"
+          className="flex min-h-[18rem] flex-col items-center justify-center rounded-2xl border border-border bg-card p-6 text-center"
+        >
+          <opts.icon className="mb-3 h-8 w-8 text-muted-foreground" aria-hidden="true" />
+          <h1 id="coming-soon-title" className="text-lg font-semibold">
+            {opts.title}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">Coming soon</p>
+          <button
+            type="button"
+            onClick={() => onNavigate?.("Dashboard")}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium hover:border-brand/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to dashboard
+          </button>
+        </section>
+      );
+    };
+  }
+
   return {
     scope: opts.scope,
     entity: opts.entity,
@@ -26,12 +63,7 @@ export function makeWall(opts: {
     icon: opts.icon,
     primaryLabel: opts.primaryLabel ?? `New ${opts.entity}`,
     seed: [],
-    kpis: [
-      { label: "Records", icon: Layers, compute: (r) => (r.length ? r.length : "—") },
-      { label: "Active", icon: CheckCircle2, compute: (r) => (r.length ? r.filter((x) => x.status === "active").length : "—") },
-      { label: "Pending", icon: Clock, compute: (r) => (r.length ? r.filter((x) => x.status === "pending").length : "—") },
-      { label: "Updated", icon: Activity, compute: (r) => (r.length ? r.length : "—") },
-    ],
+    kpis: [],
     columns: [
       { key: "name", header: "Name", render: (r) => <div className="font-semibold">{r.name}</div> },
       { key: "owner", header: "Owner" },
