@@ -75,15 +75,21 @@ describe("git run by Vala AI on the host", () => {
     expect(existsSync(marker)).toBe(false);
   });
 
-  it("control: plain git on this machine runs a configured fsmonitor command", () => {
-    const repo = join(root, "control-fsmonitor");
-    mkdirSync(repo);
-    plainGit(repo, "init", "--quiet");
-    const marker = join(root, "control-fsmonitor-ran.txt").replace(/\\/g, "/");
-    plainGit(repo, "config", "core.fsmonitor", `echo ran > "${marker}"`);
-    plainGit(repo, "status", "--porcelain");
-    expect(existsSync(marker)).toBe(true);
-  });
+  it.skipIf(process.platform === "win32")(
+    "control: plain git on this machine runs a configured fsmonitor command",
+    () => {
+      const repo = join(root, "control-fsmonitor");
+      mkdirSync(repo);
+      plainGit(repo, "init", "--quiet");
+      writeFileSync(join(repo, "a.txt"), "a");
+      plainGit(repo, "add", "-A");
+      plainGit(repo, "commit", "--quiet", "-m", "initial");
+      const marker = join(root, "control-fsmonitor-ran.txt").replace(/\\/g, "/");
+      plainGit(repo, "config", "core.fsmonitor", `echo ran > "${marker}"`);
+      plainGit(repo, "status", "--porcelain");
+      expect(existsSync(marker)).toBe(true);
+    },
+  );
 
   it("refuses to run git in a workspace whose config was changed, and runs nothing from it", () => {
     const marker = join(root, "workspace-fsmonitor-ran.txt").replace(/\\/g, "/");

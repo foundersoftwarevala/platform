@@ -451,6 +451,7 @@ export async function runTranslationPipeline(
       translated: restored.text,
       target,
       lostTokens: restored.missing,
+      keptTerms: (protectedTokens.get(id) ?? []).map((token) => token.replacement),
       terminologyIssues: checkTerminology(text, restored.text, terms),
       engineConfidence: answer.confidence,
       sourceUnknown: source === null,
