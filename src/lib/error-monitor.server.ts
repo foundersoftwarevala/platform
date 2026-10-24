@@ -2,6 +2,8 @@
 // SSR, and browser console errors) into public.error_events and escalates
 // repeated or critical failures into public.security_alerts.
 
+import { redactErrorMetadata, redactSensitiveText } from "@/lib/error-redaction";
+
 export type ErrorSource = "server_fn" | "client" | "ssr";
 
 export interface RecordErrorInput {
@@ -23,53 +25,70 @@ const BURST_THRESHOLD = 5;
 
 /** Stable grouping key: source + normalized message + first stack frame. */
 export function fingerprint(input: RecordErrorInput): string {
-  const normalized = input.message
+  const normalized = redactSensitiveText(input.message)
     .replace(/0x[0-9a-f]+/gi, "0x")
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "<uuid>")
     .replace(/\d+/g, "<n>")
     .trim()
     .slice(0, 200);
-  const frame = (input.stack ?? "").split("\n")[1]?.trim().slice(0, 160) ?? "";
-  return `${input.source}|${input.fnName ?? ""}|${normalized}|${frame}`;
+  const frame =
+    redactSensitiveText(input.stack ?? "")
+      .split("\n")[1]
+      ?.trim()
+      .slice(0, 160) ?? "";
+  return `${input.source}|${redactSensitiveText(input.fnName ?? "")}|${normalized}|${frame}`;
 }
 
 export async function recordError(input: RecordErrorInput): Promise<{ ok: boolean }> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const fp = fingerprint(input);
+    const safeInput: RecordErrorInput = {
+      ...input,
+      message: redactSensitiveText(input.message),
+      stack: input.stack === undefined ? undefined : redactSensitiveText(input.stack),
+      route: input.route === undefined ? undefined : redactSensitiveText(input.route),
+      fnName: input.fnName === undefined ? undefined : redactSensitiveText(input.fnName),
+      userAgent: input.userAgent === undefined ? undefined : redactSensitiveText(input.userAgent),
+      metadata: redactErrorMetadata(input.metadata ?? {}),
+    };
+    const fp = fingerprint(safeInput);
     const severity = input.severity ?? "error";
 
     const { error } = await supabaseAdmin.from("error_events").insert({
-      source: input.source,
+      source: safeInput.source,
       severity,
       fingerprint: fp,
-      message: input.message.slice(0, MESSAGE_LIMIT),
-      stack: input.stack?.slice(0, STACK_LIMIT) ?? null,
-      route: input.route ?? null,
-      fn_name: input.fnName ?? null,
-      user_agent: input.userAgent?.slice(0, 400) ?? null,
-      metadata: (input.metadata ?? {}) as never,
+      message: safeInput.message.slice(0, MESSAGE_LIMIT),
+      stack: safeInput.stack?.slice(0, STACK_LIMIT) ?? null,
+      route: safeInput.route ?? null,
+      fn_name: safeInput.fnName ?? null,
+      user_agent: safeInput.userAgent?.slice(0, 400) ?? null,
+      metadata: safeInput.metadata as never,
     });
     if (error) {
-      console.warn("[error-monitor] insert failed:", error.message);
+      console.warn("[error-monitor] insert failed:", redactSensitiveText(error.message));
       return { ok: false };
     }
 
-    await maybeAlert(supabaseAdmin, fp, input, severity);
+    await maybeAlert(supabaseAdmin, fp, safeInput, severity);
     return { ok: true };
   } catch (e) {
     // Monitoring must never break the request it is observing.
-    console.warn("[error-monitor] unavailable:", e instanceof Error ? e.message : String(e));
+    console.warn(
+      "[error-monitor] unavailable:",
+      redactSensitiveText(e instanceof Error ? e.message : String(e)),
+    );
     return { ok: false };
   }
 }
 
-type Admin = Awaited<
-  ReturnType<typeof import("@/integrations/supabase/client.server").supabaseAdmin.from>
-> extends never
-  ? never
-  : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any;
+type Admin =
+  Awaited<
+    ReturnType<typeof import("@/integrations/supabase/client.server").supabaseAdmin.from>
+  > extends never
+    ? never
+    : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      any;
 
 async function maybeAlert(
   db: Admin,

@@ -81,8 +81,19 @@ const logDemoAction = async (
   if (error) throw error;
 };
 
-const meta = (value: unknown): Record<string, any> =>
-  value && typeof value === "object" ? (value as Record<string, any>) : {};
+const meta = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const errorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = error.message;
+    if (typeof message === "string") return message;
+  }
+  return fallback;
+};
 
 /**
  * The operations centre's overview, from the tables that hold the demos.
@@ -293,7 +304,7 @@ export const useOpsRenewals = () =>
   useQuery({
     queryKey: [OPS, "renewals"],
     queryFn: async () => {
-      const logs = await rows<Record<string, any>>(
+      const logs = await rows<Record<string, unknown>>(
         supabase
           .from("demo_url_audit_log")
           .select("id, demo_url_id, metadata, created_at")
@@ -318,14 +329,14 @@ export const useOpsAuditTrail = () =>
     queryKey: [OPS, "audit"],
     queryFn: async () => {
       const [logs, cards] = await Promise.all([
-        rows<Record<string, any>>(
+        rows<Record<string, unknown>>(
           supabase
             .from("audit_logs")
             .select("id, occurred_at, actor, action, entity_type")
             .order("occurred_at", { ascending: false })
             .limit(150) as never,
         ),
-        rows<Record<string, any>>(
+        rows<Record<string, unknown>>(
           supabase
             .from("demo_url_audit_log")
             .select("id, demo_url_id, action, actor_id, actor_email, metadata, created_at")
@@ -400,7 +411,7 @@ export const useOpsBackups = () =>
     queryKey: [OPS, "backups"],
     queryFn: async () => {
       // Backup runs live in server_backup_jobs; server_backups was never created.
-      const jobs = await rows<Record<string, any>>(
+      const jobs = await rows<Record<string, unknown>>(
         supabase
           .from("server_backup_jobs")
           .select("id, job_name, backup_type, schedule, status, size_gb, created_at")
@@ -591,7 +602,7 @@ export const useOpsActions = () => {
       toast.success(`${ACTION_LABEL[variables.action]} recorded for ${variables.demo.title}`);
       invalidate();
     },
-    onError: (error: any) => toast.error(error?.message ?? "Action failed"),
+    onError: (error: unknown) => toast.error(errorMessage(error, "Action failed")),
   });
 
   const acknowledgeAlert = useMutation({
@@ -610,7 +621,7 @@ export const useOpsActions = () => {
       toast.success("Alert acknowledged");
       invalidate();
     },
-    onError: (error: any) => toast.error(error?.message ?? "Could not acknowledge alert"),
+    onError: (error: unknown) => toast.error(errorMessage(error, "Could not acknowledge alert")),
   });
 
   const assignIssue = useMutation({
@@ -638,7 +649,7 @@ export const useOpsActions = () => {
       toast.success("Ticket created and assigned");
       invalidate();
     },
-    onError: (error: any) => toast.error(error?.message ?? "Could not create ticket"),
+    onError: (error: unknown) => toast.error(errorMessage(error, "Could not create ticket")),
   });
 
   const updateIssueStatus = useMutation({
@@ -657,7 +668,7 @@ export const useOpsActions = () => {
       toast.success("Ticket updated");
       invalidate();
     },
-    onError: (error: any) => toast.error(error?.message ?? "Could not update ticket"),
+    onError: (error: unknown) => toast.error(errorMessage(error, "Could not update ticket")),
   });
 
   const renewDemo = useMutation({
@@ -673,7 +684,7 @@ export const useOpsActions = () => {
       toast.success("Demo renewed");
       invalidate();
     },
-    onError: (error: any) => toast.error(error?.message ?? "Renewal failed"),
+    onError: (error: unknown) => toast.error(errorMessage(error, "Renewal failed")),
   });
 
   const setLifecycle = useMutation({
@@ -701,7 +712,7 @@ export const useOpsActions = () => {
       toast.success("Lifecycle updated");
       invalidate();
     },
-    onError: (error: any) => toast.error(error?.message ?? "Lifecycle update failed"),
+    onError: (error: unknown) => toast.error(errorMessage(error, "Lifecycle update failed")),
   });
 
   return { runAction, acknowledgeAlert, assignIssue, updateIssueStatus, renewDemo, setLifecycle };

@@ -7,6 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
@@ -22,6 +23,7 @@ import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
 import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { AttributionCapture } from "@/components/marketplace/AttributionCapture";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { reportClientError } from "@/lib/error-monitor.functions";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { CelebrationProvider } from "../components/ams/effects/Celebration";
 import { RecognitionDetector } from "../components/ams/effects/RecognitionDetector";
@@ -52,9 +54,21 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const sendClientError = useServerFn(reportClientError);
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
+    void sendClientError({
+      data: {
+        message: error.message || "Unhandled root route error",
+        ...(error.stack ? { stack: error.stack } : {}),
+        route: window.location.pathname,
+        severity: "error",
+        kind: "boundary",
+      },
+    }).catch((reportError: unknown) => {
+      console.warn("Could not report the root route error", reportError);
+    });
+  }, [error, sendClientError]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

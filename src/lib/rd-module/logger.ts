@@ -1,3 +1,5 @@
+import { redactSensitiveData, redactSensitiveText } from "@/lib/error-redaction";
+
 /**
  * Structured, level-aware logging for both browser and server runtimes.
  *
@@ -42,19 +44,19 @@ function serializeError(error: unknown): Record<string, unknown> {
 function emit(level: LogLevel, context: LogContext, error?: unknown) {
   if (LEVEL_ORDER[level] < LEVEL_ORDER[MIN_LEVEL]) return;
 
-  const entry = {
+  const entry = redactSensitiveData({
     level,
     time: new Date().toISOString(),
     runtime: typeof window === "undefined" ? "server" : "browser",
     ...context,
     ...(error !== undefined ? { error: serializeError(error) } : {}),
-  };
+  });
 
   const line = (() => {
     try {
       return JSON.stringify(entry);
     } catch {
-      return `{"level":"${level}","scope":"${context.scope}","event":"${context.event}","note":"unserializable log entry"}`;
+      return `{"level":"${level}","scope":"${redactSensitiveText(context.scope)}","event":"${redactSensitiveText(context.event)}","note":"unserializable log entry"}`;
     }
   })();
 

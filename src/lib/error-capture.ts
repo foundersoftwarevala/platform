@@ -1,11 +1,27 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 // Captures the original Error out-of-band so server.ts can recover the stack
 // when h3 has already swallowed the throw into a generic 500 Response.
 
-let lastCapturedError: { error: unknown; at: number } | undefined;
-const TTL_MS = 5_000;
+export interface RequestErrorContext {
+  capturedError?: unknown;
+}
 
-function record(error: unknown) {
-  lastCapturedError = { error, at: Date.now() };
+const requestErrors = new AsyncLocalStorage<RequestErrorContext>();
+
+export function captureRequestError(error: unknown) {
+  const context = requestErrors.getStore();
+  if (context) context.capturedError = error;
+}
+
+export function withRequestErrorContext<T>(context: RequestErrorContext, callback: () => T): T {
+  return requestErrors.run(context, callback);
+}
+
+export function consumeCapturedError(context: RequestErrorContext): unknown {
+  const error = context.capturedError;
+  context.capturedError = undefined;
+  return error;
 }
 
 // h3's HTTPError serializes to {"status":500,"unhandled":true,"message":"HTTPError"} —
@@ -51,31 +67,22 @@ function isErrorLike(value: unknown): value is Error {
 
 // Wrap console.error so errors logged by any layer — including h3's internal
 // unhandled-error logging, which this file cannot hook directly — are both
-// recorded for consumeLastCapturedError and expanded before serialization.
+// recorded for their active request and expanded before serialization.
 const originalConsoleError = console.error.bind(console);
 console.error = (...args: unknown[]) => {
   const expanded = args.map((arg) => {
     if (!isErrorLike(arg)) return arg;
-    record(arg);
+    captureRequestError(arg);
     return describeError(arg);
   });
   originalConsoleError(...expanded);
 };
 
 if (typeof globalThis.addEventListener === "function") {
-  globalThis.addEventListener("error", (event) => record((event as ErrorEvent).error ?? event));
-  globalThis.addEventListener("unhandledrejection", (event) =>
-    record((event as PromiseRejectionEvent).reason),
+  globalThis.addEventListener("error", (event) =>
+    captureRequestError((event as ErrorEvent).error ?? event),
   );
-}
-
-export function consumeLastCapturedError(): unknown {
-  if (!lastCapturedError) return undefined;
-  if (Date.now() - lastCapturedError.at > TTL_MS) {
-    lastCapturedError = undefined;
-    return undefined;
-  }
-  const { error } = lastCapturedError;
-  lastCapturedError = undefined;
-  return error;
+  globalThis.addEventListener("unhandledrejection", (event) =>
+    captureRequestError((event as PromiseRejectionEvent).reason),
+  );
 }

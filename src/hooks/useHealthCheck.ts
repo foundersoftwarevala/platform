@@ -24,6 +24,20 @@ interface HealthCheckResponse {
   results: HealthCheckResult[];
 }
 
+function notifyHealthCheck(summary: HealthCheckSummary) {
+  const message = `Health check completed: ${summary.healthy}/${summary.total} healthy`;
+  if (
+    summary.total > 0 &&
+    summary.healthy === summary.total &&
+    summary.unhealthy === 0 &&
+    summary.error === 0
+  ) {
+    toast.success(message);
+    return;
+  }
+  toast.warning(`${message} · ${summary.unhealthy} unhealthy, ${summary.error} errors`);
+}
+
 export const useHealthCheck = () => {
   const [isChecking, setIsChecking] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -93,7 +107,7 @@ export const useHealthCheck = () => {
           setSummary({ ...tally });
         }
         if (!active.length) setProgress(100);
-        toast.success(`Health check completed! ${tally.healthy}/${tally.total} healthy`);
+        notifyHealthCheck(tally);
         return { results: checked, summary: tally };
       }
 
@@ -186,13 +200,11 @@ export const useHealthCheck = () => {
         }
       }
 
-      toast.success(
-        `Health check completed! ${overallSummary.healthy}/${overallSummary.total} healthy`,
-      );
+      notifyHealthCheck(overallSummary);
       return { results: allResults, summary: overallSummary };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Health check error:", error);
-      toast.error(`Health check failed: ${error.message}`);
+      toast.error(`Health check failed: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     } finally {
       setIsChecking(false);
