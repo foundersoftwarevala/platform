@@ -23,6 +23,12 @@ export const getModuleAnalytics = createServerFn({ method: "GET" })
       .parse(data ?? {}),
   )
   .handler(async ({ data }): Promise<DashboardAnalytics> => {
+    const { requireModuleAnalyticsAccess } = await import("./analytics-access.server");
+    const authorized = await requireModuleAnalyticsAccess(data.module, data.scopeId);
+    if (!authorized) {
+      const { emptyDashboardAnalytics } = await import("./types");
+      return emptyDashboardAnalytics(data.range);
+    }
     const { fetchDashboardAnalytics } = await import("./repository.server");
     return fetchDashboardAnalytics(data);
   });

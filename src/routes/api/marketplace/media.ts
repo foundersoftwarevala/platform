@@ -26,6 +26,8 @@ import { loadMatrix, recordDenial, rolesOf } from "@/lib/marketplace/permission-
  * findings rather than smoothed into a total.
  */
 
+const MARKETPLACE_STORAGE_BUCKETS = new Set<string>();
+
 function url(): string {
   return process.env.SUPABASE_URL?.trim() ?? "";
 }
@@ -155,9 +157,11 @@ function kindOf(mime: string | null, extension: string | null): Kind {
 async function collect(): Promise<{ assets: Asset[]; buckets: string[]; notes: string[] }> {
   const notes: string[] = [];
 
-  const bucketList = await fetch(`${url()}/storage/v1/bucket`, { headers: admin() })
-    .then((r) => (r.ok ? r.json() : []))
-    .catch(() => []) as { name: string; public: boolean }[];
+  const bucketList = (
+    (await fetch(`${url()}/storage/v1/bucket`, { headers: admin() })
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => [])) as { name: string; public: boolean }[]
+  ).filter((bucket) => MARKETPLACE_STORAGE_BUCKETS.has(bucket.name));
 
   const assets: Asset[] = [];
 
@@ -566,6 +570,7 @@ export const Route = createFileRoute("/api/marketplace/media")({
           !path ||
           path.includes("..") ||
           path.startsWith("/") ||
+          path.split("/").some((segment) => !segment || segment === ".") ||
           /%2e|%2f|%5c|\\/i.test(path)
         ) {
           return Response.json({ ok: false, reason: "invalid_path" }, { status: 400 });
@@ -580,6 +585,34 @@ export const Route = createFileRoute("/api/marketplace/media")({
             },
             { status: 403 },
           );
+        }
+
+        if (!MARKETPLACE_STORAGE_BUCKETS.has(bucket)) {
+          return Response.json(
+            {
+              ok: false,
+              reason: "marketplace_bucket_not_allowed",
+              message:
+                "Only files in an explicitly Marketplace-owned storage bucket can be signed.",
+            },
+            { status: 403 },
+          );
+        }
+
+        const separator = path.lastIndexOf("/");
+        const prefix = separator < 0 ? "" : path.slice(0, separator + 1);
+        const filename = path.slice(separator + 1);
+        let objects: StorageObject[];
+        try {
+          objects = await listBucket(bucket, prefix);
+        } catch (error) {
+          if (!(error instanceof MediaReadError)) throw error;
+          return Response.json({ ok: false, reason: "asset_verification_failed" }, { status: 502 });
+        }
+        if (
+          !objects.some((object) => object.name === filename && object.metadata?.size !== undefined)
+        ) {
+          return Response.json({ ok: false, reason: "asset_not_found" }, { status: 404 });
         }
 
         // Each segment encoded, so "#" or "?" in a file name is part of the
