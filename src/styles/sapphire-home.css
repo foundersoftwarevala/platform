@@ -394,10 +394,10 @@ html:has(.sapphire-home) {
 
 /* Utility strip cloned from the feature strip */
 .feature-clone {
-  height: 16.5px;
+  min-height: 16.5px;
 }
 .feature-clone > div {
-  height: 16.5px;
+  min-height: 16.5px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -428,12 +428,12 @@ html:has(.sapphire-home) {
 }
 .feature-clone .tb-pill {
   line-height: 1.5;
-  height: 16.5px;
+  min-height: 16.5px;
 }
 .feature-clone .kr-stagger {
   display: flex;
   align-items: center;
-  height: 16.5px;
+  min-height: 16.5px;
 }
 
 /* Login is the primary utility action: visibly larger, but still part of the strip. */
