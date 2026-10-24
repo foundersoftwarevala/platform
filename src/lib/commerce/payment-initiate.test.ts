@@ -41,7 +41,7 @@ beforeEach(() => {
     FX_API_URL: "http://fx.test/?amount={AMOUNT}",
   });
   order = {
-    id: "o1", buyer_id: "u1", user_id: null, status: "pending_payment", total: 249, currency: "USD",
+    id: "o1", buyer_id: "u1", status: "pending_payment", total: 249, currency: "USD",
     txnid: null, amount_inr: null, fx_rate: null, payu_status: null, metadata: {},
   };
   intents = [{ id: "i1", order_id: "o1", status: "pending" }];

@@ -19,6 +19,7 @@ import { Route } from "./rows";
 type Get = (ctx: { request: Request }) => Promise<Response>;
 type RouteOptions = { server: { handlers: { GET: Get } } };
 const getRows = (Route.options as typeof Route.options & RouteOptions).server.handlers.GET;
+const invalidateRows = mocks.onCatalogueChange.mock.calls[0]?.[0] as (() => void) | undefined;
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status });
@@ -26,6 +27,7 @@ function json(body: unknown, status = 200) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  invalidateRows?.();
   vi.stubEnv("SUPABASE_URL", "http://db.test");
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "fixture-service");
   mocks.rateLimited.mockReturnValue(null);
@@ -46,9 +48,13 @@ describe("marketplace category row reads", () => {
         return json([{ id: "category-1", name: "Category", slug: "category" }]);
       }
       if (url.pathname.endsWith("/marketplace_products")) {
-        const offset = url.searchParams.get("offset");
-        if (offset === "0") {
-          return json(Array.from({ length: 1000 }, () => ({ category_id: "category-1" })));
+        if (!url.searchParams.has("id")) {
+          return json(
+            Array.from({ length: 1000 }, (_, index) => ({
+              id: `product-${String(index).padStart(5, "0")}`,
+              category_id: "category-1",
+            })),
+          );
         }
         return json({ error: "database unavailable" }, 503);
       }
@@ -66,5 +72,51 @@ describe("marketplace category row reads", () => {
       error: "Could not load rows",
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    const productRequest = new URL(String(fetchMock.mock.calls[1]?.[0]));
+    expect(productRequest.searchParams.get("order")).toBe("id.asc");
+    expect(productRequest.searchParams.get("limit")).toBe("1000");
+    const failedPage = new URL(String(fetchMock.mock.calls[2]?.[0]));
+    expect(failedPage.searchParams.get("id")).toBe("gt.product-00999");
+  });
+
+  it("counts products beyond the former 8000-row cap using stable cursors", async () => {
+    const productCount = 8501;
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const request = new URL(String(input));
+      if (request.pathname.endsWith("/marketplace_categories")) {
+        return json([{ id: "category-1", name: "Category", slug: "category", sort_order: 1 }]);
+      }
+      if (request.pathname.endsWith("/marketplace_products")) {
+        const cursor = request.searchParams.get("id")?.replace(/^gt\./, "");
+        const start = cursor ? Number(cursor.replace("product-", "")) + 1 : 0;
+        const end = Math.min(start + 1000, productCount);
+        return json(
+          Array.from({ length: end - start }, (_, index) => ({
+            id: `product-${String(start + index).padStart(5, "0")}`,
+            category_id: "category-1",
+          })),
+        );
+      }
+      return json({ error: "unexpected request" }, 500);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await getRows({
+      request: new Request("https://softwarevala.net/api/marketplace/rows"),
+    });
+    const payload = (await response.json()) as {
+      rows: { products: number }[];
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.rows[0]?.products).toBe(productCount);
+    const productRequests = fetchMock.mock.calls
+      .map(([input]) => new URL(String(input)))
+      .filter((request) => request.pathname.endsWith("/marketplace_products"));
+    expect(productRequests).toHaveLength(9);
+    expect(productRequests.every((request) => request.searchParams.get("order") === "id.asc")).toBe(
+      true,
+    );
+    expect(productRequests[8]?.searchParams.get("id")).toBe("gt.product-07999");
   });
 });

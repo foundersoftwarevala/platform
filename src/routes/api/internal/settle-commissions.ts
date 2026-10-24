@@ -63,7 +63,7 @@ export const Route = createFileRoute("/api/internal/settle-commissions")({
         };
         const orderResponse = await fetch(
           `${process.env.SUPABASE_URL?.trim() ?? ""}/rest/v1/marketplace_orders` +
-            `?select=id,buyer_id,user_id,total,amount_inr,currency,currency_charged,metadata` +
+            `?select=id,buyer_id,total,amount_inr,currency,currency_charged,metadata` +
             `&id=eq.${encodeURIComponent(orderId)}&limit=1`,
           {
             headers: {
@@ -78,7 +78,7 @@ export const Route = createFileRoute("/api/internal/settle-commissions")({
             const metadata = (order.metadata ?? {}) as Record<string, unknown>;
             const currency = String(order.currency_charged ?? order.currency ?? "USD");
             const issued = await createInvoiceForOrder({
-              userId: String(order.buyer_id ?? order.user_id ?? ""),
+              userId: String(order.buyer_id ?? ""),
               orderId,
               amount: Number(currency === "INR" ? order.amount_inr ?? order.total : order.total) || 0,
               currency,

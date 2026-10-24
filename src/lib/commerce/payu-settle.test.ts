@@ -257,4 +257,32 @@ describe("settling a PayU result", () => {
     const out = await settlePayuCallback(config, callback({ txnid: "NOPE", status: "success", amount: "1.00" }), "webhook");
     expect(out.httpStatus).toBe(404);
   });
+
+  it("returns an upstream error when the order read fails", async () => {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL, init?: RequestInit) => {
+        const request = new URL(String(input));
+        if (
+          request.pathname.endsWith("/marketplace_orders") &&
+          (init?.method ?? "GET") === "GET"
+        ) {
+          return json({ error: "database unavailable" }, 503);
+        }
+        return original(input, init);
+      }),
+    );
+
+    const out = await settlePayuCallback(
+      config,
+      callback({ txnid: "T2", status: "success", amount: "20750.00" }),
+      "webhook",
+    );
+
+    expect(out.httpStatus).toBe(502);
+    expect(out.message).toBe("Could not load order");
+    expect(orders[0].status).toBe("pending_payment");
+    expect(fulfilOrder).not.toHaveBeenCalled();
+  });
 });

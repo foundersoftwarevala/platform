@@ -130,38 +130,72 @@ export const Route = createFileRoute("/api/marketplace/rows")({
             );
           }
 
-          const categoryResponse = await fetch(
-            `${url()}/rest/v1/marketplace_categories` +
-              `?select=id,name,slug,icon,sort_order,is_hidden,is_featured&order=sort_order.asc&limit=200`,
-            { headers: admin() },
-          );
-          if (!categoryResponse.ok) {
-            return Response.json({ rows: [], error: "Could not load rows" }, { status: 502 });
+          const categories: Record<string, unknown>[] = [];
+          let categoryCursor: string | null = null;
+          while (true) {
+            const params = new URLSearchParams({
+              select: "id,name,slug,icon,sort_order,is_hidden,is_featured",
+              order: "id.asc",
+              limit: "200",
+            });
+            if (categoryCursor) params.set("id", `gt.${categoryCursor}`);
+            const categoryResponse = await fetch(
+              `${url()}/rest/v1/marketplace_categories?${params}`,
+              { headers: admin() },
+            );
+            if (!categoryResponse.ok) {
+              return Response.json({ rows: [], error: "Could not load rows" }, { status: 502 });
+            }
+            const page: unknown = await categoryResponse.json();
+            if (!Array.isArray(page)) throw new Error("Invalid category page");
+            categories.push(...(page as Record<string, unknown>[]));
+            if (page.length < 200) break;
+            const last = page[page.length - 1] as Record<string, unknown>;
+            if (typeof last.id !== "string" || last.id === categoryCursor) {
+              throw new Error("Invalid category pagination cursor");
+            }
+            categoryCursor = last.id;
           }
-          const categories = (await categoryResponse.json()) as Record<string, unknown>[];
+          categories.sort((a, b) => {
+            const sortOrder = Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0);
+            return sortOrder || String(a.id).localeCompare(String(b.id));
+          });
 
           // One pass over the catalogue rather than a count query per row.
           const counts = new Map<string, number>();
-          for (let offset = 0; offset < 8000; offset += 1000) {
-            const productResponse = await fetch(
-              `${url()}/rest/v1/marketplace_products?select=category_id&visible=eq.true` +
-                `&limit=1000&offset=${offset}`,
-              { headers: admin() },
-            );
+          let productCursor: string | null = null;
+          while (true) {
+            const params = new URLSearchParams({
+              select: "id,category_id",
+              visible: "eq.true",
+              order: "id.asc",
+              limit: "1000",
+            });
+            if (productCursor) params.set("id", `gt.${productCursor}`);
+            const productResponse = await fetch(`${url()}/rest/v1/marketplace_products?${params}`, {
+              headers: admin(),
+            });
             if (!productResponse.ok) {
               console.error(
                 "[rows] product count page read failed",
-                offset,
+                productCursor,
                 productResponse.status,
               );
               return Response.json({ rows: [], error: "Could not load rows" }, { status: 502 });
             }
-            const page = (await productResponse.json()) as { category_id: string | null }[];
+            const page: unknown = await productResponse.json();
+            if (!Array.isArray(page)) throw new Error("Invalid product page");
             for (const row of page) {
-              if (row.category_id)
-                counts.set(row.category_id, (counts.get(row.category_id) ?? 0) + 1);
+              if (row.category_id) {
+                counts.set(String(row.category_id), (counts.get(String(row.category_id)) ?? 0) + 1);
+              }
             }
             if (page.length < 1000) break;
+            const last = page[page.length - 1] as Record<string, unknown>;
+            if (typeof last.id !== "string" || last.id === productCursor) {
+              throw new Error("Invalid product pagination cursor");
+            }
+            productCursor = last.id;
           }
 
           const rows: RowSummary[] = categories.map((category, index) => ({

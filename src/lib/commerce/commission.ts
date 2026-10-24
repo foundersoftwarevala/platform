@@ -172,10 +172,10 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
   // The caller used to be trusted on that, and this is also reachable from
   // the operator replay route.
   const orderResponse = await rest(
-    `marketplace_orders?select=status,buyer_id,user_id&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+    `marketplace_orders?select=status,buyer_id&id=eq.${encodeURIComponent(orderId)}&limit=1`,
   );
   const order = orderResponse.ok
-    ? ((await orderResponse.json()) as { status: string; buyer_id: string | null; user_id: string | null }[])[0]
+    ? ((await orderResponse.json()) as { status: string; buyer_id: string }[])[0]
     : undefined;
   if (!order) {
     return { ok: false, created: 0, skipped: 0, unattributed: 0, error: "Order not found" };
@@ -183,7 +183,7 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
   if (order.status !== "paid") {
     return { ok: false, created: 0, skipped: 0, unattributed: 0, error: `Order is ${order.status}, not paid` };
   }
-  const buyer = order.user_id ?? order.buyer_id;
+  const buyer = order.buyer_id;
 
   const itemsResponse = await rest(
     `marketplace_order_items?select=id,order_id,product_id,seller_id,product_name,line_total,unit_amount,quantity,currency&order_id=eq.${encodeURIComponent(orderId)}`,

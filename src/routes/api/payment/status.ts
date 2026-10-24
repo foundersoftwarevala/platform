@@ -66,7 +66,7 @@ export const Route = createFileRoute("/api/payment/status")({
           // The transaction may be the order's current attempt or an earlier one.
           const order = await orderForTxnid(
             txnid,
-            "id,order_no,order_number,status,buyer_id,user_id,amount_inr,total,currency_charged,txnid,payu_status",
+            "id,order_no,order_number,status,buyer_id,amount_inr,total,currency_charged,txnid,payu_status",
           );
           if (!order) return Response.json({ status: "unknown" });
 
@@ -88,7 +88,7 @@ export const Route = createFileRoute("/api/payment/status")({
           // The key is only ever shown to the person who bought it.
           if (status === "paid") {
             const viewer = await currentUserId(request);
-            const owner = String(order.user_id ?? order.buyer_id ?? "");
+            const owner = String(order.buyer_id ?? "");
             if (viewer && viewer === owner) {
               const licenceResponse = await fetch(
                 `${url()}/rest/v1/licenses?select=license_key&order_id=eq.${encodeURIComponent(String(order.id))}&limit=1`,

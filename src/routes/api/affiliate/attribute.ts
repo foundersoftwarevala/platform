@@ -50,7 +50,7 @@ export const Route = createFileRoute("/api/affiliate/attribute")({
 
         // The order must belong to the person asking.
         const orderResponse = await rest(
-          `marketplace_orders?select=id,buyer_id,user_id,status,total,currency` +
+          `marketplace_orders?select=id,buyer_id,status,total,currency` +
             `&id=eq.${encodeURIComponent(orderId)}&limit=1`,
         );
         if (!orderResponse.ok) {
@@ -58,15 +58,14 @@ export const Route = createFileRoute("/api/affiliate/attribute")({
         }
         const order = (
           (await orderResponse.json()) as {
-            buyer_id: string | null;
-            user_id: string | null;
+            buyer_id: string;
             status: string;
             total: number | string;
             currency: string;
           }[]
         )[0];
         if (!order) return Response.json({ error: "No such order" }, { status: 404 });
-        if (order.buyer_id !== user.id && order.user_id !== user.id) {
+        if (order.buyer_id !== user.id) {
           return Response.json({ error: "That order does not belong to you" }, { status: 403 });
         }
         // Only an order still awaiting its payment can take an attribution,

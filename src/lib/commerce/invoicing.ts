@@ -26,7 +26,6 @@ type OrderRow = {
   id: string;
   order_no: string | null;
   buyer_id: string | null;
-  user_id: string | null;
   total: number | string | null;
   subtotal: number | string | null;
   tax_total: number | string | null;
@@ -88,7 +87,7 @@ export async function recordInvoiceForOrder(orderId: string): Promise<InvoiceOut
   }
 
   const orderResponse = await rest(
-    `marketplace_orders?select=id,order_no,buyer_id,user_id,total,subtotal,tax_total,` +
+    `marketplace_orders?select=id,order_no,buyer_id,total,subtotal,tax_total,` +
       `discount_total,currency,payu_txn_id,payment_gateway&id=eq.${encodeURIComponent(orderId)}&limit=1`,
   );
   if (!orderResponse.ok) return { ok: false, created: false, error: "Could not read the order" };
@@ -114,7 +113,7 @@ export async function recordInvoiceForOrder(orderId: string): Promise<InvoiceOut
 
   // Who bought it. The name is only what the account already carries.
   let clientName = "Marketplace customer";
-  const buyerId = order.buyer_id ?? order.user_id;
+  const buyerId = order.buyer_id;
   if (buyerId) {
     const profile = await rest(
       `profiles?select=full_name,email,username&id=eq.${encodeURIComponent(buyerId)}&limit=1`,

@@ -145,7 +145,7 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   }
 
   const orderResponse = await rest(
-    `marketplace_orders?select=id,buyer_id,user_id,status,metadata,order_no,total,amount_inr,currency,currency_charged&id=eq.${encodeURIComponent(orderId)}&limit=1`,
+    `marketplace_orders?select=id,buyer_id,status,metadata,order_no,total,amount_inr,currency,currency_charged&id=eq.${encodeURIComponent(orderId)}&limit=1`,
   );
   const orders = orderResponse.ok ? ((await orderResponse.json()) as Record<string, unknown>[]) : [];
   const order = orders[0];
@@ -156,7 +156,7 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     return { ok: false, error: `Order is ${status || "unpaid"}, not paid`, status: 409 };
   }
 
-  const userId = String(order.user_id ?? order.buyer_id ?? "");
+  const userId = String(order.buyer_id ?? "");
   if (!userId) return { ok: false, error: "Order has no owner", status: 409 };
 
   // The product the order is for. The order lines are the record of what was

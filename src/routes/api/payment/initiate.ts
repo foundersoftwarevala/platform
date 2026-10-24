@@ -78,7 +78,7 @@ export const Route = createFileRoute("/api/payment/initiate")({
         try {
           orderResponse = await fetch(
             `${url()}/rest/v1/marketplace_orders` +
-              `?select=id,buyer_id,user_id,status,total,currency,txnid,amount_inr,fx_rate,payu_status,metadata` +
+              `?select=id,buyer_id,status,total,currency,txnid,amount_inr,fx_rate,payu_status,metadata` +
               `&id=eq.${encodeURIComponent(orderId)}&limit=1`,
             { headers: admin() },
           );
@@ -102,7 +102,7 @@ export const Route = createFileRoute("/api/payment/initiate")({
         const order = orders[0];
         if (!order) return Response.json({ error: "Order not found" }, { status: 404 });
 
-        const owner = String(order.user_id ?? order.buyer_id ?? "");
+        const owner = String(order.buyer_id ?? "");
         if (owner !== user.id) {
           return Response.json({ error: "That order is not yours" }, { status: 403 });
         }

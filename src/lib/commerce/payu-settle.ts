@@ -77,14 +77,20 @@ export async function orderForTxnid(
     `${url()}/rest/v1/marketplace_orders?select=${columns}&txnid=eq.${encodeURIComponent(txnid)}&limit=1`,
     { headers: admin() },
   );
-  const rows = current.ok ? ((await current.json()) as Record<string, unknown>[]) : [];
+  if (!current.ok) throw new Error(`Could not read current order (${current.status})`);
+  const currentRows: unknown = await current.json();
+  if (!Array.isArray(currentRows)) throw new Error("Invalid current order response");
+  const rows = currentRows as Record<string, unknown>[];
   if (rows[0]) return rows[0];
   const earlier = await fetch(
     `${url()}/rest/v1/marketplace_orders?select=${columns}` +
       `&metadata->payu_attempts=cs.${encodeURIComponent(JSON.stringify([{ txnid }]))}&limit=1`,
     { headers: admin() },
   );
-  const older = earlier.ok ? ((await earlier.json()) as Record<string, unknown>[]) : [];
+  if (!earlier.ok) throw new Error(`Could not read previous order (${earlier.status})`);
+  const earlierRows: unknown = await earlier.json();
+  if (!Array.isArray(earlierRows)) throw new Error("Invalid previous order response");
+  const older = earlierRows as Record<string, unknown>[];
   return older[0] ?? null;
 }
 
@@ -214,7 +220,13 @@ export async function settlePayuCallback(
   }
 
   // ---- 2. the order ---------------------------------------------------------
-  const order = (await orderForTxnid(txnid)) as OrderRow | null;
+  let order: OrderRow | null;
+  try {
+    order = (await orderForTxnid(txnid)) as OrderRow | null;
+  } catch (error) {
+    console.error("[payu] order read failed", error);
+    return { httpStatus: 502, message: "Could not load order", txnid };
+  }
   if (!order) {
     await logPaymentEvent(null, "payu_unknown_txnid", { txnid, source }, { provider: "payu" });
     return { httpStatus: 404, message: "Unknown transaction", txnid };
@@ -331,7 +343,13 @@ export async function settlePayuCallback(
   await recordPaymentIntent(orderId, { status: "succeeded", txnid, amount: charged }, event);
   if (moved.length === 0) {
     // Another delivery settled it first; that one issued access.
-    const now = (await orderForTxnid(txnid, "id,status")) as { status?: string } | null;
+    let now: { status?: string } | null;
+    try {
+      now = (await orderForTxnid(txnid, "id,status")) as { status?: string } | null;
+    } catch (error) {
+      console.error("[payu] order verification read failed", error);
+      return { httpStatus: 502, message: "Could not verify order", txnid };
+    }
     if (String(now?.status ?? "") === "paid") return fulfil(orderId, txnid, true);
     await logPaymentEvent(orderId, "payu_settle_conflict", { txnid, order_status: now?.status ?? null });
     return { httpStatus: 409, message: "Order changed while settling", txnid };
