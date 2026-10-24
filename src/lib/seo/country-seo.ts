@@ -64,20 +64,24 @@ export function countrySlug(country: string): string {
 /** Every country the catalogue is written for, with how much it holds. */
 export async function countryRows(): Promise<CountryRow[]> {
   if (countryCache && Date.now() - countryCache.at < CACHE_MS) return countryCache.rows;
-  if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
+  if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Country SEO database configuration is unavailable.");
+  }
   try {
     const response = await fetch(`${url()}/rest/v1/rpc/marketplace_countries`, {
       method: "POST",
       headers: { ...admin(), "Content-Type": "application/json" },
       body: "{}",
     });
-    if (!response.ok) return countryCache?.rows ?? [];
+    if (!response.ok) {
+      throw new Error(`Country list request failed with status ${response.status}.`);
+    }
     const rows = (await response.json()) as CountryRow[];
     countryCache = { at: Date.now(), rows };
     return rows;
   } catch (error) {
     console.error("[country seo] country list failed", error);
-    return countryCache?.rows ?? [];
+    throw error;
   }
 }
 
@@ -101,29 +105,31 @@ export const getCountrySeo = createServerFn({ method: "GET" })
       return null;
     }
 
-    let categories: CountryCategory[] = [];
+    let categories: CountryCategory[];
     try {
       const response = await fetch(`${url()}/rest/v1/rpc/marketplace_country_categories`, {
         method: "POST",
         headers: { ...admin(), "Content-Type": "application/json" },
         body: JSON.stringify({ target: row.country }),
       });
-      if (response.ok) {
-        const rows = (await response.json()) as {
-          category_id: string;
-          category_name: string;
-          category_slug: string;
-          product_count: number;
-        }[];
-        categories = rows.map((c) => ({
-          id: c.category_id,
-          name: c.category_name,
-          slug: c.category_slug,
-          productCount: Number(c.product_count) || 0,
-        }));
+      if (!response.ok) {
+        throw new Error(`Country categories request failed with status ${response.status}.`);
       }
+      const rows = (await response.json()) as {
+        category_id: string;
+        category_name: string;
+        category_slug: string;
+        product_count: number;
+      }[];
+      categories = rows.map((c) => ({
+        id: c.category_id,
+        name: c.category_name,
+        slug: c.category_slug,
+        productCount: Number(c.product_count) || 0,
+      }));
     } catch (error) {
       console.error("[country seo] categories failed for", row.country, error);
+      throw error;
     }
 
     const value: CountrySeo = {
@@ -160,7 +166,10 @@ export const getCountryProducts = createServerFn({ method: "GET" })
   )
   .handler(async ({ data }): Promise<{ country: string; cards: CountryCard[]; total: number }> => {
     const row = await resolve(data.slug);
-    if (!row || !url()) return { country: "", cards: [], total: 0 };
+    if (!row) return { country: "", cards: [], total: 0 };
+    if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Country product database configuration is unavailable.");
+    }
 
     const offset = data.offset ?? 0;
     const limit = data.limit ?? 24;
@@ -174,7 +183,9 @@ export const getCountryProducts = createServerFn({ method: "GET" })
           `&order=sort_order.asc,name.asc&limit=${limit}&offset=${offset}`,
         { headers: { ...admin(), Prefer: "count=exact" } },
       );
-      if (!response.ok) return { country: row.country, cards: [], total: 0 };
+      if (!response.ok) {
+        throw new Error(`Country products request failed with status ${response.status}.`);
+      }
       const rows = (await response.json()) as Record<string, unknown>[];
       const range = response.headers.get("content-range") ?? "";
       return {
@@ -184,7 +195,7 @@ export const getCountryProducts = createServerFn({ method: "GET" })
       };
     } catch (error) {
       console.error("[country seo] products failed for", row.country, error);
-      return { country: row.country, cards: [], total: 0 };
+      throw error;
     }
   });
 

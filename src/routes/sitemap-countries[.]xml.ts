@@ -16,6 +16,15 @@ const HEADERS = {
   "Content-Type": "application/xml; charset=utf-8",
   "Cache-Control": "public, max-age=3600",
 };
+const UNAVAILABLE = () =>
+  new Response("Sitemap temporarily unavailable.", {
+    status: 503,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Retry-After": "300",
+    },
+  });
 
 function escapeXml(value: string): string {
   return value
@@ -45,7 +54,7 @@ export const Route = createFileRoute("/sitemap-countries.xml")({
           return new Response(`${OPEN}\n${entries.join("\n")}\n${CLOSE}`, { headers: HEADERS });
         } catch (error) {
           console.error("[sitemap countries] failed", error);
-          return new Response(`${OPEN}\n${CLOSE}`, { headers: HEADERS });
+          return UNAVAILABLE();
         }
       },
     },

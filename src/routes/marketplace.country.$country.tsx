@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useLoaderData, useParams } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Package } from "lucide-react";
 import { absoluteUrl } from "@/lib/seo/site-url";
+import { canIndexPage } from "@/lib/seo/sitemap-gate";
+import { respondNotFound } from "@/lib/seo/not-found.server";
 import {
   getCountryProducts,
   getCountrySeo,
@@ -28,32 +30,31 @@ type Loaded = {
   cards: CountryCard[];
   total: number;
   hasMore: boolean;
+  indexable: boolean;
 };
 
 const PAGE = 24;
 
 export const Route = createFileRoute("/marketplace/country/$country")({
   loader: async ({ params }): Promise<Loaded> => {
-    try {
-      const seo = await getCountrySeo({ data: { slug: params.country } });
-      if (!seo) {
-        // No such country: 404 as well as noindex, not a soft 200.
-        if (typeof window === "undefined") {
-          (await import("@/lib/seo/not-found.server")).respondNotFound();
-        }
-        return { seo: null, cards: [], total: 0, hasMore: false };
-      }
-
-      // The first page is fetched on the server rather than in the browser, so
-      // the document itself carries the product links.
-      const { cards, total } = await getCountryProducts({
-        data: { slug: params.country, offset: 0, limit: PAGE },
-      });
-      return { seo, cards, total, hasMore: cards.length < total };
-    } catch (error) {
-      console.error("[country page] could not load", params.country, error);
-      return { seo: null, cards: [], total: 0, hasMore: false };
+    const seo = await getCountrySeo({ data: { slug: params.country } });
+    if (!seo) {
+      // No such country: 404 as well as noindex, not a soft 200.
+      if (typeof window === "undefined") respondNotFound();
+      return { seo: null, cards: [], total: 0, hasMore: false, indexable: false };
     }
+
+    const [products, gate] = await Promise.all([
+      getCountryProducts({ data: { slug: params.country, offset: 0, limit: PAGE } }),
+      canIndexPage(`/marketplace/country/${seo.slug}`),
+    ]);
+    return {
+      seo,
+      cards: products.cards,
+      total: products.total,
+      hasMore: products.cards.length < products.total,
+      indexable: gate.indexable,
+    };
   },
 
   head: ({ loaderData }) => {
@@ -98,6 +99,7 @@ export const Route = createFileRoute("/marketplace/country/$country")({
         { property: "og:description", content: description },
         { property: "og:type", content: "website" },
         { property: "og:url", content: canonical },
+        ...(data.indexable ? [] : [{ name: "robots", content: "noindex, follow" }]),
       ],
       scripts: [
         {

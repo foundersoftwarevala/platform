@@ -1,5 +1,4 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { pageHead } from "@/lib/seo-head";
 import { Check, GraduationCap } from "lucide-react";
 import { getCourse } from "@/lib/site-content/academy";
 import "@/styles/marketplace-home.css";
@@ -78,6 +77,37 @@ function CoursePage() {
 }
 
 export const Route = createFileRoute("/academy/$course")({
-  head: pageHead("Academy", "Course material and walkthroughs from the Software Vala academy."),
+  loader: async ({ params }) => {
+    const course = getCourse(params.course);
+    if (!course) throw notFound();
+    return { course };
+  },
+  head: ({ params }) => {
+    const course = getCourse(params.course);
+    if (!course) {
+      return {
+        meta: [
+          { title: "Vala Academy | Software Vala" },
+          {
+            name: "description",
+            content: "Learning paths from the Software Vala Academy.",
+          },
+        ],
+      };
+    }
+    const title = `${course.title} | Vala Academy | Software Vala`;
+    const description =
+      `${course.summary} This ${course.level.toLowerCase()} learning path includes ` +
+      `${course.lessons} lessons.`;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "article" },
+      ],
+    };
+  },
   component: CoursePage,
 });

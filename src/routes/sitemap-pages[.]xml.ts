@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isPubliclyReachable } from "@/components/auth/RouteAccessGate";
 import { absoluteUrl, indexable } from "@/lib/seo/site-url";
+import { listCourses } from "@/lib/site-content/academy";
+import { listLegalPolicies } from "@/lib/storefront/legal.functions";
 
 /**
  * The pages that are not generated from the catalogue.
@@ -15,6 +17,8 @@ const PUBLIC_PAGES: Array<{ path: string; priority: string; changefreq: string }
   { path: "/ai/assistant", priority: "0.6", changefreq: "weekly" },
   { path: "/vala-tv", priority: "0.5", changefreq: "weekly" },
   { path: "/academy", priority: "0.5", changefreq: "weekly" },
+  { path: "/contact", priority: "0.5", changefreq: "monthly" },
+  { path: "/legal", priority: "0.4", changefreq: "monthly" },
   { path: "/apply", priority: "0.6", changefreq: "monthly" },
   { path: "/support", priority: "0.5", changefreq: "monthly" },
 ];
@@ -37,11 +41,33 @@ export const Route = createFileRoute("/sitemap-pages.xml")({
         // anyway, so a crawler asking for either got the words "Checking
         // workspace access..." and no page. The gate decides, not a second
         // hand-written list that can drift away from it.
-        const entries = PUBLIC_PAGES.filter((p) => isPubliclyReachable(p.path)).map(
-          (p) =>
-            `<url><loc>${absoluteUrl(p.path)}</loc><lastmod>${today}</lastmod>` +
-            `<changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`,
-        );
+        const pages = [
+          ...PUBLIC_PAGES,
+          ...listCourses().map((course) => ({
+            path: `/academy/${course.slug}`,
+            priority: "0.5",
+            changefreq: "monthly",
+          })),
+          ...(await listLegalPolicies()).map((policy) => ({
+            path: `/legal/${policy.slug}`,
+            priority: "0.4",
+            changefreq: "monthly",
+          })),
+        ];
+        const entries = pages
+          .filter((p) => isPubliclyReachable(p.path))
+          .map((p) => {
+            const loc = absoluteUrl(p.path)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&apos;");
+            return (
+              `<url><loc>${loc}</loc><lastmod>${today}</lastmod>` +
+              `<changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`
+            );
+          });
         return new Response(`${open}\n${entries.join("\n")}\n${close}`, { headers });
       },
     },

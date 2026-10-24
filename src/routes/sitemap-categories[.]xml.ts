@@ -30,22 +30,34 @@ const HEADERS = {
   "Content-Type": "application/xml; charset=utf-8",
   "Cache-Control": "public, max-age=3600",
 };
+const UNAVAILABLE = () =>
+  new Response("Sitemap temporarily unavailable.", {
+    status: 503,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Retry-After": "300",
+    },
+  });
 
 export const Route = createFileRoute("/sitemap-categories.xml")({
   server: {
     handlers: {
       GET: async () => {
-        if (!indexable() || !url()) {
+        if (!indexable()) {
           return new Response(`${OPEN}\n${CLOSE}`, { headers: HEADERS });
         }
         try {
+          if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+            throw new Error("Marketplace database configuration is unavailable.");
+          }
           const categoryResponse = await fetch(
             `${url()}/rest/v1/marketplace_categories?select=id,slug,updated_at` +
               `&is_hidden=eq.false&order=sort_order.asc&limit=500`,
             { headers: admin() },
           );
           if (!categoryResponse.ok) {
-            return new Response(`${OPEN}\n${CLOSE}`, { headers: HEADERS });
+            throw new Error(`Category list request failed with status ${categoryResponse.status}.`);
           }
           const categories = (await categoryResponse.json()) as {
             id: string; slug: string; updated_at: string;
@@ -59,7 +71,11 @@ export const Route = createFileRoute("/sitemap-categories.xml")({
                 `&visible=eq.true&content_status=eq.published&limit=1000&offset=${offset}`,
               { headers: admin() },
             );
-            if (!productResponse.ok) break;
+            if (!productResponse.ok) {
+              throw new Error(
+                `Published products request failed with status ${productResponse.status}.`,
+              );
+            }
             const page = (await productResponse.json()) as { category_id: string | null }[];
             for (const row of page) if (row.category_id) populated.add(row.category_id);
             if (page.length < 1000) break;
@@ -80,7 +96,7 @@ export const Route = createFileRoute("/sitemap-categories.xml")({
           return new Response(`${OPEN}\n${entries.join("\n")}\n${CLOSE}`, { headers: HEADERS });
         } catch (error) {
           console.error("[sitemap categories] failed", error);
-          return new Response(`${OPEN}\n${CLOSE}`, { headers: HEADERS });
+          return UNAVAILABLE();
         }
       },
     },
