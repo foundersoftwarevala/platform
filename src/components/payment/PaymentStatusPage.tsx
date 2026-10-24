@@ -58,7 +58,7 @@ export function PaymentStatusPage() {
         });
         const data = (await response.json()) as Outcome;
         if (cancelled) return;
-        setOutcome(data);
+        setOutcome(response.ok ? data : { status: "unknown" });
         // The webhook can arrive a moment after the customer does.
         if (data.status === "pending" && tries < 10) {
           setTimeout(() => setTries((t) => t + 1), 3000);

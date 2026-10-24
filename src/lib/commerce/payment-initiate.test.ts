@@ -9,6 +9,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/commerce/fulfilment", () => ({ logPaymentEvent: vi.fn(async () => undefined) }));
 vi.mock("@/lib/i18n/server-translate.server", () => ({ languageOf: () => "en" }));
+vi.mock("@/lib/i18n/limits", () => ({
+  SlidingWindowLimiter: class {
+    hit() {
+      return false;
+    }
+  },
+}));
 vi.mock("@/lib/affiliate/core", () => ({
   REFERRAL_COOKIE: "sv_ref",
   readCookie: () => null,

@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getRequestIP } from "@tanstack/react-start/server";
 import { aiStream } from "@/lib/ai-gateway.server";
 import { requireAuthorizedAiCaller } from "@/lib/ai-request-auth.server";
-import { SlidingWindowLimiter } from "@/lib/i18n/limits";
+import { clientAddress, SlidingWindowLimiter } from "@/lib/i18n/limits";
 
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
@@ -30,11 +31,31 @@ Rules:
  */
 const CHAT_TURNS_PER_MINUTE = 20;
 const chatLimiter = new SlidingWindowLimiter(60_000);
+const CHAT_IP_TURNS_PER_MINUTE = 60;
+const chatIpLimiter = new SlidingWindowLimiter(60_000);
 
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        try {
+          const peer = getRequestIP();
+          if (peer) {
+            const address = clientAddress(request.headers, peer);
+            if (address !== "unknown" && chatIpLimiter.hit(address, CHAT_IP_TURNS_PER_MINUTE)) {
+              return new Response("Too many messages from this address. Please wait a moment.", {
+                status: 429,
+                headers: { "Retry-After": "30" },
+              });
+            }
+          }
+        } catch (error) {
+          console.warn(
+            "[chat] client address unavailable; account rate limit remains active",
+            error,
+          );
+        }
+
         let caller: { id: string };
         try {
           caller = await requireAuthorizedAiCaller();

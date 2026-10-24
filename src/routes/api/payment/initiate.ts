@@ -1,13 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getRequestIP } from "@tanstack/react-start/server";
 import {
   newTxnId, payuAmount, payuConfig, requestHash, usdToInr,
 } from "@/lib/commerce/payu";
 import { logPaymentEvent } from "@/lib/commerce/fulfilment";
 import { recordPaymentIntent, type PayuAttempt } from "@/lib/commerce/payu-settle";
 import { languageOf } from "@/lib/i18n/server-translate.server";
+import { clientAddress, SlidingWindowLimiter } from "@/lib/i18n/limits";
 import {
   REFERRAL_COOKIE, attributeOrder, attributionForSession, readCookie, rest,
 } from "@/lib/affiliate/core";
+
+const paymentInitiateLimiter = new SlidingWindowLimiter(60_000);
+const PAYMENT_STARTS_PER_MINUTE = 10;
+const paymentIpLimiter = new SlidingWindowLimiter(60_000);
+const PAYMENT_STARTS_PER_IP_PER_MINUTE = 30;
 
 /**
  * Start a payment.
@@ -59,9 +66,36 @@ export const Route = createFileRoute("/api/payment/initiate")({
           );
         }
 
+        try {
+          const peer = getRequestIP();
+          if (peer) {
+            const address = clientAddress(request.headers, peer);
+            if (
+              address !== "unknown" &&
+              paymentIpLimiter.hit(address, PAYMENT_STARTS_PER_IP_PER_MINUTE)
+            ) {
+              return Response.json(
+                { error: "Too many payment attempts from this address. Please try again shortly." },
+                { status: 429, headers: { "Retry-After": "30", "Cache-Control": "no-store" } },
+              );
+            }
+          }
+        } catch (error) {
+          console.warn(
+            "[payment] client address unavailable; account rate limit remains active",
+            error,
+          );
+        }
+
         const user = await currentUser(request);
         if (!user) {
           return Response.json({ error: "Please sign in to pay." }, { status: 401 });
+        }
+        if (paymentInitiateLimiter.hit(user.id, PAYMENT_STARTS_PER_MINUTE)) {
+          return Response.json(
+            { error: "Too many payment attempts. Please wait before trying again." },
+            { status: 429, headers: { "Retry-After": "30", "Cache-Control": "no-store" } },
+          );
         }
 
         let body: { orderId?: string; firstname?: string; phone?: string };

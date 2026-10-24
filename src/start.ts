@@ -1,6 +1,8 @@
 import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
+import { getRequestHeader } from "@tanstack/react-start/server";
 
 import { renderErrorPage } from "./lib/error-page";
+import { isAllowedDomainRequest } from "./lib/domain-lock.server";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
@@ -23,6 +25,25 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 // from cross-site requests.
 const csrfMiddleware = createCsrfMiddleware({
   filter: (ctx) => ctx.handlerType === "serverFn",
+});
+
+const domainLockMiddleware = createMiddleware().server(async ({ next, handlerType }) => {
+  const host = getRequestHeader("host");
+  const origin = getRequestHeader("origin");
+  if (!isAllowedDomainRequest(host, origin)) {
+    return new Response(
+      handlerType === "router" ? "Forbidden" : JSON.stringify({ error: "Forbidden" }),
+      {
+        status: 403,
+        headers: {
+          "Cache-Control": "no-store",
+          "Content-Type":
+            handlerType === "router" ? "text/plain; charset=utf-8" : "application/json",
+        },
+      },
+    );
+  }
+  return next();
 });
 
 const localeCacheMiddleware = createMiddleware().server(async ({ next, handlerType }) => {
@@ -56,5 +77,5 @@ const localeCacheMiddleware = createMiddleware().server(async ({ next, handlerTy
 
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [errorMiddleware, csrfMiddleware, localeCacheMiddleware],
+  requestMiddleware: [domainLockMiddleware, errorMiddleware, csrfMiddleware, localeCacheMiddleware],
 }));

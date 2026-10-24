@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { orderForTxnid } from "@/lib/commerce/payu-settle";
+import { bearerToken, userFromBearerToken } from "@/lib/auth/bearer-user.server";
+import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 
 /**
  * What actually happened to a payment.
@@ -9,8 +11,8 @@ import { orderForTxnid } from "@/lib/commerce/payu-settle";
  * from the order row, which only the verified webhook is allowed to move to
  * "paid".
  *
- * The licence key is returned only to the customer who owns the order, and only
- * when they are signed in. Everyone else gets the status and nothing more.
+ * Payment details are returned only to the signed-in customer who owns the
+ * order. The transaction id is not an authorization credential.
  */
 
 function url() {
@@ -20,23 +22,6 @@ function url() {
 function admin() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
   return { apikey: key, Authorization: `Bearer ${key}` };
-}
-
-async function currentUserId(request: Request): Promise<string | null> {
-  const publishable =
-    process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim();
-  const authorization = request.headers.get("authorization");
-  if (!url() || !publishable || !authorization) return null;
-  try {
-    const response = await fetch(`${url()}/auth/v1/user`, {
-      headers: { apikey: publishable, Authorization: authorization },
-    });
-    if (!response.ok) return null;
-    const user = (await response.json()) as { id?: string };
-    return user?.id ?? null;
-  } catch {
-    return null;
-  }
 }
 
 const PORTAL_STATUS: Record<string, "paid" | "pending" | "failed"> = {
@@ -49,7 +34,16 @@ const PORTAL_STATUS: Record<string, "paid" | "pending" | "failed"> = {
 };
 
 /** PayU's answers that end an attempt without the money. */
-const FAILED_ATTEMPT = new Set(["failure", "failed", "usercancelled", "cancelled", "dropped", "bounced"]);
+const FAILED_ATTEMPT = new Set([
+  "failure",
+  "failed",
+  "usercancelled",
+  "cancelled",
+  "dropped",
+  "bounced",
+]);
+const statusLimiter = new SlidingWindowLimiter(60_000);
+const STATUS_REQUESTS_PER_MINUTE = 60;
 
 export const Route = createFileRoute("/api/payment/status")({
   server: {
@@ -57,6 +51,24 @@ export const Route = createFileRoute("/api/payment/status")({
       GET: async ({ request }) => {
         if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json({ status: "unknown" }, { status: 503 });
+        }
+
+        const token = bearerToken(request.headers.get("authorization"));
+        const viewer = token ? await userFromBearerToken(token) : null;
+        if (!viewer) {
+          return Response.json(
+            { status: "unknown", error: "Sign in to check your payment" },
+            { status: 401, headers: { "Cache-Control": "no-store" } },
+          );
+        }
+        if (statusLimiter.hit(viewer.id, STATUS_REQUESTS_PER_MINUTE)) {
+          return Response.json(
+            { status: "unknown", error: "Too many payment status requests" },
+            {
+              status: 429,
+              headers: { "Retry-After": "30", "Cache-Control": "no-store" },
+            },
+          );
         }
 
         const txnid = (new URL(request.url).searchParams.get("txnid") ?? "").trim().slice(0, 80);
@@ -69,6 +81,12 @@ export const Route = createFileRoute("/api/payment/status")({
             "id,order_no,order_number,status,buyer_id,amount_inr,total,currency_charged,txnid,payu_status",
           );
           if (!order) return Response.json({ status: "unknown" });
+          if (String(order.buyer_id ?? "") !== viewer.id) {
+            return Response.json(
+              { status: "unknown" },
+              { status: 404, headers: { "Cache-Control": "no-store" } },
+            );
+          }
 
           // An unpaid order stays pending_payment after a failed attempt (the
           // table has no failed status); PayU's answer for that attempt is kept
@@ -76,8 +94,9 @@ export const Route = createFileRoute("/api/payment/status")({
           const orderStatus = String(order.status ?? "").toLowerCase();
           const attemptFailed =
             orderStatus === "pending_payment" &&
-            (order.txnid !== txnid || FAILED_ATTEMPT.has(String(order.payu_status ?? "").toLowerCase()));
-          const status = attemptFailed ? "failed" : PORTAL_STATUS[orderStatus] ?? "pending";
+            (order.txnid !== txnid ||
+              FAILED_ATTEMPT.has(String(order.payu_status ?? "").toLowerCase()));
+          const status = attemptFailed ? "failed" : (PORTAL_STATUS[orderStatus] ?? "pending");
           const payload: Record<string, unknown> = {
             status,
             order_no: order.order_no ?? order.order_number ?? null,
@@ -87,17 +106,28 @@ export const Route = createFileRoute("/api/payment/status")({
 
           // The key is only ever shown to the person who bought it.
           if (status === "paid") {
-            const viewer = await currentUserId(request);
-            const owner = String(order.buyer_id ?? "");
-            if (viewer && viewer === owner) {
-              const licenceResponse = await fetch(
-                `${url()}/rest/v1/licenses?select=license_key&order_id=eq.${encodeURIComponent(String(order.id))}&limit=1`,
-                { headers: admin() },
+            const licenceResponse = await fetch(
+              `${url()}/rest/v1/licenses?select=license_key&order_id=eq.${encodeURIComponent(String(order.id))}&limit=1`,
+              { headers: admin() },
+            );
+            if (!licenceResponse.ok) {
+              console.error("[payment status] licence read failed", licenceResponse.status);
+              return Response.json(
+                { status: "unknown", error: "Could not verify payment access" },
+                { status: 502, headers: { "Cache-Control": "no-store" } },
               );
-              const licences = licenceResponse.ok
-                ? ((await licenceResponse.json()) as { license_key: string }[])
-                : [];
-              if (licences[0]) payload.licence_key = licences[0].license_key;
+            }
+            const licences: unknown = await licenceResponse.json();
+            if (!Array.isArray(licences)) {
+              console.error("[payment status] licence read returned invalid data");
+              return Response.json(
+                { status: "unknown", error: "Could not verify payment access" },
+                { status: 502, headers: { "Cache-Control": "no-store" } },
+              );
+            }
+            const licence = licences[0] as { license_key?: unknown } | undefined;
+            if (typeof licence?.license_key === "string") {
+              payload.licence_key = licence.license_key;
             }
           }
 
