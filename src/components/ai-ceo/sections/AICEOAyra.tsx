@@ -6,14 +6,15 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
-  PageBanner,
   PageShell,
 } from "@/components/ai-ceo/PageShell";
 import { SourceNote } from "@/components/ai-ceo/ops/shared";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AyraLiveFeedChat } from "@/components/ai-ceo/AyraLiveFeedChat";
+import { AyraCommandCenter } from "@/components/ai-ceo/AyraCommandCenter";
+import { AyraHomeBanner } from "@/components/ai-ceo/AyraHomeBanner";
+import { AyraLiveFeed } from "@/components/ai-ceo/AyraLiveFeed";
 import { useAyraCapabilities, useAyraOrders, type AyraOrder } from "@/hooks/useAyra";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
@@ -82,7 +83,7 @@ const AICEOAyra = () => {
   if (capsLoading || ordersLoading) {
     return (
       <PageShell>
-        <PageBanner icon={Sparkles} title={t("ceo.ayra_title")} />
+        <AyraHomeBanner />
         <LoadingState label={t("ceo.ayra_loading")} rows={2} />
       </PageShell>
     );
@@ -91,7 +92,7 @@ const AICEOAyra = () => {
   if (denied) {
     return (
       <PageShell>
-        <PageBanner icon={Sparkles} title={t("ceo.ayra_title")} />
+        <AyraHomeBanner />
         <EmptyState
           icon={ShieldAlert}
           title={t("ceo.ci_denied_title")}
@@ -104,7 +105,7 @@ const AICEOAyra = () => {
   if (capsFailed) {
     return (
       <PageShell>
-        <PageBanner icon={Sparkles} title={t("ceo.ayra_title")} />
+        <AyraHomeBanner />
         <ErrorState
           title={t("ceo.ayra_failed")}
           description={t("ceo.ayra_failed_body")}
@@ -119,14 +120,9 @@ const AICEOAyra = () => {
 
   return (
     <PageShell>
-      <PageBanner
-        icon={Sparkles}
-        title={t("ceo.ayra_title")}
-        subtitle={t("ceo.ayra_subtitle")}
-        status={`${connected} ${t("ceo.ayra_connected")} · ${notConnected} ${t("ceo.ayra_not_connected")}`}
-      />
-
-      <AyraLiveFeedChat />
+      <AyraHomeBanner />
+      <AyraCommandCenter />
+      <AyraLiveFeed />
 
       {degraded.length > 0 && <DegradedNotice sources={degraded} />}
 

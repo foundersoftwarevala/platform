@@ -96,7 +96,7 @@ type OllamaMessage = {
 
 type AyraReply = { answer: string; toolsUsed: string[] };
 
-async function requireAyraActor(): Promise<string> {
+export async function requireAyraActor(): Promise<string> {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Sign-in required.");

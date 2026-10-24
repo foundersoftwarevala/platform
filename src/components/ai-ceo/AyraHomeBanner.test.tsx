@@ -1,23 +1,10 @@
 // @vitest-environment jsdom
-import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { askAyra, getAyraLiveFeed } from "@/lib/ayra/functions";
+import { getAyraLiveFeed } from "@/lib/ayra/functions";
 import { AyraHomeBanner } from "./AyraHomeBanner";
-
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({
-    to,
-    children,
-    ...props
-  }: AnchorHTMLAttributes<HTMLAnchorElement> & { to: string; children: ReactNode }) => (
-    <a href={to} {...props}>
-      {children}
-    </a>
-  ),
-}));
 
 vi.mock("@tanstack/react-start", () => ({
   useServerFn: (handler: unknown) => handler,
@@ -26,6 +13,8 @@ vi.mock("@tanstack/react-start", () => ({
 vi.mock("@/lib/ayra/functions", () => ({
   askAyra: vi.fn(),
   getAyraLiveFeed: vi.fn(),
+  getAyraCommandSettings: vi.fn(),
+  saveAyraCommandSettings: vi.fn(),
 }));
 
 vi.mock("@/lib/i18n/use-translation", () => ({
@@ -61,15 +50,13 @@ function renderBanner() {
 }
 
 describe("AyraHomeBanner", () => {
-  afterEach(() => {
-    cleanup();
-  });
+  afterEach(cleanup);
 
   beforeEach(() => {
     vi.resetAllMocks();
   });
 
-  it("shows live metrics, read-only status, and links to the full AYRA page", async () => {
+  it("shows the AYRA portrait banner and live read-only metrics without duplicating chat", async () => {
     vi.mocked(getAyraLiveFeed).mockResolvedValue(liveFeed);
 
     renderBanner();
@@ -79,29 +66,8 @@ describe("AyraHomeBanner", () => {
     expect(screen.getByText("ceo.ayra_home_read_only")).toBeTruthy();
     expect(screen.getByText("12")).toBeTruthy();
     expect(screen.getByText("2")).toBeTruthy();
-    expect(screen.getByText("ceo.ayra_home_open").closest("a")?.getAttribute("href")).toBe(
-      "/ai-ceo/ayra",
-    );
-  });
-
-  it("submits a read-only question and renders AYRA's answer and inspected tools", async () => {
-    vi.mocked(getAyraLiveFeed).mockResolvedValue(liveFeed);
-    vi.mocked(askAyra).mockResolvedValue({
-      answer: "Platform health is available.",
-      toolsUsed: ["getPlatformHealth"],
-    });
-
-    renderBanner();
-
-    const input = await screen.findByRole("textbox", { name: "ceo.ayra_question_label" });
-    fireEvent.change(input, { target: { value: "Check platform health" } });
-    fireEvent.click(screen.getByRole("button", { name: "ceo.ayra_send" }));
-
-    expect(await screen.findByText("Platform health is available.")).toBeTruthy();
-    expect(askAyra).toHaveBeenCalledWith({
-      data: { prompt: "Check platform health" },
-    });
-    expect(screen.getByText("ceo.ayra_inspected")).toBeTruthy();
+    expect(screen.getByRole("img", { name: /ceo\.ayra_title — Cyan Jacket/ })).toBeTruthy();
+    expect(screen.queryByRole("textbox")).toBeNull();
   });
 
   it("shows feed failures and unknown metrics instead of implying the system is empty", async () => {

@@ -1,51 +1,21 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Link } from "@tanstack/react-router";
-import {
-  Activity,
-  AlertTriangle,
-  ArrowRight,
-  Brain,
-  Eye,
-  LoaderCircle,
-  RefreshCw,
-  Send,
-  Sparkles,
-} from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { Activity, AlertTriangle, Eye, RefreshCw, Sparkles } from "lucide-react";
 
+import { AYRA_LOOKS } from "@/components/ai-ceo/ayra-assets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { askAyra, getAyraLiveFeed } from "@/lib/ayra/functions";
+import { getAyraLiveFeed } from "@/lib/ayra/functions";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
 export function AyraHomeBanner() {
   const { t, formatDate } = useTranslation();
-  const [prompt, setPrompt] = useState("");
-  const [lastQuestion, setLastQuestion] = useState("");
   const readLiveFeed = useServerFn(getAyraLiveFeed);
-  const ask = useServerFn(askAyra);
-
   const feed = useQuery({
     queryKey: ["ayra", "platform-health"],
     queryFn: () => readLiveFeed(),
     staleTime: 60_000,
   });
-
-  const chat = useMutation({
-    mutationFn: (question: string) => ask({ data: { prompt: question } }),
-  });
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const question = prompt.trim();
-    if (!question || chat.isPending) return;
-
-    setLastQuestion(question);
-    setPrompt("");
-    chat.mutate(question);
-  };
 
   const statusKey = feed.isPending
     ? "ceo.ayra_home_syncing"
@@ -70,6 +40,7 @@ export function AyraHomeBanner() {
       icon: Sparkles,
     },
   ];
+  const portrait = AYRA_LOOKS.find((look) => look.id === "cyanJacket") ?? AYRA_LOOKS[0];
 
   return (
     <section
@@ -180,97 +151,27 @@ export function AyraHomeBanner() {
           )}
         </div>
 
-        <div className="flex flex-col gap-4 lg:w-[min(100%,22rem)]">
-          <div className="flex items-center gap-4 lg:justify-end">
+        <div className="lg:w-[min(100%,22rem)]">
+          <div className="relative isolate aspect-[4/5] w-full overflow-hidden rounded-2xl border border-white/30 bg-white shadow-[0_18px_55px_-25px_rgba(0,0,0,0.7)]">
+            <img
+              src={portrait.portrait}
+              alt={`${t("ceo.ayra_title")} — ${portrait.name}`}
+              width={768}
+              height={1280}
+              loading="eager"
+              className="absolute inset-0 h-full w-full object-contain object-bottom"
+            />
             <div
               aria-hidden="true"
-              className="relative grid h-16 w-16 shrink-0 place-items-center sm:h-20 sm:w-20"
-            >
-              <span className="absolute inset-0 rounded-full border border-cyan-100/35 motion-safe:animate-[spin_18s_linear_infinite] motion-reduce:animate-none" />
-              <span className="absolute inset-2 rounded-full border border-dashed border-white/40 motion-safe:animate-[spin_24s_linear_infinite_reverse] motion-reduce:animate-none" />
-              <span className="absolute inset-3 rounded-full bg-cyan-200/15 blur-md" />
-              <span className="relative grid h-10 w-10 place-items-center rounded-full border border-cyan-100/60 bg-white/15 shadow-[0_0_30px_rgba(125,211,252,0.45)] sm:h-12 sm:w-12">
-                <Brain className="h-5 w-5 text-white sm:h-6 sm:w-6" />
-              </span>
-            </div>
-            <div className="min-w-0 lg:text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary-foreground/70">
-                {t("ceo.ayra_ask")}
+              className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-950/20 via-transparent to-slate-950/75"
+            />
+            <div className="absolute inset-x-4 bottom-4">
+              <p className="text-lg font-semibold tracking-tight text-white">
+                {t("ceo.ayra_title")}
               </p>
-              <p className="mt-1 text-sm font-medium text-primary-foreground">
-                {t("ceo.ayra_chat_description")}
-              </p>
+              <p className="mt-0.5 text-xs text-white/80">{portrait.name}</p>
             </div>
           </div>
-
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              maxLength={4000}
-              placeholder={t("ceo.ayra_question_placeholder")}
-              aria-label={t("ceo.ayra_question_label")}
-              disabled={chat.isPending}
-              className="min-w-0 border-white/25 bg-black/10 text-primary-foreground placeholder:text-primary-foreground/60 focus-visible:ring-white/70"
-            />
-            <Button
-              type="submit"
-              disabled={!prompt.trim() || chat.isPending}
-              aria-label={t("ceo.ayra_send")}
-              className="shrink-0 bg-white text-primary hover:bg-white/90"
-            >
-              {chat.isPending ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Send className="h-4 w-4" aria-hidden="true" />
-              )}
-            </Button>
-          </form>
-
-          {lastQuestion && (
-            <div
-              aria-live="polite"
-              className="max-h-40 overflow-y-auto rounded-xl border border-white/15 bg-black/10 p-3 text-xs"
-            >
-              <p className="font-medium text-primary-foreground/80">{lastQuestion}</p>
-              {chat.isPending && (
-                <p className="mt-2 flex items-center gap-2 text-primary-foreground/75">
-                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  {t("ceo.ayra_thinking")}
-                </p>
-              )}
-              {chat.isError && (
-                <p role="alert" className="mt-2 text-primary-foreground">
-                  {t("ceo.ayra_chat_failed", {
-                    error:
-                      chat.error instanceof Error
-                        ? chat.error.message
-                        : t("ceo.ayra_feed_data_error"),
-                  })}
-                </p>
-              )}
-              {chat.data && (
-                <>
-                  <p className="mt-2 whitespace-pre-wrap text-primary-foreground">
-                    {chat.data.answer}
-                  </p>
-                  {chat.data.toolsUsed.length > 0 && (
-                    <p className="mt-2 text-primary-foreground/70">
-                      {t("ceo.ayra_inspected", { tools: chat.data.toolsUsed.join(", ") })}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          <Link
-            to="/ai-ceo/ayra"
-            className="inline-flex items-center justify-center gap-2 self-start rounded-lg border border-white/25 bg-white/10 px-3.5 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary lg:self-end"
-          >
-            {t("ceo.ayra_home_open")}
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
         </div>
       </div>
     </section>
