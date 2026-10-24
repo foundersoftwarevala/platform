@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { RequireRole } from "@/components/auth/RequireRole";
 import { PageShell } from "@/components/creator/PageShell";
 import { SeoWorkspace } from "@/components/seo-manager/SeoWorkspace";
 
@@ -44,5 +45,9 @@ export const Route = createFileRoute("/seo-manager")({
 
 function SeoManagerRoute() {
   const { module } = Route.useSearch();
-  return <SeoWorkspace initialModule={module} />;
+  return (
+    <RequireRole role={["seo", "marketing"]}>
+      <SeoWorkspace initialModule={module} />
+    </RequireRole>
+  );
 }

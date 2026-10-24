@@ -19,6 +19,8 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 
+const FRANCHISE_QUERY_LIMIT = 200;
+
 export type BranchStatus = "active" | "onboarding" | "paused" | "closed";
 export type Branch = {
   id: string;
@@ -247,8 +249,19 @@ async function load(): Promise<void> {
       return;
     }
     const [owned, member] = await Promise.all([
-      rows(from("franchises").select("id").eq("owner_user_id", uid)),
-      rows(from("franchise_users").select("franchise_id").eq("user_id", uid).eq("active", true)),
+      rows(
+        from("franchises")
+          .select("id")
+          .eq("owner_user_id", uid)
+          .limit(FRANCHISE_QUERY_LIMIT),
+      ),
+      rows(
+        from("franchise_users")
+          .select("franchise_id")
+          .eq("user_id", uid)
+          .eq("active", true)
+          .limit(FRANCHISE_QUERY_LIMIT),
+      ),
     ]);
     if (version !== loadVersion) return;
     const franchiseIds = [
@@ -263,31 +276,36 @@ async function load(): Promise<void> {
         from("franchise_branches")
           .select("*")
           .in("franchise_id", franchiseIds)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(FRANCHISE_QUERY_LIMIT),
       ),
       rows(
         from("franchise_leads")
           .select("*")
           .in("franchise_id", franchiseIds)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(FRANCHISE_QUERY_LIMIT),
       ),
       rows(
         from("franchise_employees")
           .select("*")
           .in("franchise_id", franchiseIds)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(FRANCHISE_QUERY_LIMIT),
       ),
       rows<FranchiseRoyaltyRow & Row>(
         from("franchise_royalties")
           .select("*")
           .in("franchise_id", franchiseIds)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(FRANCHISE_QUERY_LIMIT),
       ),
       rows(
         from("franchise_performance")
           .select("period,revenue")
           .in("franchise_id", franchiseIds)
-          .order("period"),
+          .order("period", { ascending: false })
+          .limit(FRANCHISE_QUERY_LIMIT),
       ),
     ]);
     if (version !== loadVersion) return;
@@ -309,6 +327,7 @@ async function load(): Promise<void> {
       royalties,
       payments: royalties.map(mapPayment),
       revenueByPeriod: [...byPeriod.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
         .slice(-12)
         .map(([label, value]) => ({ label, value })),
     });

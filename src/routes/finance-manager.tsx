@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RequireRole } from "@/components/auth/RequireRole";
 import { FinanceManager } from "@/components/finance/FinanceManager";
 
 /**
@@ -22,5 +23,9 @@ function view(): string {
 
 export const Route = createFileRoute("/finance-manager")({
   head: () => ({ meta: [{ title: "Finance Manager — Software Vala" }] }),
-  component: () => <FinanceManager view={view()} />,
+  component: () => (
+    <RequireRole role="finance">
+      <FinanceManager view={view()} />
+    </RequireRole>
+  ),
 });

@@ -130,6 +130,7 @@ describe("franchise store session changes", () => {
         eq: () => query,
         in: () => query,
         order: () => query,
+        limit: () => query,
         then: (
           resolve: (value: { data: Record<string, unknown>[]; error: null }) => unknown,
           reject?: (reason: Error) => unknown,

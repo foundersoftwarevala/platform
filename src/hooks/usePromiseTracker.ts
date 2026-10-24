@@ -37,6 +37,7 @@ const FAILURE_REASONS: Record<string, string> = {
 };
 
 const PROMISE_SELECT = "*, promise_categories(id, slug, label, accent)";
+const TRACKER_QUERY_LIMIT = 200;
 
 export const trackerKeys = {
   promises: ["promise-tracker", "promises"] as const,
@@ -71,7 +72,8 @@ export function usePromises() {
       const { data, error } = await supabase
         .from("promises")
         .select(PROMISE_SELECT)
-        .order("deadline", { ascending: true });
+        .order("deadline", { ascending: true })
+        .limit(TRACKER_QUERY_LIMIT);
       if (error) throw error;
       return (data ?? []) as PromiseWithCategory[];
     }),
@@ -86,7 +88,8 @@ export function useCategories() {
       const { data, error } = await supabase
         .from("promise_categories")
         .select("*")
-        .order("sort_order");
+        .order("sort_order")
+        .limit(TRACKER_QUERY_LIMIT);
       if (error) throw error;
       return data ?? [];
     }),
@@ -100,7 +103,8 @@ export function useSubcategories() {
       const { data, error } = await supabase
         .from("promise_subcategories")
         .select("*")
-        .order("sort_order");
+        .order("sort_order")
+        .limit(TRACKER_QUERY_LIMIT);
       if (error) throw error;
       return data ?? [];
     }),
@@ -111,7 +115,11 @@ export function useRules() {
   return useQuery({
     queryKey: trackerKeys.rules,
     queryFn: monitoredQuery("load_rules", async (): Promise<PromiseRuleRow[]> => {
-      const { data, error } = await supabase.from("promise_rules").select("*").order("code");
+      const { data, error } = await supabase
+        .from("promise_rules")
+        .select("*")
+        .order("code")
+        .limit(TRACKER_QUERY_LIMIT);
       if (error) throw error;
       return data ?? [];
     }),
@@ -127,7 +135,8 @@ export function useInsights() {
         const { data, error } = await supabase
           .from("promise_ai_insights")
           .select("*, promises(*, promise_categories(id, slug, label, accent))")
-          .order("delay_risk", { ascending: false });
+          .order("delay_risk", { ascending: false })
+          .limit(TRACKER_QUERY_LIMIT);
         if (error) throw error;
         return (data ?? []) as (PromiseInsightRow & { promises: PromiseWithCategory | null })[];
       },
