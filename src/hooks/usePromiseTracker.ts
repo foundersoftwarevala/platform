@@ -75,7 +75,7 @@ export function usePromises() {
       if (error) throw error;
       return (data ?? []) as PromiseWithCategory[];
     }),
-    refetchInterval: 30000,
+    staleTime: 60_000,
   });
 }
 

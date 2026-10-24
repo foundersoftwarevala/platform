@@ -23,7 +23,6 @@ import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { useMyPermissions, useMyProfile, useSupabaseSession } from "@/hooks/use-session";
 import {
-  MESSAGE_PAGE,
   useConversationRealtime,
   useConversations,
   useMessageActions,
@@ -95,10 +94,11 @@ export function ChatWorkspace() {
   }, [activeId, conversations]);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
-  const [messageLimit, setMessageLimit] = useState(MESSAGE_PAGE);
-  useEffect(() => setMessageLimit(MESSAGE_PAGE), [activeId]);
-  const messagesQuery = useMessages(activeId, userId, messageLimit);
-  const messages = useMemo(() => messagesQuery.data ?? [], [messagesQuery.data]);
+  const messagesQuery = useMessages(activeId, userId);
+  const messages = useMemo(
+    () => [...(messagesQuery.data?.pages ?? [])].reverse().flatMap((page) => page),
+    [messagesQuery.data],
+  );
 
   const participantIds = useMemo(() => {
     const ids = new Set<string>();
@@ -578,9 +578,9 @@ export function ChatWorkspace() {
                 canBookmark={can("message.bookmark")}
                 canDownload={can("attachment.download")}
                 canSeeOriginal={can("chat.manage")}
-                hasEarlier={messages.length >= messageLimit}
-                loadingEarlier={messagesQuery.isFetching && messagesQuery.isPlaceholderData}
-                onLoadEarlier={() => setMessageLimit((current) => current + MESSAGE_PAGE)}
+                hasEarlier={messagesQuery.hasNextPage}
+                loadingEarlier={messagesQuery.isFetchingNextPage}
+                onLoadEarlier={() => messagesQuery.fetchNextPage()}
                 translateTarget={prefs.language}
                 autoTranslate={prefs.autoTranslate}
                 density={prefs.density}

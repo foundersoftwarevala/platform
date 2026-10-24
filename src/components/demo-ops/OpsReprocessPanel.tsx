@@ -78,7 +78,9 @@ export function OpsReprocessPanel() {
       icon={RefreshCcw}
       title={t("demo.reprocess.title")}
       description={t("demo.reprocess.description")}
-      badge={t("demo.reprocess.assigned", { count: assigned.length })}
+      badge={t("demo.reprocess.assigned", {
+        count: overview.data?.buckets.assigned ?? assigned.length,
+      })}
     >
       {overview.isLoading ? (
         <p className="flex items-center gap-2 p-4 text-sm text-slate-400">

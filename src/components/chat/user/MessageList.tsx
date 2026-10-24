@@ -1,4 +1,12 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Bookmark,
   Check,
@@ -39,7 +47,7 @@ interface MessageListProps {
   canSeeOriginal?: boolean | undefined;
   hasEarlier?: boolean | undefined;
   loadingEarlier?: boolean | undefined;
-  onLoadEarlier?: (() => void) | undefined;
+  onLoadEarlier?: (() => Promise<unknown> | void) | undefined;
   translateTarget: string;
   autoTranslate?: boolean | undefined;
   density?: "comfortable" | "compact" | undefined;
@@ -179,6 +187,7 @@ export function MessageList(props: MessageListProps) {
   const { t, formatDate } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  const olderScroll = useRef<{ height: number; top: number; messageCount: number } | null>(null);
   const [translations, setTranslations] = useState<
     Record<string, { loading: boolean; text?: string; error?: string; authRequired?: boolean }>
   >({});
@@ -227,10 +236,37 @@ export function MessageList(props: MessageListProps) {
     return result;
   }, [all, userId, t, formatDate]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollRef.current;
+    const previous = olderScroll.current;
+    if (el && previous && all.length > previous.messageCount) {
+      el.scrollTop = previous.top + el.scrollHeight - previous.height;
+      olderScroll.current = null;
+      return;
+    }
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [all.length, typingUsers.length]);
+
+  const loadEarlier = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || !hasEarlier || loadingEarlier || !onLoadEarlier || olderScroll.current) return;
+    stickToBottom.current = false;
+    olderScroll.current = {
+      height: el.scrollHeight,
+      top: el.scrollTop,
+      messageCount: all.length,
+    };
+    void Promise.resolve(onLoadEarlier()).then(
+      () => {
+        requestAnimationFrame(() => {
+          if (olderScroll.current?.messageCount === all.length) olderScroll.current = null;
+        });
+      },
+      () => {
+        olderScroll.current = null;
+      },
+    );
+  }, [all.length, hasEarlier, loadingEarlier, onLoadEarlier]);
 
   useEffect(() => {
     if (!highlightId) return;
@@ -663,6 +699,7 @@ export function MessageList(props: MessageListProps) {
       onScroll={(e) => {
         const el = e.currentTarget;
         stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        if (el.scrollTop < 80) loadEarlier();
       }}
       className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5"
       aria-live="polite"
@@ -683,10 +720,7 @@ export function MessageList(props: MessageListProps) {
         <div className="mb-3 flex justify-center">
           <button
             type="button"
-            onClick={() => {
-              stickToBottom.current = false;
-              onLoadEarlier();
-            }}
+            onClick={loadEarlier}
             disabled={loadingEarlier}
             className="rounded-full border border-border/60 bg-card/75 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm hover:text-foreground disabled:opacity-60"
           >

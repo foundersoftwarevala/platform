@@ -180,7 +180,7 @@ export function OpsHealthMonitor() {
                 : "border-border/50 text-muted-foreground hover:text-foreground",
             )}
           >
-            All · {demos.length}
+            All · {demosQuery.totalDemos}
           </button>
           {HEALTH_ORDER.map((state) => {
             const meta = HEALTH_META[state];

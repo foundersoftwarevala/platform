@@ -188,13 +188,27 @@ export const getUserChatConversations = createServerFn({ method: "GET" })
 
 export const getUserChatMessages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { conversationId: string; limit?: number }) => {
-    if (!input || !UUID.test(input.conversationId)) {
-      throw new Error("A valid conversation identifier is required.");
-    }
-    const limit = Math.max(1, Math.min(200, Math.floor(input.limit ?? 100)));
-    return { conversationId: input.conversationId, limit };
-  })
+  .inputValidator(
+    (input: {
+      conversationId: string;
+      limit?: number;
+      before?: { createdAt: string; id: string };
+    }) => {
+      if (!input || !UUID.test(input.conversationId)) {
+        throw new Error("A valid conversation identifier is required.");
+      }
+      const limit = Math.max(1, Math.min(50, Math.floor(input.limit ?? 50)));
+      if (
+        input.before &&
+        (!UUID.test(input.before.id) ||
+          input.before.createdAt.length > 64 ||
+          !Number.isFinite(Date.parse(input.before.createdAt)))
+      ) {
+        throw new Error("Invalid older-message cursor.");
+      }
+      return { conversationId: input.conversationId, limit, before: input.before ?? null };
+    },
+  )
   .handler(async ({ data, context }): Promise<ChatMessage[]> =>
     chatDatabase(context, async (tx) => {
       const [access] = await tx<{ allowed: boolean }[]>`
@@ -211,6 +225,13 @@ export const getUserChatMessages = createServerFn({ method: "GET" })
           select m.*
             from public.messages m
            where m.conversation_id = ${data.conversationId}::uuid
+              and (
+                ${data.before === null}
+                or (m.created_at, m.id) < (
+                  ${data.before?.createdAt ?? null}::timestamptz,
+                  ${data.before?.id ?? null}::uuid
+                )
+              )
               and (public.has_permission(${context.userId}::uuid, 'chat.manage')
                    or not exists (
                      select 1 from public.chat_message_moderation mm

@@ -7,7 +7,7 @@
  */
 
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
@@ -130,6 +130,15 @@ export type OpsOverview = {
   buckets: Record<string, number>;
   review: OpsReviewRow[];
   category_mismatches: OpsMismatch[];
+  page: number;
+  page_size: number;
+  review_total: number;
+  category_mismatches_total: number;
+  has_more: {
+    demos: boolean;
+    review: boolean;
+    category_mismatches: boolean;
+  };
   window_days: number;
   generated_at: string;
 };
@@ -139,15 +148,21 @@ const EMPTY_OVERVIEW: OpsOverview = {
   buckets: {},
   review: [],
   category_mismatches: [],
+  page: 0,
+  page_size: 50,
+  review_total: 0,
+  category_mismatches_total: 0,
+  has_more: { demos: false, review: false, category_mismatches: false },
   window_days: 30,
   generated_at: "",
 };
 
-export const useOpsOverview = () =>
-  useQuery<OpsOverview>({
+export const useOpsOverview = () => {
+  const query = useInfiniteQuery<OpsOverview>({
     queryKey: [OPS, "overview"],
     staleTime: 30_000,
-    queryFn: async () => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
       /**
        * Read through the server, not the browser client.
        *
@@ -156,16 +171,50 @@ export const useOpsOverview = () =>
        * empty state - which on screen is indistinguishable from a quiet estate.
        */
       const { authHeaders } = await import("@/lib/auth/operator-fetch");
-      const response = await fetch("/api/demo/ops?days=30", { headers: await authHeaders() });
+      const params = new URLSearchParams({
+        days: "30",
+        page: String(pageParam),
+        page_size: "50",
+      });
+      const response = await fetch(`/api/demo/ops?${params}`, { headers: await authHeaders() });
       const body = (await response.json()) as Partial<OpsOverview> & { error?: string };
       if (!response.ok) throw new Error(body.error ?? "The overview could not be read");
       return { ...EMPTY_OVERVIEW, ...body };
     },
+    getNextPageParam: (lastPage) =>
+      Object.values(lastPage.has_more).some(Boolean) ? lastPage.page + 1 : undefined,
   });
+
+  const pages = query.data?.pages ?? [];
+  const data =
+    pages.length === 0
+      ? undefined
+      : {
+          ...pages[pages.length - 1]!,
+          demos: Array.from(
+            new Map(pages.flatMap((page) => page.demos).map((row) => [row.id, row])).values(),
+          ),
+          review: Array.from(
+            new Map(pages.flatMap((page) => page.review).map((row) => [row.id, row])).values(),
+          ),
+          category_mismatches: Array.from(
+            new Map(
+              pages.flatMap((page) => page.category_mismatches).map((row) => [row.id, row]),
+            ).values(),
+          ),
+        };
+  return { ...query, data };
+};
 
 export const useOpsDemos = () => {
   const overview = useOpsOverview();
-  return { ...overview, data: overview.data?.demos ?? [] };
+  const data = overview.data;
+  return {
+    ...overview,
+    data: data?.demos ?? [],
+    buckets: data?.buckets ?? {},
+    totalDemos: data?.buckets.total ?? 0,
+  };
 };
 
 export const useOpsValidationLogs = () =>

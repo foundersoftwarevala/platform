@@ -12,7 +12,7 @@ import { requireInternalOperator } from "@/lib/auth/internal-guard";
  *
  * Read here instead, against the VPS, which is where the demos are.
  *
- *   GET /api/demo/ops?days=30
+ *   GET /api/demo/ops?days=30&page=0&page_size=50
  */
 export const Route = createFileRoute("/api/demo/ops")({
   server: {
@@ -33,16 +33,43 @@ export const Route = createFileRoute("/api/demo/ops")({
           );
         }
 
-        const days = Number(new URL(request.url).searchParams.get("days") ?? 30);
-        const response = await fetch(`${base}/rest/v1/rpc/mm_demo_ops`, {
-          method: "POST",
-          headers: {
-            apikey: key,
-            Authorization: `Bearer ${key}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ p_days: Number.isFinite(days) ? days : 30 }),
-        });
+        const params = new URL(request.url).searchParams;
+        const days = Number(params.get("days") ?? 30);
+        const requestedPage = Number(params.get("page") ?? 0);
+        const requestedPageSize = Number(params.get("page_size") ?? 50);
+        const page = Number.isSafeInteger(requestedPage)
+          ? Math.max(0, Math.min(1_000_000, requestedPage))
+          : 0;
+        const pageSize = Number.isSafeInteger(requestedPageSize)
+          ? Math.max(1, Math.min(50, requestedPageSize))
+          : 50;
+        let response: Response;
+        try {
+          response = await fetch(`${base}/rest/v1/rpc/mm_demo_ops_page`, {
+            method: "POST",
+            headers: {
+              apikey: key,
+              Authorization: `Bearer ${key}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              p_days: Number.isFinite(days) ? days : 30,
+              p_page: page,
+              p_page_size: pageSize,
+            }),
+            signal: AbortSignal.timeout(10_000),
+          });
+        } catch (error) {
+          const timedOut = error instanceof Error && error.name === "TimeoutError";
+          return Response.json(
+            {
+              error: timedOut
+                ? "The overview request timed out."
+                : "The overview could not be read.",
+            },
+            { status: timedOut ? 504 : 502 },
+          );
+        }
 
         if (!response.ok) {
           const detail = await response.text().catch(() => "");

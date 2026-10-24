@@ -10,8 +10,14 @@ export const franchiseKeys = {
   royalties: () => ["franchise", "royalties"] as const,
 };
 
-async function readTable(table: "franchises" | "franchise_applications" | "franchise_royalties"): Promise<FranchiseRow[]> {
-  const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
+async function readTable(
+  table: "franchises" | "franchise_applications" | "franchise_royalties",
+): Promise<FranchiseRow[]> {
+  const { data, error } = await supabase
+    .from(table)
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(200);
   if (error) throw error;
   return data ?? [];
 }

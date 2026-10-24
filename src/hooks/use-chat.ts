@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acknowledgeMessages,
@@ -39,19 +39,21 @@ export function useConversations(userId: string | null) {
   });
 }
 
-export const MESSAGE_PAGE = 100;
+export const MESSAGE_PAGE = 50;
 
-export function useMessages(
-  conversationId: string | null,
-  userId: string | null,
-  limit = MESSAGE_PAGE,
-) {
-  return useQuery({
-    queryKey: ["messages", conversationId, limit],
+type MessageCursor = { createdAt: string; id: string };
+
+export function useMessages(conversationId: string | null, userId: string | null) {
+  return useInfiniteQuery({
+    queryKey: ["messages", conversationId],
     enabled: !!conversationId && !!userId,
-    queryFn: () => fetchMessages(conversationId!, userId!, limit),
-    // Showing the earlier page while a larger one loads avoids a blank list.
-    placeholderData: (previous) => previous,
+    initialPageParam: null as MessageCursor | null,
+    queryFn: ({ pageParam }) =>
+      fetchMessages(conversationId!, userId!, MESSAGE_PAGE, pageParam ?? undefined),
+    getNextPageParam: (lastPage): MessageCursor | undefined =>
+      lastPage.length === MESSAGE_PAGE && lastPage[0]
+        ? { createdAt: lastPage[0].created_at, id: lastPage[0].id }
+        : undefined,
   });
 }
 

@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { useOpsOverview } from "@/hooks/useDemoOps";
 import { PageShell, PageBanner, SectionPills } from "@/components/layout/PageShell";
 import {
   Bell,
@@ -79,6 +80,7 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 
 const DemoOpsCenter = () => {
   const [active, setActive] = useState<SectionId>("overview");
+  const overview = useOpsOverview();
 
   const render = () => {
     switch (active) {
@@ -146,6 +148,37 @@ const DemoOpsCenter = () => {
       />
 
       <SectionPills<SectionId> sections={SECTIONS} active={active} onChange={setActive} />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3">
+        <p className="text-xs text-slate-400">
+          Showing {overview.data?.demos.length ?? 0} of {overview.data?.buckets.total ?? 0} demos,{" "}
+          {overview.data?.review.length ?? 0} of {overview.data?.review_total ?? 0} awaiting review,{" "}
+          {overview.data?.category_mismatches.length ?? 0} of{" "}
+          {overview.data?.category_mismatches_total ?? 0} category mismatches.
+        </p>
+        {overview.isError ? (
+          <button
+            type="button"
+            onClick={() => void overview.refetch()}
+            className="rounded-lg border border-red-900/60 px-3 py-1.5 text-xs text-red-300"
+          >
+            Could not load records · Retry
+          </button>
+        ) : overview.hasNextPage ? (
+          <button
+            type="button"
+            disabled={overview.isFetchingNextPage}
+            onClick={() => void overview.fetchNextPage()}
+            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 disabled:opacity-50"
+          >
+            {overview.isFetchingNextPage ? "Loading…" : "Load next 50"}
+          </button>
+        ) : (
+          <span className="text-xs text-slate-500">
+            {overview.isLoading ? "Loading records…" : "All records loaded"}
+          </span>
+        )}
+      </div>
 
       <motion.div
         key={active}

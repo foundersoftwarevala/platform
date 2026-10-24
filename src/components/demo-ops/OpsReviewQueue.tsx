@@ -121,7 +121,7 @@ export function OpsReviewQueue() {
         icon={Inbox}
         title={t("demo.review.title")}
         description={t("demo.review.description")}
-        badge={t("demo.review.waiting", { count: review.length })}
+        badge={t("demo.review.waiting", { count: overview.data?.review_total ?? review.length })}
       >
         {overview.isLoading ? (
           <p className="flex items-center gap-2 p-4 text-sm text-slate-400">
@@ -293,7 +293,9 @@ export function OpsReviewQueue() {
         icon={AlertTriangle}
         title={t("demo.review.mismatch_title")}
         description={t("demo.review.mismatch_description")}
-        badge={t("demo.review.mismatch_badge", { count: mismatches.length })}
+        badge={t("demo.review.mismatch_badge", {
+          count: overview.data?.category_mismatches_total ?? mismatches.length,
+        })}
       >
         {mismatches.length === 0 ? (
           <p className="p-4 text-sm text-slate-400">{t("demo.review.mismatch_empty")}</p>

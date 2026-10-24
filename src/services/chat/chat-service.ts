@@ -64,10 +64,11 @@ export async function fetchConversations(userId: string): Promise<ConversationSu
 export async function fetchMessages(
   conversationId: string,
   userId: string,
-  limit = 100,
+  limit = 50,
+  before?: { createdAt: string; id: string },
 ): Promise<ChatMessage[]> {
   void userId;
-  return getUserChatMessages({ data: { conversationId, limit } });
+  return getUserChatMessages({ data: { conversationId, limit, before } });
 }
 
 export async function insertMessage(input: {
