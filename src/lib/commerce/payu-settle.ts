@@ -255,13 +255,26 @@ export async function settlePayuCallback(
 
   // ---- 4. PayU's own word, for the same amount ------------------------------
   const verified = await verifyWithPayu(config, txnid);
+  const providerAmount = verified.amount == null ? Number.NaN : Number(verified.amount);
   const verifiedAmountMatches =
-    verified.amount == null || payuAmount(Number(verified.amount)) === payuAmount(charged);
+    Number.isFinite(providerAmount) &&
+    providerAmount > 0 &&
+    payuAmount(providerAmount) === payuAmount(charged);
   await logPaymentEvent(orderId, "payu_verify", {
     txnid, reason: verified.reason, provider_status: verified.status, amount_matches: verifiedAmountMatches,
   }, { signatureValid: true, provider: "payu" });
 
   const settled = status === "success" && verified.verified && verifiedAmountMatches;
+  if (status === "success" && !settled) {
+    await logPaymentEvent(orderId, "payu_success_unconfirmed", {
+      txnid,
+      reason: verified.reason,
+      provider_status: verified.status ?? null,
+      amount_matches: verifiedAmountMatches,
+    }, { signatureValid: true, provider: "payu" });
+    return { httpStatus: 502, message: "Could not verify payment", txnid };
+  }
+
   const payuId = verified.payuId ?? fields.mihpayid ?? null;
   const event = {
     id: `${payuId ?? txnid}:${status || "unknown"}`,

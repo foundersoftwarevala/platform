@@ -32,7 +32,7 @@ type Order = Record<string, unknown> & { id: string; status: string; txnid: stri
 let orders: Order[];
 let intents: Record<string, unknown>[];
 let events: Record<string, unknown>[];
-let payu: Record<string, { status: string; amt: string; mihpayid: string }>;
+let payu: Record<string, { status: string; amt?: string; mihpayid: string }>;
 let paidTransitions: number;
 
 function matches(row: Record<string, unknown>, params: URLSearchParams): boolean {
@@ -156,12 +156,37 @@ describe("settling a PayU result", () => {
 
   it("does not settle when PayU's verify endpoint disagrees or reports another amount", async () => {
     payu.T2 = { status: "failure", amt: "20750.00", mihpayid: "M1" };
-    await settlePayuCallback(config, callback({ txnid: "T2", status: "success", amount: "20750.00" }), "webhook");
+    const disagreement = await settlePayuCallback(
+      config,
+      callback({ txnid: "T2", status: "success", amount: "20750.00" }),
+      "webhook",
+    );
+    expect(disagreement.httpStatus).toBe(502);
     expect(orders[0].status).toBe("pending_payment");
 
     payu.T2 = { status: "success", amt: "100.00", mihpayid: "M1" };
-    await settlePayuCallback(config, callback({ txnid: "T2", status: "success", amount: "20750.00" }), "webhook");
+    const mismatch = await settlePayuCallback(
+      config,
+      callback({ txnid: "T2", status: "success", amount: "20750.00" }),
+      "webhook",
+    );
+    expect(mismatch.httpStatus).toBe(502);
     expect(orders[0].status).toBe("pending_payment");
+    expect(fulfilOrder).not.toHaveBeenCalled();
+  });
+
+  it("does not settle or fail an attempt when PayU omits the verified amount", async () => {
+    payu.T2 = { status: "success", mihpayid: "M1" };
+
+    const out = await settlePayuCallback(
+      config,
+      callback({ txnid: "T2", status: "success", amount: "20750.00" }),
+      "webhook",
+    );
+
+    expect(out).toMatchObject({ httpStatus: 502, message: "Could not verify payment" });
+    expect(orders[0]).toMatchObject({ status: "pending_payment", txnid: "T2" });
+    expect(intents[0].status).toBe("pending");
     expect(fulfilOrder).not.toHaveBeenCalled();
   });
 
