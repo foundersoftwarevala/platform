@@ -33,6 +33,14 @@ type BellItem = {
 };
 
 type BellData = { ok: boolean; reason?: string; unread?: number; notifications?: BellItem[] };
+type SiteNotification = {
+  id: string;
+  title: string;
+  body: string;
+  kind: string;
+  link_url: string | null;
+  published_at: string;
+};
 
 const TONE: Record<string, string> = {
   success: "bg-emerald-500",
@@ -85,6 +93,20 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
     refetchInterval: 60_000,
   });
 
+  const siteNotifications = useQuery({
+    queryKey: ["site_notifications"],
+    queryFn: async (): Promise<SiteNotification[]> => {
+      const { data, error } = await supabase
+        .from("site_notifications")
+        .select("id,title,body,kind,link_url,published_at")
+        .eq("is_published", true)
+        .order("sort_order", { ascending: true });
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+    staleTime: 5 * 60_000,
+  });
+
   // New rows for this user refresh the bell straight away; a reconnect
   // refreshes too, for anything that arrived while the stream was down.
   useEffect(() => {
@@ -105,6 +127,7 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
   };
 
   const items = q.data?.notifications ?? [];
+  const publicItems = siteNotifications.data ?? [];
   const unread = Number(q.data?.unread ?? 0);
 
   return (
@@ -163,11 +186,8 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
               {t("notifications.unavailable")}
             </p>
-          ) : items.length === 0 ? (
-            <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-              {t("notifications.empty")}
-            </p>
-          ) : (
+          ) : null}
+          {items.length > 0 && (
             <ul>
               {items.map((n) => (
                 <li
@@ -211,6 +231,65 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
               ))}
             </ul>
           )}
+          {siteNotifications.isLoading && (
+            <p className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> {t("notifications.loading")}
+            </p>
+          )}
+          {siteNotifications.error && (
+            <p className="px-3 py-3 text-center text-sm text-muted-foreground">
+              {t("notifications.announcements_unavailable")}
+            </p>
+          )}
+          {publicItems.length > 0 && (
+            <section aria-label={t("notifications.announcements")}>
+              <h3 className="border-y border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
+                {t("notifications.announcements")}
+              </h3>
+              <ul>
+                {publicItems.map((n) => (
+                  <li
+                    key={`site-${n.id}`}
+                    data-site-notification={n.id}
+                    data-kind={n.kind}
+                    className="border-b border-border px-3 py-2.5 last:border-0"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span
+                        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${TONE[n.kind] ?? TONE.info}`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm">{n.title}</p>
+                        {n.body && <p className="mt-1 text-xs text-muted-foreground">{n.body}</p>}
+                        <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
+                          <span>{new Date(n.published_at).toLocaleString()}</span>
+                          {safeLink(n.link_url) && (
+                            <a
+                              href={safeLink(n.link_url) ?? undefined}
+                              className="text-primary hover:underline"
+                            >
+                              {t("notifications.open")}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {userId &&
+            !q.isLoading &&
+            !q.error &&
+            items.length === 0 &&
+            !siteNotifications.isLoading &&
+            !siteNotifications.error &&
+            publicItems.length === 0 && (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                {t("notifications.empty")}
+              </p>
+            )}
         </div>
       </PopoverContent>
     </Popover>
