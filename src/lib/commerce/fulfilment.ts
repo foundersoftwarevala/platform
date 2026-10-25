@@ -57,7 +57,13 @@ export function licenceFingerprint(key: string): string {
 }
 
 export type FulfilmentResult =
-  | { ok: true; created: boolean; licenceKey: string; licenceId: string; entitlementId: string | null }
+  | {
+      ok: true;
+      created: boolean;
+      licenceKey: string;
+      licenceId: string;
+      entitlementId: string | null;
+    }
   | { ok: false; error: string; status: number };
 
 async function rest(path: string, init?: RequestInit) {
@@ -131,8 +137,11 @@ async function buyerContact(userId: string): Promise<{ email: string; name: stri
     `profiles?select=email,full_name,username&id=eq.${encodeURIComponent(userId)}&limit=1`,
   );
   if (!response.ok) return { email: "", name: "" };
-  const rows = (await response.json()) as
-    { email: string | null; full_name: string | null; username: string | null }[];
+  const rows = (await response.json()) as {
+    email: string | null;
+    full_name: string | null;
+    username: string | null;
+  }[];
   const row = rows[0];
   if (!row) return { email: "", name: "" };
   return {
@@ -232,7 +241,9 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
           `licenses?select=id,license_key&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
         );
         if (!raced.ok) {
-          throw new Error(`Could not read the license from a concurrent retry (HTTP ${raced.status})`);
+          throw new Error(
+            `Could not read the license from a concurrent retry (HTTP ${raced.status})`,
+          );
         }
         const rows = (await raced.json()) as { id: string; license_key: string }[];
         if (rows[0]) {
@@ -315,18 +326,87 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       error: error instanceof Error ? error.message : "Commission processing failed",
     };
   }
-  await logPaymentEvent(
-    orderId,
-    commission.ok ? "commission_recorded" : "commission_failed",
-    {
-      created: commission.created,
-      skipped: commission.skipped,
-      unattributed: commission.unattributed,
-      detail: commission.error,
-    },
-  );
+  await logPaymentEvent(orderId, commission.ok ? "commission_recorded" : "commission_failed", {
+    created: commission.created,
+    skipped: commission.skipped,
+    unattributed: commission.unattributed,
+    detail: commission.error,
+  });
   if (!commission.ok) {
-    throw new Error(`Could not record author commission; fulfillment can be retried: ${commission.error ?? "unknown error"}`);
+    throw new Error(
+      `Could not record author commission; fulfillment can be retried: ${commission.error ?? "unknown error"}`,
+    );
+  }
+
+  const leadResponse = await rest("rpc/marketplace_capture_purchase_lead", {
+    method: "POST",
+    body: JSON.stringify({ p_order_id: orderId }),
+  });
+  if (!leadResponse.ok) {
+    throw new Error(`Could not record the marketplace purchase lead (HTTP ${leadResponse.status})`);
+  }
+  const lead = (await leadResponse.json()) as {
+    ok?: boolean;
+    created?: boolean;
+    reason?: string;
+    lead_id?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    product_id?: string | null;
+    source_page?: string;
+    cta_action?: string;
+  };
+  if (!lead.ok) {
+    throw new Error(
+      `Marketplace purchase lead was not recorded: ${lead.reason ?? "unknown error"}`,
+    );
+  }
+  if (lead.created) {
+    if (!lead.lead_id || !lead.email) {
+      throw new Error("Marketplace purchase lead response was incomplete");
+    }
+    try {
+      const { runLeadIntake } = await import("@/lib/marketplace/lead-intake");
+      await runLeadIntake(supabaseUrl(), adminHeaders(), {
+        id: lead.lead_id,
+        name: lead.name ?? "",
+        email: lead.email,
+        phone: lead.phone ?? "",
+        product_id: lead.product_id ?? null,
+        source_page: lead.source_page ?? "/marketplace",
+        cta_action: lead.cta_action ?? "purchase",
+      });
+    } catch {
+      // Keep the durable lead even if optional scoring or routing is unavailable.
+      console.error("[fulfilment] purchase lead intake failed", orderId);
+    }
+    await logPaymentEvent(orderId, "purchase_lead_created", { lead_id: lead.lead_id });
+  } else if (lead.reason === "buyer_email_missing") {
+    await logPaymentEvent(orderId, "purchase_lead_skipped", { reason: lead.reason });
+  }
+
+  const awardResponse = await rest("rpc/ams_ingest_event", {
+    method: "POST",
+    body: JSON.stringify({
+      p_user_id: userId,
+      p_event_key: "order.paid",
+      p_entity_type: "marketplace_orders",
+      p_entity_id: orderId,
+      p_value: 1,
+      p_occurred_at: new Date().toISOString(),
+      p_source: "marketplace_fulfilment",
+      p_payload: { order_id: orderId, ams_role: "user" },
+    }),
+  });
+  if (!awardResponse.ok) {
+    throw new Error(`Could not award marketplace purchase points (HTTP ${awardResponse.status})`);
+  }
+  const award = (await awardResponse.json()) as { ok?: boolean; reason?: string };
+  if (!award.ok) {
+    throw new Error(
+      `Could not award marketplace purchase points: ${award.reason ?? "unknown error"}`,
+    );
   }
 
   if (created) {
@@ -357,7 +437,9 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     amount: chargedAmount,
     currency: chargedCurrency,
     productName: productName,
-    clientName: String(metadata.buyer_name ?? contact.name ?? contact.email ?? "Marketplace customer"),
+    clientName: String(
+      metadata.buyer_name ?? contact.name ?? contact.email ?? "Marketplace customer",
+    ),
     status: "paid",
   });
   await logPaymentEvent(orderId, invoice.invoice ? "invoice_ready" : "invoice_failed", {
@@ -366,7 +448,9 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     detail: invoice.error ?? null,
   });
   if (!invoice.invoice) {
-    throw new Error(`Could not create or read the order invoice; fulfillment can be retried: ${invoice.error ?? "invoice missing"}`);
+    throw new Error(
+      `Could not create or read the order invoice; fulfillment can be retried: ${invoice.error ?? "invoice missing"}`,
+    );
   }
 
   // Tell the buyer. Queued regardless of whether a provider is configured, so
@@ -408,7 +492,8 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
         context: { kind: "licence", order_id: orderId, licence_id: licence.id, language: lang },
       });
       await logPaymentEvent(orderId, mail.sent ? "licence_email_sent" : "licence_email_queued", {
-        to: buyerEmail, reason: mail.reason,
+        to: buyerEmail,
+        reason: mail.reason,
       });
     }
   } else {

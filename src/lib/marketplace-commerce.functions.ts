@@ -59,17 +59,33 @@ export const getMarketplaceCart = createServerFn({ method: "GET" })
       : { data: [], error: null };
     if (pricingError) throw new Error(pricingError.message);
     const options = (pricingOptions ?? []) as PricingOptionRow[];
-    const itemsWithPricing = cartItems.map((item) => ({
-      ...item,
-      pricing_options: options.filter(
-        (option) => option.product_id === item.product_id && option.variant_id === item.variant_id,
-      ),
-    }));
     // What the cart costs this buyer, priced by the database with the same rule
-    // checkout applies (reseller membership discount or list price).
+    // checkout applies (franchise or reseller pricing).
     const { data: quote, error: quoteError } = await db.rpc("marketplace_cart_quote");
     if (quoteError) throw new Error(quoteError.message);
-    return { cart, items: itemsWithPricing, quote: quote as CartQuote };
+    const cartQuote = quote as CartQuote;
+    const franchisePercent =
+      cartQuote.pricing?.kind === "franchise" ? Number(cartQuote.pricing.percent ?? 0) : 0;
+    const itemsWithPricing = cartItems.map((item) => ({
+      ...item,
+      marketplace_products:
+        franchisePercent > 0 && item.marketplace_products
+          ? { ...item.marketplace_products, price_label: null }
+          : item.marketplace_products,
+      pricing_options: options
+        .filter(
+          (option) =>
+            option.product_id === item.product_id && option.variant_id === item.variant_id,
+        )
+        .map((option) => ({
+          ...option,
+          amount:
+            franchisePercent > 0
+              ? Math.round(option.amount * (100 - franchisePercent)) / 100
+              : option.amount,
+        })),
+    }));
+    return { cart, items: itemsWithPricing, quote: cartQuote };
   });
 
 export type CartQuote = {
@@ -82,7 +98,14 @@ export type CartQuote = {
   mixed?: boolean;
   pricing_required_count?: number;
   unavailable_count?: number;
-  pricing: { eligible?: boolean; plan_code?: string; plan_name?: string; reason?: string };
+  pricing: {
+    kind?: string;
+    eligible?: boolean;
+    percent?: number;
+    plan_code?: string;
+    plan_name?: string;
+    reason?: string;
+  };
   lines: {
     cart_item_id: string;
     pricing_id: string;
@@ -140,9 +163,12 @@ export const createMarketplaceCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((value) => z.object({ idempotencyKey: z.string().min(16).max(128) }).parse(value))
   .handler(async ({ data, context }) => {
-    const { data: result, error } = await (context.supabase as any).rpc("marketplace_create_checkout", {
-      p_idempotency_key: data.idempotencyKey,
-    });
+    const { data: result, error } = await (context.supabase as any).rpc(
+      "marketplace_create_checkout",
+      {
+        p_idempotency_key: data.idempotencyKey,
+      },
+    );
     if (error) throw new Error(error.message);
     return result;
   });
@@ -152,7 +178,9 @@ export const listMarketplaceOrders = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data, error } = await (context.supabase as any)
       .from("marketplace_orders")
-      .select("id, order_number, status, currency, subtotal, discount_total, tax_total, total, created_at, marketplace_payment_intents(status, provider)")
+      .select(
+        "id, order_number, status, currency, subtotal, discount_total, tax_total, total, created_at, marketplace_payment_intents(status, provider)",
+      )
       .eq("buyer_id", context.userId)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);

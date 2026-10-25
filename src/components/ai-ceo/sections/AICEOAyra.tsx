@@ -88,7 +88,14 @@ const AICEOAyra = () => {
     denied,
     refetch,
   } = useAyraCapabilities();
-  const { orders, degraded, isLoading: ordersLoading } = useAyraOrders();
+  const {
+    orders,
+    degraded,
+    isLoading: ordersLoading,
+    failed: ordersFailed,
+    denied: ordersDenied,
+    refetch: refetchOrders,
+  } = useAyraOrders();
 
   async function submitQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -329,7 +336,19 @@ const AICEOAyra = () => {
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[320px]">
-            {orders.length === 0 ? (
+            {ordersDenied ? (
+              <EmptyState
+                icon={ShieldAlert}
+                title={t("ceo.ci_denied_title")}
+                description={t("ceo.ci_denied_body")}
+              />
+            ) : ordersFailed ? (
+              <ErrorState
+                title={t("ceo.ayra_failed")}
+                description={t("ceo.ayra_failed_body")}
+                onRetry={() => void refetchOrders()}
+              />
+            ) : orders.length === 0 ? (
               <EmptyState
                 icon={Sparkles}
                 title={t("ceo.ayra_no_orders_title")}

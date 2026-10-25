@@ -21,11 +21,15 @@ vi.mock("./invoices", () => ({
     invoice: { id: "invoice-1", invoice_no: "SV-INV-1" },
   })),
 }));
+vi.mock("@/lib/marketplace/lead-intake", () => ({
+  runLeadIntake: vi.fn(async () => ({ steps: {} })),
+}));
 
 const { fulfilOrder, revokeOrderAccess } = await import("./fulfilment");
 const { recordCommissionsForOrder } = await import("./commission");
 const { send } = await import("./mailer");
 const { createInvoiceForOrder } = await import("./invoices");
+const { runLeadIntake } = await import("@/lib/marketplace/lead-intake");
 
 const order = {
   id: "order-1",
@@ -95,6 +99,7 @@ describe("order fulfillment reliability", () => {
 
   it("repairs a partial fulfillment when a license already exists", async () => {
     const requests: { path: string; method: string }[] = [];
+    const awardPayloads: unknown[] = [];
     vi.mocked(recordCommissionsForOrder).mockRejectedValueOnce(
       new Error("temporary commission failure"),
     );
@@ -112,6 +117,22 @@ describe("order fulfillment reliability", () => {
         if (path.endsWith("/marketplace_licenses"))
           return json([{ license_key: "MARKET-LICENSE" }]);
         if (path.endsWith("/entitlements")) return json([{ id: "entitlement-1" }], 201);
+        if (path.endsWith("/rpc/marketplace_capture_purchase_lead"))
+          return json({
+            ok: true,
+            created: true,
+            lead_id: "lead-1",
+            name: "Buyer",
+            email: "buyer@example.test",
+            phone: "",
+            product_id: "product-1",
+            source_page: "/marketplace/product/product",
+            cta_action: "purchase",
+          });
+        if (path.endsWith("/rpc/ams_ingest_event")) {
+          awardPayloads.push(JSON.parse(String(init?.body)));
+          return json({ ok: true, duplicate: false });
+        }
         if (path.endsWith("/email_outbox")) return json([]);
         if (path.endsWith("/payment_logs")) return new Response(null, { status: 201 });
         throw new Error(`Unexpected request: ${path}`);
@@ -133,6 +154,25 @@ describe("order fulfillment reliability", () => {
     expect(requests.some((request) => request.path === "/rest/v1/email_outbox")).toBe(true);
     expect(recordCommissionsForOrder).toHaveBeenCalledTimes(2);
     expect(recordCommissionsForOrder).toHaveBeenNthCalledWith(2, "order-1");
+    expect(runLeadIntake).toHaveBeenCalledWith(
+      "https://database.test",
+      expect.objectContaining({ apikey: "service-key" }),
+      expect.objectContaining({ id: "lead-1", email: "buyer@example.test" }),
+    );
+    expect(requests).toContainEqual({
+      path: "/rest/v1/rpc/marketplace_capture_purchase_lead",
+      method: "POST",
+    });
+    expect(requests).toContainEqual({ path: "/rest/v1/rpc/ams_ingest_event", method: "POST" });
+    expect(awardPayloads).toContainEqual(
+      expect.objectContaining({
+        p_user_id: "buyer-1",
+        p_event_key: "order.paid",
+        p_entity_type: "marketplace_orders",
+        p_entity_id: "order-1",
+        p_payload: { order_id: "order-1", ams_role: "user" },
+      }),
+    );
     expect(createInvoiceForOrder).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledTimes(1);
   });

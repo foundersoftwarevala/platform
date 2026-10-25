@@ -31,12 +31,33 @@ export type Plan = {
 };
 
 export const FRANCHISE_PLANS: Plan[] = [
-  { id: "city", label: "City / Local Partner", joiningFeeUsd: 5000, discount: 0.30,
-    aliases: ["local", "city"], leadAllowance: 1000, territory: "City" },
-  { id: "district", label: "District / Regional Partner", joiningFeeUsd: 10000, discount: 0.40,
-    aliases: ["regional", "district"], leadAllowance: 2500, territory: "District" },
-  { id: "division", label: "Division / Master Partner", joiningFeeUsd: 20000, discount: 0.60,
-    aliases: ["master", "division"], leadAllowance: 5000, territory: "Division" },
+  {
+    id: "city",
+    label: "City / Local Partner",
+    joiningFeeUsd: 5000,
+    discount: 0.3,
+    aliases: ["local", "city"],
+    leadAllowance: 1000,
+    territory: "City",
+  },
+  {
+    id: "district",
+    label: "District / Regional Partner",
+    joiningFeeUsd: 10000,
+    discount: 0.4,
+    aliases: ["regional", "district"],
+    leadAllowance: 2500,
+    territory: "District",
+  },
+  {
+    id: "division",
+    label: "Division / Master Partner",
+    joiningFeeUsd: 20000,
+    discount: 0.6,
+    aliases: ["master", "division"],
+    leadAllowance: 5000,
+    territory: "Division",
+  },
 ];
 
 /** What an influencer earns. Influencer membership itself is free. */
@@ -56,11 +77,11 @@ export function plansFor(kind: PartnerKind): Plan[] {
  * most generous plan.
  */
 export function resolvePlan(kind: PartnerKind, tier: unknown): Plan | null {
-  const value = String(tier ?? "").trim().toLowerCase();
+  const value = String(tier ?? "")
+    .trim()
+    .toLowerCase();
   if (!value) return null;
-  return (
-    plansFor(kind).find((p) => p.id === value || p.aliases.includes(value)) ?? null
-  );
+  return plansFor(kind).find((p) => p.id === value || p.aliases.includes(value)) ?? null;
 }
 
 export type Quote = {
@@ -80,10 +101,6 @@ function cents(value: number): number {
 
 /**
  * The price a franchise partner is quoted for a product.
- *
- * Franchise discounts are not applied by marketplace checkout, so the quote
- * must remain at list price even for an eligible franchise. `eligible` is
- * retained for the existing API contract and eligibility-specific messaging.
  */
 export function quoteFor(listPriceUsd: number, plan: Plan | null, eligible: boolean): Quote {
   const list = cents(Math.max(0, listPriceUsd));
@@ -106,16 +123,18 @@ export function quoteFor(listPriceUsd: number, plan: Plan | null, eligible: bool
       savingUsd: 0,
       finalPriceUsd: list,
       plan: plan.id,
-      reason: "This partner account is not active and approved, so list price applies.",
+      reason: "This partner account is not active and approved.",
     };
   }
+  const discount = plan.discount;
+  const finalPrice = cents(list * (1 - discount));
   return {
     listPriceUsd: list,
-    discount: 0,
-    discountLabel: "0%",
-    savingUsd: 0,
-    finalPriceUsd: list,
+    discount,
+    discountLabel: `${Math.round(discount * 100)}%`,
+    savingUsd: cents(list - finalPrice),
+    finalPriceUsd: finalPrice,
     plan: plan.id,
-    reason: `${plan.label} — franchise discounts are not applied at marketplace checkout; list price applies.`,
+    reason: `${plan.label} franchise pricing applies.`,
   };
 }

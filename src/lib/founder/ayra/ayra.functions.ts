@@ -131,24 +131,13 @@ export const loadAyraCapabilities = createServerFn({ method: "GET" }).handler(
 export const loadAyraOrders = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ orders: AyraOrder[]; degraded: string[] }> => {
     await requireExecutive();
-    const degraded: string[] = [];
-
-    let orderRows: Row[] = [];
-    try {
-      orderRows = await rows("ayra_orders?select=*&order=created_at.desc&limit=50");
-    } catch (error) {
-      console.error("[ayra] orders unavailable:", error);
-      return { orders: [], degraded: ["ayra_orders"] };
-    }
-    if (orderRows.length === 0) return { orders: [], degraded };
+    const orderRows = await rows("ayra_orders?select=*&order=created_at.desc&limit=50");
+    if (orderRows.length === 0) return { orders: [], degraded: [] };
 
     const ids = orderRows.map((o) => `"${String(o.id)}"`).join(",");
     const stepRows = await rows(
       `ayra_order_steps?select=*&order_id=in.(${ids})&order=position.asc&limit=500`,
-    ).catch(() => {
-      degraded.push("ayra_order_steps");
-      return [] as Row[];
-    });
+    );
 
     const byOrder = new Map<string, AyraOrderStep[]>();
     for (const row of stepRows) {
@@ -181,7 +170,7 @@ export const loadAyraOrders = createServerFn({ method: "GET" }).handler(
         createdAt: str(row, "created_at") ?? "",
         steps: byOrder.get(String(row.id)) ?? [],
       })),
-      degraded,
+      degraded: [],
     };
   },
 );

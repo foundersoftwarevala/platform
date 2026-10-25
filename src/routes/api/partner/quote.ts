@@ -22,9 +22,9 @@ import { languageOf, serverTranslator } from "@/lib/i18n/server-translate.server
  * rule marketplace_create_checkout applies, so the quote and the charge agree.
  * A reseller without such a membership is quoted list price.
  *
- * Franchises: the franchise row's territory and status are read on the server,
- * but marketplace checkout does not apply a franchise discount; quotes use
- * list price until checkout supports the same rule.
+ * Franchises: the assigned franchise's territory and status are read on the
+ * server, and the configured tier discount is applied without returning the
+ * underlying list price.
  */
 
 function url() {
@@ -96,23 +96,65 @@ type ResellerPricing = {
   reason?: string;
 };
 
-/** The franchise row this user owns, if any. Their territory comes from here alone. */
+/** The single franchise assigned to this user, and whether its pricing is active. */
 async function franchiseFor(userId: string) {
   const owner = encodeURIComponent(userId);
-  const franchiseResponse = await fetch(
-    `${url()}/rest/v1/franchises?select=territory,status,joined_date&owner_user_id=eq.${owner}&limit=1`,
-    { headers: admin() },
+  const [ownedResponse, membershipsResponse] = await Promise.all([
+    fetch(`${url()}/rest/v1/franchises?select=id,territory,status&owner_user_id=eq.${owner}`, {
+      headers: admin(),
+    }),
+    fetch(`${url()}/rest/v1/franchise_users?select=franchise_id,active&user_id=eq.${owner}`, {
+      headers: admin(),
+    }),
+  ]);
+  if (!ownedResponse.ok || !membershipsResponse.ok) {
+    throw new Error("Could not verify franchise pricing eligibility");
+  }
+  const [owned, memberships] = (await Promise.all([
+    ownedResponse.json(),
+    membershipsResponse.json(),
+  ])) as [Record<string, unknown>[], Record<string, unknown>[]];
+  const ids = [
+    ...new Set([
+      ...owned.map((row) => String(row.id)),
+      ...memberships.map((row) => String(row.franchise_id)),
+    ]),
+  ];
+  if (ids.length === 0) return null;
+  if (ids.length > 1) {
+    return {
+      kind: "franchise" as const,
+      tier: null,
+      eligible: false,
+      state: "multiple franchise assignments",
+    };
+  }
+
+  let row = owned.find((candidate) => String(candidate.id) === ids[0]);
+  if (!row) {
+    const response = await fetch(
+      `${url()}/rest/v1/franchises?select=id,territory,status&id=eq.${encodeURIComponent(ids[0])}&limit=1`,
+      { headers: admin() },
+    );
+    if (!response.ok) throw new Error("Could not read the assigned franchise");
+    const rows = (await response.json()) as Record<string, unknown>[];
+    if (!rows[0]) throw new Error("Assigned franchise record is missing");
+    row = rows[0];
+  }
+  const isOwner = owned.some((candidate) => String(candidate.id) === ids[0]);
+  const hasActiveMembership = memberships.some(
+    (membership) => String(membership.franchise_id) === ids[0] && membership.active === true,
   );
-  const franchises = franchiseResponse.ok
-    ? ((await franchiseResponse.json()) as Record<string, unknown>[])
-    : [];
-  if (!franchises[0]) return null;
-  const row = franchises[0];
+  const franchiseIsActive = String(row.status ?? "").toLowerCase() === "active";
   return {
     kind: "franchise" as const,
     tier: row.territory,
-    eligible: String(row.status ?? "").toLowerCase() === "active",
-    state: `status=${row.status ?? "unknown"}`,
+    eligible: franchiseIsActive && (isOwner || hasActiveMembership),
+    state: !franchiseIsActive
+      ? `status=${row.status ?? "unknown"}`
+      : isOwner || hasActiveMembership
+        ? `status=${row.status}`
+        : "membership inactive",
   };
 }
 
@@ -144,23 +186,38 @@ export const Route = createFileRoute("/api/partner/quote")({
         const product = (new URL(request.url).searchParams.get("product") ?? "").trim();
         if (!product) {
           // No product asked about: report the plans and this partner's standing.
+          const franchise = await franchiseFor(user.id);
+          if (franchise) {
+            return Response.json({
+              partner: {
+                kind: "franchise",
+                plan: resolvePlan("franchise", franchise.tier)?.id ?? null,
+                eligible: franchise.eligible,
+                state: franchise.state,
+              },
+              reseller_plans: await resellerPlans(),
+              franchise_plans: FRANCHISE_PLANS.map(
+                ({ id, label, joiningFeeUsd, discount, leadAllowance, territory }) => ({
+                  id,
+                  label,
+                  joiningFeeUsd,
+                  discount,
+                  leadAllowance,
+                  territory,
+                }),
+              ),
+              influencer: INFLUENCER_REWARDS,
+            });
+          }
           const cart = await rpcAsUser<{ pricing?: ResellerPricing }>(
             request,
             "marketplace_cart_quote",
             {},
           );
           const pricing = (cart?.pricing ?? {}) as ResellerPricing;
-          const franchise =
-            pricing.reason === "not_a_reseller" ? await franchiseFor(user.id) : null;
           return Response.json({
-            partner: franchise
-              ? {
-                  kind: "franchise",
-                  plan: resolvePlan("franchise", franchise.tier)?.id ?? null,
-                  eligible: franchise.eligible,
-                  state: franchise.state,
-                }
-              : pricing.reason && pricing.reason !== "not_a_reseller"
+            partner:
+              pricing.reason && pricing.reason !== "not_a_reseller"
                 ? {
                     kind: "reseller",
                     plan: pricing.plan_code ?? null,
@@ -170,11 +227,11 @@ export const Route = createFileRoute("/api/partner/quote")({
                 : null,
             reseller_plans: await resellerPlans(),
             franchise_plans: FRANCHISE_PLANS.map(
-              ({ id, label, joiningFeeUsd, leadAllowance, territory }) => ({
+              ({ id, label, joiningFeeUsd, discount, leadAllowance, territory }) => ({
                 id,
                 label,
                 joiningFeeUsd,
-                discount: 0,
+                discount,
                 leadAllowance,
                 territory,
               }),
@@ -196,6 +253,15 @@ export const Route = createFileRoute("/api/partner/quote")({
           : [];
         if (!products[0]) return Response.json({ error: "Product not found" }, { status: 404 });
 
+        const partner = await franchiseFor(user.id);
+        const plan = partner ? resolvePlan("franchise", partner.tier) : null;
+        if (partner && (!partner.eligible || !plan)) {
+          return Response.json(
+            { error: "Franchise pricing is unavailable for this account." },
+            { status: 409 },
+          );
+        }
+
         // The list price and the reseller rule, both from the database.
         const quote = await rpcAsUser<ProductQuote>(request, "marketplace_quote_product", {
           p_product: products[0].id,
@@ -213,6 +279,29 @@ export const Route = createFileRoute("/api/partner/quote")({
         const pricing = (quote.pricing ?? {}) as ResellerPricing;
         const listPrice = Number(quote.list_price);
         const headers = { "Cache-Control": "no-store" };
+
+        if (partner && plan) {
+          const franchisePrice = Number(quote.final_price);
+          if (!Number.isFinite(franchisePrice) || franchisePrice < 0) {
+            return Response.json(
+              { error: "Franchise pricing could not be verified." },
+              { status: 502, headers },
+            );
+          }
+          return Response.json(
+            {
+              product: quote.product,
+              partner: { kind: "franchise", state: partner.state },
+              discount: plan.discount,
+              discountLabel: `${Math.round(plan.discount * 100)}%`,
+              finalPriceUsd: franchisePrice,
+              plan: plan.id,
+              reason: "active_franchise",
+              currency: String(quote.currency ?? "USD"),
+            },
+            { headers },
+          );
+        }
 
         if (pricing.reason !== "not_a_reseller") {
           const percent = Number(quote.discount_percent ?? 0);
@@ -236,13 +325,11 @@ export const Route = createFileRoute("/api/partner/quote")({
           );
         }
 
-        const partner = await franchiseFor(user.id);
-        const plan = partner ? resolvePlan("franchise", partner.tier) : null;
         return Response.json(
           {
             product: quote.product,
-            partner: partner ? { kind: partner.kind, state: partner.state } : null,
-            ...quoteFor(listPrice, plan, partner?.eligible ?? false),
+            partner: null,
+            ...quoteFor(listPrice, null, false),
             currency: String(quote.currency ?? "USD"),
           },
           { headers },
