@@ -6,6 +6,7 @@ import {
   generateUniqueCode,
   rest,
 } from "@/lib/affiliate/core";
+import { sumByCurrency } from "@/lib/commerce/money-by-currency";
 
 /**
  * An influencer's referral links, and what each one has actually brought in.
@@ -94,60 +95,70 @@ export const Route = createFileRoute("/api/influencer/referral")({
             `&influencer_profile_id=eq.${encodeURIComponent(gate.profile.id)}` +
             `&order=created_at.desc&limit=${MAX_LINKS * 4}`,
         );
-        const codes = codesResponse.ok
-          ? ((await codesResponse.json()) as {
-              id: string;
-              code: string;
-              active: boolean;
-              created_at: string;
-            }[])
-          : [];
+        if (!codesResponse.ok) {
+          console.error("[influencer referral] code read failed", codesResponse.status);
+          return Response.json({ error: "Could not read referral links" }, { status: 502 });
+        }
+        const codes = (await codesResponse.json()) as {
+          id: string;
+          code: string;
+          active: boolean;
+          created_at: string;
+        }[];
 
-        const links = await Promise.all(
-          codes.map(async (c) => {
-            const sessionsResponse = await rest(
-              `marketplace_referral_sessions?select=id,metadata,converted_order_id` +
-                `&referral_code_id=eq.${encodeURIComponent(c.id)}&limit=2000`,
-            );
-            const sessions = sessionsResponse.ok
-              ? ((await sessionsResponse.json()) as {
-                  metadata: Record<string, unknown> | null;
-                  converted_order_id: string | null;
-                }[])
-              : [];
-            const clicks = sessions.reduce((sum, s) => sum + Number(s.metadata?.clicks ?? 1), 0);
-            const conversions = sessions.filter((s) => s.converted_order_id).length;
-            return {
-              id: c.id,
-              code: c.code,
-              active: c.active,
-              created_at: c.created_at,
-              url: `/?ref=${c.code}`,
-              clicks,
-              visitors: sessions.length,
-              conversions,
-              conversionRate: sessions.length
-                ? Math.round((conversions / sessions.length) * 1000) / 10
-                : 0,
-            };
+        const analyticsResponse = await rest("rpc/marketplace_referral_link_analytics", {
+          method: "POST",
+          body: JSON.stringify({
+            p_code_ids: codes.map((code) => code.id),
+            p_partner_kind: "influencer",
+            p_partner_id: gate.profile.id,
           }),
-        );
-
-        // What the links have earned, from the canonical partner ledger. A
-        // reversal is a negative row in the same ledger, so summing it gives the
-        // net rather than a total that quietly ignores cancelled sales.
-        const ledgerResponse = await rest(
-          `partner_commissions?select=commission_amount,currency,status` +
-            `&partner_kind=eq.influencer&partner_id=eq.${encodeURIComponent(gate.profile.id)}&limit=5000`,
-        );
-        const ledger = ledgerResponse.ok
-          ? ((await ledgerResponse.json()) as {
-              commission_amount: string | number;
-              status: string;
-            }[])
-          : [];
-        const sum = (rows: typeof ledger) =>
-          Math.round(rows.reduce((s, r) => s + (Number(r.commission_amount) || 0), 0) * 100) / 100;
+        });
+        if (!analyticsResponse.ok) {
+          console.error("[influencer referral] analytics read failed", analyticsResponse.status);
+          return Response.json({ error: "Could not read referral analytics" }, { status: 502 });
+        }
+        const analyticsResult: unknown = await analyticsResponse.json();
+        if (
+          !analyticsResult ||
+          typeof analyticsResult !== "object" ||
+          Array.isArray(analyticsResult) ||
+          !Array.isArray((analyticsResult as { links?: unknown }).links) ||
+          !Array.isArray((analyticsResult as { commissions?: unknown }).commissions)
+        ) {
+          return Response.json({ error: "Could not read referral analytics" }, { status: 502 });
+        }
+        const analytics = analyticsResult as {
+          links: {
+            id: string;
+            clicks: number;
+            visitors: number;
+            conversions: number;
+            commissions: { status: string; currency: string; amount: number; lines: number }[];
+          }[];
+          commissions: { status: string; currency: string; amount: number; lines: number }[];
+        };
+        const analyticsByCode = new Map(analytics.links.map((row) => [row.id, row]));
+        const links = codes.map((code) => {
+          const totals = analyticsByCode.get(code.id);
+          const visitors = Number(totals?.visitors ?? 0);
+          const conversions = Number(totals?.conversions ?? 0);
+          return {
+            ...code,
+            url: `/?ref=${code.code}`,
+            clicks: Number(totals?.clicks ?? 0),
+            visitors,
+            conversions,
+            conversionRate: visitors ? Math.round((conversions / visitors) * 1000) / 10 : 0,
+          };
+        });
+        const ledger = analytics.commissions;
+        const byCurrency = (status: string) =>
+          sumByCurrency(
+            ledger.filter((row) => row.status === status),
+            (row) => row.currency,
+            (row) => Number(row.amount) || 0,
+          );
 
         /**
          * Where this influencer stands, and the number that moves them up.
@@ -189,11 +200,11 @@ export const Route = createFileRoute("/api/influencer/referral")({
           attributionWindowDays: ATTRIBUTION_WINDOW_DAYS,
           links,
           commissions: {
-            pending: sum(ledger.filter((r) => r.status === "pending")),
-            approved: sum(ledger.filter((r) => r.status === "approved")),
-            paid: sum(ledger.filter((r) => r.status === "paid")),
-            reversed: sum(ledger.filter((r) => r.status === "reversed")),
-            lines: ledger.length,
+            pending: byCurrency("pending"),
+            approved: byCurrency("approved"),
+            paid: byCurrency("paid"),
+            reversed: byCurrency("reversed"),
+            lines: ledger.reduce((sum, row) => sum + Number(row.lines || 0), 0),
           },
         });
       },

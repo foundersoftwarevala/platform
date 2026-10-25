@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
+import type { CurrencyAmount } from "@/lib/commerce/money-by-currency";
 
 /**
  * Real dashboard figures for the roles that sell on the marketplace.
@@ -23,6 +24,10 @@ export function isSellerRole(role: string): boolean {
 export type SellerMetrics = {
   seller: { id: string; display_name: string | null; status: string; currency: string };
   metrics: Record<string, number | null>;
+  revenueByCurrency: CurrencyAmount[];
+  revenueTodayByCurrency: CurrencyAmount[];
+  revenueMonthByCurrency: CurrencyAmount[];
+  commissionsByCurrency: CurrencyAmount[];
 };
 
 async function fetchSellerMetrics(): Promise<SellerMetrics | null> {

@@ -34,8 +34,12 @@ function problem(field: Field, value: string): string | null {
       }
     }
     case "number": {
-      const n = Number(value.replace(/,/g, ""));
-      return Number.isFinite(n) && n >= 0 ? null : "must be a number";
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0) return "must be a number";
+      if (field.integer && (!Number.isSafeInteger(n) || !/^\d+$/.test(value))) {
+        return "must be a whole number";
+      }
+      return null;
     }
     case "tel":
       return (value.match(/\d/g)?.length ?? 0) >= 6 ? null : "is not a phone number";

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { AuthorBackendError, readAllRows, requireAuthor } from "@/lib/marketplace/author-guard";
+import { AuthorBackendError, requireAuthor, rest } from "@/lib/marketplace/author-guard";
 
 /**
  * What this author has actually earned.
@@ -20,22 +20,6 @@ import { AuthorBackendError, readAllRows, requireAuthor } from "@/lib/marketplac
  *   available      earned minus reversed minus paid out
  */
 
-type CommissionRow = {
-  id: string;
-  order_item_id: string;
-  gross_amount: number | string | null;
-  commission_amount: number | string | null;
-  seller_amount: number | string | null;
-  status: string;
-  created_at: string;
-};
-
-const num = (v: unknown): number => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-const money = (n: number): number => Math.round(n * 100) / 100;
-
 export const Route = createFileRoute("/api/author/earnings")({
   server: {
     handlers: {
@@ -44,60 +28,48 @@ export const Route = createFileRoute("/api/author/earnings")({
         if (!gate.ok) return gate.response;
         const sellerId = gate.seller.id;
 
-        let commissions: CommissionRow[];
-        let payouts: { amount: number | string; status: string }[];
-        let products: { id: string }[];
+        let summary: {
+          product_count: number;
+          sales: number;
+          refunded: number;
+          totals_by_currency: {
+            currency: string;
+            gross: number;
+            platformFee: number;
+            earned: number;
+            pending: number;
+            approved: number;
+            reversed: number;
+            paidOut: number;
+            pendingPayout: number;
+            available: number;
+          }[];
+          commissions: Record<string, unknown>[];
+          payouts: Record<string, unknown>[];
+          activities: Record<string, unknown>[];
+        };
         try {
-          [commissions, payouts, products] = await Promise.all([
-            readAllRows<CommissionRow>(
-              `marketplace_commissions?select=id,order_item_id,gross_amount,commission_amount,seller_amount,status,created_at` +
-                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=created_at.desc,id.asc`,
-              "Commission read",
-            ),
-            readAllRows<{ amount: number | string; status: string }>(
-              `marketplace_payouts?select=id,amount,currency,status,created_at,provider_reference` +
-                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=created_at.desc,id.asc`,
-              "Payout read",
-            ),
-            readAllRows<{ id: string }>(
-              `marketplace_products?select=id&seller_id=eq.${encodeURIComponent(sellerId)}&order=id.asc`,
-              "Product count read",
-            ),
-          ]);
+          const response = await rest("rpc/marketplace_author_earnings_summary", {
+            method: "POST",
+            body: JSON.stringify({ p_seller_id: sellerId }),
+          });
+          if (!response.ok) {
+            throw new AuthorBackendError("Author earnings aggregation", response.status);
+          }
+          const data: unknown = await response.json();
+          if (!data || typeof data !== "object" || Array.isArray(data)) {
+            throw new AuthorBackendError("Author earnings aggregation response");
+          }
+          summary = data as typeof summary;
         } catch (error) {
           if (!(error instanceof AuthorBackendError)) throw error;
           console.error("[author earnings] source read failed", error.message);
           return Response.json({ error: "Could not read your earnings" }, { status: 502 });
         }
-        const productCount = products.length;
-
-        const live = commissions.filter((c) => c.status !== "reversed");
-        const reversedRows = commissions.filter((c) => c.status === "reversed");
-
-        const gross = money(live.reduce((sum, c) => sum + num(c.gross_amount), 0));
-        const platformFee = money(live.reduce((sum, c) => sum + num(c.commission_amount), 0));
-        const earned = money(live.reduce((sum, c) => sum + num(c.seller_amount), 0));
-        const pending = money(
-          live
-            .filter((c) => c.status === "pending")
-            .reduce((sum, c) => sum + num(c.seller_amount), 0),
-        );
-        const approved = money(
-          live
-            .filter((c) => c.status === "approved" || c.status === "payable")
-            .reduce((sum, c) => sum + num(c.seller_amount), 0),
-        );
-        const reversed = money(reversedRows.reduce((sum, c) => sum + num(c.seller_amount), 0));
-        const paidOut = money(
-          payouts
-            .filter((p) => p.status === "paid" || p.status === "completed")
-            .reduce((sum, p) => sum + num(p.amount), 0),
-        );
-        const pendingPayout = money(
-          payouts
-            .filter((p) => p.status === "pending" || p.status === "processing")
-            .reduce((sum, p) => sum + num(p.amount), 0),
-        );
+        const totalForCurrency = (field: keyof (typeof summary.totals_by_currency)[number]) =>
+          summary.totals_by_currency.length > 1
+            ? null
+            : (summary.totals_by_currency[0]?.[field] ?? 0);
 
         return Response.json({
           seller: {
@@ -107,22 +79,27 @@ export const Route = createFileRoute("/api/author/earnings")({
             currency: gate.seller.payout_currency ?? "USD",
           },
           totals: {
-            products: productCount,
-            sales: live.length,
-            refunded: reversedRows.length,
-            gross,
-            platformFee,
-            earned,
-            pending,
-            approved,
-            reversed,
-            paidOut,
-            pendingPayout,
-            available: money(earned - paidOut - pendingPayout),
+            products: summary.product_count,
+            sales: summary.sales,
+            refunded: summary.refunded,
+            gross: totalForCurrency("gross"),
+            platformFee: totalForCurrency("platformFee"),
+            earned: totalForCurrency("earned"),
+            pending: totalForCurrency("pending"),
+            approved: totalForCurrency("approved"),
+            reversed: totalForCurrency("reversed"),
+            paidOut: totalForCurrency("paidOut"),
+            pendingPayout: totalForCurrency("pendingPayout"),
+            available: totalForCurrency("available"),
           },
-          // The rows behind the totals, so the dashboard can show its working.
-          commissions: commissions.slice(0, 100),
-          payouts,
+          totalsByCurrency: summary.totals_by_currency,
+          revenueByCurrency: summary.totals_by_currency.map(({ currency, gross }) => ({
+            currency,
+            amount: gross,
+          })),
+          commissions: summary.commissions,
+          payouts: summary.payouts,
+          activities: summary.activities,
         });
       },
     },

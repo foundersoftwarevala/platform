@@ -227,6 +227,8 @@ function FieldInput({
         <input
           id={id}
           type={field.type}
+          min={field.integer ? 0 : undefined}
+          step={field.integer ? 1 : undefined}
           required={field.required}
           placeholder={field.placeholder}
           value={value}

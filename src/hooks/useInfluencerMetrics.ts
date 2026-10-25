@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
+import type { CurrencyAmount } from "@/lib/commerce/money-by-currency";
 
 /**
  * Real dashboard figures for the influencer who is signed in.
@@ -25,6 +26,7 @@ export type InfluencerMetrics = {
     since: string;
   };
   metrics: Record<string, number | null>;
+  revenueByCurrency: CurrencyAmount[];
 };
 
 async function fetchInfluencerMetrics(): Promise<InfluencerMetrics | null> {

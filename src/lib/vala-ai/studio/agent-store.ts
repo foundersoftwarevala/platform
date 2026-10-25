@@ -1,6 +1,3 @@
-import { toast } from "sonner";
-import { useOperator } from "@/components/vala-ai/session";
-import { useEffect, useSyncExternalStore } from "react";
 import { buildStepFn, planBuildFn } from "@/lib/vala-ai/studio/ai/agent.functions";
 import { loadBuildFn, saveBuildFn } from "@/lib/vala-ai/studio/agent-cloud.functions";
 
@@ -27,7 +24,7 @@ export type AgentBuild = {
   updatedAt?: number;
 };
 
-const empty: AgentBuild = {
+export const emptyAgentBuild: AgentBuild = {
   requirement: "",
   project: "",
   summary: "",
@@ -35,11 +32,18 @@ const empty: AgentBuild = {
   steps: [],
   log: [],
 };
+const empty = emptyAgentBuild;
 let KEY = "";
 let ID_KEY = "";
 let operatorId: string | null = null;
 let generation = 0;
 let mounted = 0;
+let notifyError = (message: string) => console.error(message);
+
+export function setAgentBuildErrorHandler(handler: (message: string) => void): void {
+  notifyError = handler;
+}
+
 const load = (): AgentBuild => {
   if (typeof window === "undefined") return empty;
   try {
@@ -47,7 +51,7 @@ const load = (): AgentBuild => {
     return v ? { ...empty, ...JSON.parse(v) } : empty;
   } catch (error) {
     console.error("Vala build cache is invalid", error);
-    toast.error("Saved build could not be restored.");
+    notifyError("Saved build could not be restored.");
     return empty;
   }
 };
@@ -95,7 +99,7 @@ const pushCloud = () => {
       } catch (error) {
         if (scope !== generation) return;
         console.error("Vala build persistence failed", error);
-        toast.error("Vala AI could not save or load this build.");
+        notifyError("Vala AI could not save or load this build.");
       }
     });
   }, 300);
@@ -106,7 +110,7 @@ const save = () => {
     window.localStorage.setItem(KEY, JSON.stringify(state));
   } catch (error) {
     console.error("Vala build persistence failed", error);
-    toast.error("Vala AI could not save or load this build.");
+    notifyError("Vala AI could not save or load this build.");
   }
   if (state.phase !== "idle") pushCloud();
 };
@@ -126,13 +130,13 @@ async function pullCloud() {
       } catch (error) {
         if (scope !== generation) return;
         console.error("Vala build persistence failed", error);
-        toast.error("Vala AI could not save or load this build.");
+        notifyError("Vala AI could not save or load this build.");
       }
       subs.forEach((f) => f());
     }
   } catch (error) {
     console.error("Vala build persistence failed", error);
-    toast.error("Vala AI could not save or load this build.");
+    notifyError("Vala AI could not save or load this build.");
   }
 }
 const set = (p: Partial<AgentBuild>) => {
@@ -179,53 +183,53 @@ async function boot() {
   }, 5000);
 }
 
-export function useAgentBuild() {
-  const operator = useOperator();
-  useEffect(() => {
-    if (operatorId !== operator.id) {
-      generation++;
-      if (cloudTimer) clearTimeout(cloudTimer);
-      if (pollTimer) clearInterval(pollTimer);
-      running = false;
-      booted = false;
-      mounted = 0;
-      operatorId = operator.id;
-      KEY = `vala-studio-build:${operator.id}`;
-      ID_KEY = `vala-studio-build-id:${operator.id}`;
-      state = load();
-      try {
-        const fromUrl = new URLSearchParams(window.location.search).get("build");
-        cloudId = fromUrl || window.localStorage.getItem(ID_KEY);
-        if (fromUrl) window.localStorage.setItem(ID_KEY, fromUrl);
-      } catch (error) {
-        cloudId = null;
-        console.error("Vala build cache could not be read", error);
-        toast.error("Saved build could not be restored.");
-      }
-      subs.forEach((f) => f());
-    }
-    const scope = generation;
-    mounted++;
-    void boot();
-    return () => {
-      if (scope !== generation || --mounted > 0) return;
-      generation++;
-      if (cloudTimer) clearTimeout(cloudTimer);
-      if (pollTimer) clearInterval(pollTimer);
-      operatorId = null;
-      running = false;
-      booted = false;
-      state = empty;
+export function mountAgentBuild(nextOperatorId: string): () => void {
+  if (operatorId !== nextOperatorId) {
+    generation++;
+    if (cloudTimer) clearTimeout(cloudTimer);
+    if (pollTimer) clearInterval(pollTimer);
+    running = false;
+    booted = false;
+    mounted = 0;
+    operatorId = nextOperatorId;
+    KEY = `vala-studio-build:${nextOperatorId}`;
+    ID_KEY = `vala-studio-build-id:${nextOperatorId}`;
+    state = load();
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get("build");
+      cloudId = fromUrl || window.localStorage.getItem(ID_KEY);
+      if (fromUrl) window.localStorage.setItem(ID_KEY, fromUrl);
+    } catch (error) {
       cloudId = null;
-      subs.forEach((f) => f());
-    };
-  }, [operator.id]);
-  return useSyncExternalStore(
-    (f) => (subs.add(f), () => subs.delete(f)),
-    () => state,
-    () => empty,
-  );
+      console.error("Vala build cache could not be read", error);
+      notifyError("Saved build could not be restored.");
+    }
+    subs.forEach((f) => f());
+  }
+  const scope = generation;
+  mounted++;
+  void boot();
+  return () => {
+    if (scope !== generation || --mounted > 0) return;
+    generation++;
+    if (cloudTimer) clearTimeout(cloudTimer);
+    if (pollTimer) clearInterval(pollTimer);
+    operatorId = null;
+    running = false;
+    booted = false;
+    state = empty;
+    cloudId = null;
+    subs.forEach((f) => f());
+  };
 }
+
+export const subscribeAgentBuild = (listener: () => void) => {
+  subs.add(listener);
+  return () => {
+    subs.delete(listener);
+  };
+};
+export const getAgentBuild = () => state;
 
 let running = false;
 export async function startAgentBuild(requirement: string) {
@@ -238,7 +242,7 @@ export async function startAgentBuild(requirement: string) {
     window.localStorage.removeItem(ID_KEY);
   } catch (error) {
     console.error("Vala build persistence failed", error);
-    toast.error("Vala AI could not save or load this build.");
+    notifyError("Vala AI could not save or load this build.");
   }
   state = { ...empty, requirement, phase: "planning", startedAt: Date.now() };
   log("Architect agent: planning build…", "run");
@@ -335,7 +339,7 @@ export function clearAgentBuild() {
     window.localStorage.removeItem(ID_KEY);
   } catch (error) {
     console.error("Vala build persistence failed", error);
-    toast.error("Vala AI could not save or load this build.");
+    notifyError("Vala AI could not save or load this build.");
   }
   subs.forEach((f) => f());
 }

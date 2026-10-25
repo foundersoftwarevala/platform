@@ -301,6 +301,31 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   }
   entitlementId = entitlementIds[0] ?? null;
 
+  // A retry must also repair a commission that was not recorded on the first
+  // fulfillment attempt. The commission writer is idempotent per order item.
+  let commission: Awaited<ReturnType<typeof recordCommissionsForOrder>>;
+  try {
+    commission = await recordCommissionsForOrder(orderId);
+  } catch (error) {
+    commission = {
+      ok: false,
+      created: 0,
+      skipped: 0,
+      unattributed: 0,
+      error: error instanceof Error ? error.message : "Commission processing failed",
+    };
+  }
+  await logPaymentEvent(
+    orderId,
+    commission.ok ? "commission_recorded" : "commission_failed",
+    {
+      created: commission.created,
+      skipped: commission.skipped,
+      unattributed: commission.unattributed,
+      detail: commission.error,
+    },
+  );
+
   if (!created) {
     await logPaymentEvent(orderId, "entitlements_repaired", {
       licence_id: licence.id,
@@ -379,21 +404,6 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       reason: "neither the order metadata nor the buyer's profile carries an email",
     });
   }
-
-  // The sale is real, so the author who owns the product is credited now.
-  // This is deliberately after the licence: a commission problem must never
-  // cost a paying customer the product they have already bought.
-  const commission = await recordCommissionsForOrder(orderId);
-  await logPaymentEvent(
-    orderId,
-    commission.ok ? "commission_recorded" : "commission_failed",
-    {
-      created: commission.created,
-      skipped: commission.skipped,
-      unattributed: commission.unattributed,
-      detail: commission.error,
-    },
-  );
 
   return { ok: true, created: true, licenceKey, licenceId: licence.id, entitlementId };
 }

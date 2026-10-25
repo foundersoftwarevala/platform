@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { AuthorBackendError, readAllRows, requireAuthor } from "@/lib/marketplace/author-guard";
+import { AuthorBackendError, requireAuthor, rest } from "@/lib/marketplace/author-guard";
 
 /**
  * Real dashboard numbers for a vendor or author.
@@ -20,19 +20,6 @@ import { AuthorBackendError, readAllRows, requireAuthor } from "@/lib/marketplac
  * look a metric up by the key it already has.
  */
 
-type OrderItem = {
-  id: string;
-  order_id: string;
-  line_total: number | string | null;
-  created_at: string;
-};
-
-const num = (v: unknown): number => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-const money = (n: number): number => Math.round(n * 100) / 100;
-
 export const Route = createFileRoute("/api/seller/metrics")({
   server: {
     handlers: {
@@ -49,165 +36,107 @@ export const Route = createFileRoute("/api/seller/metrics")({
           Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
         ).toISOString();
 
-        let products: {
-          moderation_status: string;
-          visible: boolean;
-          downloads: number | null;
-        }[];
-        let items: OrderItem[];
-        let commissions: {
-          order_item_id: string;
-          gross_amount: number | string;
-          seller_amount: number | string;
-          status: string;
-          created_at: string;
-        }[];
         try {
-          [products, items, commissions] = await Promise.all([
-            readAllRows<{
-              moderation_status: string;
-              visible: boolean;
-              downloads: number | null;
-            }>(
-              `marketplace_products?select=id,moderation_status,visible,downloads` +
-                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=id.asc`,
-              "Product metrics read",
-            ),
-            readAllRows<OrderItem>(
-              `marketplace_order_items?select=id,order_id,line_total,created_at` +
-                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=id.asc`,
-              "Order item metrics read",
-            ),
-            readAllRows<{
-              order_item_id: string;
-              gross_amount: number | string;
-              seller_amount: number | string;
-              status: string;
-              created_at: string;
-            }>(
-              `marketplace_commissions?select=id,order_item_id,gross_amount,seller_amount,status,created_at` +
-                `&seller_id=eq.${encodeURIComponent(sellerId)}&order=id.asc`,
-              "Commission metrics read",
-            ),
-          ]);
+          const response = await rest("rpc/marketplace_seller_metrics_summary", {
+            method: "POST",
+            body: JSON.stringify({
+              p_seller_id: sellerId,
+              p_start_day: startOfDay,
+              p_start_month: startOfMonth,
+            }),
+          });
+          if (!response.ok)
+            throw new AuthorBackendError("Seller metrics aggregation", response.status);
+          const summary: unknown = await response.json();
+          if (!summary || typeof summary !== "object" || Array.isArray(summary)) {
+            throw new AuthorBackendError("Seller metrics aggregation response");
+          }
+          const data = summary as {
+            products: { published: number; drafts: number; in_review: number; downloads: number };
+            orders: {
+              today: number;
+              pending: number;
+              completed: number;
+              cancelled: number;
+              sales: number;
+              returns: number;
+              customers: number;
+              repeat_customers: number;
+            };
+            revenue_by_currency: { currency: string; amount: number }[];
+            revenue_today_by_currency: { currency: string; amount: number }[];
+            revenue_month_by_currency: { currency: string; amount: number }[];
+            commissions_by_currency: { currency: string; amount: number }[];
+            recent_activities: Record<string, unknown>[];
+          };
+          const metrics: Record<string, number | null> = {
+            products: data.products.published,
+            "products-draft": data.products.drafts,
+            "products-review": data.products.in_review,
+            downloads: data.products.downloads,
+            orders: data.orders.today,
+            "orders-pending": data.orders.pending,
+            "orders-completed": data.orders.completed,
+            "orders-cancelled": data.orders.cancelled,
+            sales: data.orders.sales,
+            revenue:
+              data.revenue_today_by_currency.length === 1
+                ? (data.revenue_today_by_currency[0]?.amount ?? 0)
+                : data.revenue_today_by_currency.length
+                  ? null
+                  : 0,
+            "revenue-month":
+              data.revenue_month_by_currency.length === 1
+                ? (data.revenue_month_by_currency[0]?.amount ?? 0)
+                : data.revenue_month_by_currency.length
+                  ? null
+                  : 0,
+            commissions:
+              data.commissions_by_currency.length === 1
+                ? (data.commissions_by_currency[0]?.amount ?? 0)
+                : data.commissions_by_currency.length
+                  ? null
+                  : 0,
+            earnings:
+              data.commissions_by_currency.length === 1
+                ? (data.commissions_by_currency[0]?.amount ?? 0)
+                : data.commissions_by_currency.length
+                  ? null
+                  : 0,
+            customers: data.orders.customers,
+            "customers-repeat": data.orders.repeat_customers,
+            returns: data.orders.returns,
+            refunds: data.orders.returns,
+            inventory: null,
+            "inventory-oos": null,
+            reviews: null,
+            followers: null,
+            reach: null,
+            views: null,
+            leads: null,
+            clicks: null,
+          };
+          return Response.json({
+            seller: {
+              id: sellerId,
+              display_name: gate.seller.display_name,
+              status: gate.seller.status,
+              currency: gate.seller.payout_currency ?? "USD",
+            },
+            metrics,
+            revenueByCurrency: data.revenue_by_currency,
+            revenueTodayByCurrency: data.revenue_today_by_currency,
+            revenueMonthByCurrency: data.revenue_month_by_currency,
+            commissionsByCurrency: data.commissions_by_currency,
+            recentActivities: data.recent_activities,
+            source: "supabase:marketplace",
+            generatedAt: new Date().toISOString(),
+          });
         } catch (error) {
           if (!(error instanceof AuthorBackendError)) throw error;
           console.error("[seller metrics] source read failed", error.message);
           return Response.json({ error: "Could not read your seller metrics" }, { status: 502 });
         }
-
-        // The orders behind this seller's lines, for status and buyer counts.
-        let orders: { id: string; status: string; buyer_id: string | null; created_at: string }[] =
-          [];
-        const orderIds = Array.from(new Set(items.map((i) => i.order_id).filter(Boolean)));
-        try {
-          const orderPages = await Promise.all(
-            Array.from({ length: Math.ceil(orderIds.length / 200) }, (_, page) => {
-              const ids = orderIds.slice(page * 200, (page + 1) * 200);
-              const list = ids.map((id) => `"${id}"`).join(",");
-              return readAllRows<{
-                id: string;
-                status: string;
-                buyer_id: string | null;
-                created_at: string;
-              }>(
-                `marketplace_orders?select=id,status,buyer_id,created_at&id=in.(${list})&order=id.asc`,
-                "Order metrics read",
-              );
-            }),
-          );
-          orders = orderPages.flat();
-        } catch (error) {
-          if (!(error instanceof AuthorBackendError)) throw error;
-          console.error("[seller metrics] orders read failed", error.message);
-          return Response.json({ error: "Could not read your seller metrics" }, { status: 502 });
-        }
-
-        const live = commissions.filter((c) => c.status !== "reversed");
-        const reversed = commissions.filter((c) => c.status === "reversed");
-
-        const published = products.filter((p) => p.visible === true).length;
-        const drafts = products.filter((p) =>
-          ["draft", "changes_requested", "rejected"].includes(String(p.moderation_status)),
-        ).length;
-        const inReview = products.filter((p) =>
-          ["submitted", "under_review"].includes(String(p.moderation_status)),
-        ).length;
-
-        const paidOrders = orders.filter((o) => o.status === "paid");
-        const buyers = paidOrders.map((o) => o.buyer_id).filter(Boolean) as string[];
-        const buyerCounts = buyers.reduce<Record<string, number>>((acc, b) => {
-          acc[b] = (acc[b] ?? 0) + 1;
-          return acc;
-        }, {});
-
-        const revenueToday = money(
-          live
-            .filter((c) => c.created_at >= startOfDay)
-            .reduce((s, c) => s + num(c.gross_amount), 0),
-        );
-        const revenueMonth = money(
-          live
-            .filter((c) => c.created_at >= startOfMonth)
-            .reduce((s, c) => s + num(c.gross_amount), 0),
-        );
-
-        /**
-         * `null` means the platform has no source for this metric yet, not zero.
-         * The dashboard shows a dash for these instead of inventing a number.
-         */
-        const metrics: Record<string, number | null> = {
-          // products
-          products: published,
-          "products-draft": drafts,
-          "products-review": inReview,
-          downloads: products.reduce((s, p) => s + num(p.downloads), 0),
-
-          // orders
-          orders: orders.filter((o) => o.created_at >= startOfDay).length,
-          "orders-pending": orders.filter((o) => o.status === "pending_payment").length,
-          "orders-completed": paidOrders.length,
-          "orders-cancelled": orders.filter((o) =>
-            ["cancelled", "payment_failed"].includes(String(o.status)),
-          ).length,
-          sales: live.length,
-
-          // money
-          revenue: revenueToday,
-          "revenue-month": revenueMonth,
-          commissions: money(live.reduce((s, c) => s + num(c.seller_amount), 0)),
-          earnings: money(live.reduce((s, c) => s + num(c.seller_amount), 0)),
-
-          // customers
-          customers: Object.keys(buyerCounts).length,
-          "customers-repeat": Object.values(buyerCounts).filter((n) => n > 1).length,
-
-          // refunds
-          returns: reversed.length,
-          refunds: reversed.length,
-
-          // No source exists for these yet. A dash is the honest answer.
-          inventory: null,
-          "inventory-oos": null,
-          reviews: null,
-          followers: null,
-          reach: null,
-          views: null,
-          leads: null,
-          clicks: null,
-        };
-
-        return Response.json({
-          seller: {
-            id: sellerId,
-            display_name: gate.seller.display_name,
-            status: gate.seller.status,
-            currency: gate.seller.payout_currency ?? "USD",
-          },
-          metrics,
-          source: "supabase:marketplace",
-          generatedAt: new Date().toISOString(),
-        });
       },
     },
   },

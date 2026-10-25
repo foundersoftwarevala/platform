@@ -41,21 +41,13 @@ afterEach(() => {
 });
 
 describe("marketplace category row reads", () => {
-  it("returns an error instead of partial counts when a product page fails", async () => {
+  it("returns an error instead of partial counts when the database aggregate fails", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith("/marketplace_categories")) {
         return json([{ id: "category-1", name: "Category", slug: "category" }]);
       }
-      if (url.pathname.endsWith("/marketplace_products")) {
-        if (!url.searchParams.has("id")) {
-          return json(
-            Array.from({ length: 1000 }, (_, index) => ({
-              id: `product-${String(index).padStart(5, "0")}`,
-              category_id: "category-1",
-            })),
-          );
-        }
+      if (url.pathname.endsWith("/rpc/marketplace_home_category_counts")) {
         return json({ error: "database unavailable" }, 503);
       }
       return json({ error: "unexpected request" }, 500);
@@ -71,31 +63,21 @@ describe("marketplace category row reads", () => {
       rows: [],
       error: "Could not load rows",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    const productRequest = new URL(String(fetchMock.mock.calls[1]?.[0]));
-    expect(productRequest.searchParams.get("order")).toBe("id.asc");
-    expect(productRequest.searchParams.get("limit")).toBe("1000");
-    const failedPage = new URL(String(fetchMock.mock.calls[2]?.[0]));
-    expect(failedPage.searchParams.get("id")).toBe("gt.product-00999");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).pathname).toContain(
+      "/rpc/marketplace_home_category_counts",
+    );
   });
 
-  it("counts products beyond the former 8000-row cap using stable cursors", async () => {
+  it("uses the database GROUP BY result without fetching product rows", async () => {
     const productCount = 8501;
     const fetchMock = vi.fn(async (input: string | URL) => {
       const request = new URL(String(input));
       if (request.pathname.endsWith("/marketplace_categories")) {
         return json([{ id: "category-1", name: "Category", slug: "category", sort_order: 1 }]);
       }
-      if (request.pathname.endsWith("/marketplace_products")) {
-        const cursor = request.searchParams.get("id")?.replace(/^gt\./, "");
-        const start = cursor ? Number(cursor.replace("product-", "")) + 1 : 0;
-        const end = Math.min(start + 1000, productCount);
-        return json(
-          Array.from({ length: end - start }, (_, index) => ({
-            id: `product-${String(start + index).padStart(5, "0")}`,
-            category_id: "category-1",
-          })),
-        );
+      if (request.pathname.endsWith("/rpc/marketplace_home_category_counts")) {
+        return json([{ category_id: "category-1", product_count: productCount }]);
       }
       return json({ error: "unexpected request" }, 500);
     });
@@ -110,13 +92,10 @@ describe("marketplace category row reads", () => {
 
     expect(response.status).toBe(200);
     expect(payload.rows[0]?.products).toBe(productCount);
-    const productRequests = fetchMock.mock.calls
+    const aggregateRequests = fetchMock.mock.calls
       .map(([input]) => new URL(String(input)))
-      .filter((request) => request.pathname.endsWith("/marketplace_products"));
-    expect(productRequests).toHaveLength(9);
-    expect(productRequests.every((request) => request.searchParams.get("order") === "id.asc")).toBe(
-      true,
-    );
-    expect(productRequests[8]?.searchParams.get("id")).toBe("gt.product-07999");
+      .filter((request) => request.pathname.endsWith("/rpc/marketplace_home_category_counts"));
+    expect(aggregateRequests).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "@/lib/affiliate/core";
 import { bearer } from "@/lib/applications/gateway.server";
 import { submitApplication } from "@/lib/applications/submit.server";
+import { sumByCurrency } from "@/lib/commerce/money-by-currency";
 
 /**
  * The affiliate's own account: apply, see status, manage referral links.
@@ -36,33 +37,69 @@ export const Route = createFileRoute("/api/affiliate/account")({
           `marketplace_referral_codes?select=id,code,active,created_at` +
             `&affiliate_partner_id=eq.${encodeURIComponent(partnerId)}&order=created_at.desc&limit=200`,
         );
-        const codes = codesResponse.ok
-          ? ((await codesResponse.json()) as { id: string; code: string; active: boolean }[])
-          : [];
-
-        // Per-link performance, counted from the sessions actually recorded.
-        const links = await Promise.all(
-          codes.map(async (c) => {
-            const sessionsResponse = await rest(
-              `marketplace_referral_sessions?select=id,metadata,converted_order_id,first_seen_at` +
-                `&referral_code_id=eq.${encodeURIComponent(c.id)}&limit=2000`,
+        if (!codesResponse.ok) {
+          console.error("[affiliate account] referral code read failed", codesResponse.status);
+          return Response.json({ error: "Could not read referral links" }, { status: 502 });
+        }
+        const codes = (await codesResponse.json()) as {
+          id: string;
+          code: string;
+          active: boolean;
+          created_at: string;
+        }[];
+        let analytics: {
+          id: string;
+          visitors: number;
+          clicks: number;
+          conversions: number;
+          commissions: { status: string; currency: string; amount: number; lines: number }[];
+        }[] = [];
+        if (codes.length) {
+          const analyticsResponse = await rest("rpc/marketplace_referral_link_analytics", {
+            method: "POST",
+            body: JSON.stringify({
+              p_code_ids: codes.map((code) => code.id),
+              p_partner_kind: "affiliate",
+              p_partner_id: partnerId,
+            }),
+          });
+          if (!analyticsResponse.ok) {
+            console.error(
+              "[affiliate account] referral analytics read failed",
+              analyticsResponse.status,
             );
-            const sessions = sessionsResponse.ok
-              ? ((await sessionsResponse.json()) as
-                  { metadata: Record<string, unknown> | null; converted_order_id: string | null }[])
-              : [];
-            const clicks = sessions.reduce((sum, s) => sum + Number(s.metadata?.clicks ?? 1), 0);
-            const conversions = sessions.filter((s) => s.converted_order_id).length;
-            return {
-              ...c,
-              url: `/?ref=${c.code}`,
-              clicks,
-              visitors: sessions.length,
-              conversions,
-              conversionRate: sessions.length ? Math.round((conversions / sessions.length) * 1000) / 10 : 0,
-            };
-          }),
-        );
+            return Response.json({ error: "Could not read referral analytics" }, { status: 502 });
+          }
+          const data: unknown = await analyticsResponse.json();
+          if (
+            !data ||
+            typeof data !== "object" ||
+            Array.isArray(data) ||
+            !Array.isArray((data as { links?: unknown }).links)
+          ) {
+            return Response.json({ error: "Could not read referral analytics" }, { status: 502 });
+          }
+          analytics = (data as { links: typeof analytics }).links;
+        }
+        const analyticsByCode = new Map(analytics.map((row) => [row.id, row]));
+        const links = codes.map((code) => {
+          const totals = analyticsByCode.get(code.id);
+          const visitors = Number(totals?.visitors ?? 0);
+          const conversions = Number(totals?.conversions ?? 0);
+          return {
+            ...code,
+            url: `/?ref=${code.code}`,
+            clicks: Number(totals?.clicks ?? 0),
+            visitors,
+            conversions,
+            conversionRate: visitors ? Math.round((conversions / visitors) * 1000) / 10 : 0,
+            commissionsByCurrency: sumByCurrency(
+              totals?.commissions ?? [],
+              (commission) => commission.currency,
+              (commission) => Number(commission.amount) || 0,
+            ),
+          };
+        });
 
         return Response.json({
           partner: {
@@ -147,7 +184,10 @@ export const Route = createFileRoute("/api/affiliate/account")({
 
           const code = await generateUniqueCode("SV");
           if (!code) {
-            return Response.json({ error: "Could not allocate a code, please retry" }, { status: 503 });
+            return Response.json(
+              { error: "Could not allocate a code, please retry" },
+              { status: 503 },
+            );
           }
           const created = await rest("marketplace_referral_codes", {
             method: "POST",
@@ -162,7 +202,10 @@ export const Route = createFileRoute("/api/affiliate/account")({
             return Response.json({ error: "Could not create the link" }, { status: 502 });
           }
           const rows = (await created.json()) as { id: string; code: string }[];
-          return Response.json({ ok: true, link: { ...rows[0], url: `/?ref=${rows[0].code}` } }, { status: 201 });
+          return Response.json(
+            { ok: true, link: { ...rows[0], url: `/?ref=${rows[0].code}` } },
+            { status: 201 },
+          );
         }
 
         // ------------------------------------------------------ toggle link
@@ -176,14 +219,21 @@ export const Route = createFileRoute("/api/affiliate/account")({
               `&affiliate_partner_id=eq.${encodeURIComponent(gate.partner.id)}&limit=1`,
           );
           if (!owned.ok || ((await owned.json()) as unknown[]).length === 0) {
-            return Response.json({ error: "That link does not belong to this affiliate" }, { status: 403 });
+            return Response.json(
+              { error: "That link does not belong to this affiliate" },
+              { status: 403 },
+            );
           }
-          const patched = await rest(`marketplace_referral_codes?id=eq.${encodeURIComponent(linkId)}`, {
-            method: "PATCH",
-            headers: { Prefer: "return=minimal" },
-            body: JSON.stringify({ active: body.active === true }),
-          });
-          if (!patched.ok) return Response.json({ error: "Could not update the link" }, { status: 502 });
+          const patched = await rest(
+            `marketplace_referral_codes?id=eq.${encodeURIComponent(linkId)}`,
+            {
+              method: "PATCH",
+              headers: { Prefer: "return=minimal" },
+              body: JSON.stringify({ active: body.active === true }),
+            },
+          );
+          if (!patched.ok)
+            return Response.json({ error: "Could not update the link" }, { status: 502 });
           return Response.json({ ok: true, linkId, active: body.active === true });
         }
 

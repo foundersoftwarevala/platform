@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { singleCurrencyAmount, type CurrencyAmount } from "@/lib/commerce/money-by-currency";
 
 /**
  * Real dashboard numbers for the influencer who is signed in.
@@ -100,9 +101,34 @@ export const Route = createFileRoute("/api/influencer/metrics")({
             { status: 403 },
           );
 
+        const revenueResponse = await fetch(
+          `${base}/rest/v1/rpc/influencer_self_revenue_by_currency`,
+          {
+            method: "POST",
+            headers: {
+              apikey: publishableKey(),
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: "{}",
+          },
+        );
+        if (!revenueResponse.ok) {
+          console.error("[influencer metrics] currency revenue read failed", revenueResponse.status);
+          return Response.json({ error: "Your revenue figures could not be read" }, { status: 502 });
+        }
+        const revenueByCurrency = (await revenueResponse.json()) as CurrencyAmount[];
+        if (!Array.isArray(revenueByCurrency)) {
+          return Response.json({ error: "Your revenue figures could not be read" }, { status: 502 });
+        }
+
         return Response.json({
           profile: summary.profile,
-          metrics: summary.metrics ?? {},
+          metrics: {
+            ...summary.metrics,
+            revenue: singleCurrencyAmount(revenueByCurrency),
+          },
+          revenueByCurrency,
           source: "platform:influencer_self_summary",
           generatedAt: new Date().toISOString(),
         });

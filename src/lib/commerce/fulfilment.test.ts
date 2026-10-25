@@ -20,6 +20,7 @@ vi.mock("./invoices", () => ({
 }));
 
 const { fulfilOrder, revokeOrderAccess } = await import("./fulfilment");
+const { recordCommissionsForOrder } = await import("./commission");
 
 const order = {
   id: "order-1",
@@ -45,6 +46,7 @@ function json(body: unknown, status = 200) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   process.env.SUPABASE_URL = "https://database.test";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-key";
 });
@@ -114,6 +116,36 @@ describe("order fulfillment reliability", () => {
     });
     expect(requests).toContainEqual({ path: "/rest/v1/entitlements", method: "POST" });
     expect(requests.some((request) => request.path === "/rest/v1/invoices")).toBe(false);
+    expect(recordCommissionsForOrder).toHaveBeenCalledWith("order-1");
+  });
+
+  it("still fulfills access when commission processing throws, leaving an explicit failure event", async () => {
+    vi.mocked(recordCommissionsForOrder).mockRejectedValueOnce(new Error("seller read failed"));
+    const paymentEvents: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        if (path.endsWith("/marketplace_orders")) return json([order]);
+        if (path.endsWith("/marketplace_order_items")) return json([line]);
+        if (path.endsWith("/profiles")) return json([]);
+        if (path.endsWith("/licenses") && !init?.method) return json([]);
+        if (path.endsWith("/marketplace_licenses")) return json([{ license_key: "MARKET-LICENSE" }]);
+        if (path.endsWith("/licenses") && init?.method === "POST")
+          return json([{ id: "license-1", license_key: "MARKET-LICENSE" }], 201);
+        if (path.endsWith("/entitlements")) return json([{ id: "entitlement-1" }], 201);
+        if (path.endsWith("/invoices")) return json([]);
+        if (path.endsWith("/payment_logs")) {
+          const body = JSON.parse(String(init?.body));
+          paymentEvents.push(body.event_type);
+          return new Response(null, { status: 201 });
+        }
+        throw new Error(`Unexpected request: ${path}`);
+      }),
+    );
+
+    await expect(fulfilOrder("order-1")).resolves.toMatchObject({ ok: true, created: true });
+    expect(paymentEvents).toContain("commission_failed");
   });
 
   it("uses a single database RPC for atomic license and entitlement revocation", async () => {

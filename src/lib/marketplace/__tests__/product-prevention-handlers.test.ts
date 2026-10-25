@@ -194,15 +194,8 @@ describe("actual product creation handlers", () => {
     expect(mocks.rest.mock.calls[1]?.[0]).toContain("&moderation_status=eq.draft");
   });
 
-  it("does not invent zero earnings when payout data cannot be read", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL) =>
-        String(input).includes("marketplace_payouts")
-          ? json({ error: "database unavailable" }, 503)
-          : json([], 200, { "content-range": "*/0" }),
-      ),
-    );
+  it("does not invent zero earnings when aggregation cannot be read", async () => {
+    mocks.rest.mockResolvedValue(json({ error: "database unavailable" }, 503));
 
     const response = await earningsGet({
       request: new Request("https://softwarevala.net/api/author/earnings"),
@@ -213,14 +206,7 @@ describe("actual product creation handlers", () => {
   });
 
   it("does not publish zero seller metrics when a source query fails", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL) =>
-        String(input).includes("marketplace_commissions")
-          ? json({ error: "database unavailable" }, 503)
-          : json([], 200, { "content-range": "*/0" }),
-      ),
-    );
+    mocks.rest.mockResolvedValue(json({ error: "database unavailable" }, 503));
 
     const response = await metricsGet({
       request: new Request("https://softwarevala.net/api/seller/metrics"),
@@ -228,6 +214,129 @@ describe("actual product creation handlers", () => {
 
     expect(response.status).toBe(502);
     expect(await response.json()).toMatchObject({ error: "Could not read your seller metrics" });
+  });
+
+  it("keeps seller revenue separated by the order-line currency", async () => {
+    mocks.author.mockResolvedValue({
+      ok: true,
+      seller: { id: "seller1", display_name: "Seller", status: "active", payout_currency: "USD" },
+      user: { id: "u1" },
+    });
+    mocks.rest.mockResolvedValue(
+      json({
+        products: { published: 0, drafts: 0, in_review: 0, downloads: 0 },
+        orders: {
+          today: 0,
+          pending: 0,
+          completed: 2,
+          cancelled: 0,
+          sales: 2,
+          returns: 0,
+          customers: 2,
+          repeat_customers: 0,
+        },
+        revenue_by_currency: [
+          { currency: "INR", amount: 5000 },
+          { currency: "USD", amount: 100 },
+        ],
+        revenue_today_by_currency: [
+          { currency: "INR", amount: 5000 },
+          { currency: "USD", amount: 100 },
+        ],
+        revenue_month_by_currency: [
+          { currency: "INR", amount: 5000 },
+          { currency: "USD", amount: 100 },
+        ],
+        commissions_by_currency: [
+          { currency: "INR", amount: 3500 },
+          { currency: "USD", amount: 70 },
+        ],
+        recent_activities: [],
+      }),
+    );
+
+    const response = await metricsGet({
+      request: new Request("https://softwarevala.net/api/seller/metrics"),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      revenueByCurrency: [
+        { currency: "INR", amount: 5000 },
+        { currency: "USD", amount: 100 },
+      ],
+      metrics: { revenue: null, "revenue-month": null },
+    });
+  });
+
+  it("keeps author earnings and payout totals separated by currency", async () => {
+    mocks.author.mockResolvedValue({
+      ok: true,
+      seller: {
+        id: "seller1",
+        owner_user_id: "u1",
+        display_name: "Author",
+        slug: "author",
+        status: "active",
+        payout_currency: "USD",
+      },
+      user: { id: "u1" },
+    });
+    mocks.rest.mockResolvedValue(
+      json({
+        product_count: 0,
+        sales: 2,
+        refunded: 0,
+        totals_by_currency: [
+          {
+            currency: "INR",
+            gross: 5000,
+            platformFee: 1500,
+            earned: 3500,
+            pending: 3500,
+            approved: 0,
+            reversed: 0,
+            paidOut: 1000,
+            pendingPayout: 0,
+            available: 2500,
+          },
+          {
+            currency: "USD",
+            gross: 100,
+            platformFee: 30,
+            earned: 70,
+            pending: 70,
+            approved: 0,
+            reversed: 0,
+            paidOut: 10,
+            pendingPayout: 0,
+            available: 60,
+          },
+        ],
+        commissions: [],
+        payouts: [],
+        activities: [],
+      }),
+    );
+
+    const response = await earningsGet({
+      request: new Request("https://softwarevala.net/api/author/earnings"),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      revenueByCurrency: [
+        { currency: "INR", amount: 5000 },
+        { currency: "USD", amount: 100 },
+      ],
+      totals: { gross: null, earned: null, paidOut: null },
+      totalsByCurrency: [
+        { currency: "INR", gross: 5000, earned: 3500, paidOut: 1000 },
+        { currency: "USD", gross: 100, earned: 70, paidOut: 10 },
+      ],
+    });
   });
 
   it.each(["dynamic", "provided-dynamic", "fallback", "fallback-pass", "unconfigured-failure"])(

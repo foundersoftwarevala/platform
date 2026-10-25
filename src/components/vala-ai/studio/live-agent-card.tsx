@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
-import { progressOf, useAgentBuild } from "@/lib/vala-ai/studio/agent-store";
+import { useAgentBuild } from "@/hooks/useAgentBuild";
+import { progressOf } from "@/lib/vala-ai/studio/agent-store";
 
 export function LiveAgentCard({ onOpen }: { onOpen: () => void }) {
   const b = useAgentBuild();

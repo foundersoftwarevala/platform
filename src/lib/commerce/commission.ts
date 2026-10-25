@@ -85,49 +85,17 @@ const money = (value: number): number => Math.round(value * 100) / 100;
  * The seller a product belongs to. Read from the product row, never from the
  * caller — this is what makes commission attribution unforgeable.
  */
-async function sellerForProduct(productId: string | null): Promise<string | null> {
-  if (!productId) return null;
-  const response = await rest(
-    `marketplace_products?select=seller_id&id=eq.${encodeURIComponent(productId)}&limit=1`,
-  );
-  if (!response.ok) return null;
-  const rows = (await response.json()) as { seller_id: string | null }[];
-  return rows[0]?.seller_id ?? null;
-}
-
-/** The account behind a seller record, to recognise someone buying their own product. */
-async function ownerOfSeller(sellerId: string): Promise<string | null> {
-  const response = await rest(
-    `marketplace_sellers?select=owner_user_id&id=eq.${encodeURIComponent(sellerId)}&limit=1`,
-  );
-  if (!response.ok) return null;
-  const rows = (await response.json()) as { owner_user_id: string | null }[];
-  return rows[0]?.owner_user_id ?? null;
-}
-
-async function categoryForProduct(productId: string | null): Promise<string | null> {
-  if (!productId) return null;
-  const response = await rest(
-    `marketplace_products?select=category_id&id=eq.${encodeURIComponent(productId)}&limit=1`,
-  );
-  if (!response.ok) return null;
-  const rows = (await response.json()) as { category_id: string | null }[];
-  return rows[0]?.category_id ?? null;
-}
-
 /**
  * The most specific active rule wins: a rule for this exact product beats one
  * for this seller, which beats one for the category, which beats the house
  * default. `priority` breaks ties within a level.
  */
-async function resolveRule(
+function resolveRule(
+  rules: CommissionRule[],
   sellerId: string,
   productId: string | null,
   categoryId: string | null,
-): Promise<CommissionRule | null> {
-  const response = await rest("marketplace_commission_rules?select=*&active=is.true");
-  if (!response.ok) return null;
-  const rules = (await response.json()) as CommissionRule[];
+): CommissionRule | null {
   if (!Array.isArray(rules) || rules.length === 0) return null;
 
   const score = (rule: CommissionRule): number => {
@@ -151,6 +119,23 @@ async function resolveRule(
   return applicable[0] ?? null;
 }
 
+async function readRows<T>(path: string, label: string): Promise<T[]> {
+  const response = await rest(path, { headers: { Prefer: "count=exact" } });
+  if (!response.ok) throw new Error(`${label} read failed (${response.status})`);
+  const rows: unknown = await response.json();
+  if (!Array.isArray(rows)) throw new Error(`${label} response was not an array`);
+  const totalText = /\/(\d+|\*)$/.exec(response.headers.get("content-range") ?? "")?.[1];
+  const total = totalText === undefined || totalText === "*" ? Number.NaN : Number(totalText);
+  if (!Number.isSafeInteger(total) || total < rows.length || total !== rows.length) {
+    throw new Error(`${label} read was incomplete`);
+  }
+  return rows as T[];
+}
+
+function inFilter(ids: string[]): string {
+  return `in.(${ids.map((id) => encodeURIComponent(id)).join(",")})`;
+}
+
 export type CommissionOutcome = {
   ok: boolean;
   created: number;
@@ -165,7 +150,13 @@ export type CommissionOutcome = {
  */
 export async function recordCommissionsForOrder(orderId: string): Promise<CommissionOutcome> {
   if (!supabaseUrl() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return { ok: false, created: 0, skipped: 0, unattributed: 0, error: "Supabase is not configured" };
+    return {
+      ok: false,
+      created: 0,
+      skipped: 0,
+      unattributed: 0,
+      error: "Supabase is not configured",
+    };
   }
 
   // Commission is earned by a sale that happened: the order must be paid.
@@ -181,7 +172,13 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
     return { ok: false, created: 0, skipped: 0, unattributed: 0, error: "Order not found" };
   }
   if (order.status !== "paid") {
-    return { ok: false, created: 0, skipped: 0, unattributed: 0, error: `Order is ${order.status}, not paid` };
+    return {
+      ok: false,
+      created: 0,
+      skipped: 0,
+      unattributed: 0,
+      error: `Order is ${order.status}, not paid`,
+    };
   }
   const buyer = order.buyer_id;
 
@@ -190,7 +187,10 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
   );
   if (!itemsResponse.ok) {
     return {
-      ok: false, created: 0, skipped: 0, unattributed: 0,
+      ok: false,
+      created: 0,
+      skipped: 0,
+      unattributed: 0,
       error: `Could not read order items (${itemsResponse.status})`,
     };
   }
@@ -203,19 +203,55 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
   let skipped = 0;
   let unattributed = 0;
 
+  const itemIds = items.map((item) => item.id);
+  const productIds = [
+    ...new Set(items.map((item) => item.product_id).filter((id): id is string => Boolean(id))),
+  ];
+  const [existingRows, products, rules] = await Promise.all([
+    readRows<{ order_item_id: string }>(
+      `marketplace_commissions?select=order_item_id&order_item_id=${inFilter(itemIds)}&limit=10000`,
+      "Existing commission",
+    ),
+    productIds.length
+      ? readRows<{ id: string; seller_id: string | null; category_id: string | null }>(
+          `marketplace_products?select=id,seller_id,category_id&id=${inFilter(productIds)}&limit=10000`,
+          "Product attribution",
+        )
+      : Promise.resolve(
+          [] as { id: string; seller_id: string | null; category_id: string | null }[],
+        ),
+    readRows<CommissionRule>(
+      "marketplace_commission_rules?select=*&active=is.true&limit=10000",
+      "Commission rules",
+    ),
+  ]);
+  const existingItemIds = new Set(existingRows.map((row) => row.order_item_id));
+  const productById = new Map(products.map((product) => [product.id, product]));
+  const sellerIds = [
+    ...new Set(
+      items
+        .map((item) => item.seller_id ?? productById.get(item.product_id ?? "")?.seller_id ?? null)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const sellers = sellerIds.length
+    ? await readRows<{ id: string; owner_user_id: string | null }>(
+        `marketplace_sellers?select=id,owner_user_id&id=${inFilter(sellerIds)}&limit=10000`,
+        "Seller owner",
+      )
+    : [];
+  const ownerBySellerId = new Map(sellers.map((seller) => [seller.id, seller.owner_user_id]));
+
   for (const item of items) {
     // Already credited? Then this is a replay and there is nothing to do.
-    const existing = await rest(
-      `marketplace_commissions?select=id&order_item_id=eq.${encodeURIComponent(item.id)}&limit=1`,
-    );
-    if (existing.ok && ((await existing.json()) as unknown[]).length > 0) {
+    if (existingItemIds.has(item.id)) {
       skipped += 1;
       continue;
     }
 
     // The seller on the line if checkout recorded one, otherwise the product's
     // owner as it stands now. Either way it comes from the database.
-    let sellerId = item.seller_id ?? (await sellerForProduct(item.product_id));
+    const sellerId = item.seller_id ?? productById.get(item.product_id ?? "")?.seller_id ?? null;
 
     if (!sellerId) {
       // A platform-owned product. There is no author to credit, and inventing
@@ -225,7 +261,7 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
     }
 
     // Someone buying their own product earns nothing from it.
-    if (buyer && (await ownerOfSeller(sellerId)) === buyer) {
+    if (buyer && ownerBySellerId.get(sellerId) === buyer) {
       skipped += 1;
       continue;
     }
@@ -245,8 +281,19 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
       continue;
     }
 
-    const categoryId = await categoryForProduct(item.product_id);
-    const rule = await resolveRule(sellerId, item.product_id, categoryId);
+    const categoryId = productById.get(item.product_id ?? "")?.category_id ?? null;
+    const rule = resolveRule(rules, sellerId, item.product_id, categoryId);
+    const lineCurrency = item.currency?.trim().toUpperCase() ?? "";
+    const ruleCurrency = rule?.currency?.trim().toUpperCase() ?? "";
+    if (rule && (!lineCurrency || !ruleCurrency || lineCurrency !== ruleCurrency)) {
+      return {
+        ok: false,
+        created,
+        skipped,
+        unattributed,
+        error: `Commission rule currency ${ruleCurrency || "(missing)"} does not match order currency ${lineCurrency || "(missing)"}`,
+      };
+    }
 
     let platformAmount: number;
     if (rule && num(rule.fixed_amount) > 0) {
@@ -271,11 +318,12 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
         rule_snapshot: {
           rule_id: rule?.id ?? null,
           basis: rule ? (num(rule.fixed_amount) > 0 ? "fixed" : "percent") : "default",
-          rate_percent: rule && num(rule.fixed_amount) <= 0
-            ? num(rule.rate_percent, DEFAULT_PLATFORM_RATE)
-            : null,
+          rate_percent:
+            rule && num(rule.fixed_amount) <= 0
+              ? num(rule.rate_percent, DEFAULT_PLATFORM_RATE)
+              : null,
           fixed_amount: rule && num(rule.fixed_amount) > 0 ? num(rule.fixed_amount) : null,
-          currency: item.currency ?? rule?.currency ?? null,
+          currency: lineCurrency || null,
           product_id: item.product_id,
           product_name: item.product_name,
           order_id: orderId,
@@ -293,7 +341,10 @@ export async function recordCommissionsForOrder(orderId: string): Promise<Commis
       const detail = await insert.text();
       console.error("[commission] insert failed", insert.status, detail.slice(0, 300));
       return {
-        ok: false, created, skipped, unattributed,
+        ok: false,
+        created,
+        skipped,
+        unattributed,
         error: `Commission insert failed (${insert.status})`,
       };
     }
@@ -315,7 +366,13 @@ export async function reverseCommissionsForOrder(
   reason: string,
 ): Promise<CommissionOutcome> {
   if (!supabaseUrl()) {
-    return { ok: false, created: 0, skipped: 0, unattributed: 0, error: "Supabase is not configured" };
+    return {
+      ok: false,
+      created: 0,
+      skipped: 0,
+      unattributed: 0,
+      error: "Supabase is not configured",
+    };
   }
 
   // A reversal has to cite the refund that caused it. Use the one supplied, or
@@ -335,7 +392,10 @@ export async function reverseCommissionsForOrder(
   }
   if (!resolvedRefundId) {
     return {
-      ok: false, created: 0, skipped: 0, unattributed: 0,
+      ok: false,
+      created: 0,
+      skipped: 0,
+      unattributed: 0,
       error: "No refund is recorded for this order, so its commission cannot be reversed",
     };
   }
@@ -344,7 +404,13 @@ export async function reverseCommissionsForOrder(
     `marketplace_order_items?select=id&order_id=eq.${encodeURIComponent(orderId)}`,
   );
   if (!itemsResponse.ok) {
-    return { ok: false, created: 0, skipped: 0, unattributed: 0, error: "Could not read order items" };
+    return {
+      ok: false,
+      created: 0,
+      skipped: 0,
+      unattributed: 0,
+      error: "Could not read order items",
+    };
   }
   const itemIds = ((await itemsResponse.json()) as { id: string }[]).map((row) => row.id);
   if (itemIds.length === 0) return { ok: true, created: 0, skipped: 0, unattributed: 0 };
@@ -354,10 +420,19 @@ export async function reverseCommissionsForOrder(
     `marketplace_commissions?select=id,seller_amount,status&order_item_id=in.(${list})`,
   );
   if (!commissionsResponse.ok) {
-    return { ok: false, created: 0, skipped: 0, unattributed: 0, error: "Could not read commissions" };
+    return {
+      ok: false,
+      created: 0,
+      skipped: 0,
+      unattributed: 0,
+      error: "Could not read commissions",
+    };
   }
-  const commissions = (await commissionsResponse.json()) as
-    { id: string; seller_amount: number | string; status: string }[];
+  const commissions = (await commissionsResponse.json()) as {
+    id: string;
+    seller_amount: number | string;
+    status: string;
+  }[];
 
   let created = 0;
   let skipped = 0;

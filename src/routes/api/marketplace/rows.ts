@@ -33,10 +33,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /**
  * How long the computed rows are held.
  *
- * Building them reads every visible product to count them per category, which
- * is eight round trips today and twelve at the catalogue's target size. Rows
- * change when an operator changes them and not otherwise, so a minute is long
- * enough to matter and short enough that nobody is looking at yesterday.
+ * The category counts are computed by one database GROUP BY. Rows change when
+ * an operator changes them and not otherwise, so a minute is long enough to
+ * matter and short enough that nobody is looking at yesterday.
  */
 const ROWS_CACHE_MS = 60_000;
 
@@ -161,42 +160,22 @@ export const Route = createFileRoute("/api/marketplace/rows")({
             return sortOrder || String(a.id).localeCompare(String(b.id));
           });
 
-          // One pass over the catalogue rather than a count query per row.
-          const counts = new Map<string, number>();
-          let productCursor: string | null = null;
-          while (true) {
-            const params = new URLSearchParams({
-              select: "id,category_id",
-              visible: "eq.true",
-              order: "id.asc",
-              limit: "1000",
-            });
-            if (productCursor) params.set("id", `gt.${productCursor}`);
-            const productResponse = await fetch(`${url()}/rest/v1/marketplace_products?${params}`, {
-              headers: admin(),
-            });
-            if (!productResponse.ok) {
-              console.error(
-                "[rows] product count page read failed",
-                productCursor,
-                productResponse.status,
-              );
-              return Response.json({ rows: [], error: "Could not load rows" }, { status: 502 });
-            }
-            const page: unknown = await productResponse.json();
-            if (!Array.isArray(page)) throw new Error("Invalid product page");
-            for (const row of page) {
-              if (row.category_id) {
-                counts.set(String(row.category_id), (counts.get(String(row.category_id)) ?? 0) + 1);
-              }
-            }
-            if (page.length < 1000) break;
-            const last = page[page.length - 1] as Record<string, unknown>;
-            if (typeof last.id !== "string" || last.id === productCursor) {
-              throw new Error("Invalid product pagination cursor");
-            }
-            productCursor = last.id;
+          const countsResponse = await fetch(
+            `${url()}/rest/v1/rpc/marketplace_home_category_counts`,
+            { method: "POST", headers: admin(), body: "{}" },
+          );
+          if (!countsResponse.ok) {
+            console.error("[rows] category count aggregation failed", countsResponse.status);
+            return Response.json({ rows: [], error: "Could not load rows" }, { status: 502 });
           }
+          const countRows: unknown = await countsResponse.json();
+          if (!Array.isArray(countRows)) throw new Error("Invalid category count response");
+          const counts = new Map<string, number>(
+            (countRows as { category_id: string; product_count: number | string }[]).map((row) => [
+              row.category_id,
+              Number(row.product_count),
+            ]),
+          );
 
           const rows: RowSummary[] = categories.map((category, index) => ({
             id: String(category.id),

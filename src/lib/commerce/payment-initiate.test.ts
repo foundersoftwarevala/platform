@@ -221,6 +221,17 @@ describe("starting a payment", () => {
     expect(intents[0]?.status).toBe("pending");
   });
 
+  it("rejects an order without line items before starting payment", async () => {
+    lines = [];
+
+    const response = await start();
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "That order has no items to pay for" });
+    expect(order.txnid).toBeNull();
+    expect(fxCalls).toBe(0);
+  });
+
   it("charges a rupee order the same amount again on a retry", async () => {
     order.currency = "INR";
     order.total = 4999;

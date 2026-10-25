@@ -14,6 +14,7 @@ export type Field = {
   required?: boolean;
   options?: string[];
   half?: boolean;
+  integer?: boolean;
 };
 
 export type Section = { title: string; note?: string; fields: Field[] };
@@ -73,7 +74,7 @@ const company = (required = false): Section => ({
     { name: "companyName", label: "Company Name", type: "text", required, half: true },
     { name: "companyType", label: "Company Type", type: "select", options: ["Individual", "Proprietorship", "Partnership", "LLP", "Private Limited", "Public Limited"], half: true },
     { name: "companyWebsite", label: "Company Website", type: "url", placeholder: "https://", half: true },
-    { name: "teamSize", label: "Team Size", type: "number", half: true },
+    { name: "teamSize", label: "Team Size", type: "number", integer: true, half: true },
   ],
 });
 
@@ -96,7 +97,7 @@ export const ROLES: RoleConfig[] = [
         title: "Business Registration",
         fields: [
           { name: "registrationNumber", label: "Registration / CIN Number", type: "text", required: true, half: true },
-          { name: "registrationYear", label: "Year of Registration", type: "number", half: true },
+          { name: "registrationYear", label: "Year of Registration", type: "number", integer: true, half: true },
           { name: "registrationDoc", label: "Upload Registration Certificate", type: "file", half: true },
         ],
       },
@@ -127,7 +128,7 @@ export const ROLES: RoleConfig[] = [
       {
         title: "Marketplace Experience",
         fields: [
-          { name: "marketplaceYears", label: "Years Selling Online", type: "number", half: true },
+          { name: "marketplaceYears", label: "Years Selling Online", type: "number", integer: true, half: true },
           { name: "otherMarketplaces", label: "Other Marketplaces You Sell On", type: "text", half: true },
           { name: "monthlyRevenue", label: "Current Monthly Revenue", type: "text", half: true },
           { name: "categoriesInterested", label: "Categories Interested", type: "textarea", required: true, placeholder: "ERP, CRM, POS, Healthcare…" },
@@ -136,8 +137,8 @@ export const ROLES: RoleConfig[] = [
       {
         title: "Team Capacity",
         fields: [
-          { name: "supportTeamSize", label: "Support Team Size", type: "number", required: true, half: true },
-          { name: "salesTeamSize", label: "Sales Team Size", type: "number", required: true, half: true },
+          { name: "supportTeamSize", label: "Support Team Size", type: "number", integer: true, required: true, half: true },
+          { name: "salesTeamSize", label: "Sales Team Size", type: "number", integer: true, required: true, half: true },
         ],
       },
       identity,
@@ -160,7 +161,7 @@ export const ROLES: RoleConfig[] = [
       {
         title: "Development Experience",
         fields: [
-          { name: "experienceYears", label: "Years of Development Experience", type: "number", required: true, half: true },
+          { name: "experienceYears", label: "Years of Development Experience", type: "number", integer: true, required: true, half: true },
           { name: "teamOrSolo", label: "Working As", type: "select", options: ["Solo Developer", "Small Team", "Agency"], half: true },
           { name: "experienceSummary", label: "Experience Summary", type: "textarea", required: true },
         ],
@@ -187,7 +188,7 @@ export const ROLES: RoleConfig[] = [
         title: "Products & Capability",
         fields: [
           { name: "softwareCategories", label: "Software Categories", type: "textarea", required: true, placeholder: "ERP, School Management, POS…" },
-          { name: "productsCount", label: "Products Ready to Publish", type: "number", required: true, half: true },
+          { name: "productsCount", label: "Products Ready to Publish", type: "number", integer: true, required: true, half: true },
           { name: "supportCapability", label: "Support Capability", type: "select", options: ["Email only", "Email + Chat", "24/7 Dedicated Support"], required: true, half: true },
           { name: "documentationCapability", label: "Documentation Capability", type: "select", options: ["Basic Readme", "Full User Docs", "Docs + Video Tutorials"], required: true, half: true },
         ],
@@ -217,7 +218,7 @@ export const ROLES: RoleConfig[] = [
         fields: [
           { name: "companyName", label: "Company Name", type: "text", required: true, half: true },
           { name: "businessType", label: "Business Type", type: "select", options: ["Individual", "IT Services", "Agency", "System Integrator", "Retailer", "Consultant"], required: true, half: true },
-          { name: "salesExperience", label: "Sales Experience (years)", type: "number", required: true, half: true },
+          { name: "salesExperience", label: "Sales Experience (years)", type: "number", integer: true, required: true, half: true },
           { name: "targetMarket", label: "Target Market", type: "text", required: true, half: true, placeholder: "SMB, Enterprise, Education…" },
         ],
       },
@@ -225,7 +226,7 @@ export const ROLES: RoleConfig[] = [
         title: "Sales Potential",
         fields: [
           { name: "expectedMonthlySales", label: "Expected Monthly Sales", type: "text", required: true, half: true },
-          { name: "customerBase", label: "Current Customer Base Size", type: "number", half: true },
+          { name: "customerBase", label: "Current Customer Base Size", type: "number", integer: true, half: true },
           { name: "marketingChannels", label: "Marketing Channels", type: "textarea", required: true, placeholder: "Field sales, Google Ads, WhatsApp, events…" },
           { name: "website", label: "Website", type: "url", placeholder: "https://", half: true },
           { name: "socialMedia", label: "Social Media Profiles", type: "text", half: true },
@@ -262,7 +263,7 @@ export const ROLES: RoleConfig[] = [
       {
         title: "Audience & Promotion",
         fields: [
-          { name: "audienceSize", label: "Total Audience Size", type: "number", required: true, half: true },
+          { name: "audienceSize", label: "Total Audience Size", type: "number", integer: true, required: true, half: true },
           { name: "monthlyTraffic", label: "Monthly Traffic / Views", type: "text", required: true, half: true },
           { name: "trafficDetails", label: "Traffic Details", type: "textarea", required: true, placeholder: "Geography, age group, niche, source split…" },
           { name: "promotionMethod", label: "Promotion Method", type: "textarea", required: true, placeholder: "Reviews, tutorials, email list, paid ads…" },
@@ -291,7 +292,7 @@ export const ROLES: RoleConfig[] = [
           { name: "territory", label: "Requested Territory / City", type: "text", required: true, half: true },
           { name: "investmentCapacity", label: "Investment Capacity", type: "text", required: true, half: true },
           { name: "officeSpace", label: "Office Space Available", type: "select", options: ["Yes — owned", "Yes — rented", "Planning to acquire"], half: true },
-          { name: "staffPlanned", label: "Planned Team Size", type: "number", half: true },
+          { name: "staffPlanned", label: "Planned Team Size", type: "number", integer: true, half: true },
           { name: "businessBackground", label: "Business Background", type: "textarea", required: true },
         ],
       },
@@ -324,7 +325,7 @@ export const ROLES: RoleConfig[] = [
       {
         title: "Reach & Rates",
         fields: [
-          { name: "followers", label: "Total Followers", type: "number", required: true, half: true },
+          { name: "followers", label: "Total Followers", type: "number", integer: true, required: true, half: true },
           { name: "engagementRate", label: "Average Engagement Rate", type: "text", half: true },
           { name: "niche", label: "Content Niche", type: "text", required: true, half: true },
           { name: "rateCard", label: "Rate Card (per post / video)", type: "text", required: true, half: true },
@@ -360,7 +361,7 @@ export const ROLES: RoleConfig[] = [
       {
         title: "Experience & Documents",
         fields: [
-          { name: "totalExperience", label: "Total Experience (years)", type: "number", required: true, half: true },
+          { name: "totalExperience", label: "Total Experience (years)", type: "number", integer: true, required: true, half: true },
           { name: "currentCompany", label: "Current / Last Company", type: "text", half: true },
           { name: "skills", label: "Key Skills", type: "textarea", required: true },
           { name: "resume", label: "Upload Resume", type: "file" },

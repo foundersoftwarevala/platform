@@ -1,5 +1,4 @@
-import { allDemos } from "@/components/sapphire-home/HomeIndex";
-import { catalogueSlug, toEntry, type CatalogueEntry } from "@/data/catalogue";
+import { allDemos, catalogueSlug, toEntry, type CatalogueEntry } from "@/data/catalogue";
 
 /**
  * The home page's card list, addressable by the slug each card links to.

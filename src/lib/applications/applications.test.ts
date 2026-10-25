@@ -59,6 +59,12 @@ describe("checkApplication", () => {
     expect(checked.fields).toEqual(expect.arrayContaining(["email", "website"]));
   });
 
+  it.each(["1,200", "1.5", "1e3"])("refuses non-integer numeric values: %s", (audienceSize) => {
+    const checked = checkApplication("affiliate", { ...affiliate, audienceSize });
+    expect(checked.ok).toBe(false);
+    if (!checked.ok) expect(checked.fields).toContain("audienceSize");
+  });
+
   it("refuses a choice that is not one of the options", () => {
     const checked = checkApplication("affiliate", { ...affiliate, idType: "Library card" });
     expect(checked.ok).toBe(false);

@@ -191,6 +191,9 @@ export const Route = createFileRoute("/api/payment/initiate")({
           console.error("[payment] order line currency read failed", error);
           return Response.json({ error: "Could not verify order currency" }, { status: 502 });
         }
+        if (lines.length === 0) {
+          return Response.json({ error: "That order has no items to pay for" }, { status: 400 });
+        }
         if (lines.some((line) => line.currency && line.currency.toUpperCase() !== orderCurrency)) {
           await logPaymentEvent(orderId, "payment_refused_mixed_currency", {
             order_currency: orderCurrency,

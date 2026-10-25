@@ -1,7 +1,7 @@
 // Centralized API Service with Authentication, Error Handling, and Role-Based Access
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { recordAuditEvent } from "@/hooks/useActionLogger";
+import { recordAuditEvent } from "@/lib/audit.server";
 
 interface APIResponse<T = any> {
   success: boolean;

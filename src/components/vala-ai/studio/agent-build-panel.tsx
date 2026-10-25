@@ -1,12 +1,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Bot, Link2, Loader2, Play } from "lucide-react";
-import {
-  getBuildLink,
-  progressOf,
-  startAgentBuild,
-  useAgentBuild,
-} from "@/lib/vala-ai/studio/agent-store";
+import { getBuildLink, progressOf, startAgentBuild } from "@/lib/vala-ai/studio/agent-store";
+import { useAgentBuild } from "@/hooks/useAgentBuild";
 import { CodeRunner } from "@/components/vala-ai/studio/code-runner";
 
 const dot = {

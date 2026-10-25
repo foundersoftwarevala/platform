@@ -20,7 +20,8 @@ vi.mock("./agent-cloud.functions", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
-import { startAgentBuild, useAgentBuild } from "./agent-store";
+import { useAgentBuild } from "@/hooks/useAgentBuild";
+import { startAgentBuild } from "./agent-store";
 
 const plan = {
   out: {
