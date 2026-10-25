@@ -280,8 +280,7 @@ export const setApprovalSla = createServerFn({ method: "POST" })
  * Record that approval records left the console.
  *
  * Section 31 asks for the export itself to be auditable. It is written through
- * mm_audit into marketplace_audit_logs, which is append-only, so the fact that
- * somebody took a copy of the queue is as permanent as the decisions in it.
+ * the operator-gated audit RPC into the append-only marketplace audit log.
  */
 export const logApprovalExport = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
@@ -294,11 +293,10 @@ export const logApprovalExport = createServerFn({ method: "POST" })
       .parse(i),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; id?: string }> => {
-    // mm_audit writes whatever it is given and checks nobody, so without this
-    // any signed-in account could add "export" rows to the append-only trail.
+    // Keep this endpoint's authorization aligned with the database gate.
     const { requireMarketplaceOperator } = await import("./mm-operator.server");
     await requireMarketplaceOperator("Recording an approval export");
-    const id = await callAsUser<string>("mm_audit", {
+    const id = await callAsUser<string>("mm_audit_operator", {
       p_action: "Approval Records Exported",
       p_entity_type: "author_submission",
       p_entity_id: null,

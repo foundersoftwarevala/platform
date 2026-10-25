@@ -8,6 +8,7 @@ import * as constants from "@/lib/promise-tracker/constants";
 
 function fixture(path: string) {
   const requests: { url: URL; body: Record<string, unknown> }[] = [];
+  const demoCalls: { name: string; input: unknown }[] = [];
   const state = { failure: false };
   const reportHealth = vi.fn().mockResolvedValue(undefined);
   const errorToast = vi.fn();
@@ -43,6 +44,20 @@ function fixture(path: string) {
           useQueryClient: () => ({ invalidateQueries: vi.fn() }),
         };
       if (id === "@/integrations/supabase/client") return { supabase };
+      if (id === "@/lib/demo-manager/demos.functions") {
+        const call = (name: string) => async (input: unknown) => {
+          demoCalls.push({ name, input });
+          if (state.failure) throw new Error("fixture mutation refused");
+        };
+        return {
+          listManagedDemos: async () => [],
+          listPendingDemoRequests: async () => [],
+          setManagedDemoStatus: call("setManagedDemoStatus"),
+          extendManagedDemo: call("extendManagedDemo"),
+          cloneManagedDemo: call("cloneManagedDemo"),
+          respondToDemoRequest: call("respondToDemoRequest"),
+        };
+      }
       if (id === "sonner") return { toast: { error: errorToast } };
       if (id === "@/lib/promise-tracker/constants") return constants;
       if (id === "@/lib/promise-tracker/monitoring")
@@ -69,7 +84,7 @@ function fixture(path: string) {
       throw new Error("Mutation callback missing");
     return options.mutationFn(input);
   }
-  return { requests, state, reportHealth, errorToast, call, mutate };
+  return { requests, demoCalls, state, reportHealth, errorToast, call, mutate };
 }
 
 describe("nullable SQL RPC defaults", () => {
@@ -137,7 +152,7 @@ describe("nullable SQL RPC defaults", () => {
 
 describe("demo request schema updates", () => {
   it.each(["approved", "rejected"])(
-    "writes real status/updated_at fields only: %s",
+    "delegates request decisions to the server function: %s",
     async (status) => {
       const f = fixture("../../hooks/useDemoOverview.ts");
       const overview: unknown = f.call("useDemoOverview");
@@ -151,13 +166,16 @@ describe("demo request schema updates", () => {
         typeof mutation.mutationFn !== "function"
       )
         throw new Error("Request callback missing");
-      await mutation.mutationFn({ id: "request-fixture", status });
-      expect(f.requests[0].url.searchParams.get("id")).toBe("eq.request-fixture");
-      expect(Object.keys(f.requests[0].body).sort()).toEqual(["status", "updated_at"]);
-      expect(f.requests[0].body.status).toBe(status);
-      expect(Number.isNaN(Date.parse(String(f.requests[0].body.updated_at)))).toBe(false);
+      const id = "00000000-0000-4000-8000-000000000001";
+      await mutation.mutationFn({ id, status });
+      expect(f.demoCalls).toEqual([
+        {
+          name: "respondToDemoRequest",
+          input: { data: { id, status } },
+        },
+      ]);
       f.state.failure = true;
-      await expect(mutation.mutationFn({ id: "request-fixture", status })).rejects.toMatchObject({
+      await expect(mutation.mutationFn({ id, status })).rejects.toMatchObject({
         message: "fixture mutation refused",
       });
     },

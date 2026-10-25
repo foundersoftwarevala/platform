@@ -57,7 +57,9 @@ async function rows<T = Record<string, unknown>>(path: string): Promise<T[]> {
  * file reported as "exported"; and one read of 5,000 cut off the rest without
  * saying so.
  */
-async function exportRows(path: string): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> {
+async function exportRows(
+  path: string,
+): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> {
   const PAGE = 1000;
   const CAP = 100_000;
   const out: Record<string, unknown>[] = [];
@@ -85,7 +87,15 @@ async function count(path: string): Promise<number | null> {
   }
 }
 
-const OPEN_STATES = new Set(["new", "assigned", "in_progress", "waiting", "open", "reopened", "escalated"]);
+const OPEN_STATES = new Set([
+  "new",
+  "assigned",
+  "in_progress",
+  "waiting",
+  "open",
+  "reopened",
+  "escalated",
+]);
 const CLOSED_STATES = new Set(["resolved", "closed"]);
 
 const daysAgo = (value: unknown): number | null => {
@@ -101,14 +111,22 @@ async function audit(request: Request, action: string, after: unknown, reason: s
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "support", p_entity_id: null,
-        p_before: null, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "support",
+        p_entity_id: null,
+        p_before: null,
+        p_after: after,
+        p_reason: reason,
       }),
     });
   } catch (error) {
@@ -133,12 +151,19 @@ export const Route = createFileRoute("/api/marketplace/support")({
         };
         if (!may("view")) {
           await recordDenial(request, {
-            action: "support_view", permission: "marketplace.view",
-            roles: caller.roles, entityType: "support", recordId: null,
+            action: "support_view",
+            permission: "marketplace.view",
+            roles: caller.roles,
+            entityType: "support",
+            recordId: null,
             why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
-            { ok: false, reason: "permission_denied", message: "Permission marketplace.view is required." },
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: "Permission marketplace.view is required.",
+            },
             { status: 403 },
           );
         }
@@ -156,32 +181,56 @@ export const Route = createFileRoute("/api/marketplace/support")({
         if (priority !== "all") filter += `&priority=eq.${encodeURIComponent(priority)}`;
         const term = orSearchTerm(q);
         if (term) {
-          filter += `&or=(subject.ilike.*${term}*,description.ilike.*${term}*,` +
+          filter +=
+            `&or=(subject.ilike.*${term}*,description.ilike.*${term}*,` +
             `customer_name.ilike.*${term}*,reference.ilike.*${term}*)`;
         }
         const allowedSort = new Set([
-          "created_at.desc", "created_at.asc", "updated_at.desc",
-          "priority.asc", "status.asc", "sla_minutes_remaining.asc",
+          "created_at.desc",
+          "created_at.asc",
+          "updated_at.desc",
+          "priority.asc",
+          "status.asc",
+          "sla_minutes_remaining.asc",
         ]);
         const order = allowedSort.has(sort) ? sort : "created_at.desc";
 
         const [
-          tickets, allTickets, ticketTotal, escalations,
-          chatSessions, chatMessages, faqs, faqCategories, articles, chatbots,
-          quickRequests, faqVersions,
+          tickets,
+          allTickets,
+          ticketTotal,
+          escalations,
+          chatSessions,
+          chatMessages,
+          faqs,
+          faqCategories,
+          articles,
+          chatbots,
+          quickRequests,
+          faqVersions,
         ] = await Promise.all([
           rows<Record<string, unknown>>(
             `support_tickets?select=*${filter}&order=${order}&offset=${(page - 1) * size}&limit=${size}`,
           ),
-          rows<Record<string, unknown>>("support_tickets?select=reference,status,priority,channel,category,csat,created_at,resolved_at,first_response_at,sla_breached,sla_minutes_remaining,assigned_to&limit=1000"),
+          rows<Record<string, unknown>>(
+            "support_tickets?select=reference,status,priority,channel,category,csat,created_at,resolved_at,first_response_at,sla_breached,sla_minutes_remaining,assigned_to&limit=1000",
+          ),
           count(`support_tickets?select=id${filter}`),
-          rows<Record<string, unknown>>("support_escalations?select=*&order=created_at.desc&limit=50"),
+          rows<Record<string, unknown>>(
+            "support_escalations?select=*&order=created_at.desc&limit=50",
+          ),
           rows<Record<string, unknown>>("chat_sessions?select=*&order=started_at.desc&limit=50"),
           count("chat_messages?select=id"),
-          rows<Record<string, unknown>>("faqs?select=id,question,category_id,language,position,published_at,ai_generated&order=position&limit=200"),
-          rows<Record<string, unknown>>("faq_categories?select=id,name,slug,enabled,position&order=position"),
+          rows<Record<string, unknown>>(
+            "faqs?select=id,question,category_id,language,position,published_at,ai_generated&order=position&limit=200",
+          ),
+          rows<Record<string, unknown>>(
+            "faq_categories?select=id,name,slug,enabled,position&order=position",
+          ),
           rows<Record<string, unknown>>("wiki_articles?select=*&order=views.desc&limit=50"),
-          rows<Record<string, unknown>>("chatbots?select=name,channel,status,conversations,resolution_rate,escalation_rate"),
+          rows<Record<string, unknown>>(
+            "chatbots?select=name,channel,status,conversations,resolution_rate,escalation_rate",
+          ),
           count("quick_support_requests?select=id"),
           count("faq_versions?select=id"),
         ]);
@@ -200,7 +249,8 @@ export const Route = createFileRoute("/api/marketplace/support")({
 
         const tally = (field: string) => {
           const out: Record<string, number> = {};
-          for (const t of allTickets) out[String(t[field] ?? "unknown")] = (out[String(t[field] ?? "unknown")] ?? 0) + 1;
+          for (const t of allTickets)
+            out[String(t[field] ?? "unknown")] = (out[String(t[field] ?? "unknown")] ?? 0) + 1;
           return out;
         };
 
@@ -216,48 +266,65 @@ export const Route = createFileRoute("/api/marketplace/support")({
             open: open.length,
             resolved: closed.length,
             // Section 2 and 39: no response exists, so no score is reported.
-            csat: withCsat.length > 0
-              ? Math.round((withCsat.reduce((s, t) => s + Number(t.csat), 0) / withCsat.length) * 100) / 100
-              : null,
+            csat:
+              withCsat.length > 0
+                ? Math.round(
+                    (withCsat.reduce((s, t) => s + Number(t.csat), 0) / withCsat.length) * 100,
+                  ) / 100
+                : null,
           },
           metric_sources: {
             tickets: "support_tickets — every row.",
             open: "Tickets in new, assigned, in progress, waiting, escalated or reopened.",
             resolved: "Tickets in resolved or closed.",
-            csat: withCsat.length === 0
-              ? "The csat column exists on every ticket and not one row has a value. There is no satisfaction score to report, so this is a dash — an average of nothing would be the easiest fake on this screen."
-              : `Averaged over ${withCsat.length} real response(s).`,
+            csat:
+              withCsat.length === 0
+                ? "The csat column exists on every ticket and not one row has a value. There is no satisfaction score to report, so this is a dash — an average of nothing would be the easiest fake on this screen."
+                : `Averaged over ${withCsat.length} real response(s).`,
           },
           seed_markers: {
             declared: allTickets.filter((t) =>
-              String(t.reference ?? "").toUpperCase().startsWith("SEED")).length,
+              String(t.reference ?? "")
+                .toUpperCase()
+                .startsWith("SEED"),
+            ).length,
             sequential_references: allTickets.filter((t) =>
-              /^TKT-\d{3}$/.test(String(t.reference ?? ""))).length,
-            note:
-              "A record that names itself SEED is counted as declared. The sequentially numbered ones are reported as a pattern and not as a verdict — they are TKT-001 upward, created inside a single week, which is strong evidence of one origin and is not the same thing as the record saying so.",
+              /^TKT-\d{3}$/.test(String(t.reference ?? "")),
+            ).length,
+            note: "A record that names itself SEED is counted as declared. The sequentially numbered ones are reported as a pattern and not as a verdict — they are TKT-001 upward, created inside a single week, which is strong evidence of one origin and is not the same thing as the record saying so.",
           },
           freshness: {
             newest_ticket_days_ago: newest ? Math.floor((Date.now() - newest) / 86400000) : null,
-            note: newest && Date.now() - newest > 7 * 86400000
-              ? "Nothing has been raised recently. These records are real but they are not a live queue, and the dates say so."
-              : null,
+            note:
+              newest && Date.now() - newest > 7 * 86400000
+                ? "Nothing has been raised recently. These records are real but they are not a live queue, and the dates say so."
+                : null,
           },
           tickets: {
-            page, size, total: ticketTotal, rows: tickets,
+            page,
+            size,
+            total: ticketTotal,
+            rows: tickets,
             breakdown: {
-              status: tally("status"), priority: tally("priority"),
-              channel: tally("channel"), category: tally("category"),
+              status: tally("status"),
+              priority: tally("priority"),
+              channel: tally("channel"),
+              category: tally("category"),
             },
             assigned: allTickets.filter((t) => t.assigned_to).length,
           },
           sla: {
             breached: breached.length,
             first_response_recorded: withFirstResponse.length,
-            first_response_note: withFirstResponse.length === 0
-              ? "first_response_at is null on every ticket, so the first-response SLA cannot be computed from these records however much the column suggests it could."
-              : null,
+            first_response_note:
+              withFirstResponse.length === 0
+                ? "first_response_at is null on every ticket, so the first-response SLA cannot be computed from these records however much the column suggests it could."
+                : null,
             average_resolution_hours: resolutionTimes.length
-              ? Math.round((resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length) / 3600000 * 10) / 10
+              ? Math.round(
+                  (resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length / 3600000) *
+                    10,
+                ) / 10
               : null,
             resolution_sample: resolutionTimes.length,
           },
@@ -294,9 +361,10 @@ export const Route = createFileRoute("/api/marketplace/support")({
             categories: faqCategories,
             rows: faqs.slice(0, 100),
             versions: faqVersions,
-            versions_note: (faqVersions ?? 0) === 0
-              ? "faq_versions exists and is empty, so no FAQ has a version history yet."
-              : null,
+            versions_note:
+              (faqVersions ?? 0) === 0
+                ? "faq_versions exists and is empty, so no FAQ has a version history yet."
+                : null,
           },
           announcements: {
             state: "NOT CONNECTED",
@@ -326,11 +394,18 @@ export const Route = createFileRoute("/api/marketplace/support")({
 
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
-        const decision = resolveAction({ roles: caller.roles, action: "export", permissions: matrix });
+        const decision = resolveAction({
+          roles: caller.roles,
+          action: "export",
+          permissions: matrix,
+        });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action: "support_export", permission: "marketplace.export",
-            roles: caller.roles, entityType: "support", recordId: null,
+            action: "support_export",
+            permission: "marketplace.export",
+            roles: caller.roles,
+            entityType: "support",
+            recordId: null,
             why: `${decision.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
@@ -342,7 +417,8 @@ export const Route = createFileRoute("/api/marketplace/support")({
         if (body.action !== "export_tickets") {
           return Response.json(
             {
-              ok: false, reason: "unsupported_action",
+              ok: false,
+              reason: "unsupported_action",
               message:
                 "Only export_tickets runs from here. Creating and replying to tickets belongs in the screen that owns the conversation, where the customer-visible and internal distinction is made explicitly.",
             },
@@ -358,23 +434,47 @@ export const Route = createFileRoute("/api/marketplace/support")({
           ));
         } catch (error) {
           return Response.json(
-            { ok: false, reason: "read_failed", message: error instanceof Error ? error.message : String(error) },
+            {
+              ok: false,
+              reason: "read_failed",
+              message: error instanceof Error ? error.message : String(error),
+            },
             { status: 502 },
           );
         }
         // Subjects and customer names are typed by customers: never formulas.
         const cell = csvCell;
-        const lines = ["reference,subject,status,priority,category,channel,customer,assigned_to,created_at,resolved_at,sla_breached,csat"];
+        const lines = [
+          "reference,subject,status,priority,category,channel,customer,assigned_to,created_at,resolved_at,sla_breached,csat",
+        ];
         for (const r of list) {
-          lines.push([
-            r.reference, r.subject, r.status, r.priority, r.category, r.channel,
-            r.customer_name, r.assigned_to, r.created_at, r.resolved_at, r.sla_breached, r.csat,
-          ].map(cell).join(","));
+          lines.push(
+            [
+              r.reference,
+              r.subject,
+              r.status,
+              r.priority,
+              r.category,
+              r.channel,
+              r.customer_name,
+              r.assigned_to,
+              r.created_at,
+              r.resolved_at,
+              r.sla_breached,
+              r.csat,
+            ]
+              .map(cell)
+              .join(","),
+          );
         }
         // Descriptions and conversation bodies are left out deliberately: an
         // export is the easiest way for customer text to leave the building.
-        await audit(request, "Support tickets exported", { rows: list.length, truncated },
-          `${list.length} tickets exported${truncated ? " (stopped at the export ceiling)" : ""}. Descriptions and message bodies were not included.`);
+        await audit(
+          request,
+          "Support tickets exported",
+          { rows: list.length, truncated },
+          `${list.length} tickets exported${truncated ? " (stopped at the export ceiling)" : ""}. Descriptions and message bodies were not included.`,
+        );
         return new Response(lines.join("\n"), {
           headers: {
             "X-Export-Rows": String(list.length),

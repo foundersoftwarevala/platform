@@ -35,8 +35,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export type GuardResult =
-  | { ok: true; via: string; role?: string; roles?: string[] }
-  | { ok: false; response: Response };
+  { ok: true; via: string; role?: string; roles?: string[] } | { ok: false; response: Response };
 
 function deny(message: string, status = 401): GuardResult {
   return { ok: false, response: Response.json({ error: message }, { status }) };
@@ -57,7 +56,10 @@ function asRequest(input: RequestLike): Request | null {
   return null;
 }
 
-export async function requireInternalOperator(input: RequestLike): Promise<GuardResult> {
+export async function requireInternalOperator(
+  input: RequestLike,
+  options: { allowedRoles?: readonly string[]; deniedMessage?: string } = {},
+): Promise<GuardResult> {
   const request = asRequest(input);
   if (!request) {
     return deny("This endpoint could not read the request.", 400);
@@ -109,18 +111,21 @@ export async function requireInternalOperator(input: RequestLike): Promise<Guard
     }
     const rows = (await rolesResponse.json()) as { role?: string }[];
     for (const row of rows) {
-      const value = String(row?.role ?? "").toLowerCase().trim();
+      const value = String(row?.role ?? "")
+        .toLowerCase()
+        .trim();
       if (value) held.push(value);
     }
 
-    const roles = held.filter((value) => OPERATOR_ROLES.has(value));
+    const acceptedRoles = new Set(options.allowedRoles ?? OPERATOR_ROLES);
+    const roles = held.filter((value) => acceptedRoles.has(value));
     const role = roles.find((value) => value === "admin" || value === "boss") ?? roles[0];
     if (!role) {
-      // Names who can, because the screens in front of this are opened by
-      // support as well as developers - RouteAccessGate admits both - and a
-      // refusal that does not say who to ask reads as a fault in the product.
       return deny(
-        "Publishing a demo is restricted to operators (" + [...OPERATOR_ROLES].join(", ") + "). Ask one of them to run it.",
+        options.deniedMessage ??
+          "Publishing a demo is restricted to operators (" +
+            [...OPERATOR_ROLES].join(", ") +
+            "). Ask one of them to run it.",
         403,
       );
     }

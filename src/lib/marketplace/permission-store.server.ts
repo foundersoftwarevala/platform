@@ -1,5 +1,7 @@
 import {
-  ALL_PERMISSIONS, PERMISSION_KEY, ROLE_PERMISSIONS,
+  ALL_PERMISSIONS,
+  PERMISSION_KEY,
+  ROLE_PERMISSIONS,
   type Permission,
 } from "./permission-guard";
 
@@ -178,7 +180,9 @@ export async function rolesOf(request: Request): Promise<{ roles: string[]; via:
     return {
       // Lower-cased and trimmed, as the operator guard reads them: a row
       // stored as "Admin" passed the guard and was then refused every action.
-      roles: (rows as { role: string }[]).map((r) => String(r.role).toLowerCase().trim()).filter(Boolean),
+      roles: (rows as { role: string }[])
+        .map((r) => String(r.role).toLowerCase().trim())
+        .filter(Boolean),
       via: `user:${user.id}`,
     };
   } catch {
@@ -187,11 +191,10 @@ export async function rolesOf(request: Request): Promise<{ roles: string[]; via:
 }
 
 /**
- * Record a refusal - section 25.
+ * Record an operator's refusal - section 25.
  *
- * Logging what succeeded says what happened. Logging what was refused says what
- * somebody tried, which is the half most systems drop. Written through mm_audit
- * with the caller's own token where there is one, so the row names them.
+ * The operator-gated RPC preserves the caller identity. Unprivileged callers
+ * cannot write arbitrary refusal events into the append-only audit log.
  */
 export async function recordDenial(
   request: Request,
@@ -210,11 +213,15 @@ export async function recordDenial(
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    const response = await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
         p_action: `Action denied: ${detail.action}`,
         p_entity_type: detail.entityType ?? "products",
@@ -224,6 +231,9 @@ export async function recordDenial(
         p_reason: detail.why,
       }),
     });
+    if (!response.ok) {
+      console.error("[permissions] denial not recorded", response.status);
+    }
   } catch (error) {
     console.error("[permissions] denial not recorded", error);
   }

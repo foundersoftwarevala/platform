@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { MARKETPLACE_MANAGER_API_ROLES } from "@/lib/auth/marketplace-manager-roles";
 import { STOREFRONT_TABLES, catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
 import { readResourceRows, storeOwns } from "@/lib/seo/seo-store.server";
 import {
@@ -193,7 +194,7 @@ async function recordAudit(
         : contentHash(entry.after),
     ]);
 
-    const response = await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    const response = await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
@@ -4214,7 +4215,10 @@ export const Route = createFileRoute("/api/manager/resource")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const gate = await requireInternalOperator(request);
+        const gate = await requireInternalOperator(request, {
+          allowedRoles: MARKETPLACE_MANAGER_API_ROLES,
+          deniedMessage: "Marketplace Manager access is restricted to authorized roles.",
+        });
         if (!gate.ok) return gate.response;
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 
@@ -4362,7 +4366,10 @@ export const Route = createFileRoute("/api/manager/resource")({
       },
 
       POST: async ({ request }) => {
-        const gate = await requireInternalOperator(request);
+        const gate = await requireInternalOperator(request, {
+          allowedRoles: MARKETPLACE_MANAGER_API_ROLES,
+          deniedMessage: "Marketplace Manager access is restricted to authorized roles.",
+        });
         if (!gate.ok) return gate.response;
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 
@@ -4474,7 +4481,10 @@ export const Route = createFileRoute("/api/manager/resource")({
        * still there to be put back.
        */
       DELETE: async ({ request }) => {
-        const gate = await requireInternalOperator(request);
+        const gate = await requireInternalOperator(request, {
+          allowedRoles: MARKETPLACE_MANAGER_API_ROLES,
+          deniedMessage: "Marketplace Manager access is restricted to authorized roles.",
+        });
         if (!gate.ok) return gate.response;
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 
@@ -4537,7 +4547,10 @@ export const Route = createFileRoute("/api/manager/resource")({
       },
 
       PATCH: async ({ request }) => {
-        const gate = await requireInternalOperator(request);
+        const gate = await requireInternalOperator(request, {
+          allowedRoles: MARKETPLACE_MANAGER_API_ROLES,
+          deniedMessage: "Marketplace Manager access is restricted to authorized roles.",
+        });
         if (!gate.ok) return gate.response;
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 

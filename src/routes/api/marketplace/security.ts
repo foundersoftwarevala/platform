@@ -51,7 +51,9 @@ async function rows<T = Record<string, unknown>>(path: string): Promise<T[]> {
  * file reported as "exported"; and one read of 5,000 cut off the rest without
  * saying so.
  */
-async function exportRows(path: string): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> {
+async function exportRows(
+  path: string,
+): Promise<{ rows: Record<string, unknown>[]; truncated: boolean }> {
   const PAGE = 1000;
   const CAP = 100_000;
   const out: Record<string, unknown>[] = [];
@@ -138,14 +140,22 @@ async function audit(request: Request, action: string, after: unknown, reason: s
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "security", p_entity_id: null,
-        p_before: null, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "security",
+        p_entity_id: null,
+        p_before: null,
+        p_after: after,
+        p_reason: reason,
       }),
     });
   } catch (error) {
@@ -172,12 +182,19 @@ export const Route = createFileRoute("/api/marketplace/security")({
         // the 403 when authenticated and not permitted.
         if (!may("audit")) {
           await recordDenial(request, {
-            action: "security_view", permission: "marketplace.audit.view",
-            roles: caller.roles, entityType: "security", recordId: null,
+            action: "security_view",
+            permission: "marketplace.audit.view",
+            roles: caller.roles,
+            entityType: "security",
+            recordId: null,
             why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
-            { ok: false, reason: "permission_denied", message: "Permission marketplace.audit.view is required." },
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: "Permission marketplace.audit.view is required.",
+            },
             { status: 403 },
           );
         }
@@ -193,7 +210,8 @@ export const Route = createFileRoute("/api/marketplace/security")({
         if (entity !== "all") filter += `&entity_type=eq.${encodeURIComponent(entity)}`;
         if (result === "denied") filter += "&action=like.*denied*";
         const term = orSearchTerm(q);
-        if (term) filter += `&or=(action.ilike.*${term}*,actor.ilike.*${term}*,reason.ilike.*${term}*)`;
+        if (term)
+          filter += `&or=(action.ilike.*${term}*,actor.ilike.*${term}*,reason.ilike.*${term}*)`;
 
         const [auditRows, auditTotal] = await Promise.all([
           rows<Record<string, unknown>>(
@@ -205,22 +223,30 @@ export const Route = createFileRoute("/api/marketplace/security")({
 
         if (params.get("panel") === "audit") {
           return Response.json({
-            ok: true, page, size, total: auditTotal, rows: auditRows,
+            ok: true,
+            page,
+            size,
+            total: auditTotal,
+            rows: auditRows,
             entities: [...new Set(auditRows.map((r) => String(r.entity_type)))].sort(),
           });
         }
 
         /* --------------------------------------------------------- rest */
         const [
-          { users, ok: authOk }, sessions, roleRows, alerts,
-          securityEvents, loginHistory, blockedIps, deniedCount,
+          { users, ok: authOk },
+          sessions,
+          roleRows,
+          alerts,
+          securityEvents,
+          loginHistory,
+          blockedIps,
+          deniedCount,
         ] = await Promise.all([
           authUsers(),
           sessionsSupported(),
           rows<{ role: string; user_id: string }>("user_roles?select=role,user_id"),
-          rows<Record<string, unknown>>(
-            "security_alerts?select=*&order=detected_at.desc&limit=25",
-          ),
+          rows<Record<string, unknown>>("security_alerts?select=*&order=detected_at.desc&limit=25"),
           count("security_events?select=id"),
           count("server_login_history?select=id"),
           // payment_blacklist is keyed by user_id; it has no id column.
@@ -250,8 +276,7 @@ export const Route = createFileRoute("/api/marketplace/security")({
           },
           metric_sources: {
             roles: "user_roles — distinct role values actually held by an account.",
-            sessions:
-              `GoTrue has no admin endpoint for listing sessions; /auth/v1/admin/sessions answers ${sessions.status ?? "nothing"}. There is no way to count active sessions from here, so this is a dash rather than a number.`,
+            sessions: `GoTrue has no admin endpoint for listing sessions; /auth/v1/admin/sessions answers ${sessions.status ?? "nothing"}. There is no way to count active sessions from here, so this is a dash rather than a number.`,
             two_factor: "The auth backend's own MFA factors, read per account.",
             blocked: "Accounts with banned_until set, plus payment_blacklist rows.",
           },
@@ -263,7 +288,10 @@ export const Route = createFileRoute("/api/marketplace/security")({
             note: "The role and permission matrix is the Roles tab, and it is the same matrix the server consults on every request.",
           },
           audit: {
-            page, size, total: auditTotal, rows: auditRows,
+            page,
+            size,
+            total: auditTotal,
+            rows: auditRows,
             denied_attempts: deniedCount,
             append_only:
               "No signed-in role can update or delete these rows — verified by attempting both with the anonymous key and being refused.",
@@ -280,7 +308,10 @@ export const Route = createFileRoute("/api/marketplace/security")({
             signed_in_ever: authOk ? signedInEver.length : null,
             signed_in_last_7_days: authOk ? recent.length : null,
             recent: recent
-              .sort((a, b) => Date.parse(b.last_sign_in_at ?? "0") - Date.parse(a.last_sign_in_at ?? "0"))
+              .sort(
+                (a, b) =>
+                  Date.parse(b.last_sign_in_at ?? "0") - Date.parse(a.last_sign_in_at ?? "0"),
+              )
               .slice(0, 25)
               .map((u) => ({
                 id: u.id,
@@ -299,8 +330,15 @@ export const Route = createFileRoute("/api/marketplace/security")({
           two_factor: {
             enrolled: authOk ? withFactor.length : null,
             accounts: authOk ? users.length : null,
-            coverage: authOk && users.length ? Math.round((withFactor.length / users.length) * 1000) / 10 : null,
-            state: authOk ? (withFactor.length === 0 ? "NONE ENROLLED" : "PARTIAL") : "NOT CONNECTED",
+            coverage:
+              authOk && users.length
+                ? Math.round((withFactor.length / users.length) * 1000) / 10
+                : null,
+            state: authOk
+              ? withFactor.length === 0
+                ? "NONE ENROLLED"
+                : "PARTIAL"
+              : "NOT CONNECTED",
             note:
               authOk && withFactor.length === 0
                 ? "Not one of these accounts has a second factor enrolled. The auth backend supports it; nobody has turned it on, including every account that can change permissions or configuration."
@@ -344,11 +382,18 @@ export const Route = createFileRoute("/api/marketplace/security")({
 
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
-        const decision = resolveAction({ roles: caller.roles, action: "export", permissions: matrix });
+        const decision = resolveAction({
+          roles: caller.roles,
+          action: "export",
+          permissions: matrix,
+        });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action: "security_export", permission: "marketplace.export",
-            roles: caller.roles, entityType: "security", recordId: null,
+            action: "security_export",
+            permission: "marketplace.export",
+            roles: caller.roles,
+            entityType: "security",
+            recordId: null,
             why: `${decision.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
@@ -359,7 +404,11 @@ export const Route = createFileRoute("/api/marketplace/security")({
 
         if (body.action !== "export_audit") {
           return Response.json(
-            { ok: false, reason: "unsupported_action", message: "Only export_audit runs from here." },
+            {
+              ok: false,
+              reason: "unsupported_action",
+              message: "Only export_audit runs from here.",
+            },
             { status: 400 },
           );
         }
@@ -372,19 +421,29 @@ export const Route = createFileRoute("/api/marketplace/security")({
           ));
         } catch (error) {
           return Response.json(
-            { ok: false, reason: "read_failed", message: error instanceof Error ? error.message : String(error) },
+            {
+              ok: false,
+              reason: "read_failed",
+              message: error instanceof Error ? error.message : String(error),
+            },
             { status: 502 },
           );
         }
         const cell = csvCell;
         const lines = ["created_at,action,actor,actor_role,entity_type,entity_id,reason"];
         for (const r of list) {
-          lines.push([
-            r.created_at, r.action, r.actor, r.actor_role, r.entity_type, r.entity_id, r.reason,
-          ].map(cell).join(","));
+          lines.push(
+            [r.created_at, r.action, r.actor, r.actor_role, r.entity_type, r.entity_id, r.reason]
+              .map(cell)
+              .join(","),
+          );
         }
-        await audit(request, "Security audit exported", { rows: list.length, truncated },
-          `${list.length} audit rows were exported from the Security screen${truncated ? " (stopped at the export ceiling)" : ""}.`);
+        await audit(
+          request,
+          "Security audit exported",
+          { rows: list.length, truncated },
+          `${list.length} audit rows were exported from the Security screen${truncated ? " (stopped at the export ceiling)" : ""}.`,
+        );
         return new Response(lines.join("\n"), {
           headers: {
             "X-Export-Rows": String(list.length),

@@ -67,7 +67,8 @@ async function count(path: string): Promise<number> {
 /* ------------------------------------------------------------------ jobs */
 
 /** Section 7's statuses. Every source maps onto exactly these. */
-type JobStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "PARTIAL" | "FAILED" | "BLOCKED" | "CANCELLED";
+type JobStatus =
+  "QUEUED" | "RUNNING" | "COMPLETED" | "PARTIAL" | "FAILED" | "BLOCKED" | "CANCELLED";
 
 type Job = {
   job_id: string;
@@ -86,13 +87,21 @@ type Job = {
 };
 
 const STATUS: Record<string, JobStatus> = {
-  succeeded: "COMPLETED", success: "COMPLETED", completed: "COMPLETED", done: "COMPLETED",
-  running: "RUNNING", in_progress: "RUNNING",
-  queued: "QUEUED", pending: "QUEUED",
+  succeeded: "COMPLETED",
+  success: "COMPLETED",
+  completed: "COMPLETED",
+  done: "COMPLETED",
+  running: "RUNNING",
+  in_progress: "RUNNING",
+  queued: "QUEUED",
+  pending: "QUEUED",
   partial: "PARTIAL",
-  failed: "FAILED", error: "FAILED",
-  blocked: "BLOCKED", not_configured: "BLOCKED",
-  cancelled: "CANCELLED", canceled: "CANCELLED",
+  failed: "FAILED",
+  error: "FAILED",
+  blocked: "BLOCKED",
+  not_configured: "BLOCKED",
+  cancelled: "CANCELLED",
+  canceled: "CANCELLED",
 };
 
 function normaliseStatus(value: unknown): JobStatus {
@@ -116,32 +125,46 @@ function ms(from: unknown, to: unknown): number | null {
  */
 const JOB_SOURCES = [
   {
-    key: "demo_sandbox_jobs", label: "Demo sandbox", trigger: "manual",
-    select: "id,operation,status,attempt,started_at,finished_at,error_category,error_detail,sandbox_id",
+    key: "demo_sandbox_jobs",
+    label: "Demo sandbox",
+    trigger: "manual",
+    select:
+      "id,operation,status,attempt,started_at,finished_at,error_category,error_detail,sandbox_id",
     order: "started_at",
   },
   {
-    key: "demo_provision_jobs", label: "Demo provisioning", trigger: "manual",
-    select: "id,operation,status,attempt,created_at,finished_at,error_category,error_detail,demo_id",
+    key: "demo_provision_jobs",
+    label: "Demo provisioning",
+    trigger: "manual",
+    select:
+      "id,operation,status,attempt,created_at,finished_at,error_category,error_detail,demo_id",
     order: "created_at",
   },
   {
-    key: "demo_sandbox_cleanup_jobs", label: "Sandbox cleanup", trigger: "scheduled",
+    key: "demo_sandbox_cleanup_jobs",
+    label: "Sandbox cleanup",
+    trigger: "scheduled",
     select: "id,scope,status,started_at,finished_at,error_detail,sandbox_id",
     order: "started_at",
   },
   {
-    key: "brand_enforcement_runs", label: "Brand enforcement", trigger: "manual",
+    key: "brand_enforcement_runs",
+    label: "Brand enforcement",
+    trigger: "manual",
     select: "id,scope,policy_state,started_at,completed_at,scanned,flagged,failed",
     order: "started_at",
   },
   {
-    key: "ai_content_generations", label: "AI content generation", trigger: "manual",
+    key: "ai_content_generations",
+    label: "AI content generation",
+    trigger: "manual",
     select: "id,api_kind,status,error_code,error_detail,created_at,finished_at,cost_usd",
     order: "created_at",
   },
   {
-    key: "seo_automation_runs", label: "SEO automation run", trigger: "scheduled",
+    key: "seo_automation_runs",
+    label: "SEO automation run",
+    trigger: "scheduled",
     select: "id,automation_id,status,started_at,finished_at,items_processed,message",
     order: "started_at",
   },
@@ -170,7 +193,9 @@ async function collectJobs(): Promise<Job[]> {
         const finished = r.finished_at ?? r.completed_at ?? null;
         const status =
           source.key === "brand_enforcement_runs"
-            ? finished ? "COMPLETED" : "RUNNING"
+            ? finished
+              ? "COMPLETED"
+              : "RUNNING"
             : normaliseStatus(r.status);
         const error =
           (r.error_detail as string | null) ??
@@ -182,7 +207,8 @@ async function collectJobs(): Promise<Job[]> {
           automation: source.label,
           source: source.key,
           trigger: source.trigger,
-          target: (r.sandbox_id ?? r.demo_id ?? r.automation_id ?? r.scope ?? null) as string | null,
+          target: (r.sandbox_id ?? r.demo_id ?? r.automation_id ?? r.scope ?? null) as
+            string | null,
           status: status as JobStatus,
           attempt: Number(r.attempt ?? 1),
           created_at: (r.created_at ?? null) as string | null,
@@ -215,26 +241,42 @@ async function collectJobs(): Promise<Job[]> {
  */
 const SCHEDULED = [
   {
-    id: "sv-telemetry", name: "Server telemetry", cron: "*/5 * * * *", everyMinutes: 5,
+    id: "sv-telemetry",
+    name: "Server telemetry",
+    cron: "*/5 * * * *",
+    everyMinutes: 5,
     what: "Reads load, memory, disk, network and response time off this machine and appends a row.",
-    evidence: "server_metrics_history", column: "recorded_at",
+    evidence: "server_metrics_history",
+    column: "recorded_at",
   },
   {
-    id: "sv-demo-monitor", name: "Demo health monitor", cron: "*/15 * * * *", everyMinutes: 15,
+    id: "sv-demo-monitor",
+    name: "Demo health monitor",
+    cron: "*/15 * * * *",
+    everyMinutes: 15,
     what: "Checks every active demo URL, writes the result and raises or clears alerts.",
-    evidence: "demo_health", column: "checked_at",
+    evidence: "demo_health",
+    column: "checked_at",
   },
   {
-    id: "sv-seo-crawl", name: "SEO site crawl", cron: "17 3 * * *", everyMinutes: 1440,
+    id: "sv-seo-crawl",
+    name: "SEO site crawl",
+    cron: "17 3 * * *",
+    everyMinutes: 1440,
     what: "Crawls our own pages, records what is on each one and resolves issues it no longer finds.",
-    evidence: "seo_pages", column: "last_crawled_at",
+    evidence: "seo_pages",
+    column: "last_crawled_at",
   },
   {
-    id: "sv-sweeps", name: "SLA and deadline sweeps", cron: "*/5 * * * *", everyMinutes: 5,
+    id: "sv-sweeps",
+    name: "SLA and deadline sweeps",
+    cron: "*/5 * * * *",
+    everyMinutes: 5,
     what: "Calls tm_sla_sweep, pt_sweep and ams_sweep. Idempotent by construction.",
     // These write nothing on a clean pass by design, so there is no freshness
     // reading to take. Saying that is more useful than inventing one.
-    evidence: null, column: null,
+    evidence: null,
+    column: null,
   },
 ] as const;
 
@@ -271,8 +313,12 @@ async function schedulerHealth() {
       const seen = latest[0]?.[task.column] as string | undefined;
       if (!seen) {
         return {
-          ...task, ...timing, last_seen: null, age_minutes: null,
-          state: "NEVER_RAN", note: `${task.evidence} has no rows.`,
+          ...task,
+          ...timing,
+          last_seen: null,
+          age_minutes: null,
+          state: "NEVER_RAN",
+          note: `${task.evidence} has no rows.`,
         };
       }
       const age = Math.round((Date.now() - Date.parse(seen)) / 60000);
@@ -280,9 +326,7 @@ async function schedulerHealth() {
       // Section 42, with an actual expected time. One cadence of grace, so a
       // pass that is still running is not called missed a second after it was
       // due.
-      const dueBy = expectedLast
-        ? expectedLast.getTime() - task.everyMinutes * 60000
-        : null;
+      const dueBy = expectedLast ? expectedLast.getTime() - task.everyMinutes * 60000 : null;
       const state = dueBy !== null && Date.parse(seen) < dueBy ? "MISSED" : "HEALTHY";
       return {
         ...task,
@@ -311,10 +355,18 @@ async function schedulerHealth() {
  */
 async function definitions() {
   const [rules, seo, marketing, leads, flows] = await Promise.all([
-    rows("automation_rules?select=id,name,scope,action_type,is_enabled,last_run_at,runs_count&order=name"),
-    rows("seo_automations?select=id,name,automation_type,status,schedule,last_run_at,next_run_at,runs_count,success_rate"),
-    rows("marketing_automations?select=id,name,channel,status,trigger_type,last_run_at,runs,is_seed"),
-    rows("lead_automation_rules?select=id,name,rule_key,trigger_event,is_active,last_executed_at,execution_count"),
+    rows(
+      "automation_rules?select=id,name,scope,action_type,is_enabled,last_run_at,runs_count&order=name",
+    ),
+    rows(
+      "seo_automations?select=id,name,automation_type,status,schedule,last_run_at,next_run_at,runs_count,success_rate",
+    ),
+    rows(
+      "marketing_automations?select=id,name,channel,status,trigger_type,last_run_at,runs,is_seed",
+    ),
+    rows(
+      "lead_automation_rules?select=id,name,rule_key,trigger_event,is_active,last_executed_at,execution_count",
+    ),
     rows("seo_automation_flows?select=id,name,status,trigger_event,executions"),
   ]);
 
@@ -344,11 +396,41 @@ async function definitions() {
     }));
 
   return [
-    ...map(rules, "automation_rules", { name: "name", enabled: "is_enabled", last: "last_run_at", runs: "runs_count", type: "action_type" }),
-    ...map(seo, "seo_automations", { name: "name", enabled: "status", last: "last_run_at", runs: "runs_count", type: "automation_type" }),
-    ...map(marketing, "marketing_automations", { name: "name", enabled: "status", last: "last_run_at", runs: "runs", type: "channel" }),
-    ...map(leads, "lead_automation_rules", { name: "name", enabled: "is_active", last: "last_executed_at", runs: "execution_count", type: "trigger_event" }),
-    ...map(flows, "seo_automation_flows", { name: "name", enabled: "status", last: "created_at", runs: "executions", type: "trigger_event" }),
+    ...map(rules, "automation_rules", {
+      name: "name",
+      enabled: "is_enabled",
+      last: "last_run_at",
+      runs: "runs_count",
+      type: "action_type",
+    }),
+    ...map(seo, "seo_automations", {
+      name: "name",
+      enabled: "status",
+      last: "last_run_at",
+      runs: "runs_count",
+      type: "automation_type",
+    }),
+    ...map(marketing, "marketing_automations", {
+      name: "name",
+      enabled: "status",
+      last: "last_run_at",
+      runs: "runs",
+      type: "channel",
+    }),
+    ...map(leads, "lead_automation_rules", {
+      name: "name",
+      enabled: "is_active",
+      last: "last_executed_at",
+      runs: "execution_count",
+      type: "trigger_event",
+    }),
+    ...map(flows, "seo_automation_flows", {
+      name: "name",
+      enabled: "status",
+      last: "created_at",
+      runs: "executions",
+      type: "trigger_event",
+    }),
   ];
 }
 
@@ -361,10 +443,16 @@ async function definitions() {
  */
 async function aiState() {
   const [providers, models, usage, recent] = await Promise.all([
-    rows("ai_providers?select=id,slug,name,status,api_kind,credential_env,content_generation_enabled&order=slug"),
-    rows("ai_models?select=id,name,model_id,modality,is_default,input_cost_per_1k,output_cost_per_1k,provider_id&order=name"),
+    rows(
+      "ai_providers?select=id,slug,name,status,api_kind,credential_env,content_generation_enabled&order=slug",
+    ),
+    rows(
+      "ai_models?select=id,name,model_id,modality,is_default,input_cost_per_1k,output_cost_per_1k,provider_id&order=name",
+    ),
     rows("ai_content_usage?select=*&order=usage_date.desc&limit=30"),
-    rows("ai_content_generations?select=id,api_kind,status,error_code,created_at,finished_at,cost_usd&order=created_at.desc&limit=10"),
+    rows(
+      "ai_content_generations?select=id,api_kind,status,error_code,created_at,finished_at,cost_usd&order=created_at.desc&limit=10",
+    ),
   ]);
 
   const configured = providers.map((p) => {
@@ -389,7 +477,11 @@ async function aiState() {
     { task: "Auto Tags", modality: "text", prefers: "the cheapest text model" },
     { task: "Auto Documentation", modality: "text", prefers: "the most capable writing model" },
     { task: "Auto Blog", modality: "text", prefers: "the most capable writing model" },
-    { task: "Auto Translation", modality: "translate", prefers: "the configured translation provider" },
+    {
+      task: "Auto Translation",
+      modality: "translate",
+      prefers: "the configured translation provider",
+    },
     { task: "Auto Thumbnail", modality: "image", prefers: "an image generation model" },
   ].map((route) => {
     // Translation has a provider of its own on this platform rather than a
@@ -431,14 +523,18 @@ async function aiState() {
   });
 
   const stuck = recent.filter(
-    (r) => String(r.status) === "RUNNING" && !r.finished_at &&
+    (r) =>
+      String(r.status) === "RUNNING" &&
+      !r.finished_at &&
       Date.now() - Date.parse(String(r.created_at)) > 30 * 60000,
   );
 
   return {
     providers: configured,
     models: models.map((m) => ({
-      name: String(m.name), model_id: String(m.model_id), modality: String(m.modality),
+      name: String(m.name),
+      model_id: String(m.model_id),
+      modality: String(m.modality),
       is_default: Boolean(m.is_default),
       input_cost_per_1k: Number(m.input_cost_per_1k ?? 0),
       output_cost_per_1k: Number(m.output_cost_per_1k ?? 0),
@@ -468,19 +564,23 @@ async function aiState() {
  */
 const RUNNABLE: Record<string, { label: string; rpc: string; what: string }> = {
   sandbox_cleanup: {
-    label: "Sandbox cleanup", rpc: "mm_sandbox_cleanup_run",
+    label: "Sandbox cleanup",
+    rpc: "mm_sandbox_cleanup_run",
     what: "Releases expired sandbox sessions and marks their rows cleaned.",
   },
   sandbox_expiry: {
-    label: "Sandbox expiry", rpc: "mm_sandbox_expiry_run",
+    label: "Sandbox expiry",
+    rpc: "mm_sandbox_expiry_run",
     what: "Expires sandboxes whose time is up.",
   },
   demo_expiry: {
-    label: "Demo expiry", rpc: "mm_demo_expiry_run",
+    label: "Demo expiry",
+    rpc: "mm_demo_expiry_run",
     what: "Expires demos past their end date.",
   },
   approval_sla: {
-    label: "Approval SLA sweep", rpc: "mm_approval_sla_run",
+    label: "Approval SLA sweep",
+    rpc: "mm_approval_sla_run",
     what: "Flags submissions that have passed their approval SLA.",
   },
 };
@@ -492,14 +592,22 @@ async function auditRun(request: Request, action: string, after: unknown, reason
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "automation", p_entity_id: null,
-        p_before: null, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "automation",
+        p_entity_id: null,
+        p_before: null,
+        p_after: after,
+        p_reason: reason,
       }),
     });
   } catch (error) {
@@ -524,12 +632,19 @@ export const Route = createFileRoute("/api/marketplace/automation")({
         };
         if (!may("automation_view")) {
           await recordDenial(request, {
-            action: "automation_view", permission: "marketplace.automation.view",
-            roles: caller.roles, entityType: "automation", recordId: null,
+            action: "automation_view",
+            permission: "marketplace.automation.view",
+            roles: caller.roles,
+            entityType: "automation",
+            recordId: null,
             why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
-            { ok: false, reason: "permission_denied", message: "Permission marketplace.automation.view is required." },
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: "Permission marketplace.automation.view is required.",
+            },
             { status: 403 },
           );
         }
@@ -538,12 +653,17 @@ export const Route = createFileRoute("/api/marketplace/automation")({
         // screen counts. Export permission, not merely being an operator.
         if (wantsCsv) {
           const exporter = resolveAction({
-            roles: caller.roles, action: "export", permissions: matrix,
+            roles: caller.roles,
+            action: "export",
+            permissions: matrix,
           });
           if (!exporter.visible || !exporter.enabled) {
             await recordDenial(request, {
-              action: "automation_report", permission: "marketplace.export",
-              roles: caller.roles, entityType: "automation", recordId: null,
+              action: "automation_report",
+              permission: "marketplace.export",
+              roles: caller.roles,
+              entityType: "automation",
+              recordId: null,
               why: `${exporter.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
             });
             return Response.json(
@@ -551,7 +671,10 @@ export const Route = createFileRoute("/api/marketplace/automation")({
               { status: 403 },
             );
           }
-          const [reportJobs, reportSchedule] = await Promise.all([collectJobs(), schedulerHealth()]);
+          const [reportJobs, reportSchedule] = await Promise.all([
+            collectJobs(),
+            schedulerHealth(),
+          ]);
           const cell = (v: unknown) => {
             const text = v === null || v === undefined ? "" : String(v);
             return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -559,19 +682,27 @@ export const Route = createFileRoute("/api/marketplace/automation")({
           const lines: string[] = [];
           lines.push("section,name,state,detail,at");
           for (const t of reportSchedule) {
-            lines.push([
-              "schedule", cell(t.name), cell(t.state), cell(t.note), cell(t.last_seen),
-            ].join(","));
+            lines.push(
+              ["schedule", cell(t.name), cell(t.state), cell(t.note), cell(t.last_seen)].join(","),
+            );
           }
           for (const j of reportJobs) {
-            lines.push([
-              "job", cell(j.automation), cell(j.status),
-              cell(j.error ?? j.summary ?? ""), cell(j.started_at),
-            ].join(","));
+            lines.push(
+              [
+                "job",
+                cell(j.automation),
+                cell(j.status),
+                cell(j.error ?? j.summary ?? ""),
+                cell(j.started_at),
+              ].join(","),
+            );
           }
-          await auditRun(request, "Automation health report exported",
+          await auditRun(
+            request,
+            "Automation health report exported",
             { rows: lines.length - 1, jobs: reportJobs.length, schedules: reportSchedule.length },
-            "Automation health exported as CSV from the Marketplace Manager.");
+            "Automation health exported as CSV from the Marketplace Manager.",
+          );
           return new Response(lines.join("\n"), {
             headers: {
               "Content-Type": "text/csv; charset=utf-8",
@@ -640,7 +771,11 @@ export const Route = createFileRoute("/api/marketplace/automation")({
                 ? "server_backup_jobs and server_backup_schedules exist and are empty, and nothing on the host schedule writes them. There has never been a backup. Restore is therefore not offered: a restore button over zero backups is the most dangerous kind of decoration."
                 : "Backup records exist.",
           },
-          runnable: Object.entries(RUNNABLE).map(([id, r]) => ({ id, label: r.label, what: r.what })),
+          runnable: Object.entries(RUNNABLE).map(([id, r]) => ({
+            id,
+            label: r.label,
+            what: r.what,
+          })),
           permissions: {
             view: true,
             run: may("automation_run"),
@@ -666,17 +801,24 @@ export const Route = createFileRoute("/api/marketplace/automation")({
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
         const decision = resolveAction({
-          roles: caller.roles, action: "automation_run", permissions: matrix,
+          roles: caller.roles,
+          action: "automation_run",
+          permissions: matrix,
         });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action: "automation_run", permission: "marketplace.automation.run",
-            roles: caller.roles, entityType: "automation", recordId: body.id ?? null,
+            action: "automation_run",
+            permission: "marketplace.automation.run",
+            roles: caller.roles,
+            entityType: "automation",
+            recordId: body.id ?? null,
             why: `${decision.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
             {
-              ok: false, reason: "permission_denied", message: decision.reason,
+              ok: false,
+              reason: "permission_denied",
+              message: decision.reason,
               visibility: decision.visible ? "disabled" : "hidden",
             },
             { status: 403 },
@@ -690,8 +832,7 @@ export const Route = createFileRoute("/api/marketplace/automation")({
             {
               ok: false,
               reason: "no_runner",
-              message:
-                `There is nothing that runs "${id}". Only the sweeps the host scheduler already calls can be run by hand; everything else would need a worker and a job queue, and neither exists here.`,
+              message: `There is nothing that runs "${id}". Only the sweeps the host scheduler already calls can be run by hand; everything else would need a worker and a job queue, and neither exists here.`,
               runnable: Object.keys(RUNNABLE),
             },
             { status: 400 },
@@ -701,7 +842,10 @@ export const Route = createFileRoute("/api/marketplace/automation")({
         // Section 51: preview changes nothing and says so.
         if (body.preview) {
           return Response.json({
-            ok: true, preview: true, id, label: spec.label,
+            ok: true,
+            preview: true,
+            id,
+            label: spec.label,
             what: spec.what,
             message: "Nothing has been run. Send preview: false to run it.",
           });
@@ -709,7 +853,9 @@ export const Route = createFileRoute("/api/marketplace/automation")({
 
         const started = Date.now();
         const response = await fetch(`${url()}/rest/v1/rpc/${spec.rpc}`, {
-          method: "POST", headers: admin(), body: "{}",
+          method: "POST",
+          headers: admin(),
+          body: "{}",
         });
         const text = await response.text();
         let payload: unknown = null;
@@ -721,26 +867,41 @@ export const Route = createFileRoute("/api/marketplace/automation")({
         const duration = Date.now() - started;
 
         if (!response.ok) {
-          await auditRun(request, `Automation run failed: ${spec.label}`,
+          await auditRun(
+            request,
+            `Automation run failed: ${spec.label}`,
             { id, rpc: spec.rpc, status: response.status, duration_ms: duration, error: payload },
-            `Run Now on ${spec.label} from the Marketplace Manager returned HTTP ${response.status}.`);
+            `Run Now on ${spec.label} from the Marketplace Manager returned HTTP ${response.status}.`,
+          );
           return Response.json(
             {
-              ok: false, reason: "run_failed", id, label: spec.label,
-              status: response.status, duration_ms: duration, error: payload,
+              ok: false,
+              reason: "run_failed",
+              id,
+              label: spec.label,
+              status: response.status,
+              duration_ms: duration,
+              error: payload,
               message: `${spec.label} did not complete. Nothing is being reported as done.`,
             },
             { status: 502 },
           );
         }
 
-        await auditRun(request, `Automation run: ${spec.label}`,
+        await auditRun(
+          request,
+          `Automation run: ${spec.label}`,
           { id, rpc: spec.rpc, duration_ms: duration, result: payload },
           String(body.reason ?? "").slice(0, 300) ||
-            `${spec.label} run by hand from the Marketplace Manager.`);
+            `${spec.label} run by hand from the Marketplace Manager.`,
+        );
 
         return Response.json({
-          ok: true, id, label: spec.label, duration_ms: duration, result: payload,
+          ok: true,
+          id,
+          label: spec.label,
+          duration_ms: duration,
+          result: payload,
           // Reported only because the function returned; the worker here is the
           // database function itself and it has finished by the time this line
           // is reached - section 33.

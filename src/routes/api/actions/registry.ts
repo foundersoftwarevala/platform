@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import {
-  DEFAULT_ACTIONS, REGISTRY_KEY, resolveProductActions,
+  DEFAULT_ACTIONS,
+  REGISTRY_KEY,
+  resolveProductActions,
   type ActionConfig,
 } from "@/lib/marketplace/action-layer";
 
@@ -52,7 +54,11 @@ async function count(path: string): Promise<number> {
   }
 }
 
-async function stored(): Promise<{ actions: ActionConfig[]; configured: boolean; row: Row | null }> {
+async function stored(): Promise<{
+  actions: ActionConfig[];
+  configured: boolean;
+  row: Row | null;
+}> {
   const rows = await read(`system_settings?select=*&key=eq.${REGISTRY_KEY}&limit=1`);
   const row = rows[0] ?? null;
   if (!row) return { actions: DEFAULT_ACTIONS, configured: false, row: null };
@@ -90,8 +96,11 @@ export const Route = createFileRoute("/api/actions/registry")({
 
         // Health per action, against the catalogue as it actually is.
         const health = actions.map((a) => {
-          const sample = resolveProductActions([a], { demo_url: "x", slug: "s", visible: true, price_label: "$249" },
-            { paymentConfigured, signedIn: true })[0];
+          const sample = resolveProductActions(
+            [a],
+            { demo_url: "x", slug: "s", visible: true, price_label: "$249" },
+            { paymentConfigured, signedIn: true },
+          )[0];
           let applies: number | null = null;
           let note: string | null = null;
           if (a.key === "LIVE_DEMO") {
@@ -153,12 +162,20 @@ export const Route = createFileRoute("/api/actions/registry")({
             key: a.key,
             label: String(a.label ?? "").slice(0, 60) || a.key,
             enabled: Boolean(a.enabled),
-            visibility: (["VISIBLE", "DISABLED", "HIDDEN", "CONDITIONAL"] as const).includes(a.visibility)
-              ? a.visibility : "VISIBLE",
+            visibility: (["VISIBLE", "DISABLED", "HIDDEN", "CONDITIONAL"] as const).includes(
+              a.visibility,
+            )
+              ? a.visibility
+              : "VISIBLE",
             sort_order: Number.isFinite(a.sort_order) ? Number(a.sort_order) : i + 1,
-            permission: (["public", "authenticated", "purchaser", "operator"] as const).includes(a.permission)
-              ? a.permission : "public",
-            variant: (["primary", "ghost", "outline"] as const).includes(a.variant) ? a.variant : "ghost",
+            permission: (["public", "authenticated", "purchaser", "operator"] as const).includes(
+              a.permission,
+            )
+              ? a.permission
+              : "public",
+            variant: (["primary", "ghost", "outline"] as const).includes(a.variant)
+              ? a.variant
+              : "ghost",
           }));
         if (clean.length === 0) {
           return Response.json({ error: "No known action in that request" }, { status: 400 });
@@ -175,21 +192,18 @@ export const Route = createFileRoute("/api/actions/registry")({
           updated_at: new Date().toISOString(),
         };
 
-        const response = await fetch(
-          `${url()}/rest/v1/system_settings?on_conflict=key&select=*`,
-          {
-            method: "POST",
-            headers: { ...admin(), Prefer: "resolution=merge-duplicates,return=representation" },
-            body: JSON.stringify(payload),
-          },
-        );
+        const response = await fetch(`${url()}/rest/v1/system_settings?on_conflict=key&select=*`, {
+          method: "POST",
+          headers: { ...admin(), Prefer: "resolution=merge-duplicates,return=representation" },
+          body: JSON.stringify(payload),
+        });
         if (!response.ok) {
           console.error("[actions] save failed", response.status, await response.text());
           return Response.json({ error: "That configuration was not saved" }, { status: 502 });
         }
 
         // Section 30: the change itself is evidence.
-        await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+        await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
           method: "POST",
           headers: admin(),
           body: JSON.stringify({
@@ -198,7 +212,9 @@ export const Route = createFileRoute("/api/actions/registry")({
             p_entity_id: null,
             p_before: { actions: before.actions },
             p_after: { actions: clean },
-            p_reason: String(body.reason ?? "").slice(0, 300) || "Action Layer updated from the Marketplace Manager.",
+            p_reason:
+              String(body.reason ?? "").slice(0, 300) ||
+              "Action Layer updated from the Marketplace Manager.",
           }),
         }).catch((error) => console.error("[actions] audit failed", error));
 

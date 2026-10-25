@@ -17,8 +17,11 @@ vi.mock("@/lib/marketplace/catalogue-invalidation", () => ({
 import { Route } from "./rows";
 
 type Get = (ctx: { request: Request }) => Promise<Response>;
-type RouteOptions = { server: { handlers: { GET: Get } } };
+type Write = (ctx: { request: Request }) => Promise<Response>;
+type RouteOptions = { server: { handlers: { GET: Get; PATCH: Write; PUT: Write } } };
 const getRows = (Route.options as typeof Route.options & RouteOptions).server.handlers.GET;
+const patchRow = (Route.options as typeof Route.options & RouteOptions).server.handlers.PATCH;
+const reorderRows = (Route.options as typeof Route.options & RouteOptions).server.handlers.PUT;
 const invalidateRows = mocks.onCatalogueChange.mock.calls[0]?.[0] as (() => void) | undefined;
 
 function json(body: unknown, status = 200) {
@@ -98,4 +101,59 @@ describe("marketplace category row reads", () => {
     expect(aggregateRequests).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("does not expose hidden rows to a developer-only caller", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const request = new URL(String(input));
+      if (request.pathname.endsWith("/marketplace_categories")) {
+        return json([{ id: "hidden-category", name: "Hidden", slug: "hidden", is_hidden: true }]);
+      }
+      if (request.pathname.endsWith("/rpc/marketplace_home_category_counts")) {
+        return json([{ category_id: "hidden-category", product_count: 0 }]);
+      }
+      return json({ error: "unexpected request" }, 500);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await getRows({
+      request: new Request("https://softwarevala.net/api/marketplace/rows"),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ rows: [], total: 0 });
+    expect(mocks.requireInternalOperator).toHaveBeenCalledWith(
+      expect.any(Request),
+      expect.objectContaining({ allowedRoles: ["boss", "admin", "super_admin", "owner"] }),
+    );
+  });
+
+  it.each([
+    ["PATCH", patchRow, { id: "00000000-0000-4000-8000-000000000001", is_hidden: true }],
+    ["PUT", reorderRows, { order: ["00000000-0000-4000-8000-000000000001"] }],
+  ] as const)(
+    "denies developer-only category writes before database access (%s)",
+    async (_, handler, body) => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      mocks.requireInternalOperator.mockResolvedValue({
+        ok: false,
+        response: new Response("Forbidden", { status: 403 }),
+      });
+
+      const response = await handler({
+        request: new Request("https://softwarevala.net/api/marketplace/rows", {
+          method: _,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      });
+
+      expect(response.status).toBe(403);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mocks.requireInternalOperator).toHaveBeenCalledWith(
+        expect.any(Request),
+        expect.objectContaining({ allowedRoles: ["boss", "admin", "super_admin", "owner"] }),
+      );
+    },
+  );
 });

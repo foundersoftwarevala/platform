@@ -99,8 +99,13 @@ async function repository() {
   ]);
 
   const [sha, author, at, subject] = (head ?? "").split("\n");
-  const provider = remote?.includes("github.com") ? "GitHub"
-    : remote?.includes("gitlab.com") ? "GitLab" : remote ? "Other" : null;
+  const provider = remote?.includes("github.com")
+    ? "GitHub"
+    : remote?.includes("gitlab.com")
+      ? "GitLab"
+      : remote
+        ? "Other"
+        : null;
 
   // The remote may carry a credential in its URL on some hosts. Strip anything
   // before the @ so it can never be shown.
@@ -146,7 +151,8 @@ function providerCredentials() {
   const check = (name: string, envs: string[], kind: "git" | "target") => {
     const present = envs.filter((e) => Boolean(process.env[e]?.trim()));
     return {
-      name, kind,
+      name,
+      kind,
       variables: envs,
       present,
       missing: envs.filter((e) => !process.env[e]?.trim()),
@@ -155,14 +161,21 @@ function providerCredentials() {
   };
 
   const cloudflareToken = process.env.CLOUDFLARE_API_TOKEN?.trim() ?? "";
-  const cloudflare = check("Cloudflare", ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"], "target");
+  const cloudflare = check(
+    "Cloudflare",
+    ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
+    "target",
+  );
   const cloudflareNote =
     cloudflareToken && cloudflareToken.length !== 40
       ? `CLOUDFLARE_API_TOKEN is set but is ${cloudflareToken.length} characters. A Cloudflare API token is 40; a 32-character value is a Global API Key, which authenticates with X-Auth-Email and X-Auth-Key rather than a Bearer header. Cloudflare answers 6111, "Invalid format for Authorization header", and no CLOUDFLARE_EMAIL is set to use it the other way.`
       : null;
 
   return [
-    { ...check("GitHub", ["GITHUB_TOKEN"], "git"), note: "The host has a stored git credential, which is how pushes work, but no API token — so the repository is readable from the checkout and not through the GitHub API." },
+    {
+      ...check("GitHub", ["GITHUB_TOKEN"], "git"),
+      note: "The host has a stored git credential, which is how pushes work, but no API token — so the repository is readable from the checkout and not through the GitHub API.",
+    },
     { ...check("GitLab", ["GITLAB_TOKEN"], "git"), note: null },
     { ...check("Vercel", ["VERCEL_TOKEN"], "target"), note: null },
     { ...check("Netlify", ["NETLIFY_TOKEN"], "target"), note: null },
@@ -196,7 +209,9 @@ async function detectBuildConfig() {
   };
 
   const [pkgRaw, nvmrc, nodeVersionFile] = await Promise.all([
-    read("package.json"), read(".nvmrc"), read(".node-version"),
+    read("package.json"),
+    read(".nvmrc"),
+    read(".node-version"),
   ]);
 
   let pkg: Record<string, unknown> = {};
@@ -214,16 +229,25 @@ async function detectBuildConfig() {
   // Framework, from what is actually installed rather than from a guess at the
   // project's name.
   const framework =
-    "@tanstack/react-start" in deps ? "TanStack Start"
-      : "next" in deps ? "Next.js"
-        : "nuxt" in deps ? "Nuxt"
-          : "astro" in deps ? "Astro"
-            : "vite" in deps ? "Vite"
-              : "react" in deps ? "React" : null;
+    "@tanstack/react-start" in deps
+      ? "TanStack Start"
+      : "next" in deps
+        ? "Next.js"
+        : "nuxt" in deps
+          ? "Nuxt"
+          : "astro" in deps
+            ? "Astro"
+            : "vite" in deps
+              ? "Vite"
+              : "react" in deps
+                ? "React"
+                : null;
 
   const [hasPnpm, hasYarn, hasNpm, hasBun] = await Promise.all([
-    exists("pnpm-lock.yaml"), exists("yarn.lock"),
-    exists("package-lock.json"), exists("bun.lockb"),
+    exists("pnpm-lock.yaml"),
+    exists("yarn.lock"),
+    exists("package-lock.json"),
+    exists("bun.lockb"),
   ]);
   const packageManager =
     (pkg.packageManager as string | undefined) ??
@@ -231,8 +255,7 @@ async function detectBuildConfig() {
 
   // Section 7: declared and running are different facts and both are given.
   const engines = (pkg.engines ?? {}) as Record<string, string>;
-  const declaredNode =
-    nvmrc?.trim() || nodeVersionFile?.trim() || engines.node || null;
+  const declaredNode = nvmrc?.trim() || nodeVersionFile?.trim() || engines.node || null;
 
   // Which output directory is actually on disk, with its size.
   const candidates = [".output", "dist", "build", "out", ".next", "public"];
@@ -253,12 +276,20 @@ async function detectBuildConfig() {
     framework,
     package_manager: packageManager,
     package_manager_evidence: {
-      "pnpm-lock.yaml": hasPnpm, "yarn.lock": hasYarn,
-      "package-lock.json": hasNpm, "bun.lockb": hasBun,
+      "pnpm-lock.yaml": hasPnpm,
+      "yarn.lock": hasYarn,
+      "package-lock.json": hasNpm,
+      "bun.lockb": hasBun,
     },
     node: {
       declared: declaredNode,
-      declared_in: nvmrc ? ".nvmrc" : nodeVersionFile ? ".node-version" : engines.node ? "package.json engines" : null,
+      declared_in: nvmrc
+        ? ".nvmrc"
+        : nodeVersionFile
+          ? ".node-version"
+          : engines.node
+            ? "package.json engines"
+            : null,
       running: process.version,
       note: declaredNode
         ? null
@@ -337,7 +368,10 @@ function sanitise(text: string): string {
   }
   return out
     .replace(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}/g, "[redacted:jwt]")
-    .replace(/\b(sb_secret|sb_publishable|sk_live|sk_test|rk_live|ghp|gho|glpat)_[A-Za-z0-9_-]{8,}/g, "[redacted:token]")
+    .replace(
+      /\b(sb_secret|sb_publishable|sk_live|sk_test|rk_live|ghp|gho|glpat)_[A-Za-z0-9_-]{8,}/g,
+      "[redacted:token]",
+    )
     .replace(/(authorization|apikey|api-key|cookie)(\s*[:=]\s*)\S+/gi, "$1$2[redacted]");
 }
 
@@ -352,12 +386,14 @@ const LOG_FILES = [
  * empty state is the honest answer for a build log and this is what does exist.
  */
 async function runtimeLogs(lines: number) {
-  const out: { file: string; entries: { severity: string; message: string }[]; error?: string }[] = [];
+  const out: { file: string; entries: { severity: string; message: string }[]; error?: string }[] =
+    [];
   for (const file of LOG_FILES) {
     try {
       const text = await readFile(file.path, "utf8");
       const tail = sanitise(text)
         // Strip terminal colour so the panel shows text rather than escapes.
+        // eslint-disable-next-line no-control-regex
         .replace(/\u001b\[[0-9;]*m/g, "")
         .split("\n")
         .filter((l) => l.trim())
@@ -365,15 +401,20 @@ async function runtimeLogs(lines: number) {
       out.push({
         file: file.name,
         entries: tail.map((message) => ({
-          severity: /error|fatal|exception/i.test(message) ? "ERROR"
-            : /warn/i.test(message) ? "WARN"
-              : /success|ready|listening/i.test(message) ? "SUCCESS" : "INFO",
+          severity: /error|fatal|exception/i.test(message)
+            ? "ERROR"
+            : /warn/i.test(message)
+              ? "WARN"
+              : /success|ready|listening/i.test(message)
+                ? "SUCCESS"
+                : "INFO",
           message,
         })),
       });
     } catch (error) {
       out.push({
-        file: file.name, entries: [],
+        file: file.name,
+        entries: [],
         error: error instanceof Error ? error.message : "unreadable",
       });
     }
@@ -419,14 +460,22 @@ async function audit(request: Request, action: string, after: unknown, reason: s
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "deployment", p_entity_id: null,
-        p_before: null, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "deployment",
+        p_entity_id: null,
+        p_before: null,
+        p_after: after,
+        p_reason: reason,
       }),
     });
   } catch (error) {
@@ -450,12 +499,19 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
         };
         if (!may("view")) {
           await recordDenial(request, {
-            action: "deployment_view", permission: "marketplace.view",
-            roles: caller.roles, entityType: "deployment", recordId: null,
+            action: "deployment_view",
+            permission: "marketplace.view",
+            roles: caller.roles,
+            entityType: "deployment",
+            recordId: null,
             why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
-            { ok: false, reason: "permission_denied", message: "Permission marketplace.view is required." },
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: "Permission marketplace.view is required.",
+            },
             { status: 403 },
           );
         }
@@ -463,12 +519,17 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
         const panel = new URL(request.url).searchParams.get("panel");
         if (panel === "logs") {
           // ?lines=abc was NaN, and slice(-NaN) returned the whole process log.
-          const lines = Math.min(500, Math.max(20, Math.trunc(Number(new URL(request.url).searchParams.get("lines") ?? 120)) || 120));
+          const lines = Math.min(
+            500,
+            Math.max(
+              20,
+              Math.trunc(Number(new URL(request.url).searchParams.get("lines") ?? 120)) || 120,
+            ),
+          );
           return Response.json({
             ok: true,
             source: "pm2",
-            what:
-              "These are the process manager's own logs for the running application. No deployment provider streams build logs here, so there are none to show; section 16's empty state is the honest answer for a build log.",
+            what: "These are the process manager's own logs for the running application. No deployment provider streams build logs here, so there are none to show; section 16's empty state is the honest answer for a build log.",
             sanitised: true,
             logs: await runtimeLogs(lines),
           });
@@ -481,24 +542,33 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
           countRows("server_deployments?select=id"),
           countRows("demo_deployments?select=id"),
         ]);
-        const [repo, instances, deployments, demoDeployments, demoDomains, history, health, buildConfig, requiredEnv] =
-          await Promise.all([
-            repository(),
-            rows<Record<string, unknown>>(
-              "server_instances?select=server_code,server_name,hostname,provider,region_name,status,health_status,health_score,cpu_usage,ram_usage,disk_usage,error_rate,last_health_check,response_time_ms&limit=5",
-            ),
-            rows("server_deployments?select=id&limit=1"),
-            rows("demo_deployments?select=id&limit=1"),
-            rows<Record<string, unknown>>(
-              "demo_domains?select=slug,hostname,environment,dns_status,status,expires_at,created_at,external&limit=50",
-            ),
-            rows<Record<string, unknown>>(
-              "marketplace_audit_logs?select=action,actor,actor_role,reason,created_at&entity_type=eq.deployment&order=created_at.desc&limit=20",
-            ),
-            Promise.all(DOMAINS.map(healthCheck)),
-            detectBuildConfig(),
-            requiredEnvironment(),
-          ]);
+        const [
+          repo,
+          instances,
+          deployments,
+          demoDeployments,
+          demoDomains,
+          history,
+          health,
+          buildConfig,
+          requiredEnv,
+        ] = await Promise.all([
+          repository(),
+          rows<Record<string, unknown>>(
+            "server_instances?select=server_code,server_name,hostname,provider,region_name,status,health_status,health_score,cpu_usage,ram_usage,disk_usage,error_rate,last_health_check,response_time_ms&limit=5",
+          ),
+          rows("server_deployments?select=id&limit=1"),
+          rows("demo_deployments?select=id&limit=1"),
+          rows<Record<string, unknown>>(
+            "demo_domains?select=slug,hostname,environment,dns_status,status,expires_at,created_at,external&limit=50",
+          ),
+          rows<Record<string, unknown>>(
+            "marketplace_audit_logs?select=action,actor,actor_role,reason,created_at&entity_type=eq.deployment&order=created_at.desc&limit=20",
+          ),
+          Promise.all(DOMAINS.map(healthCheck)),
+          detectBuildConfig(),
+          requiredEnvironment(),
+        ]);
 
         const credentials = providerCredentials();
         const instance = instances[0] ?? null;
@@ -507,12 +577,24 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
         // section 17 lists browser source, logs and exports, and this is all
         // three at once if it carries a value.
         const environment = [
-          "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY",
-          "SUPABASE_SERVICE_ROLE_KEY", "INTERNAL_API_TOKEN",
-          "TRANSLATE_PROVIDER_URL", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
-          "GOOGLE_AI_API_KEY", "PAYU_MERCHANT_KEY", "PAYU_MERCHANT_SALT",
-          "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ZONE_ID",
-          "GITHUB_TOKEN", "VERCEL_TOKEN", "NETLIFY_TOKEN", "RAILWAY_TOKEN",
+          "SUPABASE_URL",
+          "SUPABASE_ANON_KEY",
+          "SUPABASE_PUBLISHABLE_KEY",
+          "SUPABASE_SERVICE_ROLE_KEY",
+          "INTERNAL_API_TOKEN",
+          "TRANSLATE_PROVIDER_URL",
+          "OPENAI_API_KEY",
+          "ANTHROPIC_API_KEY",
+          "GOOGLE_AI_API_KEY",
+          "PAYU_MERCHANT_KEY",
+          "PAYU_MERCHANT_SALT",
+          "CLOUDFLARE_API_TOKEN",
+          "CLOUDFLARE_ACCOUNT_ID",
+          "CLOUDFLARE_ZONE_ID",
+          "GITHUB_TOKEN",
+          "VERCEL_TOKEN",
+          "NETLIFY_TOKEN",
+          "RAILWAY_TOKEN",
         ].map((name) => ({
           name,
           set: Boolean(process.env[name]?.trim()),
@@ -525,8 +607,11 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
             production_instances: instanceCount,
             preview_builds: demoDeploymentCount,
             build_records: deploymentCount,
-            health: health.every((h) => h.state === "healthy") ? "healthy"
-              : health.some((h) => h.state === "failed") ? "failed" : "degraded",
+            health: health.every((h) => h.state === "healthy")
+              ? "healthy"
+              : health.some((h) => h.state === "failed")
+                ? "failed"
+                : "degraded",
             average_build_time_ms: null,
             // Said from the counts, not written in advance.
             average_build_note:
@@ -537,8 +622,7 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
                   : `${deploymentCount + demoDeploymentCount} build record(s) exist, but none records a duration, so there is no average to report.`,
           },
           pipeline: {
-            what:
-              "This application ships by git pull, npm run build and pm2 restart onto one VPS. That is the deployment, and every part of it below is read rather than described.",
+            what: "This application ships by git pull, npm run build and pm2 restart onto one VPS. That is the deployment, and every part of it below is read rather than described.",
             host: instance,
             repo_dir: REPO_DIR,
           },
@@ -563,11 +647,13 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
             },
             rollback: {
               available: false,
-              reason: "Rollback belongs to a deployment provider, and none is connected. Git history is intact, so a rollback is a checkout and a rebuild on the host.",
+              reason:
+                "Rollback belongs to a deployment provider, and none is connected. Git history is intact, so a rollback is a checkout and a rebuild on the host.",
             },
             build_logs: {
               available: false,
-              reason: "No build record has ever been written to server_deployments, and no provider streams logs here. Inventing a log is the exact thing this brief forbids.",
+              reason:
+                "No build record has ever been written to server_deployments, and no provider streams logs here. Inventing a log is the exact thing this brief forbids.",
             },
             health_check: { available: true, reason: null },
             repository_read: { available: true, reason: null },
@@ -597,12 +683,17 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
         const decision = resolveAction({
-          roles: caller.roles, action: "settings_manage", permissions: matrix,
+          roles: caller.roles,
+          action: "settings_manage",
+          permissions: matrix,
         });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action: "deployment_health_check", permission: "marketplace.settings.manage",
-            roles: caller.roles, entityType: "deployment", recordId: null,
+            action: "deployment_health_check",
+            permission: "marketplace.settings.manage",
+            roles: caller.roles,
+            entityType: "deployment",
+            recordId: null,
             why: `${decision.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
@@ -621,28 +712,76 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
          */
         if (body.action === "validate") {
           const [repo, config, required] = await Promise.all([
-            repository(), detectBuildConfig(), requiredEnvironment(),
+            repository(),
+            detectBuildConfig(),
+            requiredEnvironment(),
           ]);
           const providers = providerCredentials();
           const target = providers.find((p) => p.kind === "target" && p.connectable) ?? null;
           const missingRequired = required.filter((v) => !v.set);
 
           const gates = [
-            { gate: "Repository exists", pass: repo.connected, detail: repo.remote ?? "no git remote" },
-            { gate: "Provider connected", pass: providers.some((p) => p.kind === "git" && p.connectable), detail: "No GITHUB_TOKEN or GITLAB_TOKEN is set. The checkout is readable on the host, but no provider API can be called." },
-            { gate: "Branch exists", pass: Boolean(repo.current_branch), detail: repo.current_branch ?? "no branch" },
-            { gate: "Build command", pass: Boolean(config.build_command), detail: config.build_command ?? "none in package.json" },
-            { gate: "Output directory", pass: Boolean(config.output_dir), detail: config.output_dir ?? "none on disk" },
-            { gate: "Required environment", pass: missingRequired.length === 0, detail: missingRequired.length ? `${missingRequired.length} of ${required.length} not set: ${missingRequired.slice(0, 6).map((v) => v.name).join(", ")}${missingRequired.length > 6 ? "…" : ""}` : `all ${required.length} set` },
-            { gate: "Working tree clean", pass: repo.working_tree_clean, detail: repo.working_tree_clean ? "clean" : `${repo.uncommitted_files} uncommitted file(s)` },
-            { gate: "Deployment target connected", pass: Boolean(target), detail: target ? target.name : "None of Vercel, Netlify, Railway or Cloudflare has a usable credential." },
+            {
+              gate: "Repository exists",
+              pass: repo.connected,
+              detail: repo.remote ?? "no git remote",
+            },
+            {
+              gate: "Provider connected",
+              pass: providers.some((p) => p.kind === "git" && p.connectable),
+              detail:
+                "No GITHUB_TOKEN or GITLAB_TOKEN is set. The checkout is readable on the host, but no provider API can be called.",
+            },
+            {
+              gate: "Branch exists",
+              pass: Boolean(repo.current_branch),
+              detail: repo.current_branch ?? "no branch",
+            },
+            {
+              gate: "Build command",
+              pass: Boolean(config.build_command),
+              detail: config.build_command ?? "none in package.json",
+            },
+            {
+              gate: "Output directory",
+              pass: Boolean(config.output_dir),
+              detail: config.output_dir ?? "none on disk",
+            },
+            {
+              gate: "Required environment",
+              pass: missingRequired.length === 0,
+              detail: missingRequired.length
+                ? `${missingRequired.length} of ${required.length} not set: ${missingRequired
+                    .slice(0, 6)
+                    .map((v) => v.name)
+                    .join(", ")}${missingRequired.length > 6 ? "…" : ""}`
+                : `all ${required.length} set`,
+            },
+            {
+              gate: "Working tree clean",
+              pass: repo.working_tree_clean,
+              detail: repo.working_tree_clean
+                ? "clean"
+                : `${repo.uncommitted_files} uncommitted file(s)`,
+            },
+            {
+              gate: "Deployment target connected",
+              pass: Boolean(target),
+              detail: target
+                ? target.name
+                : "None of Vercel, Netlify, Railway or Cloudflare has a usable credential.",
+            },
           ];
 
           const failed = gates.filter((g) => !g.pass);
-          await audit(request, "Deployment validation", { gates, failed: failed.length },
+          await audit(
+            request,
+            "Deployment validation",
+            { gates, failed: failed.length },
             failed.length === 0
               ? "Every pre-deployment gate passed."
-              : `Validation stopped: ${failed.map((g) => g.gate).join(", ")}.`);
+              : `Validation stopped: ${failed.map((g) => g.gate).join(", ")}.`,
+          );
 
           return Response.json({
             ok: true,
@@ -651,17 +790,20 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
             passed: gates.length - failed.length,
             failed: failed.length,
             can_deploy: failed.length === 0,
-            message: failed.length === 0
-              ? "Every gate passed."
-              : `Deployment would stop here. ${failed.length} gate(s) did not pass, and nothing was started.`,
+            message:
+              failed.length === 0
+                ? "Every gate passed."
+                : `Deployment would stop here. ${failed.length} gate(s) did not pass, and nothing was started.`,
           });
         }
 
         if (body.action !== "health_check") {
           return Response.json(
             {
-              ok: false, reason: "unsupported_action",
-              message: "Only health_check and validate run from here. Deploying and rolling back need a provider credential this environment does not have, and the real pipeline runs on the host.",
+              ok: false,
+              reason: "unsupported_action",
+              message:
+                "Only health_check and validate run from here. Deploying and rolling back need a provider credential this environment does not have, and the real pipeline runs on the host.",
             },
             { status: 400 },
           );
@@ -672,14 +814,22 @@ export const Route = createFileRoute("/api/marketplace/deployment")({
         const target = String(body.url ?? DOMAINS[0]);
         if (!DOMAINS.includes(target)) {
           return Response.json(
-            { ok: false, reason: "unknown_domain", message: "That is not one of this platform's domains." },
+            {
+              ok: false,
+              reason: "unknown_domain",
+              message: "That is not one of this platform's domains.",
+            },
             { status: 400 },
           );
         }
 
         const result = await healthCheck(target);
-        await audit(request, "Deployment health check", result,
-          `${target} answered ${result.status ?? "nothing"} in ${result.latency_ms} ms.`);
+        await audit(
+          request,
+          "Deployment health check",
+          result,
+          `${target} answered ${result.status ?? "nothing"} in ${result.latency_ms} ms.`,
+        );
         return Response.json({ ok: true, ...result });
       },
     },

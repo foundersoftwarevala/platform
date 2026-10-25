@@ -155,7 +155,14 @@ function summarise(history: Record<string, unknown>[], hours: number) {
   const cutoff = Date.now() - hours * 3600000;
   const window = history.filter((h) => Date.parse(String(h.recorded_at)) >= cutoff);
   if (window.length === 0) {
-    return { samples: 0, uptime_pct: null, avg_response_ms: null, errors: null, max_cpu: null, max_disk: null };
+    return {
+      samples: 0,
+      uptime_pct: null,
+      avg_response_ms: null,
+      errors: null,
+      max_cpu: null,
+      max_disk: null,
+    };
   }
   const clean = window.filter((h) => Number(h.error_count ?? 0) === 0);
   const responses = window
@@ -181,14 +188,22 @@ async function audit(request: Request, action: string, after: unknown, reason: s
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "system", p_entity_id: null,
-        p_before: null, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "system",
+        p_entity_id: null,
+        p_before: null,
+        p_after: after,
+        p_reason: reason,
       }),
     });
   } catch (error) {
@@ -213,38 +228,57 @@ export const Route = createFileRoute("/api/marketplace/system")({
         };
         if (!may("settings_view")) {
           await recordDenial(request, {
-            action: "system_view", permission: "marketplace.settings.view",
-            roles: caller.roles, entityType: "system", recordId: null,
+            action: "system_view",
+            permission: "marketplace.settings.view",
+            roles: caller.roles,
+            entityType: "system",
+            recordId: null,
             why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
-            { ok: false, reason: "permission_denied", message: "Permission marketplace.settings.view is required." },
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: "Permission marketplace.settings.view is required.",
+            },
             { status: 403 },
           );
         }
 
-        const [checks, instance, history, backups, schedules, logsRows, alerts, incidents, emailQueue, jobTables] =
-          await Promise.all([
-            runChecks(origin),
-            rows<Record<string, unknown>>(
-              "server_instances?select=server_code,server_name,hostname,provider,region_name,status,health_status,health_score,cpu_usage,cpu_cores,ram_usage,disk_usage,error_rate,response_time_ms,last_health_check,backup_status&limit=1",
-            ),
-            rows<Record<string, unknown>>(
-              "server_metrics_history?select=recorded_at,cpu_usage,ram_usage,disk_usage,response_time_ms,error_count,active_connections&order=recorded_at.desc&limit=2000",
-            ),
-            count("server_backup_jobs?select=id"),
-            count("server_backup_schedules?select=id"),
-            count("server_logs?select=id"),
-            count("server_alerts?select=id"),
-            count("server_incidents?select=id"),
-            rows<Record<string, unknown>>("email_queue?select=id,status,priority,category,created_at&limit=100"),
-            Promise.all([
-              count("demo_sandbox_jobs?select=id"),
-              count("demo_provision_jobs?select=id"),
-              count("ai_content_generations?select=id"),
-              count("demo_sandbox_cleanup_jobs?select=id"),
-            ]),
-          ]);
+        const [
+          checks,
+          instance,
+          history,
+          backups,
+          schedules,
+          logsRows,
+          alerts,
+          incidents,
+          emailQueue,
+          jobTables,
+        ] = await Promise.all([
+          runChecks(origin),
+          rows<Record<string, unknown>>(
+            "server_instances?select=server_code,server_name,hostname,provider,region_name,status,health_status,health_score,cpu_usage,cpu_cores,ram_usage,disk_usage,error_rate,response_time_ms,last_health_check,backup_status&limit=1",
+          ),
+          rows<Record<string, unknown>>(
+            "server_metrics_history?select=recorded_at,cpu_usage,ram_usage,disk_usage,response_time_ms,error_count,active_connections&order=recorded_at.desc&limit=2000",
+          ),
+          count("server_backup_jobs?select=id"),
+          count("server_backup_schedules?select=id"),
+          count("server_logs?select=id"),
+          count("server_alerts?select=id"),
+          count("server_incidents?select=id"),
+          rows<Record<string, unknown>>(
+            "email_queue?select=id,status,priority,category,created_at&limit=100",
+          ),
+          Promise.all([
+            count("demo_sandbox_jobs?select=id"),
+            count("demo_provision_jobs?select=id"),
+            count("ai_content_generations?select=id"),
+            count("demo_sandbox_cleanup_jobs?select=id"),
+          ]),
+        ]);
 
         const host = instance[0] ?? null;
         const windows = {
@@ -259,14 +293,24 @@ export const Route = createFileRoute("/api/marketplace/system")({
         // A component this platform does not run (cache, queue worker) says
         // so on its own row; it is not a fault of what does run. Ranked above
         // healthy, it made the overall state impossible to ever read healthy.
-        const worst = checks.reduce((acc, c) => {
-          const rank = { critical: 4, degraded: 3, unknown: 2, not_connected: 0, healthy: 0 } as const;
-          return rank[c.status] > rank[acc] ? c.status : acc;
-        }, "healthy" as Check["status"]);
+        const worst = checks.reduce(
+          (acc, c) => {
+            const rank = {
+              critical: 4,
+              degraded: 3,
+              unknown: 2,
+              not_connected: 0,
+              healthy: 0,
+            } as const;
+            return rank[c.status] > rank[acc] ? c.status : acc;
+          },
+          "healthy" as Check["status"],
+        );
 
         const emailByStatus: Record<string, number> = {};
         for (const m of emailQueue) {
-          emailByStatus[String(m.status ?? "unknown")] = (emailByStatus[String(m.status ?? "unknown")] ?? 0) + 1;
+          emailByStatus[String(m.status ?? "unknown")] =
+            (emailByStatus[String(m.status ?? "unknown")] ?? 0) + 1;
         }
 
         return Response.json({
@@ -281,7 +325,8 @@ export const Route = createFileRoute("/api/marketplace/system")({
           },
           metric_sources: {
             uptime_pct: `server_metrics_history — ${windows["24h"].samples} probes in the last 24 hours, each written by the cron that measures this machine every five minutes. A probe with no error counts as up.`,
-            queues: "email_queue. There is no queue runner, so these are records rather than work in flight.",
+            queues:
+              "email_queue. There is no queue runner, so these are records rather than work in flight.",
             storage_pct: "The disk figure the host reported on its last telemetry pass.",
             errors_24h: "The error count summed across the last 24 hours of probes.",
           },
@@ -294,8 +339,11 @@ export const Route = createFileRoute("/api/marketplace/system")({
           performance: windows,
           history: history.slice(0, 288).map((h) => ({
             at: h.recorded_at,
-            cpu: h.cpu_usage, ram: h.ram_usage, disk: h.disk_usage,
-            response_ms: h.response_time_ms, errors: h.error_count,
+            cpu: h.cpu_usage,
+            ram: h.ram_usage,
+            disk: h.disk_usage,
+            response_ms: h.response_time_ms,
+            errors: h.error_count,
             connections: h.active_connections,
           })),
           backup: {
@@ -337,8 +385,7 @@ export const Route = createFileRoute("/api/marketplace/system")({
             rows: incidents,
             alerts: alerts,
             state: (incidents ?? 0) === 0 && (alerts ?? 0) === 0 ? "NONE RECORDED" : "PRESENT",
-            note:
-              "No incident is created automatically from the checks above. An incident that opens itself on a slow probe becomes noise, and this platform has no on-call to receive it.",
+            note: "No incident is created automatically from the checks above. An incident that opens itself on a slow probe becomes noise, and this platform has no on-call to receive it.",
           },
           permissions: { view: true, run_check: may("settings_manage"), export: may("export") },
         });
@@ -359,12 +406,17 @@ export const Route = createFileRoute("/api/marketplace/system")({
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
         const decision = resolveAction({
-          roles: caller.roles, action: "settings_manage", permissions: matrix,
+          roles: caller.roles,
+          action: "settings_manage",
+          permissions: matrix,
         });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action: "system_health_check", permission: "marketplace.settings.manage",
-            roles: caller.roles, entityType: "system", recordId: null,
+            action: "system_health_check",
+            permission: "marketplace.settings.manage",
+            roles: caller.roles,
+            entityType: "system",
+            recordId: null,
             why: `${decision.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
@@ -376,7 +428,8 @@ export const Route = createFileRoute("/api/marketplace/system")({
         if (body.action !== "run_health_check") {
           return Response.json(
             {
-              ok: false, reason: "unsupported_action",
+              ok: false,
+              reason: "unsupported_action",
               message:
                 "Only run_health_check runs from here. Backup, restore, cache purge and queue control all need infrastructure this host does not have, and a button that reported success over nothing would be worse than no button.",
             },
@@ -387,10 +440,14 @@ export const Route = createFileRoute("/api/marketplace/system")({
         const origin = new URL(request.url).origin;
         const checks = await runChecks(origin);
         const failing = checks.filter((c) => c.status === "critical" || c.status === "degraded");
-        await audit(request, "System health check", { checks: checks.length, failing: failing.length },
+        await audit(
+          request,
+          "System health check",
+          { checks: checks.length, failing: failing.length },
           failing.length === 0
             ? "Every service check passed."
-            : `${failing.map((c) => `${c.service}: ${c.status}`).join(", ")}.`);
+            : `${failing.map((c) => `${c.service}: ${c.status}`).join(", ")}.`,
+        );
         return Response.json({ ok: true, checks, failing: failing.length });
       },
     },

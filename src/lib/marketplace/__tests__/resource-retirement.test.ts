@@ -51,7 +51,7 @@ describe("manager resource retirement", () => {
     async (resource, table, archive) => {
       const row = { id, ...archive };
       const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) =>
-        String(input).endsWith("/rpc/mm_audit")
+        String(input).endsWith("/rpc/mm_audit_operator")
           ? Response.json({ ok: true })
           : Response.json([row]),
       );
@@ -68,7 +68,7 @@ describe("manager resource retirement", () => {
         }),
       );
       expect(fetch).toHaveBeenCalledWith(
-        "http://db.test/rest/v1/rpc/mm_audit",
+        "http://db.test/rest/v1/rpc/mm_audit_operator",
         expect.objectContaining({ method: "POST" }),
       );
       expect(fetch.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);

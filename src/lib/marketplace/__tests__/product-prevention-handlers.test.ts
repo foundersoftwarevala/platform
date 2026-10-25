@@ -505,7 +505,7 @@ describe("actual product creation handlers", () => {
       "fetch",
       vi.fn(async (input: string | URL, init?: RequestInit) => {
         const row = JSON.parse(String(init?.body));
-        if (String(input).includes("/rpc/mm_audit")) {
+        if (String(input).includes("/rpc/mm_audit_operator")) {
           expect(row.p_reason).toContain("QA/test");
           return json("audit1");
         }

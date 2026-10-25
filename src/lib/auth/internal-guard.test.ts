@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEMO_OPERATOR_ROLES, DEMO_ROUTE_ROLES } from "./demo-roles";
+import { requireInternalOperator } from "./internal-guard";
+import { MARKETPLACE_MANAGER_API_ROLES } from "./marketplace-manager-roles";
 
 const OPERATOR_ROLES = new Set<string>(DEMO_OPERATOR_ROLES);
 
@@ -43,5 +45,53 @@ describe("demo publishing authority", () => {
     for (const role of DEMO_ROUTE_ROLES) {
       expect(OPERATOR_ROLES.has(role)).toBe(true);
     }
+  });
+});
+
+describe("Marketplace Manager API authority", () => {
+  beforeEach(() => {
+    vi.stubEnv("INTERNAL_API_TOKEN", "");
+    vi.stubEnv("SUPABASE_URL", "https://supabase.fixture.invalid");
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "publishable-fixture");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-fixture");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("refuses a developer-only account even though demo publishing admits developers", async () => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/auth/v1/user")) {
+        return new Response(JSON.stringify({ id: "user-fixture" }), { status: 200 });
+      }
+      return new Response(JSON.stringify([{ role: "developer" }]), { status: 200 });
+    });
+
+    const result = await requireInternalOperator(
+      new Request("https://fixture.invalid", { headers: { authorization: "Bearer fixture" } }),
+      { allowedRoles: MARKETPLACE_MANAGER_API_ROLES },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.response.status).toBe(403);
+  });
+
+  it("accepts an explicitly authorized Marketplace Manager role", async () => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/auth/v1/user")) {
+        return new Response(JSON.stringify({ id: "user-fixture" }), { status: 200 });
+      }
+      return new Response(JSON.stringify([{ role: "admin" }]), { status: 200 });
+    });
+
+    const result = await requireInternalOperator(
+      new Request("https://fixture.invalid", { headers: { authorization: "Bearer fixture" } }),
+      { allowedRoles: MARKETPLACE_MANAGER_API_ROLES },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.roles).toEqual(["admin"]);
   });
 });

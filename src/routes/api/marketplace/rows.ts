@@ -1,6 +1,7 @@
 import { rateLimited } from "@/lib/server/rate-limit";
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { MARKETPLACE_MANAGER_API_ROLES } from "@/lib/auth/marketplace-manager-roles";
 import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
 /**
@@ -38,6 +39,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * matter and short enough that nobody is looking at yesterday.
  */
 const ROWS_CACHE_MS = 60_000;
+const managerGate = {
+  allowedRoles: MARKETPLACE_MANAGER_API_ROLES,
+  deniedMessage: "Marketplace Manager access is restricted to authorized roles.",
+} as const;
 
 type RowSummary = {
   id: string;
@@ -79,7 +84,7 @@ async function audit(
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
@@ -115,7 +120,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
           const fresh =
             rowsCache && Date.now() - rowsCache.at < ROWS_CACHE_MS ? rowsCache.rows : null;
           if (fresh) {
-            const gate = await requireInternalOperator(request);
+            const gate = await requireInternalOperator(request, managerGate);
             const visible = gate.ok ? fresh : fresh.filter((r) => !r.hidden);
             return Response.json(
               {
@@ -196,7 +201,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
           // and unhiding is the whole point of the panel that calls this.
           rowsCache = { at: Date.now(), rows };
 
-          const gate = await requireInternalOperator(request);
+          const gate = await requireInternalOperator(request, managerGate);
           const visible = gate.ok ? rows : rows.filter((r) => !r.hidden);
 
           return Response.json(
@@ -214,7 +219,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
       },
 
       PATCH: async ({ request }) => {
-        const gate = await requireInternalOperator(request);
+        const gate = await requireInternalOperator(request, managerGate);
         if (!gate.ok) return gate.response;
 
         let body: { id?: string; sort_order?: number; is_hidden?: boolean; is_featured?: boolean };
@@ -259,7 +264,7 @@ export const Route = createFileRoute("/api/marketplace/rows")({
       },
 
       PUT: async ({ request }) => {
-        const gate = await requireInternalOperator(request);
+        const gate = await requireInternalOperator(request, managerGate);
         if (!gate.ok) return gate.response;
 
         let body: { order?: string[] };

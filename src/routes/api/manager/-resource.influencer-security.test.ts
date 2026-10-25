@@ -22,10 +22,27 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 vi.mock("@/lib/auth/internal-guard", () => ({
-  requireInternalOperator: async () =>
-    state.authenticated
-      ? { ok: true, via: `operator:${state.role}`, role: state.role, roles: state.roles }
-      : { ok: false, response: Response.json({ error: "Sign in required" }, { status: 401 }) },
+  requireInternalOperator: async (
+    _request: Request,
+    options?: { allowedRoles?: readonly string[] },
+  ) => {
+    if (!state.authenticated) {
+      return {
+        ok: false,
+        response: Response.json({ error: "Sign in required" }, { status: 401 }),
+      };
+    }
+    if (
+      options?.allowedRoles &&
+      !state.roles.some((role) => options.allowedRoles?.includes(role))
+    ) {
+      return {
+        ok: false,
+        response: Response.json({ error: "Insufficient permissions" }, { status: 403 }),
+      };
+    }
+    return { ok: true, via: `operator:${state.role}`, role: state.role, roles: state.roles };
+  },
 }));
 vi.mock("@/lib/marketplace/catalogue-invalidation", () => ({
   STOREFRONT_TABLES: new Set<string>(),
@@ -82,6 +99,43 @@ afterEach(() => {
 });
 
 describe("manager resource influencer authorization", () => {
+  it.each(["GET", "POST", "PATCH", "DELETE"] as const)(
+    "denies developer-only access to customer data for %s before service-role access",
+    async (method) => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      const payload =
+        method === "POST"
+          ? { resource: "customers", values: { contact_name: "Fixture" } }
+          : method === "PATCH"
+            ? { resource: "customers", id: payoutId, changes: { status: "active" } }
+            : undefined;
+
+      const response = await call(method, "customers", "developer", payload);
+
+      expect(response.status).toBe(403);
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["admin", "boss", "super_admin", "owner"])(
+    "preserves existing server operator role %s access",
+    async (role) => {
+      vi.stubGlobal(
+        "fetch",
+        async () =>
+          new Response(JSON.stringify([{ id: payoutId, contact_name: "Fixture" }]), {
+            status: 200,
+            headers: { "content-range": "0-0/1" },
+          }),
+      );
+
+      const response = await call("GET", "customers", role);
+
+      expect(response.status).toBe(200);
+    },
+  );
+
   it("rejects unauthenticated access before reading influencer PII", async () => {
     state.authenticated = false;
     const fetchMock = vi.fn();
@@ -190,7 +244,7 @@ describe("manager resource influencer authorization", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("scopes generic partner commission reads away from influencer PII for broader operators", async () => {
+  it("scopes generic partner commission reads away from influencer PII for Marketplace Managers", async () => {
     let requestedUrl = "";
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       requestedUrl = String(input);
@@ -200,13 +254,13 @@ describe("manager resource influencer authorization", () => {
       });
     });
 
-    const response = await call("GET", "partner_commissions", "developer");
+    const response = await call("GET", "partner_commissions", "owner");
 
     expect(response.status).toBe(200);
     expect(requestedUrl).toContain("partner_kind=neq.influencer");
   });
 
-  it("prevents generic partner commission updates from reaching influencer rows", async () => {
+  it("prevents Marketplace Manager commission updates from reaching influencer rows", async () => {
     const requestedUrls: string[] = [];
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       requestedUrls.push(String(input));
@@ -214,7 +268,7 @@ describe("manager resource influencer authorization", () => {
       return new Response("[]", { status: 200 });
     });
 
-    const response = await call("PATCH", "partner_commissions", "developer", {
+    const response = await call("PATCH", "partner_commissions", "admin", {
       resource: "partner_commissions",
       id: payoutId,
       changes: { status: "approved" },
@@ -256,7 +310,8 @@ describe("manager resource influencer authorization", () => {
           status: 200,
         });
       }
-      if (requestUrl.endsWith("/rpc/mm_audit")) return new Response("null", { status: 200 });
+      if (requestUrl.endsWith("/rpc/mm_audit_operator"))
+        return new Response("null", { status: 200 });
       return new Response(JSON.stringify([{ id: payoutId, status: "requested" }]), {
         status: 200,
       });

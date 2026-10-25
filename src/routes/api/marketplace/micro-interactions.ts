@@ -2,9 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import { DEFAULT_ACTIONS, REGISTRY_KEY, type ActionConfig } from "@/lib/marketplace/action-layer";
 import {
-  DEFINITIONS, FREQUENCIES, MICRO_KEY, SURFACES,
-  defaultConfig, validateConfig,
-  type MicroConfig, type MicroKey,
+  DEFINITIONS,
+  FREQUENCIES,
+  MICRO_KEY,
+  SURFACES,
+  defaultConfig,
+  validateConfig,
+  type MicroConfig,
+  type MicroKey,
 } from "@/lib/marketplace/micro-interactions";
 import { resolveAction } from "@/lib/marketplace/permission-guard";
 import { loadMatrix, recordDenial, rolesOf } from "@/lib/marketplace/permission-store.server";
@@ -71,7 +76,10 @@ async function setting(key: string): Promise<unknown> {
   }
 }
 
-async function storedConfig(): Promise<{ config: Record<MicroKey, MicroConfig>; configured: boolean }> {
+async function storedConfig(): Promise<{
+  config: Record<MicroKey, MicroConfig>;
+  configured: boolean;
+}> {
   const raw = await setting(MICRO_KEY);
   if (!raw) return { config: defaultConfig(), configured: false };
   const result = validateConfig(raw);
@@ -108,7 +116,7 @@ async function readiness(actions: ActionConfig[]) {
   ]);
 
   const actionFor = (key: string | null) =>
-    key ? actions.find((a) => a.key === key) ?? null : null;
+    key ? (actions.find((a) => a.key === key) ?? null) : null;
 
   return DEFINITIONS.map((definition) => {
     const action = actionFor(definition.requiresAction);
@@ -146,7 +154,9 @@ async function readiness(actions: ActionConfig[]) {
         break;
       case "recently_viewed":
         if (viewEvents === 0) {
-          blockers.push("No product_view events have been recorded yet, so there is nothing to show.");
+          blockers.push(
+            "No product_view events have been recorded yet, so there is nothing to show.",
+          );
         }
         break;
       default:
@@ -155,11 +165,19 @@ async function readiness(actions: ActionConfig[]) {
 
     return {
       key: definition.key,
-      action: action ? { key: action.key, label: action.label, enabled: action.enabled, visibility: action.visibility } : null,
+      action: action
+        ? {
+            key: action.key,
+            label: action.label,
+            enabled: action.enabled,
+            visibility: action.visibility,
+          }
+        : null,
       ready: blockers.length === 0,
       blockers,
       evidence: {
-        carts, cart_items: cartItems,
+        carts,
+        cart_items: cartItems,
         products_with_demo: demoProducts,
         product_view_events: viewEvents,
         payment_configured: paymentConfigured,
@@ -178,10 +196,15 @@ async function readiness(actions: ActionConfig[]) {
  */
 async function analytics() {
   const events = await rows<{
-    event_type: string; metadata: Record<string, unknown> | null;
-    session_id: string | null; user_id: string | null; surface: string | null;
+    event_type: string;
+    metadata: Record<string, unknown> | null;
+    session_id: string | null;
+    user_id: string | null;
+    surface: string | null;
     created_at: string;
-  }>("marketplace_events?select=event_type,metadata,session_id,user_id,surface,created_at&order=created_at.desc&limit=2000");
+  }>(
+    "marketplace_events?select=event_type,metadata,session_id,user_id,surface,created_at&order=created_at.desc&limit=2000",
+  );
 
   const byAction: Record<string, number> = {};
   const bySurface: Record<string, number> = {};
@@ -230,14 +253,22 @@ async function audit(
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "micro_interactions", p_entity_id: null,
-        p_before: before, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "micro_interactions",
+        p_entity_id: null,
+        p_before: before,
+        p_after: after,
+        p_reason: reason,
       }),
     });
   } catch (error) {
@@ -287,12 +318,19 @@ export const Route = createFileRoute("/api/marketplace/micro-interactions")({
         };
         if (!may("micro_view")) {
           await recordDenial(request, {
-            action: "micro_view", permission: "marketplace.micro.view",
-            roles: caller.roles, entityType: "micro_interactions", recordId: null,
+            action: "micro_view",
+            permission: "marketplace.micro.view",
+            roles: caller.roles,
+            entityType: "micro_interactions",
+            recordId: null,
             why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
-            { ok: false, reason: "permission_denied", message: "Permission marketplace.micro.view is required." },
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: "Permission marketplace.micro.view is required.",
+            },
             { status: 403 },
           );
         }
@@ -303,7 +341,9 @@ export const Route = createFileRoute("/api/marketplace/micro-interactions")({
           readiness(actions),
           analytics(),
           // Section 24: the versions are the audit rows for this entity.
-          rows("marketplace_audit_logs?select=action,reason,actor,actor_role,created_at,before_state,after_state&entity_type=eq.micro_interactions&order=created_at.desc&limit=20"),
+          rows(
+            "marketplace_audit_logs?select=action,reason,actor,actor_role,created_at,before_state,after_state&entity_type=eq.micro_interactions&order=created_at.desc&limit=20",
+          ),
         ]);
 
         return Response.json({
@@ -342,17 +382,24 @@ export const Route = createFileRoute("/api/marketplace/micro-interactions")({
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
         const decision = resolveAction({
-          roles: caller.roles, action: "micro_manage", permissions: matrix,
+          roles: caller.roles,
+          action: "micro_manage",
+          permissions: matrix,
         });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action: "micro_manage", permission: "marketplace.micro.manage",
-            roles: caller.roles, entityType: "micro_interactions", recordId: null,
+            action: "micro_manage",
+            permission: "marketplace.micro.manage",
+            roles: caller.roles,
+            entityType: "micro_interactions",
+            recordId: null,
             why: `${decision.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
             {
-              ok: false, reason: "permission_denied", message: decision.reason,
+              ok: false,
+              reason: "permission_denied",
+              message: decision.reason,
               visibility: decision.visible ? "disabled" : "hidden",
             },
             { status: 403 },
@@ -366,14 +413,20 @@ export const Route = createFileRoute("/api/marketplace/micro-interactions")({
           // configuration again, rather than writing the defaults back as
           // though somebody had chosen each one.
           const response = await fetch(`${url()}/rest/v1/system_settings?key=eq.${MICRO_KEY}`, {
-            method: "DELETE", headers: admin(),
+            method: "DELETE",
+            headers: admin(),
           });
           if (!response.ok) {
             return Response.json({ error: "The configuration was not reset" }, { status: 502 });
           }
-          await audit(request, "Micro-interactions reset", before.config, defaultConfig(),
+          await audit(
+            request,
+            "Micro-interactions reset",
+            before.config,
+            defaultConfig(),
             String(body.reason ?? "").slice(0, 300) ||
-              "Every micro-interaction returned to the Software Vala defaults.");
+              "Every micro-interaction returned to the Software Vala defaults.",
+          );
           return Response.json({ ok: true, reset: true, config: defaultConfig() });
         }
 
@@ -399,8 +452,10 @@ export const Route = createFileRoute("/api/marketplace/micro-interactions")({
         if (!after.configured) {
           return Response.json(
             {
-              ok: false, reason: "not_effective",
-              message: "The save was accepted but reading it back did not return a valid configuration.",
+              ok: false,
+              reason: "not_effective",
+              message:
+                "The save was accepted but reading it back did not return a valid configuration.",
             },
             { status: 502 },
           );
@@ -410,9 +465,14 @@ export const Route = createFileRoute("/api/marketplace/micro-interactions")({
           (d) => JSON.stringify(before.config[d.key]) !== JSON.stringify(after.config[d.key]),
         ).map((d) => d.key);
 
-        await audit(request, "Micro-interactions configured", before.config, after.config,
+        await audit(
+          request,
+          "Micro-interactions configured",
+          before.config,
+          after.config,
           String(body.reason ?? "").slice(0, 300) ||
-            `Changed ${changed.join(", ") || "nothing"} from the Marketplace Manager.`);
+            `Changed ${changed.join(", ") || "nothing"} from the Marketplace Manager.`,
+        );
 
         return Response.json({ ok: true, config: after.config, changed });
       },

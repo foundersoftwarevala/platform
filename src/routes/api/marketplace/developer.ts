@@ -57,7 +57,9 @@ async function probe(origin: string) {
       const writesOnPublic = endpoint.auth === "public" && endpoint.method !== "GET";
       if (writesOnPublic) {
         return {
-          id: endpoint.id, expected: null as number | null, status: null as number | null,
+          id: endpoint.id,
+          expected: null as number | null,
+          status: null as number | null,
           agrees: null as boolean | null,
           note: "Not probed: it is public and it writes, so calling it to check would create a real record.",
         };
@@ -72,7 +74,10 @@ async function probe(origin: string) {
         const agrees =
           endpoint.auth === "operator" ? response.status === 401 : response.status !== 401;
         return {
-          id: endpoint.id, expected, status: response.status, agrees,
+          id: endpoint.id,
+          expected,
+          status: response.status,
+          agrees,
           note: agrees
             ? endpoint.auth === "operator"
               ? "Refused an anonymous caller, as declared."
@@ -83,7 +88,10 @@ async function probe(origin: string) {
         };
       } catch (error) {
         return {
-          id: endpoint.id, expected, status: null, agrees: null,
+          id: endpoint.id,
+          expected,
+          status: null,
+          agrees: null,
           note: `Could not be reached: ${error instanceof Error ? error.message : "unknown"}.`,
         };
       }
@@ -121,18 +129,21 @@ async function telemetry() {
   for (const row of audit) {
     const action = String(row.action);
     byAction[action] = (byAction[action] ?? 0) + 1;
-    byActor[String(row.actor_role ?? "unknown")] = (byActor[String(row.actor_role ?? "unknown")] ?? 0) + 1;
-    byEntity[String(row.entity_type ?? "unknown")] = (byEntity[String(row.entity_type ?? "unknown")] ?? 0) + 1;
+    byActor[String(row.actor_role ?? "unknown")] =
+      (byActor[String(row.actor_role ?? "unknown")] ?? 0) + 1;
+    byEntity[String(row.entity_type ?? "unknown")] =
+      (byEntity[String(row.entity_type ?? "unknown")] ?? 0) + 1;
     if (action.startsWith("Action denied")) denied += 1;
   }
 
   const top = (source: Record<string, number>, n = 8) =>
-    Object.entries(source).sort((a, b) => b[1] - a[1]).slice(0, n);
+    Object.entries(source)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, n);
 
   return {
     source: "marketplace_audit_logs",
-    what:
-      "Every authenticated write through these endpoints is audited with its actor and result. That is the record of this API's traffic; there is no separate request log for it.",
+    what: "Every authenticated write through these endpoints is audited with its actor and result. That is the record of this API's traffic; there is no separate request log for it.",
     total_recorded: audit.length,
     denied_attempts: denied,
     top_actions: top(byAction),
@@ -153,14 +164,22 @@ async function audit(request: Request, action: string, after: unknown, reason: s
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "developer_api", p_entity_id: null,
-        p_before: null, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "developer_api",
+        p_entity_id: null,
+        p_before: null,
+        p_after: after,
+        p_reason: reason,
       }),
     });
   } catch (error) {
@@ -188,12 +207,19 @@ export const Route = createFileRoute("/api/marketplace/developer")({
         };
         if (!may("view")) {
           await recordDenial(request, {
-            action: "developer_api_view", permission: "marketplace.view",
-            roles: caller.roles, entityType: "developer_api", recordId: null,
+            action: "developer_api_view",
+            permission: "marketplace.view",
+            roles: caller.roles,
+            entityType: "developer_api",
+            recordId: null,
             why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
-            { ok: false, reason: "permission_denied", message: "Permission marketplace.view is required." },
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: "Permission marketplace.view is required.",
+            },
             { status: 403 },
           );
         }
@@ -202,8 +228,12 @@ export const Route = createFileRoute("/api/marketplace/developer")({
         // cannot describe an endpoint that does not exist.
         if (format === "openapi" || format === "yaml") {
           const spec = openApi(origin);
-          await audit(request, "OpenAPI exported", { endpoints: ENDPOINTS.length, format },
-            `The Marketplace API specification was exported as ${format === "yaml" ? "YAML" : "JSON"}.`);
+          await audit(
+            request,
+            "OpenAPI exported",
+            { endpoints: ENDPOINTS.length, format },
+            `The Marketplace API specification was exported as ${format === "yaml" ? "YAML" : "JSON"}.`,
+          );
           if (format === "yaml") {
             return new Response(toYaml(spec).replace(/^\n/, ""), {
               headers: {
@@ -233,8 +263,7 @@ export const Route = createFileRoute("/api/marketplace/developer")({
             agree: checks.filter((c) => c.agrees === true).length,
             mismatches: mismatches.length,
             results: checks,
-            what:
-              "Each endpoint was called from this server with no credential. An operator endpoint must answer 401; a public one must not.",
+            what: "Each endpoint was called from this server with no credential. An operator endpoint must answer 401; a public one must not.",
           },
           telemetry: stats,
           version: {
@@ -245,27 +274,33 @@ export const Route = createFileRoute("/api/marketplace/developer")({
           capabilities: {
             graphql: {
               available: false,
-              reason: "There is no GraphQL server in this application. Section 25 says not to build a fake one, so there is not one.",
+              reason:
+                "There is no GraphQL server in this application. Section 25 says not to build a fake one, so there is not one.",
             },
             api_keys: {
               available: false,
-              reason: "Issuing keys needs a table to hold the hash, the scopes and the revocation, and it cannot be created here — the Supabase management token answers 401, so there is no DDL. api_keys exists but belongs to the AI API Manager and holds the platform's own provider credentials.",
+              reason:
+                "Issuing keys needs a table to hold the hash, the scopes and the revocation, and it cannot be created here — the Supabase management token answers 401, so there is no DDL. api_keys exists but belongs to the AI API Manager and holds the platform's own provider credentials.",
             },
             oauth: {
               available: false,
-              reason: "No client registry, no authorisation endpoint and no token store. All three need tables.",
+              reason:
+                "No client registry, no authorisation endpoint and no token store. All three need tables.",
             },
             jwt: {
               available: true,
-              reason: "Operator bearer tokens are Supabase JWTs, verified against Supabase on every guarded request. This application does not mint or sign its own.",
+              reason:
+                "Operator bearer tokens are Supabase JWTs, verified against Supabase on every guarded request. This application does not mint or sign its own.",
             },
             webhooks: {
               available: false,
-              reason: "The Marketplace Manager emits no outbound events today, and section 11 says to register only events that are actually emitted. finance_payment_webhooks exists, is empty, and belongs to Finance.",
+              reason:
+                "The Marketplace Manager emits no outbound events today, and section 11 says to register only events that are actually emitted. finance_payment_webhooks exists, is empty, and belongs to Finance.",
             },
             rate_limiting: {
               available: false,
-              reason: "No limiter runs in front of these endpoints. The rate_limits table on this database configures the platform's outbound provider calls, not this API. Saying a limit is enforced when nothing enforces it would be worse than saying there is none.",
+              reason:
+                "No limiter runs in front of these endpoints. The rate_limits table on this database configures the platform's outbound provider calls, not this API. Saying a limit is enforced when nothing enforces it would be worse than saying there is none.",
             },
             test_console: { available: true, reason: null },
             openapi: { available: true, reason: null },
@@ -294,11 +329,18 @@ export const Route = createFileRoute("/api/marketplace/developer")({
 
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
-        const decision = resolveAction({ roles: caller.roles, action: "edit", permissions: matrix });
+        const decision = resolveAction({
+          roles: caller.roles,
+          action: "edit",
+          permissions: matrix,
+        });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action: "developer_api_test", permission: "marketplace.edit",
-            roles: caller.roles, entityType: "developer_api", recordId: body.endpoint_id ?? null,
+            action: "developer_api_test",
+            permission: "marketplace.edit",
+            roles: caller.roles,
+            entityType: "developer_api",
+            recordId: body.endpoint_id ?? null,
             why: `${decision.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
@@ -310,7 +352,11 @@ export const Route = createFileRoute("/api/marketplace/developer")({
         const endpoint = ENDPOINTS.find((e) => e.id === String(body.endpoint_id ?? ""));
         if (!endpoint) {
           return Response.json(
-            { ok: false, reason: "unknown_endpoint", message: "That endpoint is not in the registry." },
+            {
+              ok: false,
+              reason: "unknown_endpoint",
+              message: "That endpoint is not in the registry.",
+            },
             { status: 400 },
           );
         }
@@ -319,7 +365,8 @@ export const Route = createFileRoute("/api/marketplace/developer")({
         if (endpoint.method !== "GET") {
           return Response.json(
             {
-              ok: false, reason: "read_only_console",
+              ok: false,
+              reason: "read_only_console",
               message: `${endpoint.name} is a ${endpoint.method}. The console runs reads only — a write belongs in the screen that owns it, where its confirmation and its audit reason are asked for.`,
             },
             { status: 400 },
@@ -327,7 +374,9 @@ export const Route = createFileRoute("/api/marketplace/developer")({
         }
 
         const origin = new URL(request.url).origin;
-        const query = String(body.query ?? "").replace(/^\?/, "").slice(0, 500);
+        const query = String(body.query ?? "")
+          .replace(/^\?/, "")
+          .slice(0, 500);
         const target = `${origin}${endpoint.path}${query ? `?${query}` : ""}`;
 
         const forwarded: Record<string, string> = { "Content-Type": "application/json" };
@@ -349,17 +398,29 @@ export const Route = createFileRoute("/api/marketplace/developer")({
         } catch (error) {
           return Response.json(
             {
-              ok: false, reason: "unreachable", request_id: requestId,
-              message: error instanceof Error ? error.message : "The endpoint could not be reached.",
+              ok: false,
+              reason: "unreachable",
+              request_id: requestId,
+              message:
+                error instanceof Error ? error.message : "The endpoint could not be reached.",
             },
             { status: 502 },
           );
         }
         const latency = Date.now() - started;
 
-        await audit(request, "API test console call",
-          { endpoint: endpoint.id, path: endpoint.path, status, latency_ms: latency, request_id: requestId },
-          `${endpoint.name} was called from the API test console and answered ${status}.`);
+        await audit(
+          request,
+          "API test console call",
+          {
+            endpoint: endpoint.id,
+            path: endpoint.path,
+            status,
+            latency_ms: latency,
+            request_id: requestId,
+          },
+          `${endpoint.name} was called from the API test console and answered ${status}.`,
+        );
 
         let parsed: unknown = null;
         try {

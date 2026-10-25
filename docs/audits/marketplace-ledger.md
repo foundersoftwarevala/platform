@@ -223,3 +223,84 @@ access refused).
 - ESLint (prettier line-ending noise excluded): no new errors in changed files.
 - Not done in this run: deployment, live re-probe, and any database change —
   production access was refused. Every FIXED item is in the working tree only.
+
+## Phase 06–10 Continuation (2026-10-26)
+
+See the evidence-based continuation report in
+[MARKETPLACE-ECOSYSTEM-SCAN.md](../audit/MARKETPLACE-ECOSYSTEM-SCAN.md),
+section “Phases 06–10 Continuation”. This preserves the historical Phase
+01–05 statuses rather than resetting or silently closing them.
+
+| ID / phase | Current status |
+|---|---|
+| SEC-06-01 Marketplace Manager developer-only API access | FIXED & VERIFIED locally by focused tests; not committed or deployed |
+| SEC-06-02 category-row API developer-only access | FIXED & VERIFIED locally by focused tests; not committed or deployed |
+| SEC-06-03 anonymous demo eligibility disclosure | Mitigation in migration; unapplied and not verified |
+| SEC-06-04 anonymous sandbox activity/expiry mutation | Mitigation in migration; unapplied and not verified |
+| SEC-06-05 anonymous top-bar item mutation | Checked-in function has `mm_is_operator()` guard; deployed definition/grants NEED VERIFICATION; no source-level exploit confirmed |
+| SEC-06-06 authenticated audit-log forgery | Mitigation in migration; unapplied and not verified |
+| PH06 Marketplace Manager server-function security coverage | Wrapper inventory complete; database authorization review incomplete |
+| RBAC-04 broad Marketplace Manager role parity | OPEN / NEEDS-OWNER; no broader access granted |
+| PH07-MM-01 audit write can succeed without audit event | OPEN — MEDIUM |
+| PH07-MM-02 invalid bulk UUIDs are silently omitted | OPEN — MEDIUM |
+| PH07-MM-03 product transition check and write can race | OPEN — MEDIUM |
+| PH08 edge-case and persisted workflow tests | BLOCKED / NEEDS VERIFICATION; full suite has failures |
+| PH09 cross-module live lifecycle verification | BLOCKED / UNVERIFIED |
+| PH10 release readiness | NOT READY TO CLAIM; tests/typecheck/lint and live verification are incomplete |
+
+**SEC-06-02 evidence:** `GET /api/marketplace/rows` could return hidden
+categories and `PATCH`/`PUT` could change visibility or ordering for a
+developer-only account passing the generic operator gate. Source evidence:
+`src/routes/api/marketplace/rows.ts` (old gate and handler lines
+118–120, 199–201, 216–250, 261–284), with the default developer role in
+`src/lib/auth/demo-roles.ts:15-21`. The endpoint now passes the explicit
+Marketplace Manager role allowlist for the cached/uncached GET and both
+writes. Regressions verify hidden rows are omitted and write requests are
+denied before database access. It was first retested in three focused files;
+the final security regression run passed 40/40 tests across four files after
+adding migration-contract coverage. This code is still local, uncommitted,
+and undeployed.
+
+**SEC-06-03/04:** a new migration gates `mm_demo_eligibility` and
+`mm_sandbox_activity` with `mm_is_operator()` and revokes anonymous execution.
+Static regression tests pass, but neither migration has been applied or run
+against a database; do not report either issue as fixed in production. The
+anonymous activity contract was intentionally narrowed to operator-only until
+a sandbox capability is designed; anonymous runtime telemetry is not wired
+in this repository.
+
+**SEC-06-05:** `mm_topbar_items_set` is defined in
+`20261019T090000_topbar_dropdown_items.sql`, checks `mm_is_operator()`, and
+that migration grants `PUBLIC` execute. The checked-in body is guarded; the
+effective deployed definition/grants remain unverified.
+
+**SEC-06-06:** the checked-in `mm_audit` accepted arbitrary authenticated
+audit payloads. Migration `20261108T153000_mm_audit_operator_gate.sql`
+revokes direct authenticated execution and introduces a gated wrapper. API
+and server-function callers were redirected to the wrapper. Static tests
+cover the SQL contract; migration application, nested definer-call behavior,
+and live ACLs remain unverified. The latest focused rerun passed 91/91
+tests across seven files, including authorization, route and migration
+contract regressions.
+
+The RPC review identified 155 names (149 in the schema snapshot, six in
+migrations), but fully verified definition-plus-effective-grant coverage is
+0/155. Do not claim complete database-side authorization review.
+
+**Resume checklist:** inspect deployed definitions/grants for all 155 called
+RPCs and verify the effective ACL for `mm_topbar_items_set`; apply and verify
+SEC-06-03/04/06 in authorized isolated databases; fix and test PH07-MM-01
+through PH07-MM-03; obtain the RBAC-04 owner decision; then rerun the full
+suite and typecheck, resolve or baseline
+unrelated failures, and perform authorized isolated E2E/schema/RLS
+verification. Do not deploy any uncommitted changes without release
+authorization.
+
+**Tooling follow-up (2026-10-26):** ESLint autofix resolved 503/504 changed-
+source findings, and the remaining ANSI-regex rule exception is narrowly
+scoped; lint now passes across all 28 changed source files. The unsupported
+Lead Manager Convert action was removed because no backing API/RPC contract
+exists; full typecheck and production build now pass. Focused regressions pass
+91/91 (seven security files) and 4/4 (Lead Manager API). The previously
+recorded full-suite failures remain unverified in this pass; no full-suite
+rerun was completed.

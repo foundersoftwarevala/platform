@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { MARKETPLACE_MANAGER_API_ROLES } from "@/lib/auth/marketplace-manager-roles";
 import {
-  ACTION_TARGET, resolveRowActions, transitionAllowed,
+  ACTION_TARGET,
+  resolveRowActions,
+  transitionAllowed,
   type RowActionId,
 } from "@/lib/marketplace/row-actions";
 import { ACTION_PERMISSION, resolveAction } from "@/lib/marketplace/permission-guard";
@@ -84,7 +87,13 @@ async function rolesOf(request: Request): Promise<{ roles: string[]; via: string
  */
 async function recordDenial(
   request: Request,
-  detail: { action: string; permission: string | null; roles: string[]; recordId: string; why: string },
+  detail: {
+    action: string;
+    permission: string | null;
+    roles: string[];
+    recordId: string;
+    why: string;
+  },
 ): Promise<void> {
   try {
     const authorization = request.headers.get("authorization");
@@ -92,11 +101,15 @@ async function recordDenial(
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
         p_action: `Action denied: ${detail.action}`,
         p_entity_type: "products",
@@ -151,7 +164,10 @@ export const Route = createFileRoute("/api/manager/row-action")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const gate = await requireInternalOperator(request);
+        const gate = await requireInternalOperator(request, {
+          allowedRoles: MARKETPLACE_MANAGER_API_ROLES,
+          deniedMessage: "Marketplace Manager access is restricted to authorized roles.",
+        });
         if (!gate.ok) return gate.response;
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 
@@ -164,7 +180,8 @@ export const Route = createFileRoute("/api/manager/row-action")({
 
         const id = String(body.id ?? "");
         const action = body.action as RowActionId;
-        if (!UUID.test(id)) return Response.json({ error: "A product id is required" }, { status: 400 });
+        if (!UUID.test(id))
+          return Response.json({ error: "A product id is required" }, { status: 400 });
 
         // The record as it is now, not as the browser last saw it — section 35.
         const rows = await fetch(
@@ -188,7 +205,10 @@ export const Route = createFileRoute("/api/manager/row-action")({
         const decision = resolveAction({ roles, action, permissions: matrix });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action, permission: ACTION_PERMISSION[action] ?? null, roles, recordId: id,
+            action,
+            permission: ACTION_PERMISSION[action] ?? null,
+            roles,
+            recordId: id,
             why: `${decision.reason ?? "Refused."} Caller ${via} holds [${roles.join(", ") || "no role"}].`,
           });
           return Response.json(
@@ -214,13 +234,16 @@ export const Route = createFileRoute("/api/manager/row-action")({
           );
         }
         if (resolved.confirmationRequired && !body.confirm) {
-          return Response.json({
-            ok: false,
-            reason: "confirmation_required",
-            message: `${resolved.label} needs confirmation.`,
-            record: { id, name: record.name, status: record.content_status },
-            danger: resolved.dangerLevel,
-          }, { status: 428 });
+          return Response.json(
+            {
+              ok: false,
+              reason: "confirmation_required",
+              message: `${resolved.label} needs confirmation.`,
+              record: { id, name: record.name, status: record.content_status },
+              danger: resolved.dangerLevel,
+            },
+            { status: 428 },
+          );
         }
 
         /* ------------------------------------------------------------ delete */
@@ -229,19 +252,26 @@ export const Route = createFileRoute("/api/manager/row-action")({
           if (deps.blocking.length) {
             // Blocked with the exact dependency, as section 9 asks, rather than
             // a generic refusal or a delete that orphans a paid order.
-            return Response.json({
-              ok: false,
-              reason: "dependencies_exist",
-              message: `This product cannot be deleted: ${deps.blocking.join(", ")} depend on it. Archive it instead — that keeps the history and takes it off the storefront.`,
-              dependencies: deps,
-            }, { status: 409 });
+            return Response.json(
+              {
+                ok: false,
+                reason: "dependencies_exist",
+                message: `This product cannot be deleted: ${deps.blocking.join(", ")} depend on it. Archive it instead — that keeps the history and takes it off the storefront.`,
+                dependencies: deps,
+              },
+              { status: 409 },
+            );
           }
-          return Response.json({
-            ok: false,
-            reason: "policy",
-            message: "Nothing in this catalogue is deleted. Archive takes a product off the storefront and keeps its history.",
-            dependencies: deps,
-          }, { status: 409 });
+          return Response.json(
+            {
+              ok: false,
+              reason: "policy",
+              message:
+                "Nothing in this catalogue is deleted. Archive takes a product off the storefront and keeps its history.",
+              dependencies: deps,
+            },
+            { status: 409 },
+          );
         }
 
         /* -------------------------------------------------- state transitions */
@@ -249,11 +279,14 @@ export const Route = createFileRoute("/api/manager/row-action")({
         if (target) {
           const from = String(record.content_status ?? "draft");
           if (!transitionAllowed(from, target)) {
-            return Response.json({
-              ok: false,
-              reason: "invalid_transition",
-              message: `A ${from} product cannot become ${target}.`,
-            }, { status: 409 });
+            return Response.json(
+              {
+                ok: false,
+                reason: "invalid_transition",
+                message: `A ${from} product cannot become ${target}.`,
+              },
+              { status: 409 },
+            );
           }
 
           const changes: Record<string, unknown> =
@@ -271,16 +304,28 @@ export const Route = createFileRoute("/api/manager/row-action")({
             headers: { "Content-Type": "application/json", ...forwardAuth(request) },
             body: JSON.stringify({ resource: "products", id, changes }),
           });
-          const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; row?: unknown; error?: string };
+          const payload = (await response.json().catch(() => ({}))) as {
+            ok?: boolean;
+            row?: unknown;
+            error?: string;
+          };
           if (!response.ok || !payload.ok || !payload.row) {
             return Response.json(
-              { ok: false, reason: "write_failed", message: payload.error ?? "That change was not saved" },
+              {
+                ok: false,
+                reason: "write_failed",
+                message: payload.error ?? "That change was not saved",
+              },
               { status: 502 },
             );
           }
           return Response.json({
-            ok: true, action, from, to: target,
-            audit_event: resolved.auditEvent, row: payload.row,
+            ok: true,
+            action,
+            from,
+            to: target,
+            audit_event: resolved.auditEvent,
+            row: payload.row,
           });
         }
 
@@ -302,15 +347,25 @@ export const Route = createFileRoute("/api/manager/row-action")({
             headers: { "Content-Type": "application/json", ...forwardAuth(request) },
             body: JSON.stringify({ resource: "products", values }),
           });
-          const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; row?: Record<string, unknown>; error?: string };
+          const payload = (await response.json().catch(() => ({}))) as {
+            ok?: boolean;
+            row?: Record<string, unknown>;
+            error?: string;
+          };
           if (!response.ok || !payload.ok || !payload.row) {
             return Response.json(
-              { ok: false, reason: "duplicate_failed", message: payload.error ?? "The copy was not created" },
+              {
+                ok: false,
+                reason: "duplicate_failed",
+                message: payload.error ?? "The copy was not created",
+              },
               { status: 502 },
             );
           }
           return Response.json({
-            ok: true, action, audit_event: resolved.auditEvent,
+            ok: true,
+            action,
+            audit_event: resolved.auditEvent,
             created: { id: payload.row.id, name: payload.row.name, slug: payload.row.slug },
             note: "The copy is a draft and not visible. Nothing about ownership, orders or licences was carried over.",
           });
@@ -319,7 +374,9 @@ export const Route = createFileRoute("/api/manager/row-action")({
         // view, preview, edit, live_demo and audit are navigations; the caller
         // already has the destination from the resolver.
         return Response.json({
-          ok: true, action, navigate: resolved.href ?? null,
+          ok: true,
+          action,
+          navigate: resolved.href ?? null,
           audit_event: resolved.auditEvent,
         });
       },

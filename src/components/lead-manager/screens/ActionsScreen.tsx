@@ -7,7 +7,6 @@ import {
   Mail,
   MessageCircle,
   Phone,
-  UserCheck,
   UserCog,
   XCircle,
 } from "lucide-react";
@@ -52,12 +51,6 @@ const ACTIONS = [
     label: "Schedule Follow-Up",
     description: "Book the next touchpoint",
     icon: Calendar,
-  },
-  {
-    id: "convert_client",
-    label: "Convert to Client",
-    description: "Create a CRM client and mark the deal won",
-    icon: UserCheck,
   },
   { id: "mark_lost", label: "Mark Lost", description: "Close with a lost reason", icon: XCircle },
 ];
@@ -226,13 +219,6 @@ export function ActionsScreen({
               onChange={(e) => setLostReason(e.target.value)}
             />
             <div className="flex gap-2">
-              <Button
-                size="sm"
-                disabled={picked.length === 0}
-                onClick={() => bulk((l) => leadApi.convertLeadToClient(l.id), "Converted to clients")}
-              >
-                <UserCheck className="size-4" /> Convert
-              </Button>
               <Button
                 size="sm"
                 variant="destructive"

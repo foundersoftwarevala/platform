@@ -1,5 +1,5 @@
 import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
+import { getRequest, getRequestHeader } from "@tanstack/react-start/server";
 
 import { renderErrorPage } from "./lib/error-page";
 import { isAllowedDomainRequest } from "./lib/domain-lock.server";
@@ -46,6 +46,22 @@ const domainLockMiddleware = createMiddleware().server(async ({ next, handlerTyp
   return next();
 });
 
+const marketplaceHomeRedirectMiddleware = createMiddleware().server(
+  async ({ next, handlerType }) => {
+    if (handlerType === "router") {
+      const request = getRequest();
+      const { pathname } = new URL(request.url);
+      if (pathname === "/marketplace" || pathname === "/marketplace/") {
+        return new Response(null, {
+          status: 301,
+          headers: { Location: "/" },
+        });
+      }
+    }
+    return next();
+  },
+);
+
 const localeCacheMiddleware = createMiddleware().server(async ({ next, handlerType }) => {
   const result = await next();
   if (
@@ -77,5 +93,11 @@ const localeCacheMiddleware = createMiddleware().server(async ({ next, handlerTy
 
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [domainLockMiddleware, errorMiddleware, csrfMiddleware, localeCacheMiddleware],
+  requestMiddleware: [
+    domainLockMiddleware,
+    marketplaceHomeRedirectMiddleware,
+    errorMiddleware,
+    csrfMiddleware,
+    localeCacheMiddleware,
+  ],
 }));

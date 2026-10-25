@@ -145,7 +145,8 @@ describe("Media Library source completeness", () => {
       vi.fn(async (input: string | URL) => {
         const path = String(input);
         if (path.includes("/storage/v1/bucket")) return json([]);
-        if (path.includes("/rpc/mm_audit")) return json({ error: "audit unavailable" }, 503);
+        if (path.includes("/rpc/mm_audit_operator"))
+          return json({ error: "audit unavailable" }, 503);
         return emptyRows();
       }),
     );

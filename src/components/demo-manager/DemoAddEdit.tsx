@@ -7,25 +7,37 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
-// Called by the category load below without being imported, so it always
-// failed and the form reported the categories as unreadable.
-import { listDemoCategories } from "@/lib/demo-manager/demos.functions";
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Monitor, 
-  Link, 
-  Code, 
+import {
+  createManagedDemo,
+  deleteManagedDemo,
+  listDemoCategories,
+  listManagedDemos,
+  setManagedDemoStatus,
+  updateManagedDemo,
+} from "@/lib/demo-manager/demos.functions";
+import { recordAuditEvent } from "@/lib/audit.server";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Monitor,
+  Link,
+  Code,
   Shield,
   Clock,
   Users,
   Search,
   MoreVertical,
   ExternalLink,
-  Loader2
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -50,20 +62,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { supabase } from "@/integrations/supabase/client";
-import { apiService } from "@/lib/api/apiService";
 
 interface Demo {
   id: string;
   title: string;
   category: string;
   url: string;
-  login_url: string;
+  login_url: string | null;
   demo_type: string;
   status: string;
-  description: string;
+  description: string | null;
   created_at: string;
 }
+
+type DemoType = "web" | "mobile" | "desktop" | "api";
+const isDemoType = (value: string): value is DemoType =>
+  ["web", "mobile", "desktop", "api"].includes(value);
 
 const DemoAddEdit = () => {
   const [demos, setDemos] = useState<Demo[]>([]);
@@ -74,8 +88,15 @@ const DemoAddEdit = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingDemo, setEditingDemo] = useState<Demo | null>(null);
   const [demoToDelete, setDemoToDelete] = useState<Demo | null>(null);
-  
-  const [formData, setFormData] = useState({
+
+  const [formData, setFormData] = useState<{
+    title: string;
+    category: string;
+    url: string;
+    login_url: string;
+    demo_type: DemoType;
+    description: string;
+  }>({
     title: "",
     category: "",
     url: "",
@@ -96,7 +117,26 @@ const DemoAddEdit = () => {
    */
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
-  const demoTypes = ["web", "mobile", "desktop", "api"];
+  const demoTypes: DemoType[] = ["web", "mobile", "desktop", "api"];
+
+  const auditDemoAction = (
+    action: string,
+    demoId: string | null,
+    success: boolean,
+    error?: string,
+  ) => {
+    void recordAuditEvent({
+      data: {
+        action,
+        entityType: "demos",
+        entityId: demoId,
+        severity: success ? "info" : "warning",
+        metadata: { success, error: error ?? null, timestamp: new Date().toISOString() },
+      },
+    }).catch((auditError) => {
+      console.error(`[Demo Manager] audit log for ${action} failed:`, auditError);
+    });
+  };
 
   useEffect(() => {
     fetchDemos();
@@ -129,16 +169,11 @@ const DemoAddEdit = () => {
   const fetchDemos = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('demos')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setDemos((data ?? []) as unknown as Demo[]);
-    } catch (err: any) {
-      console.error('Error fetching demos:', err);
-      toast.error('Failed to load demos');
+      const rows = await listManagedDemos({ data: { limit: 1000 } });
+      setDemos(rows);
+    } catch (err) {
+      console.error("Error fetching demos:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to load demos");
     } finally {
       setLoading(false);
     }
@@ -152,39 +187,31 @@ const DemoAddEdit = () => {
 
     setActionLoading(true);
     try {
+      const demo = {
+        title: formData.title,
+        category: formData.category,
+        url: formData.url,
+        login_url: formData.login_url,
+        demo_type: formData.demo_type,
+        description: formData.description,
+      };
       if (editingDemo) {
-        // Update existing demo
-        const result = await apiService.updateDemo(editingDemo.id, {
-          title: formData.title,
-          category: formData.category,
-          url: formData.url,
-          login_url: formData.login_url,
-          demo_type: formData.demo_type,
-          description: formData.description,
-        });
-        
-        if (result.success) {
-          toast.success(`${formData.title} has been updated`);
-        }
+        await updateManagedDemo({ data: { id: editingDemo.id, demo } });
+        auditDemoAction("update", editingDemo.id, true);
+        toast.success(`${formData.title} has been updated`);
       } else {
-        // Create new demo
-        const result = await apiService.createDemo({
-          title: formData.title,
-          category: formData.category,
-          url: formData.url,
-          login_url: formData.login_url,
-          demo_type: formData.demo_type,
-          description: formData.description,
-        });
-        
-        if (result.success) {
-          toast.success(`${formData.title} has been added`);
-        }
+        const created = await createManagedDemo({ data: demo });
+        auditDemoAction("insert", created.id, true);
+        toast.success(`${formData.title} has been added`);
       }
-      
+
       setIsDialogOpen(false);
       resetForm();
-      fetchDemos();
+      await fetchDemos();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Demo could not be saved.";
+      auditDemoAction(editingDemo ? "update" : "insert", editingDemo?.id ?? null, false, message);
+      toast.error(message);
     } finally {
       setActionLoading(false);
     }
@@ -195,11 +222,14 @@ const DemoAddEdit = () => {
 
     setActionLoading(true);
     try {
-      const result = await apiService.deleteDemo(demoToDelete.id);
-      if (result.success) {
-        toast.success(`${demoToDelete.title} has been removed`);
-        fetchDemos();
-      }
+      await deleteManagedDemo({ data: { id: demoToDelete.id } });
+      auditDemoAction("delete", demoToDelete.id, true);
+      toast.success(`${demoToDelete.title} has been removed`);
+      await fetchDemos();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Demo could not be deleted.";
+      auditDemoAction("delete", demoToDelete.id, false, message);
+      toast.error(message);
     } finally {
       setActionLoading(false);
       setDeleteDialogOpen(false);
@@ -214,7 +244,7 @@ const DemoAddEdit = () => {
       category: demo.category || "",
       url: demo.url || "",
       login_url: demo.login_url || "",
-      demo_type: demo.demo_type || "web",
+      demo_type: isDemoType(demo.demo_type) ? demo.demo_type : "web",
       description: demo.description || "",
     });
     setIsDialogOpen(true);
@@ -226,10 +256,15 @@ const DemoAddEdit = () => {
   };
 
   const handleToggleStatus = async (demo: Demo) => {
-    const isActive = demo.status === 'active';
-    const result = await apiService.toggleDemoStatus(demo.id, !isActive);
-    if (result.success) {
-      fetchDemos();
+    const status = demo.status === "active" ? "maintenance" : "active";
+    try {
+      await setManagedDemoStatus({ data: { id: demo.id, status } });
+      auditDemoAction("update status", demo.id, true);
+      await fetchDemos();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Demo status could not be changed.";
+      auditDemoAction("update status", demo.id, false, message);
+      toast.error(message);
     }
   };
 
@@ -247,16 +282,21 @@ const DemoAddEdit = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "active": return "bg-neon-green/20 text-neon-green border-neon-green/30";
-      case "maintenance": return "bg-orange-500/20 text-orange-400 border-orange-500/30";
-      case "down": return "bg-red-500/20 text-red-400 border-red-500/30";
-      default: return "bg-gray-500/20 text-gray-400";
+      case "active":
+        return "bg-neon-green/20 text-neon-green border-neon-green/30";
+      case "maintenance":
+        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "down":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      default:
+        return "bg-gray-500/20 text-gray-400";
     }
   };
 
-  const filteredDemos = demos.filter(demo =>
-    demo.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    demo.category?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredDemos = demos.filter(
+    (demo) =>
+      demo.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      demo.category?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -267,7 +307,13 @@ const DemoAddEdit = () => {
           <h1 className="text-2xl font-bold text-foreground">Demo Management</h1>
           <p className="text-muted-foreground">Add, edit, and manage demo configurations</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+        <Dialog
+          open={isDialogOpen}
+          onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="bg-primary hover:bg-primary/90">
               <Plus className="w-4 h-4 mr-2" />
@@ -281,7 +327,7 @@ const DemoAddEdit = () => {
                 {editingDemo ? "Edit Demo" : "Add New Demo"}
               </DialogTitle>
             </DialogHeader>
-            
+
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -296,7 +342,10 @@ const DemoAddEdit = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">Category *</Label>
-                  <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
+                  <Select
+                    value={formData.category}
+                    onValueChange={(v) => setFormData({ ...formData, category: v })}
+                  >
                     <SelectTrigger className="bg-background border-border">
                       <SelectValue
                         placeholder={
@@ -309,8 +358,10 @@ const DemoAddEdit = () => {
                       />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
-                      {categories.map(cat => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -349,13 +400,22 @@ const DemoAddEdit = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="demo_type">Demo Type</Label>
-                  <Select value={formData.demo_type} onValueChange={(v) => setFormData({ ...formData, demo_type: v })}>
+                  <Select
+                    value={formData.demo_type}
+                    onValueChange={(value) => {
+                      if (isDemoType(value)) {
+                        setFormData({ ...formData, demo_type: value });
+                      }
+                    }}
+                  >
                     <SelectTrigger className="bg-background border-border">
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {demoTypes.map(type => (
-                        <SelectItem key={type} value={type}>{type.toUpperCase()}</SelectItem>
+                      {demoTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type.toUpperCase()}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -374,10 +434,20 @@ const DemoAddEdit = () => {
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsDialogOpen(false);
+                    resetForm();
+                  }}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleSubmit} disabled={actionLoading} className="bg-primary hover:bg-primary/90">
+                <Button
+                  onClick={handleSubmit}
+                  disabled={actionLoading}
+                  className="bg-primary hover:bg-primary/90"
+                >
                   {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   {editingDemo ? "Update Demo" : "Add Demo"}
                 </Button>
@@ -434,7 +504,9 @@ const DemoAddEdit = () => {
                           <Badge className={getStatusBadge(demo.status)}>{demo.status}</Badge>
                           <Badge variant="outline">{demo.demo_type?.toUpperCase()}</Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">{demo.category} • {demo.description}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {demo.category} • {demo.description}
+                        </p>
                         <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Link className="w-3 h-3" />
@@ -443,13 +515,13 @@ const DemoAddEdit = () => {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="border-border"
-                        onClick={() => window.open(demo.url, '_blank')}
+                        onClick={() => window.open(demo.url, "_blank")}
                       >
                         <ExternalLink className="w-4 h-4" />
                       </Button>
@@ -466,9 +538,9 @@ const DemoAddEdit = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleToggleStatus(demo)}>
                             <Shield className="w-4 h-4 mr-2" />
-                            {demo.status === 'active' ? 'Set Maintenance' : 'Activate'}
+                            {demo.status === "active" ? "Set Maintenance" : "Activate"}
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onClick={() => confirmDelete(demo)}
                             className="text-red-400 focus:text-red-400"
                           >
@@ -497,7 +569,10 @@ const DemoAddEdit = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground"
+            >
               {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Delete
             </AlertDialogAction>

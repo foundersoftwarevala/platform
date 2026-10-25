@@ -1,9 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import {
-  ACTION_TOKENS, DEFAULT_HEX, PALETTE_KEY, buildToken, contrast,
-  defaultPalette, hexToRgb, normaliseHex,
-  type Token, type TokenKey,
+  ACTION_TOKENS,
+  DEFAULT_HEX,
+  PALETTE_KEY,
+  buildToken,
+  contrast,
+  defaultPalette,
+  hexToRgb,
+  normaliseHex,
+  type Token,
+  type TokenKey,
 } from "@/lib/marketplace/color";
 import { resolveAction } from "@/lib/marketplace/permission-guard";
 import { loadMatrix, recordDenial, rolesOf } from "@/lib/marketplace/permission-store.server";
@@ -55,21 +62,35 @@ async function stored(): Promise<{ tokens: Token[]; configured: boolean }> {
   }
 }
 
-async function audit(request: Request, action: string, before: unknown, after: unknown, reason: string) {
+async function audit(
+  request: Request,
+  action: string,
+  before: unknown,
+  after: unknown,
+  reason: string,
+) {
   try {
     const authorization = request.headers.get("authorization");
     const anon =
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "colour_palette", p_entity_id: null,
-        p_before: before, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "colour_palette",
+        p_entity_id: null,
+        p_before: before,
+        p_after: after,
+        p_reason: reason,
       }),
     });
   } catch (error) {
@@ -120,7 +141,9 @@ export const Route = createFileRoute("/api/marketplace/colour")({
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
         const allowed = resolveAction({
-          roles: caller.roles, action: "configure_colors", permissions: matrix,
+          roles: caller.roles,
+          action: "configure_colors",
+          permissions: matrix,
         });
         if (!allowed.visible || !allowed.enabled) {
           await recordDenial(request, {
@@ -155,15 +178,20 @@ export const Route = createFileRoute("/api/marketplace/colour")({
           // Section 26: reset restores exactly the configured default, by
           // removing the override rather than writing the defaults back as if
           // somebody had chosen them.
-          const response = await fetch(
-            `${url()}/rest/v1/system_settings?key=eq.${PALETTE_KEY}`,
-            { method: "DELETE", headers: admin() },
-          );
+          const response = await fetch(`${url()}/rest/v1/system_settings?key=eq.${PALETTE_KEY}`, {
+            method: "DELETE",
+            headers: admin(),
+          });
           if (!response.ok) {
             return Response.json({ error: "The palette was not reset" }, { status: 502 });
           }
-          await audit(request, "Colour palette reset", { tokens: before.tokens }, { tokens: defaultPalette() },
-            "Palette reset to the Software Vala defaults.");
+          await audit(
+            request,
+            "Colour palette reset",
+            { tokens: before.tokens },
+            { tokens: defaultPalette() },
+            "Palette reset to the Software Vala defaults.",
+          );
           return Response.json({ ok: true, reset: true, tokens: defaultPalette() });
         }
 
@@ -199,22 +227,20 @@ export const Route = createFileRoute("/api/marketplace/colour")({
         for (const t of before.tokens) merged[t.key] = t.hex;
         Object.assign(merged, accepted);
 
-        const response = await fetch(
-          `${url()}/rest/v1/system_settings?on_conflict=key&select=*`,
-          {
-            method: "POST",
-            headers: { ...admin(), Prefer: "resolution=merge-duplicates,return=representation" },
-            body: JSON.stringify({
-              key: PALETTE_KEY,
-              label: "Marketplace colour palette",
-              value: JSON.stringify(merged),
-              value_type: "json",
-              category: "marketplace",
-              description: "Semantic action colours. Only the hex is stored; RGB and HSL are derived.",
-              updated_at: new Date().toISOString(),
-            }),
-          },
-        );
+        const response = await fetch(`${url()}/rest/v1/system_settings?on_conflict=key&select=*`, {
+          method: "POST",
+          headers: { ...admin(), Prefer: "resolution=merge-duplicates,return=representation" },
+          body: JSON.stringify({
+            key: PALETTE_KEY,
+            label: "Marketplace colour palette",
+            value: JSON.stringify(merged),
+            value_type: "json",
+            category: "marketplace",
+            description:
+              "Semantic action colours. Only the hex is stored; RGB and HSL are derived.",
+            updated_at: new Date().toISOString(),
+          }),
+        });
         if (!response.ok) {
           console.error("[colour] save failed", response.status, await response.text());
           return Response.json({ error: "That palette was not saved" }, { status: 502 });
@@ -224,9 +250,13 @@ export const Route = createFileRoute("/api/marketplace/colour")({
           buildToken(k, merged[k], DEFAULT_HEX[k].label),
         );
         await audit(
-          request, "Colour palette changed",
+          request,
+          "Colour palette changed",
           { tokens: before.tokens.map((t) => ({ key: t.key, hex: t.hex })) },
-          { tokens: after.map((t) => ({ key: t.key, hex: t.hex })), changed: Object.keys(accepted) },
+          {
+            tokens: after.map((t) => ({ key: t.key, hex: t.hex })),
+            changed: Object.keys(accepted),
+          },
           String(body.reason ?? "").slice(0, 300) ||
             `Changed ${Object.keys(accepted).join(", ")} from the Marketplace Manager.`,
         );

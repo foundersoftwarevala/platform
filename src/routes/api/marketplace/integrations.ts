@@ -137,7 +137,9 @@ async function probeWebhook(origin: string, path: string): Promise<number | null
 /** Only "no such route" means not served; a route that refuses OPTIONS exists. */
 const served = (status: number | null) => status !== null && status !== 404;
 
-async function collect(origin: string): Promise<{ connectors: Connector[]; missing: typeof SCREEN_CONNECTORS }> {
+async function collect(
+  origin: string,
+): Promise<{ connectors: Connector[]; missing: typeof SCREEN_CONNECTORS }> {
   const [integrations, seo, gateways, providers] = await Promise.all([
     rows<Record<string, unknown>>(
       "api_integrations?select=id,name,category,direction,auth_type,status,error_count,last_sync_at,webhook_url",
@@ -148,14 +150,15 @@ async function collect(origin: string): Promise<{ connectors: Connector[]; missi
     rows<Record<string, unknown>>(
       "finance_gateways?select=id,code,name,provider,status,success_rate,fee_percent,settlement_cycle",
     ),
-    rows<Record<string, unknown>>(
-      "ai_providers?select=slug,name,status,credential_env",
-    ),
+    rows<Record<string, unknown>>("ai_providers?select=slug,name,status,credential_env"),
   ]);
 
   const credentialFor = (needle: string): { env: string | null; present: boolean | null } => {
-    const provider = providers.find((p) =>
-      String(p.slug).toLowerCase().includes(needle) || String(p.name).toLowerCase().includes(needle));
+    const provider = providers.find(
+      (p) =>
+        String(p.slug).toLowerCase().includes(needle) ||
+        String(p.name).toLowerCase().includes(needle),
+    );
     const env = provider?.credential_env ? String(provider.credential_env) : null;
     return { env, present: env ? Boolean(process.env[env]?.trim()) : null };
   };
@@ -189,18 +192,24 @@ async function collect(origin: string): Promise<{ connectors: Connector[]; missi
       );
     }
     if (age !== null && age > STALE_DAYS) {
-      findings.push(`Its last sync was ${age} days ago, so "connected" describes then rather than now.`);
+      findings.push(
+        `Its last sync was ${age} days ago, so "connected" describes then rather than now.`,
+      );
     }
     if (errors > 0) findings.push(`${errors} error(s) recorded against it.`);
     if (credential.env && credential.present === false) {
       findings.push(`${credential.env} is not set in this environment.`);
     }
 
-    const state: Connector["state"] =
-      findings.some((f) => f.includes("answers")) ? "failing"
-        : String(row.status) === "error" ? "failing"
-          : age !== null && age > STALE_DAYS ? "stale"
-            : String(row.status) === "connected" ? "connected" : "not_connected";
+    const state: Connector["state"] = findings.some((f) => f.includes("answers"))
+      ? "failing"
+      : String(row.status) === "error"
+        ? "failing"
+        : age !== null && age > STALE_DAYS
+          ? "stale"
+          : String(row.status) === "connected"
+            ? "connected"
+            : "not_connected";
 
     connectors.push({
       id: `api_integrations:${String(row.id)}`,
@@ -241,9 +250,15 @@ async function collect(origin: string): Promise<{ connectors: Connector[]; missi
       direction: "outbound",
       auth_type: "oauth",
       declared_status: String(row.status),
-      state: !connected ? "not_connected" : age !== null && age > STALE_DAYS ? "stale" : "connected",
-      webhook_url: null, webhook_status: null,
-      credential_env: null, credential_present: null,
+      state: !connected
+        ? "not_connected"
+        : age !== null && age > STALE_DAYS
+          ? "stale"
+          : "connected",
+      webhook_url: null,
+      webhook_status: null,
+      credential_env: null,
+      credential_present: null,
       last_sync_at: (row.last_sync_at as string) ?? null,
       days_since_sync: age,
       error_count: 0,
@@ -271,11 +286,16 @@ async function collect(origin: string): Promise<{ connectors: Connector[]; missi
       direction: "outbound",
       auth_type: "api_key",
       declared_status: String(row.status),
-      state: String(row.status) === "active" && credential.present !== false ? "connected" : "not_connected",
-      webhook_url: null, webhook_status: null,
+      state:
+        String(row.status) === "active" && credential.present !== false
+          ? "connected"
+          : "not_connected",
+      webhook_url: null,
+      webhook_status: null,
       credential_env: credential.env,
       credential_present: credential.present,
-      last_sync_at: null, days_since_sync: null,
+      last_sync_at: null,
+      days_since_sync: null,
       error_count: 0,
       findings,
     });
@@ -296,14 +316,22 @@ async function audit(request: Request, action: string, after: unknown, reason: s
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
-        p_action: action, p_entity_type: "integrations", p_entity_id: null,
-        p_before: null, p_after: after, p_reason: reason,
+        p_action: action,
+        p_entity_type: "integrations",
+        p_entity_id: null,
+        p_before: null,
+        p_after: after,
+        p_reason: reason,
       }),
     });
   } catch (error) {
@@ -328,12 +356,19 @@ export const Route = createFileRoute("/api/marketplace/integrations")({
         };
         if (!may("view")) {
           await recordDenial(request, {
-            action: "integrations_view", permission: "marketplace.view",
-            roles: caller.roles, entityType: "integrations", recordId: null,
+            action: "integrations_view",
+            permission: "marketplace.view",
+            roles: caller.roles,
+            entityType: "integrations",
+            recordId: null,
             why: `Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
-            { ok: false, reason: "permission_denied", message: "Permission marketplace.view is required." },
+            {
+              ok: false,
+              reason: "permission_denied",
+              message: "Permission marketplace.view is required.",
+            },
             { status: 403 },
           );
         }
@@ -358,17 +393,36 @@ export const Route = createFileRoute("/api/marketplace/integrations")({
             const t = v === null || v === undefined ? "" : String(v);
             return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
           };
-          const lines = ["name,source,authority,tab,declared_status,checked_state,webhook_url,webhook_status,credential_env,credential_present,last_sync_at,errors,findings"];
+          const lines = [
+            "name,source,authority,tab,declared_status,checked_state,webhook_url,webhook_status,credential_env,credential_present,last_sync_at,errors,findings",
+          ];
           for (const c of connectors) {
-            lines.push([
-              c.name, c.source, c.authority, c.tab, c.declared_status, c.state,
-              c.webhook_url ?? "", c.webhook_status ?? "", c.credential_env ?? "",
-              c.credential_present ?? "", c.last_sync_at ?? "", c.error_count,
-              c.findings.join(" "),
-            ].map(cell).join(","));
+            lines.push(
+              [
+                c.name,
+                c.source,
+                c.authority,
+                c.tab,
+                c.declared_status,
+                c.state,
+                c.webhook_url ?? "",
+                c.webhook_status ?? "",
+                c.credential_env ?? "",
+                c.credential_present ?? "",
+                c.last_sync_at ?? "",
+                c.error_count,
+                c.findings.join(" "),
+              ]
+                .map(cell)
+                .join(","),
+            );
           }
-          await audit(request, "Integrations exported", { connectors: connectors.length },
-            "Connector metadata exported. No credential value is included.");
+          await audit(
+            request,
+            "Integrations exported",
+            { connectors: connectors.length },
+            "Connector metadata exported. No credential value is included.",
+          );
           return new Response(lines.join("\n"), {
             headers: {
               "Content-Type": "text/csv; charset=utf-8",
@@ -377,7 +431,9 @@ export const Route = createFileRoute("/api/marketplace/integrations")({
           });
         }
 
-        const declaredConnected = connectors.filter((c) => c.declared_status === "connected" || c.declared_status === "active").length;
+        const declaredConnected = connectors.filter(
+          (c) => c.declared_status === "connected" || c.declared_status === "active",
+        ).length;
         const actuallyConnected = connectors.filter((c) => c.state === "connected").length;
 
         return Response.json({
@@ -412,10 +468,11 @@ export const Route = createFileRoute("/api/marketplace/integrations")({
           },
           checks: {
             webhooks_probed: connectors.filter((c) => c.webhook_url).length,
-            webhooks_reachable: connectors.filter((c) => c.webhook_status !== null && c.webhook_status < 400).length,
+            webhooks_reachable: connectors.filter(
+              (c) => c.webhook_status !== null && c.webhook_status < 400,
+            ).length,
             stale_after_days: STALE_DAYS,
-            what:
-              "Every declared webhook path was called on this server, every credential variable was looked up by name, and every last sync was compared against now.",
+            what: "Every declared webhook path was called on this server, every credential variable was looked up by name, and every last sync was compared against now.",
           },
           permissions: { view: true, test: may("settings_manage"), export: may("export") },
         });
@@ -436,12 +493,17 @@ export const Route = createFileRoute("/api/marketplace/integrations")({
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
         const decision = resolveAction({
-          roles: caller.roles, action: "settings_manage", permissions: matrix,
+          roles: caller.roles,
+          action: "settings_manage",
+          permissions: matrix,
         });
         if (!decision.visible || !decision.enabled) {
           await recordDenial(request, {
-            action: "integration_test", permission: "marketplace.settings.manage",
-            roles: caller.roles, entityType: "integrations", recordId: body.id ?? null,
+            action: "integration_test",
+            permission: "marketplace.settings.manage",
+            roles: caller.roles,
+            entityType: "integrations",
+            recordId: body.id ?? null,
             why: `${decision.reason ?? "Refused."} Caller ${caller.via} holds [${caller.roles.join(", ") || "no role"}].`,
           });
           return Response.json(
@@ -469,12 +531,26 @@ export const Route = createFileRoute("/api/marketplace/integrations")({
           const status = await probeWebhook(origin, connector.webhook_url);
           const latency = Date.now() - started;
           const ok = served(status);
-          await audit(request, "Integration connection tested",
-            { connector: connector.name, webhook: connector.webhook_url, status, latency_ms: latency, correlation },
-            `${connector.name} was tested: its webhook path answered ${status ?? "nothing"}.`);
+          await audit(
+            request,
+            "Integration connection tested",
+            {
+              connector: connector.name,
+              webhook: connector.webhook_url,
+              status,
+              latency_ms: latency,
+              correlation,
+            },
+            `${connector.name} was tested: its webhook path answered ${status ?? "nothing"}.`,
+          );
           return Response.json({
-            ok: true, tested: "inbound_webhook", connector: connector.name,
-            success: ok, status, latency_ms: latency, correlation_id: correlation,
+            ok: true,
+            tested: "inbound_webhook",
+            connector: connector.name,
+            success: ok,
+            status,
+            latency_ms: latency,
+            correlation_id: correlation,
             message: ok
               ? `${connector.webhook_url} is served and answered ${status}.`
               : `${connector.webhook_url} answered ${status ?? "nothing"}. No route is served there, so this connector could never receive an event.`,
@@ -482,21 +558,33 @@ export const Route = createFileRoute("/api/marketplace/integrations")({
         }
 
         if (connector.credential_env && connector.credential_present === false) {
-          await audit(request, "Integration connection tested",
+          await audit(
+            request,
+            "Integration connection tested",
             { connector: connector.name, result: "no_credential", correlation },
-            `${connector.name} could not be tested: ${connector.credential_env} is not set.`);
+            `${connector.name} could not be tested: ${connector.credential_env} is not set.`,
+          );
           return Response.json({
-            ok: true, tested: "credential", connector: connector.name,
-            success: false, correlation_id: correlation,
+            ok: true,
+            tested: "credential",
+            connector: connector.name,
+            success: false,
+            correlation_id: correlation,
             message: `${connector.credential_env} is not set in this environment, so there is nothing to authenticate with. Nothing was called.`,
           });
         }
 
-        await audit(request, "Integration connection tested",
+        await audit(
+          request,
+          "Integration connection tested",
           { connector: connector.name, result: "no_test_available", correlation },
-          `${connector.name} has no test this application can perform.`);
+          `${connector.name} has no test this application can perform.`,
+        );
         return Response.json({
-          ok: true, tested: "none", connector: connector.name, success: null,
+          ok: true,
+          tested: "none",
+          connector: connector.name,
+          success: null,
           correlation_id: correlation,
           message: `${connector.name} is owned by the ${connector.authority} and has no endpoint here to call. Testing it means calling the provider with its credential, which belongs in that manager rather than in this hub.`,
         });

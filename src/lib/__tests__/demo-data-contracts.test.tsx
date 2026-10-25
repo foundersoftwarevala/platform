@@ -11,12 +11,27 @@ const mocks = vi.hoisted(() => {
   const errors: Record<string, Error | undefined> = {};
   return { from: vi.fn(), eq: vi.fn(), in: vi.fn(), data, errors };
 });
+const serverFunctions = vi.hoisted(() => ({
+  listManagedDemos: vi.fn(),
+  listPendingDemoRequests: vi.fn(),
+  setManagedDemoStatus: vi.fn(),
+  extendManagedDemo: vi.fn(),
+  cloneManagedDemo: vi.fn(),
+  respondToDemoRequest: vi.fn(),
+}));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
+vi.mock("@/lib/demo-manager/demos.functions", () => serverFunctions);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.data = { demos: [], demo_requests: [], marketplace_products: [], demo_domains: null };
+  mocks.data = { demo_domains: null };
   mocks.errors = {};
+  serverFunctions.listManagedDemos.mockResolvedValue([]);
+  serverFunctions.listPendingDemoRequests.mockResolvedValue([]);
+  serverFunctions.setManagedDemoStatus.mockResolvedValue(undefined);
+  serverFunctions.extendManagedDemo.mockResolvedValue(undefined);
+  serverFunctions.cloneManagedDemo.mockResolvedValue(undefined);
+  serverFunctions.respondToDemoRequest.mockResolvedValue(undefined);
   mocks.from.mockImplementation((table: string) => {
     const terminal = async () => ({ data: mocks.data[table], error: mocks.errors[table] ?? null });
     const chain = {
@@ -44,26 +59,31 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe("demo read contracts", () => {
-  it("maps requester/company columns and resolves the actual requested product", async () => {
-    mocks.data.demo_requests = [
+  it("maps server-returned requester/company columns and product names", async () => {
+    serverFunctions.listPendingDemoRequests.mockResolvedValue([
       {
-        id: "request1",
-        company: "Fixture Company",
-        requester_name: "Fixture Requester",
-        product_id: "product1",
-        created_at: "2026-10-14T00:00:00Z",
-        status: "pending",
+        request: {
+          id: "00000000-0000-4000-8000-000000000001",
+          company: "Fixture Company",
+          requester_name: "Fixture Requester",
+          product_id: "00000000-0000-4000-8000-000000000010",
+          created_at: "2026-10-14T00:00:00Z",
+          status: "pending",
+        },
+        productName: "Fixture Product",
       },
       {
-        id: "request2",
-        company: null,
-        requester_name: "Independent Fixture",
-        product_id: null,
-        created_at: "2026-10-14T00:00:00Z",
-        status: "pending",
+        request: {
+          id: "00000000-0000-4000-8000-000000000002",
+          company: null,
+          requester_name: "Independent Fixture",
+          product_id: null,
+          created_at: "2026-10-14T00:00:00Z",
+          status: "pending",
+        },
+        productName: null,
       },
-    ];
-    mocks.data.marketplace_products = [{ id: "product1", name: "Fixture Product" }];
+    ]);
     const { result } = renderHook(useDemoOverview, { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.requests).toMatchObject([
@@ -74,21 +94,55 @@ describe("demo read contracts", () => {
         product: "Unspecified",
       },
     ]);
-    expect(mocks.in).toHaveBeenCalledWith("marketplace_products", "id", ["product1"]);
+    expect(serverFunctions.listPendingDemoRequests).toHaveBeenCalledOnce();
+    expect(serverFunctions.listManagedDemos).toHaveBeenCalledWith({ data: { limit: 200 } });
   });
 
-  it("does not query products when no requests reference one", async () => {
+  it("uses only server functions for Demo Manager reads", async () => {
     const { result } = renderHook(useDemoOverview, { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(mocks.from).not.toHaveBeenCalledWith("marketplace_products");
+    expect(serverFunctions.listPendingDemoRequests).toHaveBeenCalledOnce();
+    expect(serverFunctions.listManagedDemos).toHaveBeenCalledOnce();
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it("surfaces a failed product lookup rather than silently substituting data", async () => {
-    mocks.data.demo_requests = [{ id: "request1", product_id: "product1" }];
-    const failure = new Error("Fixture product lookup refused");
-    mocks.errors.marketplace_products = failure;
+  it("surfaces a failed server request lookup rather than silently substituting data", async () => {
+    const failure = new Error("Fixture request lookup refused");
+    serverFunctions.listPendingDemoRequests.mockRejectedValue(failure);
     const { result } = renderHook(useDemoOverview, { wrapper });
     await waitFor(() => expect(result.current.requestsError).toBe(failure));
+  });
+
+  it("routes overview mutations through caller-scoped server functions", async () => {
+    const { result } = renderHook(useDemoOverview, { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setDemoStatus.mutateAsync({
+      id: "00000000-0000-4000-8000-000000000001",
+      status: "maintenance",
+    });
+    await result.current.extendDemo.mutateAsync({
+      id: "00000000-0000-4000-8000-000000000001",
+      days: 7,
+    });
+    await result.current.cloneDemo.mutateAsync("00000000-0000-4000-8000-000000000001");
+    await result.current.respondToRequest.mutateAsync({
+      id: "00000000-0000-4000-8000-000000000002",
+      status: "approved",
+    });
+
+    expect(serverFunctions.setManagedDemoStatus).toHaveBeenCalledWith({
+      data: { id: "00000000-0000-4000-8000-000000000001", status: "maintenance" },
+    });
+    expect(serverFunctions.extendManagedDemo).toHaveBeenCalledWith({
+      data: { id: "00000000-0000-4000-8000-000000000001", days: 7 },
+    });
+    expect(serverFunctions.cloneManagedDemo).toHaveBeenCalledWith({
+      data: { id: "00000000-0000-4000-8000-000000000001" },
+    });
+    expect(serverFunctions.respondToDemoRequest).toHaveBeenCalledWith({
+      data: { id: "00000000-0000-4000-8000-000000000002", status: "approved" },
+    });
   });
 
   it("queries the selected hostname, not an assumed demo/deployment relationship", async () => {

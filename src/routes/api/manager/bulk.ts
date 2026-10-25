@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { MARKETPLACE_MANAGER_API_ROLES } from "@/lib/auth/marketplace-manager-roles";
 import { resolveAction } from "@/lib/marketplace/permission-guard";
 import { loadMatrix, recordDenial, rolesOf } from "@/lib/marketplace/permission-store.server";
 
@@ -60,8 +61,11 @@ async function describe(request: Request, resource: string) {
   );
   if (!response.ok) return null;
   return (await response.json()) as {
-    label: string; columns: string[]; editable: string[];
-    creatable?: string[]; retirable?: boolean;
+    label: string;
+    columns: string[];
+    editable: string[];
+    creatable?: string[];
+    retirable?: boolean;
   };
 }
 
@@ -78,7 +82,10 @@ export const Route = createFileRoute("/api/manager/bulk")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const gate = await requireInternalOperator(request);
+        const gate = await requireInternalOperator(request, {
+          allowedRoles: MARKETPLACE_MANAGER_API_ROLES,
+          deniedMessage: "Marketplace Manager access is restricted to authorized roles.",
+        });
         if (!gate.ok) return gate.response;
         if (!url()) return Response.json({ error: "Not configured" }, { status: 503 });
 
@@ -108,7 +115,9 @@ export const Route = createFileRoute("/api/manager/bulk")({
         const { matrix } = await loadMatrix();
         const caller = await rolesOf(request);
         const allowed = resolveAction({
-          roles: caller.roles, action: bulkAction, permissions: matrix,
+          roles: caller.roles,
+          action: bulkAction,
+          permissions: matrix,
         });
         if (!allowed.visible || !allowed.enabled) {
           await recordDenial(request, {
@@ -140,7 +149,9 @@ export const Route = createFileRoute("/api/manager/bulk")({
           // Refused rather than truncated: quietly acting on the first 500 of a
           // larger selection is worse than saying the selection is too large.
           return Response.json(
-            { error: `That is ${ids.length} records. This engine runs at most ${MAX_RECORDS} in one go.` },
+            {
+              error: `That is ${ids.length} records. This engine runs at most ${MAX_RECORDS} in one go.`,
+            },
             { status: 413 },
           );
         }
@@ -154,7 +165,7 @@ export const Route = createFileRoute("/api/manager/bulk")({
         const operationId = String(body.operationId ?? "").slice(0, 64) || crypto.randomUUID();
 
         /* ------------------------------------------------------- validate */
-        let changes: Record<string, unknown> = {};
+        const changes: Record<string, unknown> = {};
         if (operation === "update") {
           for (const [key, value] of Object.entries(body.changes ?? {})) {
             if (spec.editable.includes(key)) changes[key] = value;
@@ -166,10 +177,7 @@ export const Route = createFileRoute("/api/manager/bulk")({
             );
           }
         } else if (!spec.retirable) {
-          return Response.json(
-            { error: `${spec.label} cannot be retired here` },
-            { status: 403 },
-          );
+          return Response.json({ error: `${spec.label} cannot be retired here` }, { status: 403 });
         }
 
         const origin = new URL(request.url).origin;
@@ -185,8 +193,7 @@ export const Route = createFileRoute("/api/manager/bulk")({
             label: spec.label,
             records: ids.length,
             changes: operation === "update" ? changes : { retire: true },
-            note:
-              "Nothing has been changed. Send preview: false with this operation_id to run it.",
+            note: "Nothing has been changed. Send preview: false with this operation_id to run it.",
           });
         }
 
@@ -209,7 +216,10 @@ export const Route = createFileRoute("/api/manager/bulk")({
                   });
 
             const payload = (await response.json().catch(() => ({}))) as {
-              ok?: boolean; error?: string; changed?: string[]; row?: unknown;
+              ok?: boolean;
+              error?: string;
+              changed?: string[];
+              row?: unknown;
             };
 
             if (response.ok && payload.ok && payload.row) {
@@ -229,7 +239,11 @@ export const Route = createFileRoute("/api/manager/bulk")({
             } else if (response.status === 400) {
               outcomes.push({ id, status: "invalid", reason: payload.error ?? "Rejected" });
             } else {
-              outcomes.push({ id, status: "failed", reason: payload.error ?? `HTTP ${response.status}` });
+              outcomes.push({
+                id,
+                status: "failed",
+                reason: payload.error ?? `HTTP ${response.status}`,
+              });
             }
           } catch (error) {
             outcomes.push({
@@ -264,21 +278,33 @@ export const Route = createFileRoute("/api/manager/bulk")({
         try {
           const authorization = request.headers.get("authorization");
           const anon =
-            process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
+            process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ??
+            process.env.SUPABASE_ANON_KEY?.trim() ??
+            "";
           const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
           const asOperator = Boolean(authorization && anon);
-          await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+          await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
             method: "POST",
             headers: asOperator
               ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-              : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+              : {
+                  apikey: service,
+                  Authorization: `Bearer ${service}`,
+                  "Content-Type": "application/json",
+                },
             body: JSON.stringify({
               p_action: `${spec.label} bulk ${operation}`,
               p_entity_type: resourceName,
               p_entity_id: null,
               p_before: { operation_id: operationId, selected: ids.length },
-              p_after: { operation_id: operationId, status, ...tally, outcomes: outcomes.slice(0, 200) },
-              p_reason: String(body.reason ?? "").slice(0, 300) ||
+              p_after: {
+                operation_id: operationId,
+                status,
+                ...tally,
+                outcomes: outcomes.slice(0, 200),
+              },
+              p_reason:
+                String(body.reason ?? "").slice(0, 300) ||
                 `Bulk ${operation} of ${ids.length} ${spec.label} record(s) from the Marketplace Manager.`,
             }),
           });

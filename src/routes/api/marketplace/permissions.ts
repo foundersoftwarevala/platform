@@ -1,11 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
 import {
-  ALL_PERMISSIONS, OWNER_LOCKED, OWNER_ONLY, OWNER_ROLES, ROLE_PERMISSIONS, resolveAction,
+  ALL_PERMISSIONS,
+  OWNER_LOCKED,
+  OWNER_ONLY,
+  OWNER_ROLES,
+  ROLE_PERMISSIONS,
+  resolveAction,
   type Permission,
 } from "@/lib/marketplace/permission-guard";
 import {
-  loadMatrix, recordDenial, resetMatrix, rolesOf, saveMatrix,
+  loadMatrix,
+  recordDenial,
+  resetMatrix,
+  rolesOf,
+  saveMatrix,
 } from "@/lib/marketplace/permission-store.server";
 
 /**
@@ -74,11 +83,15 @@ async function auditChange(
       process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.SUPABASE_ANON_KEY?.trim() ?? "";
     const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
     const asOperator = Boolean(authorization && anon);
-    await fetch(`${url()}/rest/v1/rpc/mm_audit`, {
+    await fetch(`${url()}/rest/v1/rpc/mm_audit_operator`, {
       method: "POST",
       headers: asOperator
         ? { apikey: anon, Authorization: authorization!, "Content-Type": "application/json" }
-        : { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" },
+        : {
+            apikey: service,
+            Authorization: `Bearer ${service}`,
+            "Content-Type": "application/json",
+          },
       body: JSON.stringify({
         p_action: action,
         p_entity_type: "role_permissions",
@@ -111,7 +124,11 @@ export const Route = createFileRoute("/api/marketplace/permissions")({
         // grants it anything. A role that holds people but no permissions is a
         // real answer and it is shown as one, not left out of the table.
         const roles = Array.from(
-          new Set([...Object.keys(matrix), ...Object.keys(ROLE_PERMISSIONS), ...Object.keys(counts)]),
+          new Set([
+            ...Object.keys(matrix),
+            ...Object.keys(ROLE_PERMISSIONS),
+            ...Object.keys(counts),
+          ]),
         ).sort();
 
         const editor = resolveAction({
@@ -225,7 +242,10 @@ export const Route = createFileRoute("/api/marketplace/permissions")({
         // Only a role the matrix knows. A typo such as "Admin" used to be
         // stored as a new role that nobody holds.
         if (!(role in ROLE_PERMISSIONS) && !(role in matrix)) {
-          return Response.json({ error: `"${role}" is not a role in the matrix.` }, { status: 400 });
+          return Response.json(
+            { error: `"${role}" is not a role in the matrix.` },
+            { status: 400 },
+          );
         }
         if (!ALL_PERMISSIONS.includes(permission)) {
           return Response.json(
@@ -238,7 +258,11 @@ export const Route = createFileRoute("/api/marketplace/permissions")({
         const wanted = Boolean(body.granted);
         if (wanted && OWNER_ONLY.includes(permission) && !OWNER_ROLES.includes(role)) {
           return Response.json(
-            { ok: false, reason: "owner_only", message: `${permission} belongs to the owner tier only.` },
+            {
+              ok: false,
+              reason: "owner_only",
+              message: `${permission} belongs to the owner tier only.`,
+            },
             { status: 400 },
           );
         }
@@ -264,9 +288,7 @@ export const Route = createFileRoute("/api/marketplace/permissions")({
 
         const next: Record<string, Permission[]> = {};
         for (const [key, list] of Object.entries(matrix)) next[key] = [...list];
-        next[role] = wanted
-          ? [...current, permission]
-          : current.filter((p) => p !== permission);
+        next[role] = wanted ? [...current, permission] : current.filter((p) => p !== permission);
 
         const saved = await saveMatrix(next);
         if (!saved) {

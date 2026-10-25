@@ -7,12 +7,18 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  cloneManagedDemo,
+  extendManagedDemo,
+  listManagedDemos,
+  listPendingDemoRequests,
+  respondToDemoRequest as respondToDemoRequestFn,
+  setManagedDemoStatus as setManagedDemoStatusFn,
+} from "@/lib/demo-manager/demos.functions";
+import type { DemoManagerRow } from "@/lib/demo-manager/demos.functions";
 
-type DemoRow = Database["public"]["Tables"]["demos"]["Row"];
 type DemoStatus = Database["public"]["Enums"]["demo_status"];
-type DemoRequestRow = Database["public"]["Tables"]["demo_requests"]["Row"];
 
 /** UI-facing lifecycle label used by the dashboard filters. */
 export type DemoUiStatus = "running" | "paused" | "expired";
@@ -41,10 +47,10 @@ export interface DemoRequestItem {
   status: string;
 }
 
-const isExpired = (row: DemoRow) =>
+const isExpired = (row: DemoManagerRow) =>
   Boolean(row.expiry_date && new Date(row.expiry_date).getTime() < Date.now());
 
-const toUiStatus = (row: DemoRow): DemoUiStatus => {
+const toUiStatus = (row: DemoManagerRow): DemoUiStatus => {
   if (isExpired(row) || row.status === "down") return "expired";
   if (row.status === "active") return "running";
   return "paused";
@@ -58,7 +64,7 @@ const daysLeftLabel = (expiry: string | null): string => {
   return days === 1 ? "1 day" : `${days} days`;
 };
 
-const mapDemo = (row: DemoRow): DemoOverviewItem => ({
+const mapDemo = (row: DemoManagerRow): DemoOverviewItem => ({
   id: row.id,
   name: row.title,
   product: row.category,
@@ -71,6 +77,8 @@ const mapDemo = (row: DemoRow): DemoOverviewItem => ({
   usagePercent: Math.round(row.health_score ?? row.uptime_percentage ?? 0),
   url: row.url,
 });
+
+type DemoRequestRow = Awaited<ReturnType<typeof listPendingDemoRequests>>[number]["request"];
 
 const priorityOf = (row: DemoRequestRow): DemoRequestItem["priority"] => {
   const created = row.created_at ? new Date(row.created_at).getTime() : Date.now();
@@ -98,40 +106,16 @@ export const useDemoOverview = () => {
 
   const demosQuery = useQuery({
     queryKey: demosQueryKey,
-    queryFn: async (): Promise<DemoOverviewItem[]> => {
-      const { data, error } = await supabase
-        .from("demos")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data ?? []).map(mapDemo);
-    },
+    queryFn: async (): Promise<DemoOverviewItem[]> =>
+      (await listManagedDemos({ data: { limit: 200 } })).map(mapDemo),
   });
 
   const requestsQuery = useQuery({
     queryKey: demoRequestsQueryKey,
-    queryFn: async (): Promise<DemoRequestItem[]> => {
-      const { data, error } = await supabase
-        .from("demo_requests")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      const requests = data ?? [];
-      const productIds = [...new Set(requests.flatMap(row => row.product_id ? [row.product_id] : []))];
-      const products = new Map<string, string>();
-      if (productIds.length) {
-        const { data: productRows, error: productError } = await supabase
-          .from("marketplace_products")
-          .select("id,name")
-          .in("id", productIds);
-        if (productError) throw productError;
-        for (const product of productRows ?? []) products.set(product.id, product.name);
-      }
-      return requests.map(row => mapRequest(row, row.product_id ? products.get(row.product_id) : undefined));
-    },
+    queryFn: async (): Promise<DemoRequestItem[]> =>
+      (await listPendingDemoRequests()).map(({ request, productName }) =>
+        mapRequest(request, productName ?? undefined),
+      ),
   });
 
   const invalidateDemos = () => queryClient.invalidateQueries({ queryKey: demosQueryKey });
@@ -139,67 +123,25 @@ export const useDemoOverview = () => {
     queryClient.invalidateQueries({ queryKey: demoRequestsQueryKey });
 
   const setDemoStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: DemoStatus }) => {
-      const { error } = await supabase.from("demos").update({ status }).eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, status }: { id: string; status: DemoStatus }) =>
+      setManagedDemoStatusFn({ data: { id, status } }),
     onSuccess: invalidateDemos,
   });
 
   const extendDemo = useMutation({
-    mutationFn: async ({ id, days }: { id: string; days: number }) => {
-      const { data, error } = await supabase
-        .from("demos")
-        .select("expiry_date")
-        .eq("id", id)
-        .single();
-      if (error) throw error;
-      const base = data?.expiry_date ? new Date(data.expiry_date) : new Date();
-      const from = base.getTime() > Date.now() ? base : new Date();
-      const next = new Date(from.getTime() + days * 86_400_000).toISOString();
-      const { error: updateError } = await supabase
-        .from("demos")
-        .update({ expiry_date: next, status: "active" })
-        .eq("id", id);
-      if (updateError) throw updateError;
-    },
+    mutationFn: ({ id, days }: { id: string; days: number }) =>
+      extendManagedDemo({ data: { id, days } }),
     onSuccess: invalidateDemos,
   });
 
   const cloneDemo = useMutation({
-    mutationFn: async (id: string) => {
-      const { data, error } = await supabase.from("demos").select("*").eq("id", id).single();
-      if (error) throw error;
-      const source = data as DemoRow;
-      const {
-        id: _id,
-        created_at: _createdAt,
-        updated_at: _updatedAt,
-        last_health_check: _lastCheck,
-        last_verified_at: _lastVerified,
-        ...rest
-      } = source;
-      const { error: insertError } = await supabase.from("demos").insert({
-        ...rest,
-        title: `${source.title} (Copy)`,
-        status: "inactive",
-      });
-      if (insertError) throw insertError;
-    },
+    mutationFn: (id: string) => cloneManagedDemo({ data: { id } }),
     onSuccess: invalidateDemos,
   });
 
   const respondToRequest = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "approved" | "rejected" }) => {
-      const { error } = await supabase
-        .from("demo_requests")
-        .update({
-          status,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, status }: { id: string; status: "approved" | "rejected" }) =>
+      respondToDemoRequestFn({ data: { id, status } }),
     onSuccess: invalidateRequests,
   });
 
@@ -224,6 +166,5 @@ export const useDemoOverview = () => {
     refresh,
   };
 };
-
 
 export default useDemoOverview;
