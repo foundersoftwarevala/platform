@@ -152,10 +152,9 @@ export function Collectible3D({
                     background: accent,
                     boxShadow: `0 0 8px ${accent}`,
                     animationDelay: `${(i % 5) * 0.4}s`,
-                    // @ts-expect-error CSS custom props
                     "--sx": `${((i * 13) % 40) - 20}px`,
                     "--sy": `${-20 - (i % 8) * 4}px`,
-                  }}
+                  } as React.CSSProperties & { "--sx": string; "--sy": string }}
                 />
               ))}
             </div>

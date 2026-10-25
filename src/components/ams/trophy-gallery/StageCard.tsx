@@ -93,9 +93,9 @@ export function StageCard({ stage, unlocked = true }: { stage: DeveloperStage; u
               background: stage.bg.particle,
               boxShadow: `0 0 12px ${stage.bg.particle}`,
               animationDelay: s.delay,
-              // @ts-expect-error CSS vars
+              // Custom properties drive the CSS sparkle animation.
               "--sx": s.sx, "--sy": s.sy,
-            }}
+            } as React.CSSProperties & { "--sx": string; "--sy": string }}
           />
         ))}
       </div>

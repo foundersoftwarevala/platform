@@ -56,7 +56,7 @@ const ACTIONS = [
   {
     id: "convert_client",
     label: "Convert to Client",
-    description: "Mark the deal won",
+    description: "Create a CRM client and mark the deal won",
     icon: UserCheck,
   },
   { id: "mark_lost", label: "Mark Lost", description: "Close with a lost reason", icon: XCircle },
@@ -229,7 +229,7 @@ export function ActionsScreen({
               <Button
                 size="sm"
                 disabled={picked.length === 0}
-                onClick={() => bulk((l) => leadApi.changeStatus(l.id, "won"), "Marked won")}
+                onClick={() => bulk((l) => leadApi.convertLeadToClient(l.id), "Converted to clients")}
               >
                 <UserCheck className="size-4" /> Convert
               </Button>

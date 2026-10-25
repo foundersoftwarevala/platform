@@ -117,9 +117,8 @@ function TrophyDisplayCase({ role }: { role: (typeof ROLES)[number] }) {
               left: `${10 + Math.random() * 80}%`, top: `${10 + Math.random() * 60}%`,
               background: theme.particle, boxShadow: `0 0 10px ${theme.particle}`,
               animationDelay: `${Math.random() * 2}s`,
-              // @ts-expect-error CSS var
               "--sx": `${(Math.random() - 0.5) * 30}px`, "--sy": `-${20 + Math.random() * 30}px`,
-            }} />
+            } as React.CSSProperties & { "--sx": string; "--sy": string }} />
         ))}
       </div>
 

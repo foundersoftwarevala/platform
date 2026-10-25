@@ -84,7 +84,7 @@ export function InfluencerReferenceDashboard({
         <div className="bento-card lg:col-span-2">
           <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-wider text-muted-foreground">Network pulse</p><h2 className="mt-1 text-xl font-semibold">Real performance snapshot</h2></div><BarChart3 className="h-5 w-5 text-primary-glow" /></div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            {[["Followers", "followers"], ["Campaign revenue", "revenue"], ["Won leads", "sales"]].map(([label, key]) => <div key={key} className="rounded-xl border border-border bg-background/40 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold">{connected ? number(key as keyof typeof metrics).toLocaleString() : "-"}</p></div>)}
+            {[["Followers", "followers"], ["Attributed sales", "sales"], ["Attributed leads", "leads"]].map(([label, key]) => <div key={key} className="rounded-xl border border-border bg-background/40 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold">{connected ? number(key as keyof typeof metrics).toLocaleString() : "-"}</p></div>)}
           </div>
         </div>
           <div className="bento-card"><p className="text-xs uppercase tracking-wider text-muted-foreground">{t("Connected source")}</p><h2 className="mt-1 text-xl font-semibold">{connected ? t("Supabase marketing data") : t("Authentication required")}</h2><p className="mt-3 text-sm text-muted-foreground">{connected ? `${t("Updated")} ${new Date(data.generatedAt).toUTCString()}` : t("Sign in with an authorized manager account to access creator records.")}</p></div>

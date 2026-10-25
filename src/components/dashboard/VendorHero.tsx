@@ -127,8 +127,14 @@ function StoreActions({ name }: { name: string }) {
     } catch { /* noop */ }
   }
   async function share() {
-    // @ts-ignore
-    if (navigator.share) { try { await navigator.share({ title: name, url }); return; } catch { /* dismissed */ } }
+    if ("share" in navigator && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: name, url });
+        return;
+      } catch {
+        // The user may dismiss the native share sheet.
+      }
+    }
     copy();
   }
   return (

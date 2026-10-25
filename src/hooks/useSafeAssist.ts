@@ -46,6 +46,8 @@ export function useSafeAssist() {
   const [userCode, setUserCode] = useState<string>("");
   const [agentCode, setAgentCode] = useState<string>("");
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const notificationChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const mountedRef = useRef(false);
 
   // Generate verification codes
   const generateCodes = useCallback(() => {
@@ -74,6 +76,7 @@ export function useSafeAssist() {
 
       if (error) throw error;
 
+      if (!mountedRef.current) return null;
       const sessionData = data as unknown as SafeAssistSession;
       setSession(sessionData);
 
@@ -86,7 +89,7 @@ export function useSafeAssist() {
       toast.error("Failed to create session: " + error.message);
       return null;
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) setIsLoading(false);
     }
   }, [user, generateCodes]);
 
@@ -118,7 +121,7 @@ export function useSafeAssist() {
           .eq("id", String(result.session_id))
           .single();
 
-        if (sessionData) {
+        if (sessionData && mountedRef.current) {
           setSession(sessionData as unknown as SafeAssistSession);
           subscribeToSession(sessionData.id);
           generateCodes();
@@ -130,7 +133,7 @@ export function useSafeAssist() {
         toast.error("Failed to join session: " + error.message);
         return false;
       } finally {
-        setIsLoading(false);
+        if (mountedRef.current) setIsLoading(false);
       }
     },
     [user, generateCodes],
@@ -187,6 +190,15 @@ export function useSafeAssist() {
     }
   }, [session]);
 
+  const cleanupSessionChannels = useCallback(() => {
+    const channel = channelRef.current;
+    const notificationChannel = notificationChannelRef.current;
+    channelRef.current = null;
+    notificationChannelRef.current = null;
+    if (channel) void supabase.removeChannel(channel);
+    if (notificationChannel) void supabase.removeChannel(notificationChannel);
+  }, []);
+
   // End session
   const endSession = useCallback(async () => {
     if (!session) return;
@@ -196,20 +208,19 @@ export function useSafeAssist() {
         p_session_id: session.id,
       });
 
-      // Cleanup
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-      }
+      cleanupSessionChannels();
 
-      setSession(null);
-      setIsConnected(false);
-      setCursorPosition(null);
+      if (mountedRef.current) {
+        setSession(null);
+        setIsConnected(false);
+        setCursorPosition(null);
+      }
 
       toast.success("Safe Assist session ended");
     } catch (error: any) {
       toast.error("Failed to end session: " + error.message);
     }
-  }, [session]);
+  }, [session, cleanupSessionChannels]);
 
   // Send cursor position (agent side)
   const sendCursorPosition = useCallback(
@@ -226,59 +237,94 @@ export function useSafeAssist() {
   );
 
   // Subscribe to session updates
-  const subscribeToSession = useCallback((sessionId: string) => {
-    // Session status channel
-    const channel = supabase
-      .channel(`safe_assist_${sessionId}`)
-      .on("broadcast", { event: "cursor_move" }, (payload) => {
-        setCursorPosition(payload.payload as CursorPosition);
-      })
-      .on("broadcast", { event: "session_update" }, (payload) => {
-        setSession((prev) => (prev ? { ...prev, ...payload.payload } : null));
-      })
-      .on("broadcast", { event: "ai_alert" }, (payload) => {
-        const alert = payload.payload as { title: string; message: string; severity: string };
-        if (alert.severity === "critical") {
-          toast.error(alert.title + ": " + alert.message);
-        } else if (alert.severity === "warning") {
-          toast.warning(alert.title + ": " + alert.message);
-        } else {
-          toast.info(alert.title);
+  const subscribeToSession = useCallback(
+    (sessionId: string) => {
+      if (!mountedRef.current) return;
+      cleanupSessionChannels();
+      const applySessionUpdate = (value: unknown) => {
+        if (!mountedRef.current || !value || typeof value !== "object") return;
+        const update = value as Partial<SafeAssistSession>;
+        if (
+          ["ended", "expired", "cancelled", "terminated"].includes(
+            update.status?.toLowerCase() ?? "",
+          )
+        ) {
+          cleanupSessionChannels();
+          setSession(null);
+          setIsConnected(false);
+          setCursorPosition(null);
+          return;
         }
-      })
-      .subscribe((status) => {
-        setIsConnected(status === "SUBSCRIBED");
-      });
+        setSession((prev) => (prev ? { ...prev, ...update } : null));
+      };
 
-    channelRef.current = channel;
-
-    // Subscribe to notifications (realtime)
-    const notificationChannel = supabase
-      .channel(`notifications_${sessionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "safe_assist_notifications",
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          const notification = payload.new as SafeAssistNotification;
-          setNotifications((prev) => [notification, ...prev]);
-
-          // Show toast based on severity
-          if (notification.severity === "error") {
-            toast.error(notification.title, { description: notification.message });
-          } else if (notification.severity === "warning") {
-            toast.warning(notification.title, { description: notification.message });
+      // Session status channel
+      const channel = supabase
+        .channel(`safe_assist_${sessionId}`)
+        .on("broadcast", { event: "cursor_move" }, (payload) => {
+          setCursorPosition(payload.payload as CursorPosition);
+        })
+        .on("broadcast", { event: "session_update" }, (payload) => {
+          applySessionUpdate(payload.payload);
+        })
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "safe_assist_sessions",
+            filter: `id=eq.${sessionId}`,
+          },
+          (payload) => {
+            applySessionUpdate(payload.new);
+          },
+        )
+        .on("broadcast", { event: "ai_alert" }, (payload) => {
+          const alert = payload.payload as { title: string; message: string; severity: string };
+          if (alert.severity === "critical") {
+            toast.error(alert.title + ": " + alert.message);
+          } else if (alert.severity === "warning") {
+            toast.warning(alert.title + ": " + alert.message);
           } else {
-            toast.info(notification.title, { description: notification.message });
+            toast.info(alert.title);
           }
-        },
-      )
-      .subscribe();
-  }, []);
+        })
+        .subscribe((status) => {
+          setIsConnected(status === "SUBSCRIBED");
+        });
+
+      channelRef.current = channel;
+
+      // Subscribe to notifications (realtime)
+      const notificationChannel = supabase
+        .channel(`notifications_${sessionId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "safe_assist_notifications",
+            filter: `session_id=eq.${sessionId}`,
+          },
+          (payload) => {
+            const notification = payload.new as SafeAssistNotification;
+            setNotifications((prev) => [notification, ...prev]);
+
+            // Show toast based on severity
+            if (notification.severity === "error") {
+              toast.error(notification.title, { description: notification.message });
+            } else if (notification.severity === "warning") {
+              toast.warning(notification.title, { description: notification.message });
+            } else {
+              toast.info(notification.title, { description: notification.message });
+            }
+          },
+        )
+        .subscribe();
+      notificationChannelRef.current = notificationChannel;
+    },
+    [cleanupSessionChannels],
+  );
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -310,12 +356,12 @@ export function useSafeAssist() {
 
   // Cleanup on unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-      }
+      mountedRef.current = false;
+      cleanupSessionChannels();
     };
-  }, []);
+  }, [cleanupSessionChannels]);
 
   // Fetch notifications on mount
   useEffect(() => {

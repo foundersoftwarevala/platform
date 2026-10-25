@@ -38,6 +38,17 @@ async function currentUser(request: Request) {
 }
 
 const HEARTBEAT_MS = 25_000;
+const MANAGER_PERMISSION_RECHECK_MS = 60_000;
+
+async function hasChatManagerAccess(userId: string): Promise<boolean> {
+  const { withChatPlatformDatabase } = await import("@/lib/chat/manager-db.server");
+  return withChatPlatformDatabase(async (tx) => {
+    const [row] = await tx<{ allowed: boolean }[]>`
+      select public.has_permission(${userId}::uuid, 'chat.manage') as allowed
+    `;
+    return row?.allowed === true;
+  });
+}
 
 export const Route = createFileRoute("/api/notifications/stream")({
   server: {
@@ -54,17 +65,11 @@ export const Route = createFileRoute("/api/notifications/stream")({
         }
 
         // A Chat manager also follows every Chat change (the live queue), not
-        // only the conversations they are part of. Checked once, here, against
-        // the canonical database; a stream opened later re-checks.
+        // only the conversations they are part of. Access is checked here and
+        // rechecked periodically and before each manager event.
         let manager = false;
         try {
-          const { withChatPlatformDatabase } = await import("@/lib/chat/manager-db.server");
-          manager = await withChatPlatformDatabase(async (tx) => {
-            const [row] = await tx<{ allowed: boolean }[]>`
-              select public.has_permission(${user.id}::uuid, 'chat.manage') as allowed
-            `;
-            return row?.allowed === true;
-          });
+          manager = await hasChatManagerAccess(user.id);
         } catch (error) {
           console.error(
             "[notifications/stream] Chat manager check failed:",
@@ -74,6 +79,7 @@ export const Route = createFileRoute("/api/notifications/stream")({
         const encoder = new TextEncoder();
         let cleanup = () => {};
         let closed = false;
+        let permissionCheck: Promise<boolean> | null = null;
         const body = new ReadableStream<Uint8Array>({
           start(controller) {
             const send = (text: string) => {
@@ -85,24 +91,70 @@ export const Route = createFileRoute("/api/notifications/stream")({
             };
             send(`event: ready\ndata: {}\n\n`);
             const forward = (a: Announcement) => {
+              if (a.event === "__reconnect__") {
+                send(`event: ready\ndata: {}\n\n`);
+                return;
+              }
               send(
                 `event: notification\ndata: ${JSON.stringify({ id: a.id, event: a.event, ledger_id: a.ledger_id ?? null, conversation_id: a.conversation_id ?? null, sender_id: a.sender_id ?? null })}\n\n`,
               );
             };
+            const checkManagerAccess = () => {
+              if (!permissionCheck) {
+                permissionCheck = hasChatManagerAccess(user.id).finally(() => {
+                  permissionCheck = null;
+                });
+              }
+              return permissionCheck;
+            };
+            const forwardManager = (a: Announcement) => {
+              void checkManagerAccess()
+                .then((allowed) => {
+                  if (closed) return;
+                  if (!allowed) {
+                    cleanup();
+                    return;
+                  }
+                  forward(a);
+                })
+                .catch((error) => {
+                  console.error(
+                    "[notifications/stream] Chat Manager permission recheck failed:",
+                    error instanceof Error ? error.message : error,
+                  );
+                  cleanup();
+                });
+            };
             const unsubscribe = subscribe(user.id, forward);
             let unsubscribeManager = () => {};
             if (manager) {
-              void subscribeChatManager(forward).then((stop) => {
+              void subscribeChatManager(forwardManager).then((stop) => {
                 if (closed) stop();
                 else unsubscribeManager = stop;
               });
             }
+            const permissionRecheck = manager
+              ? setInterval(() => {
+                  void checkManagerAccess()
+                    .then((allowed) => {
+                      if (!allowed) cleanup();
+                    })
+                    .catch((error) => {
+                      console.error(
+                        "[notifications/stream] Chat Manager permission recheck failed:",
+                        error instanceof Error ? error.message : error,
+                      );
+                      cleanup();
+                    });
+                }, MANAGER_PERMISSION_RECHECK_MS)
+              : null;
             // A comment line every so often keeps proxies from closing an idle stream.
             const beat = setInterval(() => send(`: ping\n\n`), HEARTBEAT_MS);
             cleanup = () => {
               if (closed) return;
               closed = true;
               clearInterval(beat);
+              if (permissionRecheck) clearInterval(permissionRecheck);
               unsubscribe();
               unsubscribeManager();
               try {

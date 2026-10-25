@@ -208,9 +208,11 @@ export async function copyQrPngToClipboard(payload: SharePayload) {
   const verifyUrl = buildVerifyUrl(payload);
   const dataUrl = await generateQrPngDataUrl(verifyUrl, { size: 1024 });
   const blob = dataUrlToBlob(dataUrl);
-  // @ts-ignore
-  if (navigator.clipboard && window.ClipboardItem) {
-    // @ts-ignore
+  if (
+    navigator.clipboard &&
+    typeof navigator.clipboard.write === "function" &&
+    typeof ClipboardItem !== "undefined"
+  ) {
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
     return "image" as const;
   }
@@ -289,7 +291,12 @@ export function ShareAssetDialog({
         {state === "error" ? (
           <ErrorState message={errorMsg} onRetry={regenerate} />
         ) : payload.kind !== "poster" && payload.kind !== "qr" ? (
-          <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+          <Tabs
+            value={tab}
+            onValueChange={(value) => {
+              if (value === "poster" || value === "qr") setTab(value);
+            }}
+          >
             <TabsList aria-label="Asset type">
               <TabsTrigger value="poster"><FileImage className="h-3.5 w-3.5 mr-1" aria-hidden="true" />Poster</TabsTrigger>
               <TabsTrigger value="qr"><QrCodeIcon className="h-3.5 w-3.5 mr-1" aria-hidden="true" />QR</TabsTrigger>
@@ -340,9 +347,12 @@ export function ShareAssetDialog({
           </Button>
           <Button size="sm" variant="outline" aria-label="Share via system share" onClick={async () => {
             try {
-              // @ts-ignore
-              if (navigator.share) { await navigator.share({ title: payload.title, url: verifyUrl }); }
-              else { await navigator.clipboard.writeText(verifyUrl); toast.success("Link copied."); }
+              if ("share" in navigator && typeof navigator.share === "function") {
+                await navigator.share({ title: payload.title, url: verifyUrl });
+              } else {
+                await navigator.clipboard.writeText(verifyUrl);
+                toast.success("Link copied.");
+              }
             } catch { /* dismissed */ }
           }}>
             <Share2 className="h-4 w-4 mr-1" aria-hidden="true" /> Share…

@@ -45,9 +45,24 @@ export type HeroSlideInsert = Partial<HeroSlideRow>;
 export type HeroSlideUpdate = Partial<HeroSlideRow>;
 
 export const HERO_ICON_CHOICES = [
-  "Sparkles","Boxes","Crown","Clock","ShieldCheck","BadgeCheck","Lock",
-  "Layers","Cpu","Tag","Briefcase","Building2","Handshake","Megaphone",
-  "Rocket","Play","Globe2","Zap",
+  "Sparkles",
+  "Boxes",
+  "Crown",
+  "Clock",
+  "ShieldCheck",
+  "BadgeCheck",
+  "Lock",
+  "Layers",
+  "Cpu",
+  "Tag",
+  "Briefcase",
+  "Building2",
+  "Handshake",
+  "Megaphone",
+  "Rocket",
+  "Play",
+  "Globe2",
+  "Zap",
 ] as const;
 
 export function iconFromName(name: string): LucideIcon {
@@ -242,18 +257,24 @@ export async function createHeroSlide(input: HeroSlideInsert): Promise<HeroSlide
     // Typed into New Slide and then dropped: the secondary link and the
     // archived state were never written on create.
     cta_secondary_link: input.secondary_href ?? null,
-    ...(input.status === "archived" ? { archived_at: new Date().toISOString() } : {}),
     banner_type: input.banner_type ?? "marketplace_slider",
     target_roles: input.target_roles ?? null,
+    ...(input.status === "archived" ? { archived_at: new Date().toISOString() } : {}),
     gradient: input.bg_gradient ?? "",
     icon_name: input.icon ?? "Sparkles",
     accent: input.accent_class ?? "text-cyan-300",
     position: input.sort_order ?? 999,
-    visible: input.status ? input.status === "published" || input.status === "scheduled" : (input.enabled ?? true),
+    visible: input.status
+      ? input.status === "published" || input.status === "scheduled"
+      : (input.enabled ?? true),
     published_at: input.publish_at ?? null,
     unpublish_at: input.unpublish_at ?? null,
   };
-  const { data, error } = await supabase.from(TABLE as never).insert(payload as never).select("*").single();
+  const { data, error } = await supabase
+    .from(TABLE as never)
+    .insert(payload as never)
+    .select("*")
+    .single();
   if (error) throw error;
   return toRow(data as unknown as DbRow);
 }
@@ -271,7 +292,10 @@ export async function updateHeroSlide(id: string, patch: HeroSlideUpdate): Promi
 }
 
 export async function deleteHeroSlide(id: string): Promise<void> {
-  const { error } = await supabase.from(TABLE as never).delete().eq("id", id);
+  const { error } = await supabase
+    .from(TABLE as never)
+    .delete()
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -286,9 +310,12 @@ export async function deleteHeroSlide(id: string): Promise<void> {
  * stale browser tab would send.
  */
 export async function reorderHeroSlides(orderedIds: string[]): Promise<void> {
-  const { data, error } = await supabase.rpc("mm_hero_reorder" as never, {
-    p_ids: orderedIds,
-  } as never);
+  const { data, error } = await supabase.rpc(
+    "mm_hero_reorder" as never,
+    {
+      p_ids: orderedIds,
+    } as never,
+  );
   if (error) throw error;
   const answer = (data ?? {}) as { ok?: boolean; reason?: string };
   if (answer.ok === false) {

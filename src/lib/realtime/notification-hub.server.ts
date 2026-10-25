@@ -34,6 +34,8 @@ type Listener = (a: Announcement) => void;
 const listeners = new Map<string, Set<Listener>>();
 let connection: Sql | null = null;
 let starting: Promise<boolean> | null = null;
+const connectedListenChannels = new Set<string>();
+const recoveredListenChannels = new Set<string>();
 
 function deliver(raw: string) {
   let a: Announcement;
@@ -50,6 +52,41 @@ function deliver(raw: string) {
       /* one broken stream never stops the others */
     }
   }
+}
+
+function deliverReconnect() {
+  const announcement: Announcement = { id: null, user_id: null, event: "__reconnect__" };
+  for (const userListeners of listeners.values()) {
+    for (const fn of userListeners) {
+      try {
+        fn(announcement);
+      } catch {
+        /* one broken stream never stops the others */
+      }
+    }
+  }
+  for (const fn of managerListeners) {
+    try {
+      fn(announcement);
+    } catch {
+      /* one broken stream never stops the others */
+    }
+  }
+}
+
+function onListen(channel: string) {
+  return () => {
+    if (!connectedListenChannels.has(channel)) {
+      connectedListenChannels.add(channel);
+      return;
+    }
+
+    recoveredListenChannels.add(channel);
+    if ([...connectedListenChannels].every((name) => recoveredListenChannels.has(name))) {
+      recoveredListenChannels.clear();
+      deliverReconnect();
+    }
+  };
 }
 
 /**
@@ -98,19 +135,26 @@ export function ensureListening(): Promise<boolean> {
              current_database() as db`;
     if (!announces) {
       await sql.end({ timeout: 1 });
-      throw new Error(`SV_PLATFORM_DATABASE_URL reaches ${db}, which does not announce notifications`);
+      throw new Error(
+        `SV_PLATFORM_DATABASE_URL reaches ${db}, which does not announce notifications`,
+      );
     }
-    // The driver re-establishes LISTEN by itself when the connection drops.
-    await sql.listen("sv_user_notification", deliver);
+    // postgres.js calls onlisten after the initial LISTEN and after reconnecting.
+    await sql.listen("sv_user_notification", deliver, onListen("sv_user_notification"));
     console.info(`[notification-hub] listening: current_database=${db}`);
     connection = sql;
     return true;
-  })().catch((error) => {
-    console.error("[notification-hub] could not listen:", error instanceof Error ? error.message : error);
-    return false;
-  }).finally(() => {
-    starting = null;
-  });
+  })()
+    .catch((error) => {
+      console.error(
+        "[notification-hub] could not listen:",
+        error instanceof Error ? error.message : error,
+      );
+      return false;
+    })
+    .finally(() => {
+      starting = null;
+    });
   return starting;
 }
 
@@ -160,7 +204,7 @@ function ensureManagerListening(): Promise<boolean> {
   if (managerListening) return managerListening;
   const attempt = (async () => {
     if (!(await ensureListening()) || !connection) return false;
-    await connection.listen("sv_chat_manager", deliverToManagers);
+    await connection.listen("sv_chat_manager", deliverToManagers, onListen("sv_chat_manager"));
     return true;
   })()
     .catch((error) => {
