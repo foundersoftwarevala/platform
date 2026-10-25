@@ -5,6 +5,7 @@ import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { Sidebar } from "@/components/dashboard/Sidebar";
+import { CentralBanners } from "@/components/dashboard/CentralBanners";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { Hero } from "@/components/dashboard/Hero";
 import { VendorSliderHero } from "@/components/dashboard/VendorSliderHero";
@@ -524,49 +525,52 @@ function DashboardPage() {
             </ModuleFocusScope>
           ) : (
             <>
-              <ResellerProfileHero
-                roleName={cfg.name}
-                accountLabel={`Your ${cfg.name} Account`}
-                centerLabel={`${cfg.name} Center`}
-                bannerGradient={ROLE_BANNER_GRADIENTS[role as RoleKey]}
+              <CentralBanners
+                role={role}
+                fallback={
+                  <>
+                    <ResellerProfileHero
+                      roleName={cfg.name}
+                      accountLabel={`Your ${cfg.name} Account`}
+                      centerLabel={`${cfg.name} Center`}
+                      bannerGradient={ROLE_BANNER_GRADIENTS[role as RoleKey]}
+                    />
+                    {role === "reseller" ? (
+                      <ResellerHero
+                        onAction={(cta) => {
+                          const module = RESELLER_HERO_MODULES[cta];
+                          if (module) return openModule(module);
+                          const feature = RESELLER_HERO_CENTER[cta];
+                          if (feature) {
+                            openModule("center:referral");
+                            return setCenterFeature(feature);
+                          }
+                          if (RESELLER_HERO_MARKETPLACE.has(cta)) return void navigate({ to: "/" });
+                        }}
+                        unavailable={resellerUnavailable}
+                      />
+                    ) : role === "vendor" ? (
+                      <VendorSliderHero role={cfg} onCta={openHero} ctaNotice={heroNotice} />
+                    ) : role === "author" ? (
+                      <AuthorHero role={cfg} onCta={openHero} ctaNotice={heroNotice} />
+                    ) : (
+                      <Hero
+                        role={cfg}
+                        onCta={openHero}
+                        ctaNotice={heroNotice}
+                        onAnalytics={() =>
+                          openModule(
+                            cfg.modules.find((m) => /analytic|report|insight/i.test(m.label))
+                              ?.key ??
+                              cfg.modules[0]?.key ??
+                              null,
+                          )
+                        }
+                      />
+                    )}
+                  </>
+                }
               />
-              {role === "reseller" ? (
-                <ResellerHero
-                  onAction={(cta) => {
-                    // The hero's buttons were rendered with no handler, so none of
-                    // them did anything. Each goes where a real screen exists; the
-                    // ones with no screen behind them yet still do nothing.
-                    const module = RESELLER_HERO_MODULES[cta];
-                    if (module) return openModule(module);
-                    const feature = RESELLER_HERO_CENTER[cta];
-                    if (feature) {
-                      openModule("center:referral");
-                      return setCenterFeature(feature);
-                    }
-                    if (RESELLER_HERO_MARKETPLACE.has(cta)) return void navigate({ to: "/" });
-                    // Anything left has no screen yet; RESELLER_HERO_UNAVAILABLE
-                    // renders those disabled with the reason, so nothing reaches here.
-                  }}
-                  unavailable={resellerUnavailable}
-                />
-              ) : role === "vendor" ? (
-                <VendorSliderHero role={cfg} onCta={openHero} ctaNotice={heroNotice} />
-              ) : role === "author" ? (
-                <AuthorHero role={cfg} onCta={openHero} ctaNotice={heroNotice} />
-              ) : (
-                <Hero
-                  role={cfg}
-                  onCta={openHero}
-                  ctaNotice={heroNotice}
-                  onAnalytics={() =>
-                    openModule(
-                      cfg.modules.find((m) => /analytic|report|insight/i.test(m.label))?.key ??
-                        cfg.modules[0]?.key ??
-                        null,
-                    )
-                  }
-                />
-              )}
               {/* This role's AMS standing; "Open AMS" is the role's Achievements module. */}
               <AmsSummaryCard dashboardRole={role} onOpen={() => openModule("achievements")} />
               <KpiToolbar

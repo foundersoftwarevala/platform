@@ -6,6 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeNotificationStream } from "@/lib/realtime/notification-stream";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { getHeldRoles } from "@/lib/auth-bridge";
+import { bannersForRoles, fetchCentralBanners } from "@/lib/central-banners";
 
 /**
  * The notification bell, on the platform's one notification system.
@@ -106,6 +108,23 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
     },
     staleTime: 5 * 60_000,
   });
+  const centralNotices = useQuery({
+    queryKey: ["central-banner-notices", userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const heldRoles = await getHeldRoles();
+      const roles = [...heldRoles];
+      if (
+        ["boss", "boss_owner", "admin", "super_admin", "founder", "owner"].some((r) =>
+          heldRoles.has(r),
+        )
+      ) {
+        roles.push("admin");
+      }
+      return bannersForRoles(await fetchCentralBanners(["festival_wish", "officer_notice"]), roles);
+    },
+    staleTime: 60_000,
+  });
 
   // New rows for this user refresh the bell straight away; a reconnect
   // refreshes too, for anything that arrived while the stream was down.
@@ -128,6 +147,7 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
 
   const items = q.data?.notifications ?? [];
   const publicItems = siteNotifications.data ?? [];
+  const roleNotices = centralNotices.data ?? [];
   const unread = Number(q.data?.unread ?? 0);
 
   return (
@@ -279,13 +299,65 @@ export function NotificationBell({ buttonClassName }: { buttonClassName?: string
               </ul>
             </section>
           )}
+          {centralNotices.isLoading && userId && (
+            <p className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> {t("notifications.loading")}
+            </p>
+          )}
+          {centralNotices.error && (
+            <p className="px-3 py-3 text-center text-sm text-muted-foreground">
+              {t("notifications.central_unavailable")}
+            </p>
+          )}
+          {roleNotices.length > 0 && (
+            <section aria-label={t("notifications.role_announcements")}>
+              <h3 className="border-y border-border bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
+                {t("notifications.role_announcements")}
+              </h3>
+              <ul>
+                {roleNotices.map((banner) => (
+                  <li
+                    key={`central-${banner.id}`}
+                    data-central-banner={banner.id}
+                    data-banner-type={banner.banner_type}
+                    className="border-b border-border px-3 py-2.5 last:border-0"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span
+                        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                          banner.banner_type === "officer_notice" ? TONE.warning : TONE.info
+                        }`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{banner.title}</p>
+                        {banner.subtitle && (
+                          <p className="mt-1 text-xs text-muted-foreground">{banner.subtitle}</p>
+                        )}
+                        {safeLink(banner.cta_link) && (
+                          <a
+                            href={safeLink(banner.cta_link) ?? undefined}
+                            className="mt-1 inline-flex text-xs text-primary hover:underline"
+                          >
+                            {banner.cta_primary || t("notifications.open")}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {userId &&
             !q.isLoading &&
             !q.error &&
             items.length === 0 &&
             !siteNotifications.isLoading &&
             !siteNotifications.error &&
-            publicItems.length === 0 && (
+            publicItems.length === 0 &&
+            !centralNotices.isLoading &&
+            !centralNotices.error &&
+            roleNotices.length === 0 && (
               <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                 {t("notifications.empty")}
               </p>

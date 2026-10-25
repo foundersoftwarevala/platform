@@ -4,6 +4,8 @@ export const NOTIFICATIONS_MESSAGES = {
   "notifications.title": ["Notifications", "heading of the bell panel"],
   "notifications.announcements": "Platform announcements",
   "notifications.announcements_unavailable": "Platform announcements could not be loaded.",
+  "notifications.role_announcements": "Role announcements",
+  "notifications.central_unavailable": "Role announcements could not be loaded.",
   "notifications.mark_all_read": "Mark all read",
   "notifications.mark_read": ["Mark read", "marks one notification as read"],
   "notifications.open": ["Open", "follows the link in a notification"],

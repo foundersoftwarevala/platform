@@ -2,6 +2,7 @@
 // Single source of truth = public.home_hero_slides (same table the public homepage reads).
 // This module adapts that table to the richer shape used by the Hero Banner Manager UI.
 import { supabase } from "@/integrations/supabase/client";
+import type { CentralBannerType } from "@/lib/central-banners";
 import * as Icons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -36,6 +37,8 @@ export type HeroSlideRow = {
   updated_at: string | null;
   created_by: string | null;
   updated_by: string | null;
+  banner_type: CentralBannerType;
+  target_roles: string[] | null;
 };
 
 export type HeroSlideInsert = Partial<HeroSlideRow>;
@@ -83,6 +86,8 @@ type DbRow = {
   // Written by the database from the verified session, not sent by the browser.
   created_by?: string | null;
   updated_by?: string | null;
+  banner_type?: CentralBannerType;
+  target_roles?: string[] | null;
 };
 
 /** Derive ring/badge classes from a tailwind text-* accent class. */
@@ -143,6 +148,8 @@ function toRow(r: DbRow): HeroSlideRow {
     updated_at: r.updated_at ?? null,
     created_by: r.created_by ?? null,
     updated_by: r.updated_by ?? null,
+    banner_type: r.banner_type ?? "marketplace_slider",
+    target_roles: r.target_roles ?? null,
   };
 }
 
@@ -175,6 +182,8 @@ function toDb(patch: Partial<HeroSlideRow>): Record<string, unknown> {
   if (patch.publish_at !== undefined) out.published_at = patch.publish_at;
   if (patch.unpublish_at !== undefined) out.unpublish_at = patch.unpublish_at;
   if (patch.enabled !== undefined) out.visible = patch.enabled;
+  if (patch.banner_type !== undefined) out.banner_type = patch.banner_type;
+  if (patch.target_roles !== undefined) out.target_roles = patch.target_roles;
   if (patch.status !== undefined) {
     // status drives visibility on the public homepage
     if (patch.status === "published" || patch.status === "scheduled") out.visible = true;
@@ -204,6 +213,7 @@ export async function fetchPublicHeroSlides(): Promise<HeroSlideRow[]> {
     .from(TABLE as never)
     .select("*")
     .eq("visible", true)
+    .eq("banner_type", "marketplace_slider")
     .order("position", { ascending: true });
   if (error) throw error;
   return ((data ?? []) as unknown as DbRow[]).map(toRow).filter((s) => s.status !== "archived");
@@ -233,6 +243,8 @@ export async function createHeroSlide(input: HeroSlideInsert): Promise<HeroSlide
     // archived state were never written on create.
     cta_secondary_link: input.secondary_href ?? null,
     ...(input.status === "archived" ? { archived_at: new Date().toISOString() } : {}),
+    banner_type: input.banner_type ?? "marketplace_slider",
+    target_roles: input.target_roles ?? null,
     gradient: input.bg_gradient ?? "",
     icon_name: input.icon ?? "Sparkles",
     accent: input.accent_class ?? "text-cyan-300",

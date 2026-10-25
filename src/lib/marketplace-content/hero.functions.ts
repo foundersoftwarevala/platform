@@ -26,6 +26,8 @@ export type HeroSlide = {
   visible: boolean;
   published_at: string | null;
   unpublish_at: string | null;
+  banner_type?: "marketplace_slider" | "dashboard_welcome" | "festival_wish" | "officer_notice";
+  target_roles?: string[] | null;
 };
 
 /**
@@ -388,6 +390,7 @@ export async function listHeroSlidesPublic(): Promise<HeroSlide[]> {
       .select("*")
       // Only slides the manager has actually made visible.
       .eq("visible", true)
+      .eq("banner_type", "marketplace_slider")
       // And only inside their schedule. A null bound means "no bound", so a
       // slide with neither dates set is simply always in window.
       .or(`published_at.is.null,published_at.lte.${nowIso}`)

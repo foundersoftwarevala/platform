@@ -34,9 +34,29 @@ import {
   type HeroSlideRow,
   type HeroStatus,
 } from "@/lib/hero-slides";
+import { CENTRAL_BANNER_TYPES, type CentralBannerType } from "@/lib/central-banners";
 
 const STATUS_TABS = ["All", "Live", "Scheduled", "Drafts", "Archived"] as const;
 type Tab = (typeof STATUS_TABS)[number];
+const DASHBOARD_ROLES = [
+  "developer",
+  "dev-manager",
+  "author",
+  "vendor",
+  "reseller",
+  "influencer",
+  "franchise",
+  "affiliate",
+  "seo",
+  "admin",
+  "promise-tracker",
+] as const;
+const BANNER_TYPE_LABELS: Record<CentralBannerType, string> = {
+  marketplace_slider: "Marketplace slider",
+  dashboard_welcome: "Dashboard welcome",
+  festival_wish: "Festival wish",
+  officer_notice: "Officer notice",
+};
 
 const GRADIENT_PRESETS = [
   {
@@ -111,6 +131,8 @@ const EMPTY: Partial<HeroSlideRow> = {
   visible_roles: [],
   visible_countries: [],
   visible_languages: [],
+  banner_type: "marketplace_slider",
+  target_roles: null,
 };
 
 export function HeroBannerSection() {
@@ -217,9 +239,9 @@ export function HeroBannerSection() {
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
-        eyebrow={`Hero Banner Manager · ${slides.length} slides`}
-        title="Hero Banner Manager"
-        description="Live-connected cinematic hero slides. Create, edit, schedule, and reorder — changes appear on the home page instantly."
+        eyebrow={`Central Banner Manager · ${slides.length} banners`}
+        title="Central Banner Manager"
+        description="Manage marketplace slides, role-specific dashboard welcomes, festival wishes, and officer notices from one place."
         actions={
           <>
             <PillButton variant="ghost" href="/" target="_blank">
@@ -229,7 +251,7 @@ export function HeroBannerSection() {
             </PillButton>
             <PillButton variant="primary" onClick={() => setCreating(true)}>
               <span className="inline-flex items-center gap-1.5">
-                <Plus className="h-3.5 w-3.5" /> New Slide
+                <Plus className="h-3.5 w-3.5" /> New Banner
               </span>
             </PillButton>
           </>
@@ -279,7 +301,7 @@ export function HeroBannerSection() {
       ) : filtered.length === 0 ? (
         <Card>
           <div className="py-8 text-center text-sm text-muted-foreground">
-            No slides in this view. Click <b>New Slide</b> to create one.
+            No banners in this view. Click <b>New Banner</b> to create one.
           </div>
         </Card>
       ) : (
@@ -522,7 +544,7 @@ function SlideEditor({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 p-4 backdrop-blur-sm">
       <div className="my-8 w-full max-w-4xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <div className="text-sm font-bold">{isNew ? "New hero slide" : "Edit hero slide"}</div>
+          <div className="text-sm font-bold">{isNew ? "New banner" : "Edit banner"}</div>
           <button onClick={onClose} className="rounded-md p-1 hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
@@ -554,6 +576,38 @@ function SlideEditor({
         </div>
 
         <div className="grid gap-4 p-5 md:grid-cols-2">
+          <Field label="Banner type">
+            <select
+              value={f.banner_type ?? "marketplace_slider"}
+              onChange={(e) => set("banner_type", e.target.value as CentralBannerType)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            >
+              {CENTRAL_BANNER_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {BANNER_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Target roles (select none for everyone)">
+            <select
+              multiple
+              value={f.target_roles ?? []}
+              onChange={(e) =>
+                set(
+                  "target_roles",
+                  Array.from(e.currentTarget.selectedOptions, (option) => option.value),
+                )
+              }
+              className="min-h-24 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            >
+              {DASHBOARD_ROLES.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Kicker">
             <Input value={f.kicker ?? ""} onChange={(v) => set("kicker", v)} />
           </Field>
@@ -725,7 +779,7 @@ function SlideEditor({
               ) : (
                 <Save className="h-3.5 w-3.5" />
               )}
-              {isNew ? "Create slide" : "Save changes"}
+              {isNew ? "Create banner" : "Save changes"}
             </span>
           </PillButton>
         </div>

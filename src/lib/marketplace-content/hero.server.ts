@@ -52,6 +52,7 @@ export const getHeroSlidesPublic = createServerFn({ method: "GET" }).handler(
       query.set("select", "*");
       // Only slides the manager has actually made visible.
       query.set("visible", "eq.true");
+      query.set("banner_type", "eq.marketplace_slider");
       query.set("order", "position.asc");
 
       // A null bound means "no bound", so a slide with neither date set is
