@@ -325,31 +325,27 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       detail: commission.error,
     },
   );
+  if (!commission.ok) {
+    throw new Error(`Could not record author commission; fulfillment can be retried: ${commission.error ?? "unknown error"}`);
+  }
 
-  if (!created) {
+  if (created) {
+    await logPaymentEvent(orderId, "fulfilled", {
+      licence_id: licence.id,
+      fingerprint: licenceFingerprint(licenceKey),
+      product_id: productId || null,
+      entitlement_id: entitlementId,
+      entitlements: entitlementIds.length,
+      products: purchased.length,
+    });
+  } else {
     await logPaymentEvent(orderId, "entitlements_repaired", {
       licence_id: licence.id,
       entitlement_id: entitlementId,
       entitlements: entitlementIds.length,
       products: purchased.length,
     });
-    return {
-      ok: true,
-      created: false,
-      licenceKey: licence.license_key,
-      licenceId: licence.id,
-      entitlementId,
-    };
   }
-
-  await logPaymentEvent(orderId, "fulfilled", {
-    licence_id: licence.id,
-    fingerprint: licenceFingerprint(licenceKey),
-    product_id: productId || null,
-    entitlement_id: entitlementId,
-    entitlements: entitlementIds.length,
-    products: purchased.length,
-  });
 
   // The document for the customer and for the accounts.
   // Bill what was charged: rupees when the customer paid in rupees.
@@ -369,6 +365,9 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
     invoice_no: (invoice.invoice as { invoice_no?: string } | null)?.invoice_no ?? null,
     detail: invoice.error ?? null,
   });
+  if (!invoice.invoice) {
+    throw new Error(`Could not create or read the order invoice; fulfillment can be retried: ${invoice.error ?? "invoice missing"}`);
+  }
 
   // Tell the buyer. Queued regardless of whether a provider is configured, so
   // nothing bought goes uncommunicated once credentials exist.
@@ -379,33 +378,46 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       "",
   ).trim();
   if (buyerEmail) {
-    // In the language the buyer paid in (recorded by /api/payment/initiate).
-    const lang = typeof metadata.language === "string" ? metadata.language : "en";
-    const t = await serverTranslator(lang, ["email"]);
-    const message = licenceEmail(
-      {
-        name: String(metadata.buyer_name ?? contact.name ?? buyerEmail.split("@")[0]),
-        productName: productName,
-        licenceKey,
-        orderNo: (order.order_no as string | null) ?? null,
-      },
-      { t, lang },
+    const sentEmailResponse = await rest(
+      `email_outbox?select=id&order_id=eq.${encodeURIComponent(orderId)}` +
+        `&context->>licence_id=eq.${encodeURIComponent(licence.id)}&limit=1`,
     );
-    const mail = await sendMail({
-      ...message,
-      to: buyerEmail,
-      context: { order_id: orderId, licence_id: licence.id, language: lang },
-    });
-    await logPaymentEvent(orderId, mail.sent ? "licence_email_sent" : "licence_email_queued", {
-      to: buyerEmail, reason: mail.reason,
-    });
+    if (!sentEmailResponse.ok) {
+      throw new Error(`Could not check existing license email (HTTP ${sentEmailResponse.status})`);
+    }
+    const sentEmails: unknown = await sentEmailResponse.json();
+    if (!Array.isArray(sentEmails)) {
+      throw new Error("Existing license email response was not an array");
+    }
+    if (sentEmails.length === 0) {
+      // In the language the buyer paid in (recorded by /api/payment/initiate).
+      const lang = typeof metadata.language === "string" ? metadata.language : "en";
+      const t = await serverTranslator(lang, ["email"]);
+      const message = licenceEmail(
+        {
+          name: String(metadata.buyer_name ?? contact.name ?? buyerEmail.split("@")[0]),
+          productName: productName,
+          licenceKey,
+          orderNo: (order.order_no as string | null) ?? null,
+        },
+        { t, lang },
+      );
+      const mail = await sendMail({
+        ...message,
+        to: buyerEmail,
+        context: { kind: "licence", order_id: orderId, licence_id: licence.id, language: lang },
+      });
+      await logPaymentEvent(orderId, mail.sent ? "licence_email_sent" : "licence_email_queued", {
+        to: buyerEmail, reason: mail.reason,
+      });
+    }
   } else {
     await logPaymentEvent(orderId, "licence_email_skipped", {
       reason: "neither the order metadata nor the buyer's profile carries an email",
     });
   }
 
-  return { ok: true, created: true, licenceKey, licenceId: licence.id, entitlementId };
+  return { ok: true, created, licenceKey, licenceId: licence.id, entitlementId };
 }
 
 /** Take access back when a payment is reversed. The licence row is kept. */

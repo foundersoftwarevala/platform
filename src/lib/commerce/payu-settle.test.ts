@@ -34,6 +34,8 @@ let intents: Record<string, unknown>[];
 let events: Record<string, unknown>[];
 let payu: Record<string, { status: string; amt?: string; mihpayid: string }>;
 let paidTransitions: number;
+let failNextIntentWrite: boolean;
+let failNextEventWrite: boolean;
 
 function matches(row: Record<string, unknown>, params: URLSearchParams): boolean {
   for (const [key, value] of params) {
@@ -68,6 +70,8 @@ beforeEach(() => {
   intents = [{ id: "i1", order_id: "o1", status: "pending" }];
   events = [];
   payu = {};
+  failNextIntentWrite = false;
+  failNextEventWrite = false;
 
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -86,6 +90,10 @@ beforeEach(() => {
     if (!rows) return json({ message: "unknown table" }, 404);
     if (method === "GET") return json(rows.filter((r) => matches(r, url.searchParams)));
     if (method === "PATCH") {
+      if (table === "marketplace_payment_intents" && failNextIntentWrite) {
+        failNextIntentWrite = false;
+        return json({ message: "intent write failed" }, 503);
+      }
       const hit = rows.filter((r) => matches(r, url.searchParams));
       for (const r of hit) {
         if (table === "marketplace_orders" && body.status === "paid" && r.status !== "paid") paidTransitions += 1;
@@ -94,6 +102,10 @@ beforeEach(() => {
       return json(hit);
     }
     if (method === "POST") {
+      if (table === "marketplace_payment_events" && failNextEventWrite) {
+        failNextEventWrite = false;
+        return json({ message: "event write failed" }, 503);
+      }
       if (table === "marketplace_payment_events" &&
           events.some((e) => e.provider_event_id === body.provider_event_id)) return json([], 201);
       const row = { id: `${table}-${rows.length + 1}`, ...body };
@@ -128,7 +140,54 @@ describe("settling a PayU result", () => {
     expect(intents[0]).toMatchObject({ status: "succeeded", provider: "payu", provider_intent_id: "T2", currency: "INR" });
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ provider: "payu", provider_event_id: "M1:success", signature_verified: true, amount: 20750 });
-    expect((events[0].payload as Record<string, string>).hash).toBeUndefined();
+    expect(events[0].payload).toEqual({
+      txnid: "T2",
+      status: "success",
+      amount: "20750.00",
+      mihpayid: "M1",
+    });
+    expect(JSON.stringify(events[0].payload)).not.toMatch(/firstname|email|Buyer|b@test|hash/i);
+  });
+
+  it("returns a retryable error when the event ledger write fails, then repairs it on replay", async () => {
+    payu.T2 = { status: "success", amt: "20750.00", mihpayid: "M1" };
+    failNextEventWrite = true;
+    const fields = callback({ txnid: "T2", status: "success", amount: "20750.00" });
+
+    const failed = await settlePayuCallback(config, fields, "webhook");
+    expect(failed).toMatchObject({ httpStatus: 500, message: "Could not record the payment result" });
+    expect(orders[0].status).toBe("paid");
+    expect(events).toHaveLength(0);
+    expect(fulfilOrder).not.toHaveBeenCalled();
+
+    const retried = await settlePayuCallback(config, fields, "webhook");
+    expect(retried.httpStatus).toBe(200);
+    expect(events).toHaveLength(1);
+    expect(fulfilOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a retryable error when the intent write fails", async () => {
+    payu.T2 = { status: "success", amt: "20750.00", mihpayid: "M1" };
+    failNextIntentWrite = true;
+    const out = await settlePayuCallback(
+      config,
+      callback({ txnid: "T2", status: "success", amount: "20750.00" }),
+      "webhook",
+    );
+
+    expect(out).toMatchObject({ httpStatus: 500, message: "Could not record the payment result" });
+    expect(orders[0].status).toBe("paid");
+    expect(events).toHaveLength(0);
+    expect(fulfilOrder).not.toHaveBeenCalled();
+
+    const retry = await settlePayuCallback(
+      config,
+      callback({ txnid: "T2", status: "success", amount: "20750.00" }),
+      "webhook",
+    );
+    expect(retry.httpStatus).toBe(200);
+    expect(events).toHaveLength(1);
+    expect(fulfilOrder).toHaveBeenCalledTimes(1);
   });
 
   it("settles a repeated delivery and a concurrent one exactly once", async () => {

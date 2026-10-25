@@ -102,76 +102,90 @@ function chargedFor(order: OrderRow, txnid: string): number {
   return Number(attempt?.amount_inr ?? 0);
 }
 
-/**
- * Keep marketplace_payment_intents (one per order) in step with the provider,
- * and add the provider's event to marketplace_payment_events. Neither write
- * may block a payment: a failure is logged and the payment carries on.
- */
+/** Persist the PayU result before acknowledging it to the provider. */
 export async function recordPaymentIntent(
   orderId: string,
   intent: { status: "pending" | "succeeded" | "failed"; txnid: string; amount: number },
   event?: { id: string; type: string; amount: number; fields: Record<string, string> },
 ): Promise<void> {
-  try {
-    const values = {
-      provider: "payu",
-      provider_intent_id: intent.txnid,
-      status: intent.status,
-      amount: intent.amount,
-      currency: "INR",
-      updated_at: new Date().toISOString(),
-    };
-    const patched = await fetch(
-      `${url()}/rest/v1/marketplace_payment_intents?order_id=eq.${encodeURIComponent(orderId)}`,
-      { method: "PATCH", headers: { ...admin(), Prefer: "return=representation" }, body: JSON.stringify(values) },
-    );
-    let rows = patched.ok ? ((await patched.json()) as { id: string }[]) : [];
-    if (patched.ok && rows.length === 0) {
-      // Orders made before checkout wrote intents have none yet.
-      const created = await fetch(
-        `${url()}/rest/v1/marketplace_payment_intents?on_conflict=order_id`,
-        {
-          method: "POST",
-          headers: { ...admin(), Prefer: "return=representation,resolution=merge-duplicates" },
-          body: JSON.stringify({ ...values, order_id: orderId, idempotency_key: `payu:${orderId}` }),
-        },
-      );
-      rows = created.ok ? ((await created.json()) as { id: string }[]) : [];
-    }
-    const intentId = rows[0]?.id;
-    if (!intentId) {
-      await logPaymentEvent(orderId, "payment_intent_write_failed", { txnid: intent.txnid, status: intent.status });
-      return;
-    }
-    if (!event) return;
-    const { hash: _hash, ...payload } = event.fields;
-    const recorded = await fetch(
-      `${url()}/rest/v1/marketplace_payment_events?on_conflict=provider,provider_event_id`,
+  const values = {
+    provider: "payu",
+    provider_intent_id: intent.txnid,
+    status: intent.status,
+    amount: intent.amount,
+    currency: "INR",
+    updated_at: new Date().toISOString(),
+  };
+  const patched = await fetch(
+    `${url()}/rest/v1/marketplace_payment_intents?order_id=eq.${encodeURIComponent(orderId)}`,
+    { method: "PATCH", headers: { ...admin(), Prefer: "return=representation" }, body: JSON.stringify(values) },
+  );
+  if (!patched.ok) throw new Error(`Payment intent update failed (${patched.status})`);
+  let rows: unknown = await patched.json();
+  if (!Array.isArray(rows)) throw new Error("Payment intent update returned an invalid response");
+  if (rows.length === 0) {
+    // Orders made before checkout wrote intents have none yet.
+    const created = await fetch(
+      `${url()}/rest/v1/marketplace_payment_intents?on_conflict=order_id`,
       {
         method: "POST",
-        headers: { ...admin(), Prefer: "return=minimal,resolution=ignore-duplicates" },
-        body: JSON.stringify({
-          payment_intent_id: intentId,
-          provider: "payu",
-          provider_event_id: event.id,
-          event_type: event.type,
-          amount: event.amount,
-          currency: "INR",
-          signature_verified: true,
-          payload_hash: createHash("sha256").update(JSON.stringify(event.fields)).digest("hex"),
-          payload,
-        }),
+        headers: { ...admin(), Prefer: "return=representation,resolution=merge-duplicates" },
+        body: JSON.stringify({ ...values, order_id: orderId, idempotency_key: `payu:${orderId}` }),
       },
     );
-    if (!recorded.ok) {
-      await logPaymentEvent(orderId, "payment_event_write_failed", {
-        txnid: intent.txnid, status: recorded.status, detail: (await recorded.text()).slice(0, 300),
-      });
-    }
+    if (!created.ok) throw new Error(`Payment intent insert failed (${created.status})`);
+    rows = await created.json();
+    if (!Array.isArray(rows)) throw new Error("Payment intent insert returned an invalid response");
+  }
+  const intentId = (rows[0] as { id?: unknown } | undefined)?.id;
+  if (typeof intentId !== "string" || !intentId) throw new Error("Payment intent write returned no id");
+  if (!event) return;
+
+  const payload = {
+    txnid: String(event.fields.txnid ?? intent.txnid),
+    status: String(event.fields.status ?? intent.status),
+    amount: String(event.fields.amount ?? event.amount),
+    mihpayid: String(event.fields.mihpayid ?? ""),
+  };
+  const recorded = await fetch(
+    `${url()}/rest/v1/marketplace_payment_events?on_conflict=provider,provider_event_id`,
+    {
+      method: "POST",
+      headers: { ...admin(), Prefer: "return=minimal,resolution=ignore-duplicates" },
+      body: JSON.stringify({
+        payment_intent_id: intentId,
+        provider: "payu",
+        provider_event_id: event.id,
+        event_type: event.type,
+        amount: event.amount,
+        currency: "INR",
+        signature_verified: true,
+        payload_hash: createHash("sha256").update(JSON.stringify(payload)).digest("hex"),
+        payload,
+      }),
+    },
+  );
+  if (!recorded.ok) {
+    throw new Error(`Payment event insert failed (${recorded.status}): ${(await recorded.text()).slice(0, 300)}`);
+  }
+}
+
+async function persistPaymentResult(
+  orderId: string,
+  intent: { status: "pending" | "succeeded" | "failed"; txnid: string; amount: number },
+  event: { id: string; type: string; amount: number; fields: Record<string, string> },
+): Promise<boolean> {
+  try {
+    await recordPaymentIntent(orderId, intent, event);
+    return true;
   } catch (error) {
-    await logPaymentEvent(orderId, "payment_intent_write_failed", {
-      txnid: intent.txnid, message: error instanceof Error ? error.message : String(error),
-    });
+    console.error("[payu] payment result persistence failed", error);
+    await logPaymentEvent(orderId, "payment_result_persistence_failed", {
+      txnid: intent.txnid,
+      status: intent.status,
+      message: error instanceof Error ? error.message : "Unknown persistence failure",
+    }, { provider: "payu" });
+    return false;
   }
 }
 
@@ -237,7 +251,26 @@ export async function settlePayuCallback(
   // Already settled? A repeated success makes sure access exists, without
   // settling twice. Anything else for a paid order changes nothing at all.
   if (orderStatus === "paid") {
-    if (status === "success") return fulfil(orderId, txnid, true);
+    if (status === "success") {
+      const charged = chargedFor(order, txnid);
+      if (!(charged > 0) || payuAmount(charged) !== payuAmount(Number(amount))) {
+        return { httpStatus: 409, message: "Amount mismatch", txnid };
+      }
+      const payuId = fields.mihpayid || txnid;
+      const event = {
+        id: `${payuId}:${status}`,
+        type: `payment.${status}`,
+        amount: charged,
+        fields,
+      };
+      const recorded = await persistPaymentResult(
+        orderId,
+        { status: "succeeded", txnid, amount: charged },
+        event,
+      );
+      if (!recorded) return { httpStatus: 500, message: "Could not record the payment result", txnid };
+      return fulfil(orderId, txnid, true);
+    }
     await logPaymentEvent(orderId, "payu_failure_ignored", { txnid, status, reason: "order already paid" },
       { provider: "payu" });
     return { httpStatus: 200, message: "Already recorded", txnid };
@@ -289,7 +322,12 @@ export async function settlePayuCallback(
     await logPaymentEvent(orderId, "payu_result_on_closed_order", {
       txnid, status, order_status: orderStatus, settled,
     }, { provider: "payu" });
-    await recordPaymentIntent(orderId, { status: settled ? "succeeded" : "failed", txnid, amount: charged }, event);
+    const recorded = await persistPaymentResult(
+      orderId,
+      { status: settled ? "succeeded" : "failed", txnid, amount: charged },
+      event,
+    );
+    if (!recorded) return { httpStatus: 500, message: "Could not record the payment result", txnid };
     return { httpStatus: 200, message: "Recorded for review", txnid };
   }
 
@@ -322,7 +360,8 @@ export async function settlePayuCallback(
         { provider: "payu" });
       return { httpStatus: 200, message: "Recorded as failed", txnid };
     }
-    await recordPaymentIntent(orderId, { status: "failed", txnid, amount: charged }, event);
+    const recorded = await persistPaymentResult(orderId, { status: "failed", txnid, amount: charged }, event);
+    if (!recorded) return { httpStatus: 500, message: "Could not record the payment result", txnid };
     await logPaymentEvent(orderId, "payment_failed", { txnid, status, reason: verified.reason },
       { provider: "payu" });
     return { httpStatus: 200, message: "Recorded as failed", txnid };
@@ -353,7 +392,8 @@ export async function settlePayuCallback(
     return { httpStatus: 500, message: "Could not record the payment", txnid };
   }
   const moved = (await paid.json()) as unknown[];
-  await recordPaymentIntent(orderId, { status: "succeeded", txnid, amount: charged }, event);
+  const recorded = await persistPaymentResult(orderId, { status: "succeeded", txnid, amount: charged }, event);
+  if (!recorded) return { httpStatus: 500, message: "Could not record the payment result", txnid };
   if (moved.length === 0) {
     // Another delivery settled it first; that one issued access.
     let now: { status?: string } | null;

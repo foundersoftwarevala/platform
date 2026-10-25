@@ -16,11 +16,16 @@ vi.mock("@/lib/i18n/server-translate.server", () => ({
   serverTranslator: vi.fn(async () => ({ t: (key: string) => key, lang: "en" })),
 }));
 vi.mock("./invoices", () => ({
-  createInvoiceForOrder: vi.fn(async () => ({ created: false, invoice: null })),
+  createInvoiceForOrder: vi.fn(async () => ({
+    created: true,
+    invoice: { id: "invoice-1", invoice_no: "SV-INV-1" },
+  })),
 }));
 
 const { fulfilOrder, revokeOrderAccess } = await import("./fulfilment");
 const { recordCommissionsForOrder } = await import("./commission");
+const { send } = await import("./mailer");
+const { createInvoiceForOrder } = await import("./invoices");
 
 const order = {
   id: "order-1",
@@ -75,7 +80,8 @@ describe("order fulfillment reliability", () => {
         if (path.endsWith("/marketplace_order_items")) return json([line]);
         if (path.endsWith("/profiles")) return json([]);
         if (path.endsWith("/licenses") && !init?.method) return json([]);
-        if (path.endsWith("/marketplace_licenses")) return json([{ license_key: "MARKET-LICENSE" }]);
+        if (path.endsWith("/marketplace_licenses"))
+          return json([{ license_key: "MARKET-LICENSE" }]);
         if (path.endsWith("/licenses") && init?.method === "POST")
           return json([{ id: "license-1", license_key: "MARKET-LICENSE" }], 201);
         if (path.endsWith("/entitlements")) return json({ message: "write failed" }, 503);
@@ -87,8 +93,11 @@ describe("order fulfillment reliability", () => {
     await expect(fulfilOrder("order-1")).rejects.toThrow("Could not grant product access");
   });
 
-  it("repairs entitlements when a license already exists", async () => {
+  it("repairs a partial fulfillment when a license already exists", async () => {
     const requests: { path: string; method: string }[] = [];
+    vi.mocked(recordCommissionsForOrder).mockRejectedValueOnce(
+      new Error("temporary commission failure"),
+    );
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL, init?: RequestInit) => {
@@ -97,15 +106,21 @@ describe("order fulfillment reliability", () => {
         requests.push({ path, method });
         if (path.endsWith("/marketplace_orders")) return json([order]);
         if (path.endsWith("/marketplace_order_items")) return json([line]);
-        if (path.endsWith("/profiles")) return json([]);
+        if (path.endsWith("/profiles"))
+          return json([{ email: "buyer@example.test", full_name: "Buyer" }]);
         if (path.endsWith("/licenses")) return json([{ id: "license-1", license_key: "EXISTING" }]);
-        if (path.endsWith("/marketplace_licenses")) return json([{ license_key: "MARKET-LICENSE" }]);
-        if (path.endsWith("/entitlements"))
-          return json([{ id: "entitlement-1" }], 201);
+        if (path.endsWith("/marketplace_licenses"))
+          return json([{ license_key: "MARKET-LICENSE" }]);
+        if (path.endsWith("/entitlements")) return json([{ id: "entitlement-1" }], 201);
+        if (path.endsWith("/email_outbox")) return json([]);
         if (path.endsWith("/payment_logs")) return new Response(null, { status: 201 });
         throw new Error(`Unexpected request: ${path}`);
       }),
     );
+
+    await expect(fulfilOrder("order-1")).rejects.toThrow("temporary commission failure");
+    expect(createInvoiceForOrder).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
 
     await expect(fulfilOrder("order-1")).resolves.toMatchObject({
       ok: true,
@@ -115,11 +130,14 @@ describe("order fulfillment reliability", () => {
       entitlementId: "entitlement-1",
     });
     expect(requests).toContainEqual({ path: "/rest/v1/entitlements", method: "POST" });
-    expect(requests.some((request) => request.path === "/rest/v1/invoices")).toBe(false);
-    expect(recordCommissionsForOrder).toHaveBeenCalledWith("order-1");
+    expect(requests.some((request) => request.path === "/rest/v1/email_outbox")).toBe(true);
+    expect(recordCommissionsForOrder).toHaveBeenCalledTimes(2);
+    expect(recordCommissionsForOrder).toHaveBeenNthCalledWith(2, "order-1");
+    expect(createInvoiceForOrder).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it("still fulfills access when commission processing throws, leaving an explicit failure event", async () => {
+  it("fails fulfillment when commission processing throws so the webhook can retry", async () => {
     vi.mocked(recordCommissionsForOrder).mockRejectedValueOnce(new Error("seller read failed"));
     const paymentEvents: string[] = [];
     vi.stubGlobal(
@@ -130,7 +148,8 @@ describe("order fulfillment reliability", () => {
         if (path.endsWith("/marketplace_order_items")) return json([line]);
         if (path.endsWith("/profiles")) return json([]);
         if (path.endsWith("/licenses") && !init?.method) return json([]);
-        if (path.endsWith("/marketplace_licenses")) return json([{ license_key: "MARKET-LICENSE" }]);
+        if (path.endsWith("/marketplace_licenses"))
+          return json([{ license_key: "MARKET-LICENSE" }]);
         if (path.endsWith("/licenses") && init?.method === "POST")
           return json([{ id: "license-1", license_key: "MARKET-LICENSE" }], 201);
         if (path.endsWith("/entitlements")) return json([{ id: "entitlement-1" }], 201);
@@ -144,7 +163,7 @@ describe("order fulfillment reliability", () => {
       }),
     );
 
-    await expect(fulfilOrder("order-1")).resolves.toMatchObject({ ok: true, created: true });
+    await expect(fulfilOrder("order-1")).rejects.toThrow("seller read failed");
     expect(paymentEvents).toContain("commission_failed");
   });
 
