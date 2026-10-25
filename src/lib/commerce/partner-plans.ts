@@ -79,40 +79,43 @@ function cents(value: number): number {
 }
 
 /**
- * The price this partner pays for a product.
+ * The price a franchise partner is quoted for a product.
  *
- * `eligible` is decided by the caller from the database — a partner row that is
- * active and approved. When it is false the list price stands, whatever tier
- * the row claims.
+ * Franchise discounts are not applied by marketplace checkout, so the quote
+ * must remain at list price even for an eligible franchise. `eligible` is
+ * retained for the existing API contract and eligibility-specific messaging.
  */
-export function quoteFor(
-  listPriceUsd: number,
-  plan: Plan | null,
-  eligible: boolean,
-): Quote {
+export function quoteFor(listPriceUsd: number, plan: Plan | null, eligible: boolean): Quote {
   const list = cents(Math.max(0, listPriceUsd));
   if (!plan) {
     return {
-      listPriceUsd: list, discount: 0, discountLabel: "0%", savingUsd: 0,
-      finalPriceUsd: list, plan: null,
+      listPriceUsd: list,
+      discount: 0,
+      discountLabel: "0%",
+      savingUsd: 0,
+      finalPriceUsd: list,
+      plan: null,
       reason: "No partner plan applies to this account.",
     };
   }
   if (!eligible) {
     return {
-      listPriceUsd: list, discount: 0, discountLabel: "0%", savingUsd: 0,
-      finalPriceUsd: list, plan: plan.id,
+      listPriceUsd: list,
+      discount: 0,
+      discountLabel: "0%",
+      savingUsd: 0,
+      finalPriceUsd: list,
+      plan: plan.id,
       reason: "This partner account is not active and approved, so list price applies.",
     };
   }
-  const saving = cents(list * plan.discount);
   return {
     listPriceUsd: list,
-    discount: plan.discount,
-    discountLabel: `${Math.round(plan.discount * 100)}%`,
-    savingUsd: saving,
-    finalPriceUsd: cents(list - saving),
+    discount: 0,
+    discountLabel: "0%",
+    savingUsd: 0,
+    finalPriceUsd: list,
     plan: plan.id,
-    reason: `${plan.label} — ${Math.round(plan.discount * 100)}% partner discount.`,
+    reason: `${plan.label} — franchise discounts are not applied at marketplace checkout; list price applies.`,
   };
 }

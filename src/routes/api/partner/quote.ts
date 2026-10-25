@@ -22,7 +22,9 @@ import { languageOf, serverTranslator } from "@/lib/i18n/server-translate.server
  * rule marketplace_create_checkout applies, so the quote and the charge agree.
  * A reseller without such a membership is quoted list price.
  *
- * Franchises: the franchise row's territory and status, as before.
+ * Franchises: the franchise row's territory and status are read on the server,
+ * but marketplace checkout does not apply a franchise discount; quotes use
+ * list price until checkout supports the same rule.
  */
 
 function url() {
@@ -168,11 +170,11 @@ export const Route = createFileRoute("/api/partner/quote")({
                 : null,
             reseller_plans: await resellerPlans(),
             franchise_plans: FRANCHISE_PLANS.map(
-              ({ id, label, joiningFeeUsd, discount, leadAllowance, territory }) => ({
+              ({ id, label, joiningFeeUsd, leadAllowance, territory }) => ({
                 id,
                 label,
                 joiningFeeUsd,
-                discount,
+                discount: 0,
                 leadAllowance,
                 territory,
               }),
