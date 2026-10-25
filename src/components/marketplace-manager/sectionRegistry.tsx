@@ -54,7 +54,7 @@ const designedSections: Record<string, SectionComponent> = {
   Walls: S.WallsSection,
   Placement: S.PlacementSection,
   Sticky: S.StickySection,
-  Footer: S.FooterSection,
+  Footer: S.StorefrontFooterSection,
 
   // Catalog
   Categories: S.CategoriesSection,
@@ -80,7 +80,7 @@ const designedSections: Record<string, SectionComponent> = {
   Releases: S.ReleasesSection,
   Customers: S.CustomersSection,
   Offers: S.OffersSection,
-  Popups: S.PopupsSection,
+  Popups: S.StickySection,
   Upcoming: S.UpcomingSection,
 
   // Growth

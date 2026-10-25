@@ -143,10 +143,6 @@ export const LIVE_SECTIONS: Record<string, { resource: string; columns: string[]
     resource: "offers",
     columns: ["code", "kind", "value", "currency", "max_redemptions", "active"],
   },
-  Popups: {
-    resource: "popups",
-    columns: ["name", "label", "key", "element_type", "enabled", "desktop_enabled"],
-  },
   Walls: {
     resource: "walls",
     columns: [

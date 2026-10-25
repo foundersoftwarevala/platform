@@ -1447,7 +1447,6 @@ const RESOURCES: Record<string, Resource> = {
     creatable: ["title", "url", "category_id", "status", "position"],
     required: ["title"],
     order: "position.asc",
-    retirable: true,
     label: "Vala TV video",
   },
 
@@ -1459,7 +1458,6 @@ const RESOURCES: Record<string, Resource> = {
     creatable: ["name", "slug", "position"],
     required: ["name"],
     order: "position.asc",
-    retirable: true,
     label: "Vala TV category",
   },
 
@@ -1979,7 +1977,6 @@ const RESOURCES: Record<string, Resource> = {
     creatable: ["title", "message", "type"],
     required: ["title"],
     order: "created_at.desc",
-    retirable: true,
     label: "Franchise notification",
   },
 

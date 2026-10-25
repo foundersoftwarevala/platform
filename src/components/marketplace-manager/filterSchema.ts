@@ -47,7 +47,14 @@ const MISSING_PRODUCT_FIELDS = [
 const DATE_RANGES = { "7d": 7, "30d": 30, "90d": 90 } as const;
 
 const productQueueSchema: MarketplaceSectionFilterSchema = {
-  status: { column: "content_status", operator: "eq", values: CONTENT_STATUSES },
+  status: {
+    column: "content_status",
+    operator: "eq",
+    values: [...CONTENT_STATUSES, "active", "inactive"],
+    resolveColumn: (value) =>
+      value === "active" || value === "inactive" ? "visible" : "content_status",
+    resolveValue: (value) => (value === "active" ? "true" : value === "inactive" ? "false" : value),
+  },
   moderation: { column: "moderation_status", operator: "eq", values: MODERATION_STATUSES },
   missing: {
     column: "",

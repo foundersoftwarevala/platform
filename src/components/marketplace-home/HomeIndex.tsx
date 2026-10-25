@@ -3662,9 +3662,37 @@ function renderSections(
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const searchSessionId = useRef<string | null>(null);
   // Filtering three thousand cards on every keystroke made the box unusable
   // on a slow device; the grid now settles once typing pauses.
   const search = useDebouncedValue(searchQuery, 220);
+  useEffect(() => {
+    const query = search.trim();
+    if (query.length < 2) return;
+
+    const timer = window.setTimeout(() => {
+      searchSessionId.current ??= crypto.randomUUID();
+      void fetch("/api/marketplace/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "search",
+          query,
+          sessionId: searchSessionId.current,
+          sourcePage: window.location.pathname,
+          surface: "marketplace-home-search",
+        }),
+      })
+        .then((response) => {
+          if (!response.ok) console.error("[marketplace-search] tracking failed", response.status);
+        })
+        .catch((error: unknown) => {
+          console.error("[marketplace-search] tracking request failed", error);
+        });
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
   // Favourites survive a refresh instead of being thrown away.
   const { favorites, toggle: toggleFavorite } = useFavorites();
   const layout = useHomeLayout();

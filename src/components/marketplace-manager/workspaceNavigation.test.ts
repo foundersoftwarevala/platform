@@ -111,6 +111,12 @@ describe("Marketplace Manager workspace navigation", () => {
     ]);
   });
 
+  it("maps active status links to visible products in the manager query", () => {
+    expect(parseFilterParams("Products", "?status=active").filters).toEqual([
+      { column: "visible", operator: "eq", value: "true" },
+    ]);
+  });
+
   it.each(Object.keys(filterSchema))("uses default rows when %s has no filters", (section) => {
     expect(parseFilterParams(section, `?section=${encodeURIComponent(section)}`)).toEqual({
       filters: [],

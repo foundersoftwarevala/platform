@@ -236,9 +236,21 @@ export const Route = createFileRoute("/api/marketplace/track")({
         // One event per visitor, product, kind and minute.
         const minute = new Date().toISOString().slice(0, 16);
         const who = userId ?? (sessionId ? `s:${sessionId}` : `ip:${sourceIp}`);
+        const rawQuery = clip(body.query, 200);
+        const containsContactData =
+          rawQuery !== null &&
+          (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(rawQuery) ||
+            /(?:\+?\d[\d().\s-]{6,}\d)/.test(rawQuery));
+        const safeQuery = containsContactData ? null : rawQuery;
         // Keyed on the kind the caller sent, not the type it is stored as, so a
         // wishlist add and a buy click in the same minute are two events.
-        const dedupeKey = `${who}|${productId || "-"}|${kind}|${minute}`;
+        // Search terms are part of the key so distinct searches in one minute
+        // can be counted without retaining contact details.
+        const queryKey =
+          storedType === "search" && safeQuery
+            ? `|q:${safeQuery.toLowerCase().replace(/\s+/g, " ")}`
+            : "";
+        const dedupeKey = `${who}|${productId || "-"}|${kind}${queryKey}|${minute}`;
 
         try {
           const response = await fetch(`${url}/rest/v1/marketplace_events`, {
@@ -269,7 +281,7 @@ export const Route = createFileRoute("/api/marketplace/track")({
                 ...(referrer ? { referrer } : {}),
                 ...(hasCampaign ? { campaign } : {}),
                 // Only present on the events where it means something.
-                ...(body.query ? { query: clip(body.query, 200) } : {}),
+                ...(safeQuery ? { query: safeQuery } : {}),
                 ...(Number.isFinite(Number(body.position))
                   ? { position: Number(body.position) }
                   : {}),

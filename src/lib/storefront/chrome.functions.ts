@@ -426,3 +426,26 @@ export const saveFloatingElement = createServerFn({ method: "POST" })
       "Element saved",
     ),
   );
+
+export const createFloatingElement = createServerFn({ method: "POST" })
+  .inputValidator((i: unknown) =>
+    z.object({
+      key: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/),
+      element_type: z.enum(["ai_chat", "support", "request_demo", "actions", "link"]),
+      name: z.string().trim().min(1).max(160),
+      label: z.string().trim().min(1).max(80),
+      position: z.enum(["bottom-right", "bottom-left", "top-right", "top-left"]),
+    }).parse(i),
+  )
+  .handler(async ({ data }) =>
+    settle(
+      await callAsUser<Outcome>("sf_floating_create", {
+        p_key: data.key,
+        p_element_type: data.element_type,
+        p_name: data.name,
+        p_label: data.label,
+        p_position: data.position,
+      }),
+      "Element created",
+    ),
+  );

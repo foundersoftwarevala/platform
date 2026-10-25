@@ -10,7 +10,7 @@ import { Card, EmptyHint, PageHeader, PillButton, StatCard } from "../ui";
 import {
   getChromeDraft, validateChrome, publishChrome, rollbackChrome, listChromeVersions,
   saveFooterLink, removeFooterLink, reorderFooterLinks,
-  saveSocial, saveTrustItem, saveFooterSettings, saveFloatingElement,
+  saveSocial, saveTrustItem, saveFooterSettings, saveFloatingElement, createFloatingElement,
 } from "@/lib/storefront/chrome.functions";
 
 /**
@@ -249,11 +249,27 @@ type FloatingRow = {
 export function StickySection() {
   const { draft, check, versions, refresh, onError, publish, rollback } = useChrome("floating");
   const qc = useQueryClient();
+  const [newElement, setNewElement] = useState<{
+    key: string;
+    element_type: "ai_chat" | "support" | "request_demo" | "actions" | "link";
+    name: string;
+    label: string;
+    position: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+  } | null>(null);
 
   const save = useMutation({
     mutationFn: (v: { key: string; patch: Record<string, unknown> }) =>
       saveFloatingElement({ data: v }),
     onSuccess: () => { refresh(); toast.success("Saved"); },
+    onError,
+  });
+  const create = useMutation({
+    mutationFn: (value: NonNullable<typeof newElement>) => createFloatingElement({ data: value }),
+    onSuccess: () => {
+      setNewElement(null);
+      refresh();
+      toast.success("Floating element created as a disabled draft");
+    },
     onError,
   });
 
@@ -270,13 +286,27 @@ export function StickySection() {
         title="Floating Elements"
         description="Intercom/Crisp-style floating widgets."
         actions={
-          <PillButton
-            variant="primary"
-            disabled={publish.isPending || errors > 0}
-            onClick={() => publish.mutate("Floating elements updated")}
-          >
-            {publish.isPending ? "Publishing…" : errors > 0 ? "Fix errors to publish" : "Publish"}
-          </PillButton>
+          <div className="flex gap-2">
+            <PillButton
+              variant="ghost"
+              onClick={() => setNewElement({
+                key: "",
+                element_type: "link",
+                name: "",
+                label: "",
+                position: "bottom-right",
+              })}
+            >
+              Add element
+            </PillButton>
+            <PillButton
+              variant="primary"
+              disabled={publish.isPending || errors > 0}
+              onClick={() => publish.mutate("Floating elements updated")}
+            >
+              {publish.isPending ? "Publishing…" : errors > 0 ? "Fix errors to publish" : "Publish"}
+            </PillButton>
+          </div>
         }
       />
 
@@ -299,6 +329,122 @@ export function StickySection() {
       <ValidationPanel check={check.data as never} />
 
       {draft.isLoading && <EmptyHint text="Reading the configuration…" />}
+
+      {newElement && (
+        <Card className="mb-4">
+          <form
+            className="grid gap-3 sm:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              create.mutate(newElement);
+            }}
+          >
+            <label className="grid gap-1 text-xs">
+              Key
+              <input
+                required
+                pattern="[a-z0-9][a-z0-9_-]{0,79}"
+                maxLength={80}
+                value={newElement.key}
+                onChange={(event) => setNewElement({ ...newElement, key: event.target.value })}
+                className="rounded border border-border bg-background px-2 py-1.5"
+              />
+            </label>
+            <label className="grid gap-1 text-xs">
+              Element type
+              <select
+                value={newElement.element_type}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (
+                    value === "ai_chat" ||
+                    value === "support" ||
+                    value === "request_demo" ||
+                    value === "actions" ||
+                    value === "link"
+                  ) {
+                    setNewElement({ ...newElement, element_type: value });
+                  }
+                }}
+                className="rounded border border-border bg-background px-2 py-1.5"
+              >
+                <option value="link">Link</option>
+                <option value="ai_chat">AI chat</option>
+                <option value="support">Support</option>
+                <option value="request_demo">Request demo</option>
+                <option value="actions">Actions</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs">
+              Name
+              <input
+                required
+                maxLength={160}
+                value={newElement.name}
+                onChange={(event) => setNewElement({ ...newElement, name: event.target.value })}
+                className="rounded border border-border bg-background px-2 py-1.5"
+              />
+            </label>
+            <label className="grid gap-1 text-xs">
+              Label
+              <input
+                required
+                maxLength={80}
+                value={newElement.label}
+                onChange={(event) => setNewElement({ ...newElement, label: event.target.value })}
+                className="rounded border border-border bg-background px-2 py-1.5"
+              />
+            </label>
+            <label className="grid gap-1 text-xs">
+              Corner
+              <select
+                value={newElement.position}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (
+                    value === "bottom-right" ||
+                    value === "bottom-left" ||
+                    value === "top-right" ||
+                    value === "top-left"
+                  ) {
+                    setNewElement({ ...newElement, position: value });
+                  }
+                }}
+                className="rounded border border-border bg-background px-2 py-1.5"
+              >
+                <option value="bottom-right">Bottom right</option>
+                <option value="bottom-left">Bottom left</option>
+                <option value="top-right">Top right</option>
+                <option value="top-left">Top left</option>
+              </select>
+            </label>
+            <div className="flex items-end gap-2">
+              <button
+                type="submit"
+                disabled={create.isPending}
+                className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-background disabled:opacity-50"
+              >
+                {create.isPending ? "Creating…" : "Create disabled draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  create.reset();
+                  setNewElement(null);
+                }}
+                className="rounded-full border border-border px-4 py-2 text-xs font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+            {create.error && (
+              <p role="alert" className="text-xs text-destructive sm:col-span-2">
+                {create.error.message}
+              </p>
+            )}
+          </form>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         {elements.map((el) => (
