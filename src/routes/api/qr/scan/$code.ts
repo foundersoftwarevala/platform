@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 /**
  * Somebody scanned an influencer's QR.
@@ -70,6 +71,8 @@ export const Route = createFileRoute("/api/qr/scan/$code")({
   server: {
     handlers: {
       GET: async ({ request, params }) => {
+        const limited = await rateLimited(request, "qrScan");
+        if (limited) return limited;
         const code = String((params as { code?: string }).code ?? "").trim();
         const fallback = Response.redirect(`${siteUrl()}/marketplace`, 302);
 

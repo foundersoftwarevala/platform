@@ -1,13 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { clientAddress } from "@/lib/i18n/limits";
+import { rateLimited, requestAddress } from "@/lib/server/rate-limit";
 
-import {
-  leadAcknowledgementEmail,
-  leadNotificationEmail,
-  operatorRecipients,
-  send as sendMail,
-} from "@/lib/commerce/mailer";
-import { languageOf, serverTranslator } from "@/lib/i18n/server-translate.server";
+import { leadNotificationEmail, operatorRecipients, send as sendMail } from "@/lib/commerce/mailer";
 import {
   classifySearchEngine,
   sanitizeCampaignValue,
@@ -47,19 +41,6 @@ const ALLOWED_ACTIONS = new Set([
   "consultation",
   "enterprise",
 ]);
-
-const RATE_WINDOW_MS = 60_000;
-const RATE_MAX = 8;
-const hits = new Map<string, number[]>();
-
-function rateLimited(key: string): boolean {
-  const now = Date.now();
-  const recent = (hits.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
-  recent.push(now);
-  hits.set(key, recent);
-  if (hits.size > 5000) hits.clear();
-  return recent.length > RATE_MAX;
-}
 
 /**
  * Which product this lead is about.
@@ -139,16 +120,9 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           return Response.json({ error: "Lead service is not configured" }, { status: 503 });
         }
 
-        // The address nginx vouches for (CF-Connecting-IP, overwritten at the
-        // edge), not the first X-Forwarded-For entry, which the caller writes:
-        // a fresh value per request walked straight past this limit.
-        const sourceIp = clientAddress(request.headers);
-        if (rateLimited(sourceIp)) {
-          return Response.json(
-            { error: "Too many requests. Please wait a moment." },
-            { status: 429 },
-          );
-        }
+        const limited = await rateLimited(request, "lead");
+        if (limited) return limited;
+        const sourceIp = requestAddress(request);
 
         let body: Record<string, unknown>;
         try {
@@ -384,30 +358,9 @@ export const Route = createFileRoute("/api/marketplace/lead")({
             }
           }
 
-          // The lead is saved. Neither message below may change that, so a mail
-          // problem is logged and swallowed rather than being reported to the
-          // visitor as a failure to record their request.
+          // The lead is saved. Only operator notifications are sent here;
+          // the submitted address is unverified and must not receive mail.
           try {
-            // In the visitor's language: the one the site was showing them.
-            // Translation memory answers at once for a language seen before;
-            // otherwise the reply waits at most a few seconds and anything not
-            // translated by then is sent in English.
-            const lang = languageOf(request);
-            const t = await serverTranslator(lang, ["email"], { waitMs: 4000 });
-            await sendMail({
-              ...leadAcknowledgementEmail(
-                { name, productName: productName || null, action: ctaAction },
-                { t, lang },
-              ),
-              to: email,
-              context: {
-                kind: "lead_acknowledgement",
-                lead_id: leadId,
-                action: ctaAction,
-                language: lang,
-              },
-            });
-
             const operators = await operatorRecipients();
             if (operators.length === 0) {
               console.warn(

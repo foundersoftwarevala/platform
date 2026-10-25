@@ -13,6 +13,7 @@ import {
   type PresentationRules,
 } from "@/lib/demo/presentation";
 import { safeFetchResponse } from "@/lib/demo/safe-fetch.server";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 /**
  * Full Reverse Proxy for Demo Applications
@@ -179,6 +180,8 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const limited = await rateLimited(request, "demoProxy");
+        if (limited) return limited;
         try {
           const url = new URL(request.url);
           const pathname = url.pathname;

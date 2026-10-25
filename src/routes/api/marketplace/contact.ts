@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { clientAddress } from "@/lib/i18n/limits";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 import {
   operatorRecipients,
   send as sendMail,
-  supportAcknowledgementEmail,
   supportNotificationEmail,
 } from "@/lib/commerce/mailer";
 
@@ -28,10 +27,8 @@ import {
  * security correctly refuses an anonymous write, so the browser posts here
  * instead of writing to the database itself.
  *
- * The reply is honest about the email. A message is always recorded, and the
- * response says separately whether the acknowledgement could actually be sent
- * — with no provider configured the mailer queues it durably in `email_outbox`
- * and says so, and this endpoint never reports a send that did not happen.
+ * The submitted email is unverified, so it is used only for staff follow-up.
+ * This endpoint never sends an acknowledgement to that address.
  */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -46,19 +43,6 @@ const CATEGORIES = new Set([
   "demo",
   "partnership",
 ]);
-
-const RATE_WINDOW_MS = 60_000;
-const RATE_MAX = 4;
-const hits = new Map<string, number[]>();
-
-function rateLimited(key: string): boolean {
-  const now = Date.now();
-  const recent = (hits.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
-  recent.push(now);
-  hits.set(key, recent);
-  if (hits.size > 5000) hits.clear();
-  return recent.length > RATE_MAX;
-}
 
 /**
  * A human-readable reference, the shape the existing rows already use.
@@ -83,16 +67,8 @@ export const Route = createFileRoute("/api/marketplace/contact")({
           return Response.json({ error: "Support is not configured" }, { status: 503 });
         }
 
-        // The address nginx vouches for (CF-Connecting-IP, overwritten at the
-        // edge), not the first X-Forwarded-For entry, which the caller writes:
-        // a fresh value per request walked straight past this limit.
-        const sourceIp = clientAddress(request.headers);
-        if (rateLimited(sourceIp)) {
-          return Response.json(
-            { error: "Too many messages from this address. Please try again in a minute." },
-            { status: 429 },
-          );
-        }
+        const limited = await rateLimited(request, "contact");
+        if (limited) return limited;
 
         let body: Record<string, unknown>;
         try {
@@ -159,21 +135,6 @@ export const Route = createFileRoute("/api/marketplace/contact")({
 
         const row = ((await insert.json()) as { id?: string }[])[0] ?? {};
 
-        // The customer's copy, then the operators'. Neither failing loses the
-        // ticket, which is already written.
-        let acknowledged = false;
-        let mailReason = "not attempted";
-        try {
-          const result = await sendMail({
-            ...supportAcknowledgementEmail({ name, reference: ref, subject: subject || category }),
-            to: email,
-          });
-          acknowledged = result.sent;
-          mailReason = result.reason;
-        } catch (problem) {
-          mailReason = problem instanceof Error ? problem.message : "send failed";
-        }
-
         try {
           const operators = await operatorRecipients();
           for (const operator of operators) {
@@ -199,10 +160,7 @@ export const Route = createFileRoute("/api/marketplace/contact")({
           ok: true,
           reference: ref,
           ticketId: row.id ?? null,
-          // Said plainly, so the page can tell the truth rather than claim an
-          // email that is only queued.
-          emailSent: acknowledged,
-          emailDetail: mailReason,
+          emailSent: false,
         });
       },
     },

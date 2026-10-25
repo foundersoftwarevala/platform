@@ -13,6 +13,7 @@ import {
 } from "@/lib/i18n/realtime-budget";
 import { SOURCE_LANGUAGE } from "@/lib/i18n/registry";
 import { languageAuthorization } from "@/lib/i18n/session-contract";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 /**
  * Translate text.
@@ -96,6 +97,8 @@ export const Route = createFileRoute("/api/marketplace/translate")({
 });
 
 async function handleTranslate(request: Request): Promise<Response> {
+  const limited = await rateLimited(request, "translate");
+  if (limited) return limited;
   const declared = Number(request.headers.get("content-length") ?? "0");
   if (declared > MAX_BODY_BYTES) return fail(413, "invalid_request", "Request is too large.");
 

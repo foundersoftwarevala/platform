@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/marketplace/catalog")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const limited = rateLimited(request, "catalog");
+        const limited = await rateLimited(request, "catalog");
         if (limited) return limited;
         if (!catalogConfigured()) {
           return Response.json(

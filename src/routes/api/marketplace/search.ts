@@ -367,7 +367,7 @@ export const Route = createFileRoute("/api/marketplace/search")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const limited = rateLimited(request, "search");
+        const limited = await rateLimited(request, "search");
         if (limited) return limited;
         const key = new URL(request.url).search;
         let work = running.get(key);

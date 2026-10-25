@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 /**
  * The QR image, rendered server-side.
@@ -29,7 +30,9 @@ function admin() {
 export const Route = createFileRoute("/api/qr/$code")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ params, request }) => {
+        const limited = await rateLimited(request, "qrImage");
+        if (limited) return limited;
         const raw = String((params as { code?: string }).code ?? "").trim();
         const svg = raw.toLowerCase().endsWith(".svg");
         const code = raw.replace(/\.(png|svg)$/i, "");

@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { currentUser } from "@/lib/affiliate/core";
 import { bearer } from "@/lib/applications/gateway.server";
 import { submitApplication } from "@/lib/applications/submit.server";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 /**
  * A public influencer application, written to the VPS.
@@ -24,6 +25,8 @@ export const Route = createFileRoute("/api/influencer/apply")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const limited = await rateLimited(request, "application");
+        if (limited) return limited;
         const token = bearer(request);
         const user = token ? await currentUser(request) : null;
         if (!token || !user)

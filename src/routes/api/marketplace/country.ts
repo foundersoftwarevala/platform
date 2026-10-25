@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { countryRows, countrySlug, getCountryProducts } from "@/lib/seo/country-seo";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 /**
  * More products for a country page.
@@ -17,6 +18,8 @@ export const Route = createFileRoute("/api/marketplace/country")({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        const limited = await rateLimited(request, "public");
+        if (limited) return limited;
         if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
           return Response.json(
             { error: "The catalogue is not configured on this server.", cards: [] },

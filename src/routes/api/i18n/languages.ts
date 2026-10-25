@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SUPPORTED_LANGUAGES } from "@/lib/i18n/registry";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 /**
  * GET /api/i18n/languages
@@ -13,7 +14,9 @@ import { SUPPORTED_LANGUAGES } from "@/lib/i18n/registry";
 export const Route = createFileRoute("/api/i18n/languages")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        const limited = await rateLimited(request, "public");
+        if (limited) return limited;
         try {
           const { db, disabledLanguages } = await import("@/lib/i18n/service.server");
           const disabled = [...(await disabledLanguages(await db()))].sort();

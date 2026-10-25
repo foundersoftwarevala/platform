@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { rateLimited } from "@/lib/server/rate-limit";
 
 import {
   REFERRAL_COOKIE,
@@ -30,6 +31,8 @@ export const Route = createFileRoute("/api/affiliate/attribute")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const limited = await rateLimited(request, "affiliate");
+        if (limited) return limited;
         let body: { orderId?: string };
         try {
           body = (await request.json()) as { orderId?: string };

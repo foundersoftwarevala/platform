@@ -12,7 +12,7 @@ services:
       - --maxmemory
       - 256mb
       - --maxmemory-policy
-      - allkeys-lru
+      - noeviction
       - --protected-mode
       - "yes"
     ports:

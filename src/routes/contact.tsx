@@ -120,7 +120,7 @@ function ContactPage() {
                 <p className="mt-3 text-[13px] text-gray-400">
                   {sent.emailSent
                     ? "A copy has been emailed to you."
-                    : "Your copy is queued and will be emailed as soon as our mail provider is connected - the message itself is already recorded."}
+                    : "Your message has been recorded. Our team will reply after reviewing it; no automatic acknowledgement was sent."}
                 </p>
                 <a
                   href="/marketplace"

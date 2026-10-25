@@ -128,7 +128,7 @@ mode-0600 `/etc/softwarevala/db-backup-r2.env`. The R2 bucket should be private.
 Only the age public recipient belongs on the VPS; keep the matching private
 identity offline and separately backed up.
 
-## Redis cache
+## Redis cache and API rate limits
 
 Redis is an optional shared cache for public Marketplace catalogue responses.
 Without `REDIS_URL`, the app keeps using its existing in-process cache. If
@@ -137,8 +137,17 @@ does not become a dependency for page availability. This is an optimization,
 not a capacity guarantee: load testing is still required before claiming a
 specific concurrent-user target.
 
+Public API rate limits also use Redis so all application processes share the
+same per-address counters. Unlike cache reads, rate limiting fails closed with
+HTTP 503 in production when Redis is missing or unavailable; it never falls
+back to process-local counters. Translation requests additionally use their
+transactional database quota. The Redis service must therefore remain
+available, and its `noeviction` policy prevents memory pressure from silently
+evicting active rate-limit counters. Cache writes may fail at the memory cap
+and fall back to the existing short-lived process cache.
+
 The Compose service binds only to `127.0.0.1:6379`, disables persistence, and
-caps memory at 256 MiB with LRU eviction. Start it after deploying the files:
+caps memory at 256 MiB. Start it after deploying the files:
 
 ```sh
 sudo install -o root -g root -m 0755 deploy/production/system/sv-redis-up.sh /usr/local/bin/sv-redis-up.sh

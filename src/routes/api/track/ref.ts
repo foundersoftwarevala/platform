@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/track/ref")({
       POST: async ({ request }) => {
         // Unauthenticated and writes a row per visit, so one address cannot
         // flood the referral sessions or inflate a link's click count.
-        const limited = rateLimited(request, "public");
+        const limited = await rateLimited(request, "public");
         if (limited) return limited;
 
         let body: Record<string, unknown>;
