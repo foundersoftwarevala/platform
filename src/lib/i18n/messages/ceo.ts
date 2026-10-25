@@ -376,6 +376,19 @@ export const CEO_MESSAGES = {
   "ceo.ayra_no_orders_title": ["No order has been given yet", "shown when AYRA has no orders"],
   "ceo.ayra_no_orders_body":
     "Orders are kept with the Founder's own words, because a paraphrase is not an instruction. Natural-language intake is not built yet, so nothing here is simulated to fill the list.",
+  "ceo.ayra_live_data_title": [
+    "Ask AYRA about live business data",
+    "heading for AYRA's live data question form",
+  ],
+  "ceo.ayra_live_data_body":
+    "Executive-only, read-only answers from your marketplace orders and tasks you created or were assigned. Sales and lead records are excluded until they have a verified user-ownership mapping. No customer names or contact details are sent to the AI provider.",
+  "ceo.ayra_question_placeholder":
+    "Ask about your marketplace orders or tasks you created or were assigned",
+  "ceo.ayra_question_label": "Question for AYRA",
+  "ceo.ayra_asking": "Retrieving live data…",
+  "ceo.ayra_ask": ["Ask AYRA", "button that asks AYRA a read-only question"],
+  "ceo.ayra_evidence": ["Evidence", "heading over evidence in AYRA's answer"],
+  "ceo.ayra_unknowns": ["Unknowns", "heading over information AYRA could not establish"],
 
   // Morning AI: the operational day.
   "ceo.morning_title": ["Morning AI", "heading of the daily operational orchestrator"],

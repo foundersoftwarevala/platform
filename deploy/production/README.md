@@ -91,6 +91,10 @@ values live only on the server (see "Secrets" below).
 | `nginx/cloudflare-realip.conf`       | `/etc/nginx/conf.d/cloudflare-realip.conf`         | Trust `CF-Connecting-IP` only from Cloudflare's ranges                                                                                          |
 | `system/cf-realip-update.sh`         | `/root/cf-realip-update.sh`                        | Weekly refresh of those ranges (root crontab)                                                                                                   |
 | `system/sv-db-backup.py`             | `/usr/local/bin/sv-db-backup.py`                   | Nightly logical database backup (`cron/sv-db-backup`)                                                                                           |
+| `system/sv-db-backup-r2.sh`          | `/usr/local/bin/sv-db-backup-r2.sh`                | Runs the logical export, encrypts it, uploads it to R2, and verifies a downloaded copy |
+| `system/sv-db-backup-r2.env.example` | template for `/etc/softwarevala/db-backup-r2.env`  | R2 credentials and the public age encryption recipient; actual values stay on the VPS |
+| `redis/compose.yaml`                 | `/var/www/softwarevala/deploy/production/redis/compose.yaml` | Local-only Redis cache service with an LRU memory cap |
+| `system/sv-redis-up.sh`              | `/usr/local/bin/sv-redis-up.sh`                    | Starts and reports the Redis Compose service |
 | `system/logrotate-softwarevala`      | `/etc/logrotate.d/softwarevala`                    | Rotation for `/var/log/sv-*.log` and PM2 logs                                                                                                   |
 | `system/fail2ban-sshd.local`         | `/etc/fail2ban/jail.d/sshd.local`                  | Ban an address after 5 failed SSH logins in 10 min, for 1 h                                                                                     |
 | `cron/*`                             | `/etc/cron.d/*`                                    | Scheduled jobs                                                                                                                                  |
@@ -110,13 +114,72 @@ equivalents, `INTERNAL_API_TOKEN`, `AI_API_CREDENTIAL_ENCRYPTION_KEY`,
 `TRANSLATE_PROVIDER_URL`, `TRANSLATE_PROVIDER_TOKEN`,
 `TRANSLATION_ALLOW_EXTERNAL`, `TRANSLATION_PROVIDER_ORDER`, `I18N_JOB_WORKER`,
 `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_API_TOKEN`,
-`SITE_URL`, `APP_BASE_URL`, `HOST`, `PORT`, `NITRO_PORT`, `NITRO_PRESET`,
-`NODE_ENV`.
+`REDIS_URL`, `SITE_URL`, `APP_BASE_URL`, `HOST`, `PORT`, `NITRO_PORT`,
+`NITRO_PRESET`, `NODE_ENV`.
 
 They are in `/var/www/softwarevala/.env` (mode 600) and in the running PM2
 process. Scripts read their own credentials from `/etc/sv-i18n-backup.env` and
 `/etc/sv-translate.env`. Keep a copy of these in a password manager: without
 them a rebuilt server cannot reach the database.
+
+The backup uploader reads `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY`, and `R2_BACKUP_AGE_RECIPIENT` from the root-owned,
+mode-0600 `/etc/softwarevala/db-backup-r2.env`. The R2 bucket should be private.
+Only the age public recipient belongs on the VPS; keep the matching private
+identity offline and separately backed up.
+
+## Redis cache
+
+Redis is an optional shared cache for public Marketplace catalogue responses.
+Without `REDIS_URL`, the app keeps using its existing in-process cache. If
+Redis is unavailable, reads fall back to a short-lived in-process cache; Redis
+does not become a dependency for page availability. This is an optimization,
+not a capacity guarantee: load testing is still required before claiming a
+specific concurrent-user target.
+
+The Compose service binds only to `127.0.0.1:6379`, disables persistence, and
+caps memory at 256 MiB with LRU eviction. Start it after deploying the files:
+
+```sh
+sudo install -o root -g root -m 0755 deploy/production/system/sv-redis-up.sh /usr/local/bin/sv-redis-up.sh
+sudo /usr/local/bin/sv-redis-up.sh
+```
+
+Set `REDIS_URL=redis://127.0.0.1:6379` in the PM2-managed application
+environment, then restart using the normal guarded deployment procedure.
+Confirm `docker compose ps` reports the Redis service healthy and verify that
+the application log contains no Redis connection errors. No Redis port should
+be opened to the network.
+
+## Off-site database backups
+
+The existing `sv-db-backup.py` is a table-by-table PostgREST logical export,
+not a transactionally consistent PostgreSQL `pg_dump` and not PITR. The R2
+wrapper runs that exporter, age-encrypts the resulting directory, uploads it
+to a private R2 bucket, downloads the uploaded object to verify its SHA-256,
+and checks the stored object size. A successful upload does not by itself
+prove a complete database restore; periodically rehearse decryption and
+restoration in an isolated environment.
+
+Install `aws` (AWS CLI v2), `age`, `flock`, and the repository backup scripts.
+Create the age key pair off-server and keep its private identity offline. Set
+the R2 values in a root-only configuration file, then install the uploader and
+cron entry:
+
+```sh
+sudo install -d -o root -g root -m 0700 /etc/softwarevala
+sudo install -o root -g root -m 0600 deploy/production/system/sv-db-backup-r2.env.example /etc/softwarevala/db-backup-r2.env
+sudoedit /etc/softwarevala/db-backup-r2.env
+sudo install -o root -g root -m 0755 deploy/production/system/sv-db-backup.py /usr/local/bin/sv-db-backup.py
+sudo install -o root -g root -m 0755 deploy/production/system/sv-db-backup-r2.sh /usr/local/bin/sv-db-backup-r2.sh
+sudo install -o root -g root -m 0644 deploy/production/cron/sv-db-backup /etc/cron.d/sv-db-backup
+sudo systemctl restart cron
+```
+
+The example file contains placeholders and must be completed before enabling
+the cron. Configure an R2 lifecycle rule for the backup prefix to enforce the
+owner's retention period. Verify the first run's log and the uploaded object;
+do not treat a configured cron entry as proof that a backup succeeded.
 
 ## Rebuilding the server
 
@@ -129,13 +192,15 @@ them a rebuilt server cannot reach the database.
 3. Copy the files above to their places; `nginx -t && systemctl reload nginx`;
    `certbot --nginx -d softwarevala.net -d www.softwarevala.net`.
 4. Translation engine: `services/translation-engine/deploy/deploy.sh`.
-5. Database: Supabase is managed. Restore from the nightly logical backup
-   (`sv-db-backup.py` writes to `/var/backups/softwarevala`, seven days kept)
-   only if the project itself is lost.
+5. Database: Supabase is managed. Nightly logical exports are retained locally
+   for seven days and, when the R2 uploader is configured, encrypted and copied
+   off-site. They are not a substitute for PITR; rehearse restore from the
+   decrypted logical export before relying on it.
 
 ## Known gaps
 
-- Backups are on the same disk as the server: losing the VPS loses them too.
-  They need an off-site copy (object storage).
+- The local backup copies are on the same disk as the server. The R2 uploader
+  and cron entry require server-side installation and credentials; repository
+  configuration alone does not mean off-site backups are active.
 - One application process: a deploy restarts it (a few seconds of 502), and a
   crash takes the site down until PM2 restarts it.

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
+import { z } from "zod";
 
 /**
  * AYRA's API.
@@ -14,7 +15,7 @@ async function admin() {
   return supabaseAdmin;
 }
 
-async function requireExecutive(): Promise<string> {
+async function requireExecutive(): Promise<{ userId: string; accessToken: string }> {
   const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) throw new Error("Sign-in required");
@@ -37,7 +38,7 @@ async function requireExecutive(): Promise<string> {
     db.rpc("has_role", { _user_id: user.id, _role: "admin" }),
   ]);
   if (!isBoss && !isAdmin) throw new Error("Executive permission required");
-  return user.id;
+  return { userId: user.id, accessToken: token };
 }
 
 export interface AyraCapability {
@@ -184,3 +185,19 @@ export const loadAyraOrders = createServerFn({ method: "GET" }).handler(
     };
   },
 );
+
+/** Answer a read-only question from current, aggregate-only company data. */
+export const askAyraQuestion = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z.object({ question: z.string().trim().min(3).max(1000) }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const caller = await requireExecutive();
+    const { answerQuestion } = await import("../intelligence/analyse.server");
+    return answerQuestion({
+      question: data.question,
+      userId: caller.userId,
+      accessToken: caller.accessToken,
+      scope: "commercial",
+    });
+  });

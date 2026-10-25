@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock, Plug, PlugZap, ShieldAlert, Sparkles, XCircle } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { useState, type FormEvent } from "react";
 
 import {
   DegradedNotice,
@@ -11,9 +13,13 @@ import {
 } from "@/components/ai-ceo/PageShell";
 import { SourceNote } from "@/components/ai-ceo/ops/shared";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { useAyraCapabilities, useAyraOrders, type AyraOrder } from "@/hooks/useAyra";
+import { askAyraQuestion } from "@/lib/founder/ayra/ayra.functions";
+import type { Explanation } from "@/lib/founder/intelligence/schema";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
 /**
@@ -67,6 +73,12 @@ const when = (value: string | null): string => {
 
 const AICEOAyra = () => {
   const { t } = useTranslation();
+  const askQuestion = useServerFn(askAyraQuestion);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState<Explanation | null>(null);
+  const [answerNotes, setAnswerNotes] = useState<string[]>([]);
+  const [answerError, setAnswerError] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
   const {
     capabilities,
     connected,
@@ -77,6 +89,29 @@ const AICEOAyra = () => {
     refetch,
   } = useAyraCapabilities();
   const { orders, degraded, isLoading: ordersLoading } = useAyraOrders();
+
+  async function submitQuestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAsking(true);
+    setAnswer(null);
+    setAnswerNotes([]);
+    setAnswerError(null);
+    try {
+      const result = await askQuestion({ data: { question } });
+      if (!result.ok || !result.answer) {
+        setAnswerError(result.error ?? "AYRA could not produce a grounded answer.");
+        setAnswerNotes(result.notes);
+        return;
+      }
+      setAnswer(result.answer);
+      setAnswerNotes(result.notes);
+    } catch (error) {
+      console.error("[ayra] question failed:", error);
+      setAnswerError(error instanceof Error ? error.message : "AYRA question failed.");
+    } finally {
+      setAsking(false);
+    }
+  }
 
   if (capsLoading || ordersLoading) {
     return (
@@ -213,6 +248,76 @@ const AICEOAyra = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="card3d premium-halo rounded-2xl">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-foreground flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary-glow" />
+            {t("ceo.ayra_live_data_title")}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">{t("ceo.ayra_live_data_body")}</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={(event) => void submitQuestion(event)} className="space-y-3">
+            <Textarea
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              placeholder={t("ceo.ayra_question_placeholder")}
+              maxLength={1000}
+              rows={3}
+              aria-label={t("ceo.ayra_question_label")}
+              required
+            />
+            <Button type="submit" disabled={asking || question.trim().length < 3}>
+              {asking ? t("ceo.ayra_asking") : t("ceo.ayra_ask")}
+            </Button>
+          </form>
+          {answerError && (
+            <p role="alert" className="text-sm text-destructive">
+              {answerError}
+            </p>
+          )}
+          {answerNotes.map((note) => (
+            <p key={note} className="text-xs text-accent-amber">
+              {note}
+            </p>
+          ))}
+          {answer && (
+            <div aria-live="polite" className="space-y-3 rounded-xl border border-border p-4">
+              <p className="whitespace-pre-wrap text-sm text-foreground">{answer.answer}</p>
+              {answer.evidence.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {t("ceo.ayra_evidence")}
+                  </p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {answer.evidence.map((item, index) => (
+                      <li key={`${item.sourceRef ?? "source"}-${index}`} className="text-xs">
+                        <span className="font-medium">{item.kind}</span>: {item.statement}
+                        {item.sourceRef ? ` (${item.sourceRef})` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {answer.unknowns.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {t("ceo.ayra_unknowns")}
+                  </p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {answer.unknowns.map((item) => (
+                      <li key={item} className="text-xs">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* What she has been asked to do. */}
       <Card className="card3d premium-halo hover-lift shimmer-sweep enter-soft rounded-2xl">

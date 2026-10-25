@@ -1,0 +1,25 @@
+services:
+  softwarevala-redis:
+    image: redis:7.4-alpine
+    container_name: softwarevala-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --protected-mode
+      - "yes"
+    ports:
+      - "127.0.0.1:6379:6379"
+    mem_limit: 320m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

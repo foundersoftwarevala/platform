@@ -3,6 +3,7 @@ import { CARD_FIELDS, toCard, type CatalogCard } from "./catalog-card";
 import { demoFirst } from "./demo-first";
 import { RAIL_COUNTRIES, RAIL_COUNTRY_BY_MARKER } from "./rail-countries";
 import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
+import { invalidateRedisCacheTag, redisCached } from "@/lib/server/redis-cache.server";
 
 /**
  * The marketplace catalogue as the home page shows it: category rows (and the
@@ -76,6 +77,7 @@ onCatalogueChange(() => {
   configuredCache.clear();
   orderCache.clear();
   demoCache.clear();
+  void invalidateRedisCacheTag("marketplace-catalog");
 });
 
 class Unavailable extends Error {}
@@ -265,7 +267,20 @@ async function rowCards(
  * its first `perRow` cards. The first page also carries the manager's curated
  * rows (featured, trending, ...) in their configured positions.
  */
-export async function readCatalogRows(options: {
+export function readCatalogRows(options: {
+  rowOffset: number;
+  rowCount: number;
+  perRow: number;
+}): Promise<CatalogPage | null> {
+  return redisCached(
+    "marketplace-catalog",
+    `rows:${options.rowOffset}:${options.rowCount}:${options.perRow}`,
+    30_000,
+    () => readCatalogRowsUncached(options),
+  );
+}
+
+async function readCatalogRowsUncached(options: {
   rowOffset: number;
   rowCount: number;
   perRow: number;
@@ -355,7 +370,21 @@ export async function readCatalogRows(options: {
  * More products for one category row ("load more"), respecting the manager's
  * configured order. Null when the category does not exist or cannot be read.
  */
-export async function readCategoryRow(
+export function readCategoryRow(
+  slug: string,
+  offset: number,
+  limit: number,
+): Promise<{
+  category: { name: string; slug: string };
+  cards: CatalogCard[];
+  total: number;
+} | null> {
+  return redisCached("marketplace-catalog", `category:${slug}:${offset}:${limit}`, 20_000, () =>
+    readCategoryRowUncached(slug, offset, limit),
+  );
+}
+
+async function readCategoryRowUncached(
   slug: string,
   offset: number,
   limit: number,
