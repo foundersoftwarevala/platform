@@ -7,6 +7,7 @@ import {
   productCreationReview,
   productReviewFields,
 } from "@/lib/marketplace/product-safety";
+import { maskLeadEmail, maskLeadPhone } from "@/lib/lead-manager/contact-privacy";
 
 /**
  * The Marketplace Manager's window onto the real marketplace.
@@ -117,9 +118,14 @@ function inward(resource: Resource, key: string): string {
 
 /** One row, with its columns under the names the screen expects. */
 function toScreen(resource: Resource, row: Record<string, unknown>): Record<string, unknown> {
-  if (!resource.rename) return row;
   const out: Record<string, unknown> = {};
-  for (const [column, value] of Object.entries(row)) out[outward(resource, column)] = value;
+  for (const [column, value] of Object.entries(row)) {
+    out[resource.rename ? outward(resource, column) : column] = value;
+  }
+  if (resource.table === "leads") {
+    if (typeof out.email === "string") out.email = maskLeadEmail(out.email);
+    if (typeof out.phone === "string") out.phone = maskLeadPhone(out.phone);
+  }
   return out;
 }
 
@@ -1295,8 +1301,6 @@ const RESOURCES: Record<string, Resource> = {
     ],
     editable: [
       "name",
-      "email",
-      "phone",
       "company",
       "industry",
       "source",
@@ -1309,7 +1313,7 @@ const RESOURCES: Record<string, Resource> = {
       "country",
       "state",
     ],
-    searchable: ["name", "email", "company", "category"],
+    searchable: ["name", "company", "category"],
     order: "created_at.desc",
     label: "Contact",
   },
@@ -3416,7 +3420,7 @@ const RESOURCES: Record<string, Resource> = {
       "created_at",
     ],
     editable: ["status"],
-    searchable: ["name", "email", "status", "source"],
+    searchable: ["name", "status", "source"],
     order: "created_at.desc",
     label: "Leads",
   },
@@ -4200,7 +4204,8 @@ function resourceNamed(name: string): Resource | undefined {
 }
 
 function resourceAccessDenied(name: string, roles: string[] | undefined): boolean {
-  const restricted = name === "influencer" || name.startsWith("influencer_") || name === "partner_payouts";
+  const restricted =
+    name === "influencer" || name.startsWith("influencer_") || name === "partner_payouts";
   return restricted && !roles?.some((role) => role === "admin" || role === "boss");
 }
 

@@ -69,6 +69,57 @@ const ENGINES: { engine: string; hosts: RegExp }[] = [
   { engine: "qwant", hosts: /(^|\.)qwant\.com$/i },
 ];
 
+const CAMPAIGN_PARAMETERS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+] as const;
+
+export function sanitizeCampaignValue(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed || /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(trimmed)) return null;
+  if ((trimmed.match(/\d/g) ?? []).length >= 7) return null;
+  return trimmed.slice(0, 200);
+}
+
+export function sanitizeLandingPage(
+  value: string | null | undefined,
+  baseUrl: string,
+): string | null {
+  if (!value?.trim()) return null;
+  try {
+    const base = new URL(baseUrl);
+    const parsed = new URL(value, base);
+    if (parsed.origin !== base.origin) return null;
+    const safe = new URL(parsed.pathname, base.origin);
+    for (const name of CAMPAIGN_PARAMETERS) {
+      const campaign = sanitizeCampaignValue(parsed.searchParams.get(name));
+      if (campaign) safe.searchParams.set(name, campaign);
+    }
+    return `${safe.pathname}${safe.search}`.slice(0, 500) || "/";
+  } catch {
+    return null;
+  }
+}
+
+export function sanitizeExternalReferrer(
+  value: string | null | undefined,
+  siteHostname: string,
+): string | null {
+  if (!value?.trim()) return null;
+  try {
+    const referrer = new URL(value);
+    if (!["http:", "https:"].includes(referrer.protocol) || referrer.hostname === siteHostname) {
+      return null;
+    }
+    return `${referrer.origin}${referrer.pathname}`.slice(0, 500);
+  } catch {
+    return null;
+  }
+}
+
 export function classifySearchEngine(referrer: string | null | undefined): string | null {
   if (!referrer) return null;
   let host: string;
@@ -99,26 +150,15 @@ export function readAttribution(href: string, referrer: string | null): Attribut
     return { ...EMPTY };
   }
 
-  const params = url.searchParams;
-  const get = (name: string) => {
-    const value = params.get(name);
-    const trimmed = value?.trim() ?? "";
-    // A campaign parameter longer than this is not a campaign name.
-    return trimmed ? trimmed.slice(0, 200) : null;
-  };
-
-  let external = referrer?.trim() || null;
-  if (external) {
-    try {
-      if (new URL(external).hostname === url.hostname) external = null;
-    } catch {
-      external = null;
-    }
-  }
+  const external = sanitizeExternalReferrer(referrer, url.hostname);
+  const landingPage = sanitizeLandingPage(href, url.origin);
+  const safeLanding = landingPage ? new URL(landingPage, url.origin) : null;
+  const get = (name: (typeof CAMPAIGN_PARAMETERS)[number]) =>
+    sanitizeCampaignValue(safeLanding?.searchParams.get(name));
 
   return {
-    landing_page: `${url.pathname}${url.search}`.slice(0, 500) || "/",
-    referrer: external ? external.slice(0, 500) : null,
+    landing_page: landingPage ?? `${url.pathname}`,
+    referrer: external,
     search_engine: classifySearchEngine(external),
     utm_source: get("utm_source"),
     utm_medium: get("utm_medium"),

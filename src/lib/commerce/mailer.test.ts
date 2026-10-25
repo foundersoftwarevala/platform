@@ -109,14 +109,17 @@ describe("application decision email delivery", () => {
 
     it("leaves a provider failure pending and records its retry reason", async () => {
       vi.stubEnv("RESEND_API_KEY", "fixture-provider");
+      const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
       vi.mocked(fetch)
         .mockResolvedValueOnce(Response.json([{ id: "outbox-fixture" }], { status: 201 }))
-        .mockResolvedValueOnce(new Response("Provider unavailable", { status: 503 }))
+        .mockResolvedValueOnce(
+          new Response("Delivery rejected for private.person@example.invalid", { status: 503 }),
+        )
         .mockResolvedValueOnce(Response.json([{ id: "outbox-fixture" }]));
 
       expect(
         await send({
-          to: "applicant@fixture.invalid",
+          to: "private.person@example.invalid",
           subject: "Application decision",
           html: "<p>Shortlisted</p>",
         }),
@@ -126,8 +129,10 @@ describe("application decision email delivery", () => {
       expect(JSON.parse(String(patch[1]?.body))).toMatchObject({
         status: "pending",
         attempts: 1,
-        last_error: "Provider unavailable",
+        last_error: "Delivery rejected for p***@example.invalid",
       });
+      expect(warning.mock.calls.flat().join(" ")).not.toContain("private.person@example.invalid");
+      expect(warning.mock.calls.flat().join(" ")).toContain("p***@example.invalid");
     });
   });
   it("does not report success when recording the delivery outcome fails", async () => {

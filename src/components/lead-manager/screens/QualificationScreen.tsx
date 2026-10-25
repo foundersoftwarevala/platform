@@ -23,7 +23,7 @@ export function QualificationScreen({
   // duplicate or spam review does not need a dialable number, only enough
   // to tell two records apart.
   const { data: viewer } = useCurrentAgent();
-  const reveal = viewer ? viewer.can_unmask : true;
+  const reveal = viewer?.can_unmask === true;
   const run = useAction();
 
   const highBudget = leads.filter((l) => (l.deal_value ?? 0) >= 500000);

@@ -66,13 +66,11 @@ export function LeadDetailSheet({
   const qc = useQueryClient();
   const { t } = useTranslation();
   const { data: agents = [] } = useAgents();
-  // Same rule as the lead table: an agent whose Unmask switch is off reads a
-  // masked address here too, or the mask on the table would be worth nothing -
-  // one click on the row would undo it. The Call, WhatsApp and Email buttons
-  // below still use the real values, because withholding the number from an
-  // agent is not the same as stopping them ringing the lead.
+  // The server has already masked contacts unless this agent has permission.
+  // Missing permission data stays masked, and contact actions are unavailable
+  // unless the full values were authorized.
   const { data: viewer } = useCurrentAgent();
-  const reveal = viewer ? viewer.can_unmask : true;
+  const reveal = viewer?.can_unmask === true;
   const { data: notes = [] } = useLeadNotes(lead?.id ?? null);
   const { data: comms = [] } = useLeadCommunications(lead?.id ?? null);
 
@@ -137,64 +135,68 @@ export function LeadDetailSheet({
 
           <div className="flex flex-wrap gap-2">
             <OpenLinkedConversation entityType="lead" entityId={lead.id} />
-            <Button
-              size="sm"
-              onClick={() =>
-                run(
-                  () =>
-                    leadApi.logCommunication({
-                      lead_id: lead.id,
-                      type: "call",
-                      content: `Call opened to ${lead.phone} from the console.`,
-                    }),
-                  "Call opened and logged",
-                ).then((result) => result && window.open(`tel:${lead.phone}`, "_self"))
-              }
-            >
-              <Phone className="size-4" /> Call
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() =>
-                run(
-                  () =>
-                    leadApi.logCommunication({
-                      lead_id: lead.id,
-                      type: "whatsapp",
-                      content: message || `WhatsApp conversation opened with ${lead.name}`,
-                    }),
-                  "WhatsApp opened and logged",
-                ).then(
-                  (result) =>
-                    result &&
-                    window.open(
-                      `https://wa.me/${lead.phone.replace(/\D/g, "")}?text=${encodeURIComponent(message || `Hi ${lead.name}, following up on your enquiry.`)}`,
-                      "_blank",
-                    ),
-                )
-              }
-            >
-              <MessageCircle className="size-4" /> WhatsApp
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() =>
-                run(
-                  () =>
-                    leadApi.logCommunication({
-                      lead_id: lead.id,
-                      type: "email",
-                      subject: "Following up on your enquiry",
-                      content: message || `Email composer opened for ${lead.email}.`,
-                    }),
-                  "Email composer opened and logged",
-                ).then((result) => result && window.open(`mailto:${lead.email}`, "_self"))
-              }
-            >
-              <Mail className="size-4" /> Email
-            </Button>
+            {reveal ? (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    run(
+                      () =>
+                        leadApi.logCommunication({
+                          lead_id: lead.id,
+                          type: "call",
+                          content: `Call opened to ${lead.phone} from the console.`,
+                        }),
+                      "Call opened and logged",
+                    ).then((result) => result && window.open(`tel:${lead.phone}`, "_self"))
+                  }
+                >
+                  <Phone className="size-4" /> Call
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    run(
+                      () =>
+                        leadApi.logCommunication({
+                          lead_id: lead.id,
+                          type: "whatsapp",
+                          content: message || `WhatsApp conversation opened with ${lead.name}`,
+                        }),
+                      "WhatsApp opened and logged",
+                    ).then(
+                      (result) =>
+                        result &&
+                        window.open(
+                          `https://wa.me/${lead.phone.replace(/\D/g, "")}?text=${encodeURIComponent(message || `Hi ${lead.name}, following up on your enquiry.`)}`,
+                          "_blank",
+                        ),
+                    )
+                  }
+                >
+                  <MessageCircle className="size-4" /> WhatsApp
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    run(
+                      () =>
+                        leadApi.logCommunication({
+                          lead_id: lead.id,
+                          type: "email",
+                          subject: "Following up on your enquiry",
+                          content: message || `Email composer opened for ${lead.email}.`,
+                        }),
+                      "Email composer opened and logged",
+                    ).then((result) => result && window.open(`mailto:${lead.email}`, "_self"))
+                  }
+                >
+                  <Mail className="size-4" /> Email
+                </Button>
+              </>
+            ) : null}
             <Button
               size="sm"
               variant="secondary"

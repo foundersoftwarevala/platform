@@ -17,7 +17,7 @@ export function SpamScreen({ onSelect }: { onSelect: (lead: Lead) => void }) {
   // duplicate or spam review does not need a dialable number, only enough
   // to tell two records apart.
   const { data: viewer } = useCurrentAgent();
-  const reveal = viewer ? viewer.can_unmask : true;
+  const reveal = viewer?.can_unmask === true;
   const run = useAction();
   const spam = leads.filter((lead) => lead.status === "spam");
   const rows = useMemo(() => filter === "all" ? spam : spam.filter((lead) => (lead.spam_reason ?? "").toLowerCase().includes(filter)), [spam, filter]);

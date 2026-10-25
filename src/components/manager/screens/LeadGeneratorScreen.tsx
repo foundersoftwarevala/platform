@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { directDb, must, useDirectRead, type Row } from "@/lib/manager-queries";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { leadApi } from "@/lib/lead-manager/api";
 
 /**
  * Lead Generation reads the platform's real lead records (`leads`, the same
@@ -71,18 +72,8 @@ export default function LeadGeneratorScreen() {
   const [filter, setFilter] = useState("");
 
   const statsQuery = useDirectRead(["lead-generator", "stats"], readLeadStats);
-  const leadsQuery = useDirectRead(
-    ["lead-generator", "leads"],
-    async () =>
-      (
-        await must<Row[]>(
-          directDb
-            .from("leads")
-            .select("id,name,email,company,ai_score,temperature,status,created_at")
-            .order("created_at", { ascending: false })
-            .limit(200),
-        )
-      ).data ?? [],
+  const leadsQuery = useDirectRead(["lead-generator", "leads"], async () =>
+    leadApi.listLeads({ limit: 200 }),
   );
   const campaignsQuery = useDirectRead(
     ["lead-generator", "campaigns"],
@@ -105,9 +96,9 @@ export default function LeadGeneratorScreen() {
   const visibleLeads = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return leads;
-    return leads.filter((l) =>
-      ["name", "email", "company", "status", "temperature"].some((k) =>
-        String(l[k] ?? "")
+    return leads.filter((lead) =>
+      [lead.name, lead.email, lead.company, lead.status, lead.temperature].some((value) =>
+        String(value ?? "")
           .toLowerCase()
           .includes(q),
       ),

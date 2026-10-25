@@ -8,6 +8,12 @@ import {
   send as sendMail,
 } from "@/lib/commerce/mailer";
 import { languageOf, serverTranslator } from "@/lib/i18n/server-translate.server";
+import {
+  classifySearchEngine,
+  sanitizeCampaignValue,
+  sanitizeExternalReferrer,
+  sanitizeLandingPage,
+} from "@/lib/marketplace/attribution";
 
 /**
  * Marketplace lead capture — demo requests, enquiries, notify-me and callbacks.
@@ -211,15 +217,21 @@ export const Route = createFileRoute("/api/marketplace/lead")({
           const value = typeof sent[key] === "string" ? (sent[key] as string).trim() : "";
           return value ? value.slice(0, max) : null;
         };
+        const requestUrl = new URL(request.url);
+        const landingPage = sanitizeLandingPage(str("landing_page"), requestUrl.origin);
+        const externalReferrer = sanitizeExternalReferrer(str("referrer"), requestUrl.hostname);
+        const safeLanding = landingPage ? new URL(landingPage, requestUrl.origin) : null;
+        const campaignValue = (key: string) =>
+          sanitizeCampaignValue(safeLanding?.searchParams.get(key) ?? str(key, 200));
         const attribution = {
-          landing_page: str("landing_page"),
-          referrer: str("referrer"),
-          search_engine: str("search_engine", 40),
-          utm_source: str("utm_source", 200),
-          utm_medium: str("utm_medium", 200),
-          utm_campaign: str("utm_campaign", 200),
-          utm_term: str("utm_term", 200),
-          utm_content: str("utm_content", 200),
+          landing_page: landingPage,
+          referrer: externalReferrer,
+          search_engine: classifySearchEngine(externalReferrer),
+          utm_source: campaignValue("utm_source"),
+          utm_medium: campaignValue("utm_medium"),
+          utm_campaign: campaignValue("utm_campaign"),
+          utm_term: campaignValue("utm_term"),
+          utm_content: campaignValue("utm_content"),
           captured_at: str("captured_at", 40),
         };
 

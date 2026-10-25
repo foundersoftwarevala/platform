@@ -1,6 +1,36 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Agent, LeadInsert, LeadStatus, LeadUpdate } from "./types";
 
+type LeadReadRpcArguments = {
+  p_status?: string | null;
+  p_source?: string | null;
+  p_search?: string | null;
+  p_limit?: number;
+  p_offset?: number;
+};
+
+type LeadReadRpcResult = {
+  data: unknown;
+  error: { message: string } | null;
+};
+
+const leadReadRpc = supabase.rpc.bind(supabase) as (
+  functionName: "lead_manager_get_lead" | "lead_manager_list_leads",
+  args: { p_id: string } | LeadReadRpcArguments,
+) => PromiseLike<LeadReadRpcResult>;
+
+function requireLead(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Lead was not found or could not be read");
+  }
+  return value as import("./types").Lead;
+}
+
+function requireLeadList(value: unknown) {
+  if (!Array.isArray(value)) throw new Error("Lead list could not be read");
+  return value.map(requireLead);
+}
+
 /** Records an immutable audit entry for every privileged Lead Manager action. */
 export async function writeAudit(entry: {
   lead_id?: string | null;
@@ -168,44 +198,21 @@ export const leadApi = {
       offset?: number;
     } = {},
   ) {
-    // The default page is what a screen shows. An export asks for pages
-    // explicitly and walks to the end rather than accepting this first one.
-    const limit = filters.limit ?? 200;
-    const offset = filters.offset ?? 0;
-    let query = supabase
-      .from("leads")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (filters.status && filters.status !== "all")
-      query = query.eq("status", filters.status as LeadStatus);
-    if (filters.source && filters.source !== "all")
-      query = query.eq("source", filters.source as never);
-    if (filters.search) {
-      // The search term is pasted into a PostgREST `or` expression, where a
-      // comma separates conditions, brackets group them, and * is the wildcard.
-      // Typed straight in, a search for "Acme, Ltd" split into two conditions
-      // and a stray bracket made the whole filter unparseable - the list either
-      // returned the wrong rows or failed outright. Those characters are
-      // removed, and the % and _ that ilike reads as wildcards with them, so a
-      // search for "50%" looks for "50" rather than for everything.
-      const term = filters.search
-        .replace(/[(),*%_\\"']/g, " ")
-        .trim()
-        .slice(0, 120);
-      if (term) {
-        query = query.or(
-          ["name", "email", "company", "city"].map((c) => `${c}.ilike.%${term}%`).join(","),
-        );
-      }
-    }
-
-    return unwrap(await query);
+    const result = await leadReadRpc("lead_manager_list_leads", {
+      p_status: filters.status && filters.status !== "all" ? filters.status : null,
+      p_source: filters.source && filters.source !== "all" ? filters.source : null,
+      p_search: filters.search?.trim().slice(0, 120) ?? null,
+      p_limit: filters.limit ?? 200,
+      p_offset: filters.offset ?? 0,
+    });
+    if (result.error) throw new Error(result.error.message);
+    return requireLeadList(result.data);
   },
 
   async getLead(id: string) {
-    return unwrap(await supabase.from("leads").select("*").eq("id", id).single());
+    const result = await leadReadRpc("lead_manager_get_lead", { p_id: id });
+    if (result.error) throw new Error(result.error.message);
+    return requireLead(result.data);
   },
 
   /**
@@ -663,7 +670,8 @@ export const leadApi = {
   },
 
   async createLead(payload: LeadInsert) {
-    const lead = unwrap(await supabase.from("leads").insert(payload).select().single());
+    const inserted = unwrap(await supabase.from("leads").insert(payload).select("id").single());
+    const lead = await leadApi.getLead(inserted.id);
     await writeAudit({
       lead_id: lead.id,
       action: "Lead Created",
@@ -704,15 +712,18 @@ export const leadApi = {
       // recorded without its previous values rather than not at all.
     }
 
-    const lead = unwrap(
-      await supabase.from("leads").update(updates).eq("id", id).select().single(),
-    );
+    unwrap(await supabase.from("leads").update(updates).eq("id", id).select("id").single());
+    const lead = await leadApi.getLead(id);
 
     const changed: Record<string, { from: unknown; to: unknown }> = {};
     for (const [field, to] of Object.entries(updates)) {
       const from = before ? before[field] : undefined;
       if (before && Object.is(from, to)) continue;
-      changed[field] = { from: before ? (from ?? null) : "unknown", to: to ?? null };
+      const sensitive = field === "email" || field === "phone";
+      changed[field] = {
+        from: sensitive ? "[REDACTED]" : before ? (from ?? null) : "unknown",
+        to: sensitive ? "[REDACTED]" : (to ?? null),
+      };
     }
 
     const fields = Object.keys(changed);
@@ -747,12 +758,12 @@ export const leadApi = {
 
   async assignLead(leadId: string, agentId: string, reason = "Manual assignment") {
     const previous = await leadApi.getLead(leadId);
-    const lead = unwrap(
+    const updated = unwrap(
       await supabase
         .from("leads")
         .update({ assigned_agent_id: agentId, assigned_at: new Date().toISOString() })
         .eq("id", leadId)
-        .select()
+        .select("ai_score")
         .single(),
     );
     const { error: assignmentError } = await supabase.from("lead_assignments").insert({
@@ -761,7 +772,7 @@ export const leadApi = {
       previous_agent_id: previous.assigned_agent_id,
       reason,
       auto_assigned: false,
-      assignment_score: lead.ai_score,
+      assignment_score: updated.ai_score,
     });
     if (assignmentError) {
       await supabase
@@ -779,7 +790,7 @@ export const leadApi = {
       action_type: "update",
       details: reason,
     });
-    return lead;
+    return leadApi.getLead(leadId);
   },
 
   /**

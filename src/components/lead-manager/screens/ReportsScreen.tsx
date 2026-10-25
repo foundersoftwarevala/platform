@@ -40,7 +40,7 @@ export function ReportsScreen() {
             try {
               await leadApi.assertCanExport("the full lead report");
               const rows = await leadApi.fetchLeadsForExport();
-              exportLeadsCsv(rows, "lead-manager-report", agent?.can_unmask ?? true);
+              exportLeadsCsv(rows, "lead-manager-report", agent?.can_unmask === true);
             } catch (error) {
               toast.error(error instanceof Error ? error.message : "Export failed");
             }

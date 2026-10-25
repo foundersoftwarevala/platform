@@ -76,6 +76,33 @@ describe("readAttribution", () => {
     expect(a.landing_page).toContain("utm_campaign=diwali");
   });
 
+  it("keeps approved campaign parameters but drops unrelated and sensitive query data", () => {
+    const a = readAttribution(
+      `${SITE}/marketplace?utm_source=newsletter&token=secret&email=person%40example.com&phone=9876543210`,
+      null,
+    );
+    expect(a.landing_page).toBe("/marketplace?utm_source=newsletter");
+    expect(a.utm_source).toBe("newsletter");
+  });
+
+  it("does not persist email or phone values in campaign fields", () => {
+    const a = readAttribution(
+      `${SITE}/?utm_campaign=person%40example.com&utm_term=call%209876543210`,
+      null,
+    );
+    expect(a.utm_campaign).toBeNull();
+    expect(a.utm_term).toBeNull();
+    expect(a.landing_page).toBe("/");
+  });
+
+  it("strips query strings, fragments, and credentials from external referrers", () => {
+    const a = readAttribution(
+      `${SITE}/marketplace/product/x`,
+      "https://person:secret@news.example/path?email=person%40example.com#private",
+    );
+    expect(a.referrer).toBe("https://news.example/path");
+  });
+
   it("drops an internal referrer, so a lead is never a self-referral", () => {
     const a = readAttribution(`${SITE}/marketplace/product/x`, `${SITE}/marketplace`);
     expect(a.referrer).toBeNull();

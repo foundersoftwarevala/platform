@@ -24,6 +24,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { maskLeadEmail, maskLeadPhone } from "@/lib/lead-manager/contact-privacy";
 
 function writer() {
   const url = process.env.SUPABASE_URL ?? "";
@@ -240,6 +241,21 @@ type LeadRow = {
   updated_at: string;
 };
 
+async function canUnmaskLeadContacts(sb: Sb, agentId: string): Promise<boolean> {
+  const { data, error } = await loose(sb)
+    .from("lead_agents")
+    .select("can_unmask")
+    .eq("id", agentId)
+    .single();
+  if (error) throw new Error(error.message);
+  return (data as { can_unmask: boolean } | null)?.can_unmask === true;
+}
+
+function applyLeadContactPermission(row: LeadRow, canUnmask: boolean): LeadRow {
+  if (canUnmask) return row;
+  return { ...row, email: maskLeadEmail(row.email), phone: maskLeadPhone(row.phone) };
+}
+
 // The enums the leads table enforces (lead_status_type, lead_source_type,
 // lead_industry). Anything else is refused here with a readable message
 // instead of a database error.
@@ -423,7 +439,8 @@ export const listResellerLeads = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false })
       .limit(500);
     if (error) throw new Error(error.message);
-    return (data ?? []) as LeadRow[];
+    const canUnmask = await canUnmaskLeadContacts(sb, agent);
+    return ((data ?? []) as LeadRow[]).map((row) => applyLeadContactPermission(row, canUnmask));
   });
 
 export const createResellerLead = createServerFn({ method: "POST" })
@@ -433,6 +450,7 @@ export const createResellerLead = createServerFn({ method: "POST" })
     const sb = writer();
     const who = await requireReseller(sb, context);
     const agent = await agentIdFor(sb, who, true);
+    if (!agent) throw new Error("Could not create your lead contact profile.");
     const { data: row, error } = await loose(sb)
       .from("leads")
       .insert({
@@ -448,7 +466,7 @@ export const createResellerLead = createServerFn({ method: "POST" })
       .select(LEAD_COLUMNS)
       .single();
     if (error) throw new Error(error.message);
-    return row as LeadRow;
+    return applyLeadContactPermission(row as LeadRow, await canUnmaskLeadContacts(sb, agent));
   });
 
 export const updateResellerLead = createServerFn({ method: "POST" })
@@ -478,7 +496,7 @@ export const updateResellerLead = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("That lead was not found among yours.");
-    return row as LeadRow;
+    return applyLeadContactPermission(row as LeadRow, await canUnmaskLeadContacts(sb, agent));
   });
 
 export const deleteResellerLead = createServerFn({ method: "POST" })

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { clientAddress } from "@/lib/i18n/limits";
+import { sanitizeCampaignValue, sanitizeExternalReferrer } from "@/lib/marketplace/attribution";
 
 /**
  * Marketplace activity tracking — the event producer that was missing.
@@ -210,13 +211,16 @@ export const Route = createFileRoute("/api/marketplace/track")({
           String(v ?? "")
             .trim()
             .slice(0, n) || null;
-        const referrer = clip(body.referrer, 300);
+        const referrer = sanitizeExternalReferrer(
+          clip(body.referrer, 300),
+          new URL(request.url).hostname,
+        );
         const campaign = {
-          utm_source: clip(body.utm_source),
-          utm_medium: clip(body.utm_medium),
-          utm_campaign: clip(body.utm_campaign),
-          utm_term: clip(body.utm_term),
-          utm_content: clip(body.utm_content),
+          utm_source: sanitizeCampaignValue(clip(body.utm_source)),
+          utm_medium: sanitizeCampaignValue(clip(body.utm_medium)),
+          utm_campaign: sanitizeCampaignValue(clip(body.utm_campaign)),
+          utm_term: sanitizeCampaignValue(clip(body.utm_term)),
+          utm_content: sanitizeCampaignValue(clip(body.utm_content)),
         };
         const hasCampaign = Object.values(campaign).some(Boolean);
 

@@ -46,13 +46,11 @@ export function LeadTable({
     | "followup"
   )[];
 }) {
-  // Contact details were shown to everyone: the default was `unmasked = true`
-  // and no screen ever passed the prop, so the per-agent Unmask switch on the
-  // Security screen wrote a database row and changed nothing on screen. The
-  // switch decides now. Someone who is not on the agent roster at all - an
-  // owner, an admin - keeps the full view they have always had.
+  // The server read boundary masks contacts unless this agent has permission.
+  // Missing agent data therefore stays masked rather than becoming an implicit
+  // grant; this prop can only affect presentation of data already received.
   const { data: agent } = useCurrentAgent();
-  const reveal = unmasked ?? (agent ? agent.can_unmask : true);
+  const reveal = unmasked ?? (agent?.can_unmask === true);
 
   if (isLoading) return <LoadingRows rows={8} />;
   if (leads.length === 0)

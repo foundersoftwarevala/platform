@@ -68,7 +68,7 @@ export function AllLeadsScreen({ onSelect }: { onSelect: (lead: Lead) => void })
               try {
                 await leadApi.assertCanExport("the filtered lead list");
                 const rows = await leadApi.fetchLeadsForExport({ search });
-                exportLeadsCsv(rows, "all-leads", agent?.can_unmask ?? true);
+                exportLeadsCsv(rows, "all-leads", agent?.can_unmask === true);
               } catch (error) {
                 toast.error(error instanceof Error ? error.message : "Export failed");
               }

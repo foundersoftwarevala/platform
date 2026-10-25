@@ -56,6 +56,19 @@ export type Message = {
   context?: Record<string, unknown>;
 };
 
+const EMAIL_ADDRESS_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+
+export function redactEmailAddresses(value: string): string {
+  return value.replace(EMAIL_ADDRESS_PATTERN, (address) => {
+    const at = address.lastIndexOf("@");
+    return `${address.slice(0, Math.min(1, at))}***${address.slice(at)}`;
+  });
+}
+
+function errorMessage(problem: unknown): string {
+  return redactEmailAddresses(problem instanceof Error ? problem.message : String(problem));
+}
+
 function url() {
   return process.env.SUPABASE_URL?.trim() ?? "";
 }
@@ -96,19 +109,23 @@ export async function queue(
         body_text: message.text ?? null,
         status,
         attempts,
-        last_error: error ?? null,
+        last_error: error ? redactEmailAddresses(error) : null,
         context: message.context ?? {},
         order_id: (message.context?.order_id as string | undefined) ?? null,
       }),
     });
     if (!response.ok) {
-      console.error("[mail] could not queue", response.status, await response.text());
+      console.error(
+        "[mail] could not queue",
+        response.status,
+        redactEmailAddresses(await response.text()),
+      );
       return null;
     }
     const rows = (await response.json()) as { id: string }[];
     return rows[0]?.id ?? null;
   } catch (problem) {
-    console.error("[mail] queue threw", problem);
+    console.error("[mail] queue threw", errorMessage(problem));
     return null;
   }
 }
@@ -134,7 +151,7 @@ async function deliver(message: Message): Promise<{ sent: boolean; detail: strin
         }),
       });
       const detail = await response.text();
-      return { sent: response.ok, detail: detail.slice(0, 300) };
+      return { sent: response.ok, detail: redactEmailAddresses(detail).slice(0, 300) };
     }
 
     const response = await fetch(process.env.SMTP_RELAY_URL!.trim(), {
@@ -152,9 +169,9 @@ async function deliver(message: Message): Promise<{ sent: boolean; detail: strin
       }),
     });
     const detail = await response.text();
-    return { sent: response.ok, detail: detail.slice(0, 300) };
+    return { sent: response.ok, detail: redactEmailAddresses(detail).slice(0, 300) };
   } catch (problem) {
-    return { sent: false, detail: problem instanceof Error ? problem.message : "send failed" };
+    return { sent: false, detail: problem ? errorMessage(problem) : "send failed" };
   }
 }
 
@@ -194,7 +211,9 @@ export async function send(
   }
 
   if (!result.sent) {
-    console.warn(`[mail] queued but not sent to ${message.to}: ${result.detail}`);
+    console.warn(
+      redactEmailAddresses(`[mail] queued but not sent to ${message.to}: ${result.detail}`),
+    );
   }
   return { queued: true, sent: result.sent, reason: result.detail };
 }
@@ -381,7 +400,7 @@ export async function operatorRecipients(): Promise<string[]> {
       .map((row) => String(row.email ?? "").trim())
       .filter(Boolean);
   } catch (problem) {
-    console.error("[mail] could not resolve operator recipients", problem);
+    console.error("[mail] could not resolve operator recipients", errorMessage(problem));
     return [];
   }
 }
