@@ -240,6 +240,15 @@ function estimateCostUsd(model: string, tokensIn: number, tokensOut: number): nu
   return (tokensIn / 1000) * pricing.in + (tokensOut / 1000) * pricing.out;
 }
 
+class AiMeteringError extends Error {
+  constructor() {
+    super(
+      "The AI provider responded, but recording usage failed. No provider fallback was attempted.",
+    );
+    this.name = "AiMeteringError";
+  }
+}
+
 async function meter(
   target: AiTarget,
   module: string,
@@ -248,13 +257,13 @@ async function meter(
   ok: boolean,
   usage?: Record<string, unknown>,
   resolvedModel?: string,
-) {
+): Promise<void> {
   try {
     const db = serverClient();
     const tokensIn = Number(usage?.["input_tokens"] ?? usage?.["prompt_tokens"] ?? 0);
     const tokensOut = Number(usage?.["output_tokens"] ?? usage?.["completion_tokens"] ?? 0);
     const costUsd = resolvedModel ? estimateCostUsd(resolvedModel, tokensIn, tokensOut) : null;
-    await db.from("usage_events").insert({
+    const { error } = await db.from("usage_events").insert({
       service_id: target.serviceId,
       model_id: target.modelRowId,
       product: module,
@@ -267,8 +276,10 @@ async function meter(
       source: "ai-gateway",
       ...(costUsd !== null ? { cost_usd: costUsd } : {}),
     });
-  } catch {
-    // Metering must never be the reason a feature fails.
+    if (error) throw error;
+  } catch (error) {
+    console.error("[ai-gateway] usage metering failed:", error);
+    throw new AiMeteringError();
   }
 }
 
@@ -337,6 +348,7 @@ export async function aiComplete(options: {
     try {
       return await callTarget(target, safeOptions);
     } catch (problem) {
+      if (problem instanceof AiMeteringError) throw problem;
       const status = problem instanceof AiProviderError ? problem.status : 0;
       const message = problem instanceof Error ? problem.message : String(problem);
       attempts.push(`${target.serviceName}: ${message}`);
@@ -550,7 +562,7 @@ async function streamFromTarget(
     signal: AbortSignal.timeout(30000),
   });
 
-  void meter(target, options.module, started, upstream.status, upstream.ok);
+  await meter(target, options.module, started, upstream.status, upstream.ok);
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text().catch(() => "");
