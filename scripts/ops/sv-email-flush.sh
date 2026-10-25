@@ -10,7 +10,7 @@
 # When no provider is configured this exits quietly after saying so. It never
 # reports a delivery that did not happen.
 
-set -uo pipefail
+set -euo pipefail
 
 LOG=/var/log/sv-email-flush.log
 URL="http://127.0.0.1:3000/api/internal/email-flush"
@@ -33,11 +33,19 @@ if [[ -z "$TOKEN" ]]; then
 fi
 
 # Ask first. If nothing is waiting there is no reason to make the server work.
-status=$(curl -s -m 30 -H "x-internal-token: $TOKEN" "$URL")
+if ! status=$(curl -fsS -m 30 -H "x-internal-token: $TOKEN" "$URL"); then
+  log "ERROR could not read email queue status"
+  exit 1
+fi
 pending=$(printf '%s' "$status" | grep -o '"pending":[0-9]*' | cut -d: -f2)
 provider=$(printf '%s' "$status" | grep -o '"provider":"[^"]*"' | cut -d'"' -f4)
 
-if [[ "${pending:-0}" -eq 0 ]]; then
+if [[ ! "${pending:-}" =~ ^[0-9]+$ || -z "${provider:-}" ]]; then
+  log "ERROR email queue status response was incomplete"
+  exit 1
+fi
+
+if [[ "$pending" -eq 0 ]]; then
   exit 0
 fi
 
@@ -46,6 +54,9 @@ if [[ "$provider" == "none configured" ]]; then
   exit 0
 fi
 
-result=$(curl -s -m 120 -X POST -H "x-internal-token: $TOKEN" \
-  -H 'Content-Type: application/json' -d '{}' "$URL")
+if ! result=$(curl -fsS -m 120 -X POST -H "x-internal-token: $TOKEN" \
+  -H 'Content-Type: application/json' -d '{}' "$URL"); then
+  log "ERROR email queue flush request failed"
+  exit 1
+fi
 log "flush: $result"

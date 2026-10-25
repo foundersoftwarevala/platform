@@ -115,7 +115,9 @@ async function orderLines(orderId: string): Promise<OrderLine[]> {
     `marketplace_order_items?select=id,product_id,product_name,seller_id` +
       `&order_id=eq.${encodeURIComponent(orderId)}`,
   );
-  if (!response.ok) return [];
+  if (!response.ok) {
+    throw new Error(`Could not read order lines (HTTP ${response.status})`);
+  }
   return (await response.json()) as OrderLine[];
 }
 
@@ -147,7 +149,10 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   const orderResponse = await rest(
     `marketplace_orders?select=id,buyer_id,status,metadata,order_no,total,amount_inr,currency,currency_charged&id=eq.${encodeURIComponent(orderId)}&limit=1`,
   );
-  const orders = orderResponse.ok ? ((await orderResponse.json()) as Record<string, unknown>[]) : [];
+  if (!orderResponse.ok) {
+    return { ok: false, error: "Could not read the order", status: 502 };
+  }
+  const orders = (await orderResponse.json()) as Record<string, unknown>[];
   const order = orders[0];
   if (!order) return { ok: false, error: "Order not found", status: 404 };
 
@@ -177,22 +182,14 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   );
   const contact = await buyerContact(userId);
 
-  // Already fulfilled? Return what exists — webhooks are retried.
+  // A retry must still repair a missing entitlement for an existing license.
   const existingResponse = await rest(
     `licenses?select=id,license_key&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
   );
-  const existing = existingResponse.ok
-    ? ((await existingResponse.json()) as { id: string; license_key: string }[])
-    : [];
-  if (existing[0]) {
-    return {
-      ok: true,
-      created: false,
-      licenceKey: existing[0].license_key,
-      licenceId: existing[0].id,
-      entitlementId: null,
-    };
+  if (!existingResponse.ok) {
+    throw new Error(`Could not check existing licenses (HTTP ${existingResponse.status})`);
   }
+  const existing = (await existingResponse.json()) as { id: string; license_key: string }[];
 
   // One key per purchase. When the order became paid, the database already
   // issued a marketplace licence for each line (mm_order_paid_issue), and that
@@ -204,42 +201,62 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
       `marketplace_licenses?select=license_key&order_item_id=in.(${lines.map((line) => line.id).join(",")})` +
         `&license_key=not.is.null&order=created_at.asc&limit=1`,
     );
-    const rows = issued.ok ? ((await issued.json()) as { license_key: string }[]) : [];
+    if (!issued.ok) {
+      throw new Error(`Could not read the marketplace license (HTTP ${issued.status})`);
+    }
+    const rows = (await issued.json()) as { license_key: string }[];
     if (rows[0]?.license_key) licenceKey = rows[0].license_key;
   }
-  const licenceResponse = await rest("licenses", {
-    method: "POST",
-    headers: { Prefer: "return=representation" },
-    body: JSON.stringify({
-      license_key: licenceKey,
-      order_id: orderId,
-      user_id: userId,
-      product_id: productId || null,
-      status: "active",
-    }),
-  });
+  let licence = existing[0];
+  let created = false;
+  if (licence) {
+    licenceKey = licence.license_key;
+  } else {
+    const licenceResponse = await rest("licenses", {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({
+        license_key: licenceKey,
+        order_id: orderId,
+        user_id: userId,
+        product_id: productId || null,
+        status: "active",
+      }),
+    });
 
-  if (!licenceResponse.ok) {
-    const detail = await licenceResponse.text();
-    // A unique-violation means another retry won the race; read its licence.
-    if (licenceResponse.status === 409) {
-      const raced = await rest(
-        `licenses?select=id,license_key&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
-      );
-      const rows = raced.ok ? ((await raced.json()) as { id: string; license_key: string }[]) : [];
-      if (rows[0]) {
-        return {
-          ok: true, created: false,
-          licenceKey: rows[0].license_key, licenceId: rows[0].id, entitlementId: null,
-        };
+    if (!licenceResponse.ok) {
+      const detail = await licenceResponse.text();
+      // A unique-violation means another retry won the race; read its licence.
+      if (licenceResponse.status === 409) {
+        const raced = await rest(
+          `licenses?select=id,license_key&order_id=eq.${encodeURIComponent(orderId)}&limit=1`,
+        );
+        if (!raced.ok) {
+          throw new Error(`Could not read the license from a concurrent retry (HTTP ${raced.status})`);
+        }
+        const rows = (await raced.json()) as { id: string; license_key: string }[];
+        if (rows[0]) {
+          licence = rows[0];
+          licenceKey = rows[0].license_key;
+        }
       }
+      if (!licence) {
+        console.error("[fulfilment] licence insert failed", licenceResponse.status, detail);
+        await logPaymentEvent(orderId, "fulfilment_failed", {
+          stage: "licence",
+          detail: detail.slice(0, 500),
+        });
+        throw new Error("Could not issue the license; fulfillment can be retried");
+      }
+    } else {
+      const rows = (await licenceResponse.json()) as { id: string; license_key: string }[];
+      if (!rows[0]?.id || !rows[0]?.license_key) {
+        throw new Error("License insert returned no license; fulfillment can be retried");
+      }
+      licence = rows[0];
+      created = true;
     }
-    console.error("[fulfilment] licence insert failed", licenceResponse.status, detail);
-    await logPaymentEvent(orderId, "fulfilment_failed", { stage: "licence", detail: detail.slice(0, 500) });
-    return { ok: false, error: "Could not issue the licence", status: 502 };
   }
-
-  const licence = ((await licenceResponse.json()) as { id: string }[])[0];
 
   // The entitlement is what actually unlocks the product for this customer.
   // An order with several distinct products gets one for each of them; before,
@@ -248,6 +265,9 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
   const purchased = Array.from(
     new Set([productId, ...lines.map((line) => line.product_id ?? "")].filter(Boolean)),
   );
+  if (!purchased.length) {
+    throw new Error("The paid order contains no products to fulfill");
+  }
   let entitlementId: string | null = null;
   const entitlementIds: string[] = [];
   for (const product of purchased) {
@@ -263,14 +283,39 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
         source: "purchase",
       }),
     });
-    if (entitlementResponse.ok) {
-      const rows = (await entitlementResponse.json()) as { id: string }[];
-      if (rows[0]?.id) entitlementIds.push(rows[0].id);
-    } else {
-      console.error("[fulfilment] entitlement insert failed", await entitlementResponse.text());
+    if (!entitlementResponse.ok) {
+      const detail = await entitlementResponse.text();
+      console.error("[fulfilment] entitlement insert failed", entitlementResponse.status, detail);
+      await logPaymentEvent(orderId, "fulfilment_failed", {
+        stage: "entitlement",
+        product_id: product,
+        detail: detail.slice(0, 500),
+      });
+      throw new Error("Could not grant product access; fulfillment can be retried");
     }
+    const rows = (await entitlementResponse.json()) as { id: string }[];
+    if (!rows[0]?.id) {
+      throw new Error("Entitlement write returned no entitlement; fulfillment can be retried");
+    }
+    entitlementIds.push(rows[0].id);
   }
   entitlementId = entitlementIds[0] ?? null;
+
+  if (!created) {
+    await logPaymentEvent(orderId, "entitlements_repaired", {
+      licence_id: licence.id,
+      entitlement_id: entitlementId,
+      entitlements: entitlementIds.length,
+      products: purchased.length,
+    });
+    return {
+      ok: true,
+      created: false,
+      licenceKey: licence.license_key,
+      licenceId: licence.id,
+      entitlementId,
+    };
+  }
 
   await logPaymentEvent(orderId, "fulfilled", {
     licence_id: licence.id,
@@ -355,18 +400,32 @@ export async function fulfilOrder(orderId: string): Promise<FulfilmentResult> {
 
 /** Take access back when a payment is reversed. The licence row is kept. */
 export async function revokeOrderAccess(orderId: string, reason: string): Promise<boolean> {
-  if (!supabaseUrl()) return false;
-  const now = new Date().toISOString();
-  const licence = await rest(`licenses?order_id=eq.${encodeURIComponent(orderId)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ status: "revoked", revoked_at: now, revoked_reason: reason }),
+  if (!supabaseUrl() || !process.env.SUPABASE_SERVICE_ROLE_KEY) return false;
+  const response = await rest("rpc/revoke_order_access", {
+    method: "POST",
+    body: JSON.stringify({
+      p_order_id: orderId,
+      p_reason: reason.slice(0, 200),
+    }),
   });
-  const entitlement = await rest(`entitlements?order_id=eq.${encodeURIComponent(orderId)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ status: "revoked", revoked_at: now }),
+  if (!response.ok) {
+    console.error(
+      "[fulfilment] atomic access revocation failed",
+      response.status,
+      await response.text(),
+    );
+    return false;
+  }
+  const result = (await response.json()) as {
+    ok?: boolean;
+    licenses?: number;
+    entitlements?: number;
+  };
+  if (!result.ok) return false;
+  await logPaymentEvent(orderId, "access_revoked", {
+    reason,
+    licenses: result.licenses ?? 0,
+    entitlements: result.entitlements ?? 0,
   });
-  await logPaymentEvent(orderId, "access_revoked", { reason });
-  return licence.ok && entitlement.ok;
+  return true;
 }

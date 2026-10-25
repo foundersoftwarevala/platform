@@ -23,16 +23,19 @@ function admin() {
 }
 
 async function countByStatus(status: string): Promise<number> {
-  try {
-    const response = await fetch(
-      `${url()}/rest/v1/email_outbox?select=id&status=eq.${status}&limit=1`,
-      { headers: { ...admin(), Prefer: "count=exact" } },
-    );
-    const range = response.headers.get("content-range") ?? "";
-    return Number(range.split("/")[1]) || 0;
-  } catch {
-    return 0;
+  const response = await fetch(
+    `${url()}/rest/v1/email_outbox?select=id&status=eq.${encodeURIComponent(status)}&limit=1`,
+    { headers: { ...admin(), Prefer: "count=exact" } },
+  );
+  if (!response.ok) {
+    throw new Error(`Could not count ${status} email messages (HTTP ${response.status})`);
   }
+  const range = response.headers.get("content-range") ?? "";
+  const total = range.split("/")[1];
+  if (!total || total === "*" || !/^\d+$/.test(total)) {
+    throw new Error(`Email count response for ${status} did not include an exact total`);
+  }
+  return Number(total);
 }
 
 export const Route = createFileRoute("/api/internal/email-flush")({
@@ -41,15 +44,23 @@ export const Route = createFileRoute("/api/internal/email-flush")({
       GET: async ({ request }) => {
         const gate = await requireInternalOperator(request);
         if (!gate.ok) return gate.response;
-        return Response.json({
-          provider: providerConfigured() ?? "none configured",
-          max_attempts: MAX_ATTEMPTS,
-          pending: await countByStatus("pending"),
-          sent: await countByStatus("sent"),
-          // Reachable now. Before the queue counted its attempts this could
-          // only ever have been zero.
-          failed: await countByStatus("failed"),
-        });
+        try {
+          const [pending, sent, failed] = await Promise.all([
+            countByStatus("pending"),
+            countByStatus("sent"),
+            countByStatus("failed"),
+          ]);
+          return Response.json({
+            provider: providerConfigured() ?? "none configured",
+            max_attempts: MAX_ATTEMPTS,
+            pending,
+            sent,
+            failed,
+          });
+        } catch (error) {
+          console.error("[email-flush] could not read queue counts", error);
+          return Response.json({ error: "Could not read email queue status" }, { status: 500 });
+        }
       },
 
       POST: async ({ request }) => {
@@ -64,22 +75,32 @@ export const Route = createFileRoute("/api/internal/email-flush")({
         } catch {
           body = {};
         }
-        if (body.requeue) {
-          const back = await requeueFailed(200);
+        try {
+          if (body.requeue) {
+            const back = await requeueFailed(200);
+            const [pending, failed] = await Promise.all([
+              countByStatus("pending"),
+              countByStatus("failed"),
+            ]);
+            return Response.json({
+              provider: providerConfigured() ?? "none configured",
+              requeued: back.requeued,
+              pending_after: pending,
+              failed_after: failed,
+            });
+          }
+
+          const result = await sendQueued(50);
+          const pending = await countByStatus("pending");
           return Response.json({
             provider: providerConfigured() ?? "none configured",
-            requeued: back.requeued,
-            pending_after: await countByStatus("pending"),
-            failed_after: await countByStatus("failed"),
+            ...result,
+            pending_after: pending,
           });
+        } catch (error) {
+          console.error("[email-flush] request failed", error);
+          return Response.json({ error: "Could not flush email queue" }, { status: 500 });
         }
-
-        const result = await sendQueued(50);
-        return Response.json({
-          provider: providerConfigured() ?? "none configured",
-          ...result,
-          pending_after: await countByStatus("pending"),
-        });
       },
     },
   },
