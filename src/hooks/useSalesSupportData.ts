@@ -6,6 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useAuth } from "@/hooks/useAuth";
 
 type SalesSupportRow = {
   [column: string]: any;
@@ -52,6 +53,8 @@ function useTable<T>(
   table: SalesSupportTable,
   options?: { orderBy?: string; ascending?: boolean; limit?: number; retry?: boolean; fetchAll?: boolean },
 ) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const orderBy = options?.orderBy ?? "created_at";
   const ascending = options?.ascending ?? false;
   const limit = options?.limit ?? 500;
@@ -59,8 +62,9 @@ function useTable<T>(
 
   return useQuery({
     queryKey: fetchAll
-      ? [table, orderBy, ascending, limit, "all"]
-      : [table, orderBy, ascending, limit],
+      ? [table, userId, orderBy, ascending, limit, "all"]
+      : [table, userId, orderBy, ascending, limit],
+    enabled: Boolean(userId),
     staleTime: STALE,
     retry: options?.retry ?? 3,
     queryFn: async (): Promise<T[]> => {
@@ -117,10 +121,12 @@ export const useCannedResponses = () => useTable<CannedResponse>("canned_respons
 export const useWikiArticles = () => useTable<WikiArticle>("wiki_articles");
 export const useAuditLogs = () => useTable<AuditLog>("audit_logs", { orderBy: "occurred_at", retry: false });
 
-export const useChatMessages = (sessionId: string | null) =>
-  useQuery({
-    queryKey: ["chat_messages", sessionId],
-    enabled: Boolean(sessionId),
+export const useChatMessages = (sessionId: string | null) => {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  return useQuery({
+    queryKey: ["chat_messages", userId, sessionId],
+    enabled: Boolean(userId && sessionId),
     staleTime: 10_000,
     queryFn: async (): Promise<ChatMessage[]> => {
       const { data, error } = await db
@@ -132,6 +138,7 @@ export const useChatMessages = (sessionId: string | null) =>
       return data ?? [];
     },
   });
+};
 
 // Generic table access needs a loosened client: the generated types cannot
 // narrow column names when the table name is a type parameter.

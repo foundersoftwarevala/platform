@@ -54,10 +54,24 @@ const toMetrics = (row: ServerInstanceRow): ServerMetrics => ({
 const METRIC_COLUMNS =
   'id, server_name, cpu_usage, ram_usage, disk_usage, network_in_mbps, network_out_mbps, health_score, status, updated_at';
 
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof error.message === 'string'
+  ) {
+    return error.message;
+  }
+  return fallback;
+}
+
 interface UseServerRealtimeReturn {
   metrics: Record<string, ServerMetrics>;
   alerts: ServerAlert[];
   isConnected: boolean;
+  error: string | null;
   lastUpdate: Date | null;
   refreshMetrics: () => Promise<void>;
   startAutoRefresh: (intervalMs?: number) => void;
@@ -68,44 +82,46 @@ export function useServerRealtime(): UseServerRealtimeReturn {
   const [metrics, setMetrics] = useState<Record<string, ServerMetrics>>({});
   const [alerts, setAlerts] = useState<ServerAlert[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refreshMetrics = useCallback(async () => {
     try {
-      const { data: serverRows } = await supabase
+      const { data: serverRows, error: serverError } = await supabase
         .from('server_instances')
         .select(METRIC_COLUMNS)
         .neq('status', 'decommissioned');
+      if (serverError) throw serverError;
 
-      if (serverRows) {
-        const metricsMap: Record<string, ServerMetrics> = {};
-        for (const row of serverRows as ServerInstanceRow[]) {
-          metricsMap[row.id] = toMetrics(row);
-        }
-        setMetrics(metricsMap);
-      }
-
-      const { data: alertsData } = await supabase
+      const { data: alertsData, error: alertsError } = await supabase
         .from('server_alerts')
         .select('id, server_id, alert_type, severity, message, is_resolved, created_at')
         .eq('is_resolved', false)
         .order('created_at', { ascending: false })
         .limit(50);
+      if (alertsError) throw alertsError;
+      if (!serverRows || !alertsData) throw new Error('Server data was not returned.');
 
-      if (alertsData) setAlerts(alertsData as ServerAlert[]);
+      const metricsMap: Record<string, ServerMetrics> = {};
+      for (const row of serverRows as ServerInstanceRow[]) {
+        metricsMap[row.id] = toMetrics(row);
+      }
 
+      setMetrics(metricsMap);
+      setAlerts(alertsData as ServerAlert[]);
+      setError(null);
       setLastUpdate(new Date());
     } catch (error) {
+      setMetrics({});
+      setAlerts([]);
+      setError(errorMessage(error, 'Could not load server data.'));
       console.error('[ServerRealtime] Refresh error:', error);
     }
   }, []);
 
   useEffect(() => {
-    let metricsChannel: RealtimeChannel | undefined;
-    let alertsChannel: RealtimeChannel | undefined;
-
-    metricsChannel = supabase
+    const metricsChannel: RealtimeChannel = supabase
       .channel('server-metrics-realtime')
       .on(
         'postgres_changes',
@@ -114,7 +130,6 @@ export function useServerRealtime(): UseServerRealtimeReturn {
           const row = payload.new as ServerInstanceRow | undefined;
           if (row?.id) {
             setMetrics((prev) => ({ ...prev, [row.id]: toMetrics(row) }));
-            setLastUpdate(new Date());
           }
         },
       )
@@ -122,7 +137,7 @@ export function useServerRealtime(): UseServerRealtimeReturn {
         setIsConnected(status === 'SUBSCRIBED');
       });
 
-    alertsChannel = supabase
+    const alertsChannel: RealtimeChannel = supabase
       .channel('server-alerts-realtime')
       .on(
         'postgres_changes',
@@ -178,7 +193,16 @@ export function useServerRealtime(): UseServerRealtimeReturn {
     };
   }, []);
 
-  return { metrics, alerts, isConnected, lastUpdate, refreshMetrics, startAutoRefresh, stopAutoRefresh };
+  return {
+    metrics,
+    alerts,
+    isConnected,
+    error,
+    lastUpdate,
+    refreshMetrics,
+    startAutoRefresh,
+    stopAutoRefresh,
+  };
 }
 
 export function useServerDashboard(autoRefreshMs = 5000) {
@@ -193,18 +217,22 @@ export function useServerDashboard(autoRefreshMs = 5000) {
     network_throughput: { in: 0, out: 0 },
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSummary = useCallback(async () => {
     try {
-      const { data: servers } = await supabase
+      const { data: servers, error: serversError } = await supabase
         .from('server_instances')
         .select(METRIC_COLUMNS)
         .neq('status', 'decommissioned');
+      if (serversError) throw serversError;
 
-      const { data: alerts } = await supabase
+      const { data: alerts, error: alertsError } = await supabase
         .from('server_alerts')
         .select('severity')
         .eq('is_resolved', false);
+      if (alertsError) throw alertsError;
+      if (!servers || !alerts) throw new Error('Server summary data was not returned.');
 
       const rows = (servers ?? []) as ServerInstanceRow[];
       const total = rows.length;
@@ -228,7 +256,9 @@ export function useServerDashboard(autoRefreshMs = 5000) {
         avg_ram: Math.round(avgRam * 100) / 100,
         network_throughput: { in: Math.round(netIn), out: Math.round(netOut) },
       });
+      setError(null);
     } catch (error) {
+      setError(errorMessage(error, 'Could not load server summary.'));
       console.error('[Dashboard] Fetch error:', error);
     } finally {
       setLoading(false);
@@ -243,7 +273,7 @@ export function useServerDashboard(autoRefreshMs = 5000) {
     return () => clearInterval(interval);
   }, [fetchSummary, autoRefreshMs]);
 
-  return { summary, loading, refresh: fetchSummary };
+  return { summary, loading, error, refresh: fetchSummary };
 }
 
 export default useServerRealtime;

@@ -73,16 +73,17 @@ const ServerManagerDashboard = () => {
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [sessionTime, setSessionTime] = useState('00:00:00');
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebarState();
-  const { summary } = useServerDashboard(10000);
+  const { summary, error } = useServerDashboard(10000);
 
-  const infraStatus: 'healthy' | 'warning' | 'critical' =
-    summary.critical_alerts > 0 || summary.offline > 0
+  const infraStatus: 'healthy' | 'warning' | 'critical' | 'unavailable' = error
+    ? 'unavailable'
+    : summary.critical_alerts > 0 || summary.offline > 0
       ? 'critical'
       : summary.warnings > 0
         ? 'warning'
         : 'healthy';
 
-  const alertBadge = summary.critical_alerts + summary.warnings;
+  const alertBadge = error ? 0 : summary.critical_alerts + summary.warnings;
 
   useEffect(() => {
     const startTime = Date.now();
@@ -118,7 +119,9 @@ const ServerManagerDashboard = () => {
   const ActiveScreen = useMemo(() => SCREENS[activeView], [activeView]);
 
   const statusTone =
-    infraStatus === 'healthy'
+    infraStatus === 'unavailable'
+      ? 'text-muted-foreground border-border bg-muted/30'
+      : infraStatus === 'healthy'
       ? 'text-accent-emerald border-accent-emerald/30 bg-accent-emerald/10'
       : infraStatus === 'warning'
         ? 'text-accent-amber border-accent-amber/30 bg-accent-amber/10'
@@ -161,7 +164,13 @@ const ServerManagerDashboard = () => {
               transition={{ duration: 2.4, repeat: Infinity }}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-current" />
-              {infraStatus === 'healthy' ? 'All Systems Healthy' : infraStatus === 'warning' ? 'Warning' : 'Critical'}
+              {infraStatus === 'unavailable'
+                ? 'Data Unavailable'
+                : infraStatus === 'healthy'
+                  ? 'All Systems Healthy'
+                  : infraStatus === 'warning'
+                    ? 'Warning'
+                    : 'Critical'}
             </motion.div>
 
             <button

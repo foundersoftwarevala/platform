@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { absoluteUrl } from "@/lib/seo/site-url";
-import { useMemo } from "react";
 import { SalesAssistant } from "@/components/marketplace-tools/ProductTools";
-import { listPublishedFaqs } from "@/lib/site-content/faq";
+import { getStorefrontChrome } from "@/lib/storefront/chrome.functions";
 import "@/styles/marketplace-home.css";
 
 /**
@@ -11,14 +10,13 @@ import "@/styles/marketplace-home.css";
  * invents an answer — it either cites real content or hands over to support.
  */
 function AssistantPage() {
-  const faqs = useMemo(
-    () => listPublishedFaqs().map((f) => ({ question: f.question, answer: f.answer })),
-    [],
-  );
+  const { faqs: publishedFaqs } = Route.useLoaderData();
+  const faqs = publishedFaqs.map(({ question, answer }) => ({ question, answer }));
   return <SalesAssistant faqs={faqs} />;
 }
 
 export const Route = createFileRoute("/ai/assistant")({
+  loader: () => getStorefrontChrome(),
   head: () => ({
     links: [{ rel: "canonical", href: absoluteUrl("/ai/assistant") }],
     meta: [

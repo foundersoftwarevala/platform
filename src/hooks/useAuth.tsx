@@ -1,4 +1,13 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,12 +50,15 @@ const ROLE_PRIORITY: AppRole[] = [
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const roleLoadSequence = useRef(0);
 
   const loadRoles = async (userId: string | undefined) => {
+    const requestSequence = ++roleLoadSequence.current;
     if (!userId) {
       setRoles([]);
       return;
@@ -54,31 +66,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", userId);
     if (error) {
       console.error("Failed to load roles", error.message);
-      setRoles([]);
+      if (requestSequence === roleLoadSequence.current) setRoles([]);
       return;
     }
-    setRoles((data ?? []).map((row) => row.role as AppRole));
+    if (requestSequence === roleLoadSequence.current) {
+      setRoles((data ?? []).map((row) => row.role as AppRole));
+    }
   };
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    let receivedAuthEvent = false;
+    let currentUserId: string | null = null;
+
+    const updateSession = (nextSession: Session | null, forceClear = false) => {
+      const nextUserId = nextSession?.user.id ?? null;
+      if (forceClear || currentUserId !== nextUserId) {
+        queryClient.clear();
+        currentUserId = nextUserId;
+      }
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
       setIsLoading(false);
-      void loadRoles(nextSession?.user?.id);
+      void loadRoles(nextUserId ?? undefined);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      receivedAuthEvent = true;
+      updateSession(nextSession, event === "SIGNED_OUT");
     });
 
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      setIsLoading(false);
-      void loadRoles(data.session?.user?.id);
+      if (!receivedAuthEvent) updateSession(data.session);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(() => {
     const userRole = ROLE_PRIORITY.find((role) => roles.includes(role)) ?? null;

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ requests: [] as URL[], empty: false }));
+const state = vi.hoisted(() => ({ requests: [] as URL[], empty: false, userId: "user-a" }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: createClient("https://chat-fixture.invalid", "fixture-public-key", {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -47,6 +47,9 @@ vi.mock("@/integrations/supabase/client", () => ({
     },
   }),
 }));
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ user: { id: state.userId } }),
+}));
 import { useChatSessions } from "./useSalesSupportData";
 import { CBAnalyticsLogs } from "@/components/support-chatbot/screens/CBAnalyticsLogs";
 
@@ -54,6 +57,7 @@ let client: QueryClient;
 beforeEach(() => {
   state.requests = [];
   state.empty = false;
+  state.userId = "user-a";
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 afterEach(() => {
@@ -68,6 +72,7 @@ describe("schema-backed visitor name contract", () => {
   it("keeps the existing session query and exposes the actual string field", async () => {
     const { result } = renderHook(useChatSessions, { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(client.getQueryCache().findAll()[0]?.queryKey).toContain("user-a");
     const name: string | undefined = result.current.data?.[0].visitor_name;
     expect(
       name

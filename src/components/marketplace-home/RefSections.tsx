@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
-import { listPublishedFaqs } from "@/lib/site-content/faq";
 import { embedUrl, hasPlayableVideo } from "@/lib/site-content/videos";
 import { listCourses } from "@/lib/site-content/academy";
 import { listAwards } from "@/lib/site-content/awards";

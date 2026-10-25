@@ -10,7 +10,6 @@ import { ArrowDownUp, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from 
 import { toast } from "sonner";
 
 import { Card, PageHeader, PillButton, StatCard } from "@/components/marketplace-manager/ui";
-import { createTable, uid } from "@/lib/marketplace-manager/store";
 import { downloadCsv, stampedName } from "@/lib/export/download";
 import { authHeaders } from "@/lib/auth/operator-fetch";
 
@@ -101,8 +100,8 @@ export type WallConfig = {
   /**
    * A resource name from /api/manager/resource. When set, this wall reads and
    * writes the real table through that endpoint - guarded, permission-checked
-   * and audited like every other manager write. When absent the wall keeps its
-   * browser-local behaviour and nothing changes for it.
+   * and audited like every other manager write. When absent the wall is
+   * read-only and displays no records.
    */
   resource?: string;
   /**
@@ -227,7 +226,6 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
     () => (readOnly ? { ...given, seed: [], creatable: false, bulkActions: [], rowActions: [] } : given),
     [given, readOnly],
   );
-  const table = useMemo(() => createTable<WallRow>(`wall:${config.scope}`, []), [config]);
   const remote = config.resource ?? null;
 
   const [rows, setRows] = useState<WallRow[]>([]);
@@ -287,21 +285,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
     setFilters({});
     setSelected(new Set());
     setPage(1);
-  }, [table]);
-
-  const commit = (next: WallRow[]) => {
-    // Browser-local walls keep their existing behaviour exactly.
-    if (!remote) {
-      table.replace(next);
-      setRows(next);
-      return;
-    }
-    // A resource-backed wall must not pretend. The rows are shown optimistically
-    // and then re-read from the server, so what ends up on screen is what the
-    // database actually holds.
-    setRows(next);
-    void reload();
-  };
+  }, [remote]);
 
   /**
    * One record, written to the real table.
@@ -417,20 +401,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
       return;
     }
 
-    if (editing) {
-      commit(rows.map((r) => (r.id === editing.id ? ({ ...r, ...draft } as WallRow) : r)));
-      toast.success(`${cap(config.entity)} updated`);
-    } else {
-      const row = {
-        ...draft,
-        id: uid(),
-        created_at: draft["created_at"] ?? new Date().toISOString().slice(0, 10),
-      } as WallRow;
-      commit([row, ...rows]);
-      toast.success(`${cap(config.entity)} created`);
-    }
-    setCreating(false);
-    setEditing(null);
+    toast.error(`${cap(config.entity)} is not connected to a database.`);
   };
 
   const applyPatch = (ids: string[], patch?: Record<string, any>, remove?: boolean) => {
@@ -457,14 +428,7 @@ export function ManagerWall({ config: given }: { config: WallConfig }) {
       return;
     }
 
-    if (remove) {
-      commit(rows.filter((r) => !ids.includes(r.id)));
-      toast.success(`${ids.length} ${config.entity}(s) deleted`);
-    } else {
-      commit(rows.map((r) => (ids.includes(r.id) ? ({ ...r, ...patch } as WallRow) : r)));
-      toast.success(`${ids.length} ${config.entity}(s) updated`);
-    }
-    setSelected(new Set());
+    toast.error(`${cap(config.entity)} is not connected to a database.`);
   };
 
   /**

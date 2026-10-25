@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '../layout/PageShell';
 
 const SMOverview = () => {
-  const { summary, loading, refresh } = useServerDashboard(5000);
+  const { summary, loading, error: summaryError, refresh } = useServerDashboard(5000);
   const [recentAlerts, setRecentAlerts] = useState<Array<{
     id: string;
     message: string;
@@ -102,8 +102,7 @@ const SMOverview = () => {
               size="sm"
               aria-label="Refresh infrastructure data"
               onClick={() => {
-                refresh();
-                setLastUpdate(new Date());
+                void refresh();
               }}
               disabled={loading}
             >
@@ -125,8 +124,15 @@ const SMOverview = () => {
 
       {lastUpdate && (
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          Last updated: {lastUpdate.toLocaleTimeString()}
+          Alerts last updated: {lastUpdate.toLocaleTimeString()}
         </p>
+      )}
+
+      {summaryError && (
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+          <p className="text-sm font-medium text-destructive">Infrastructure data could not be loaded</p>
+          <p className="mt-1 text-xs text-muted-foreground">{summaryError}</p>
+        </div>
       )}
 
       {/* Stats Cards */}
@@ -138,6 +144,8 @@ const SMOverview = () => {
                 <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">{stat.label}</p>
                 {loading ? (
                   <Skeleton className="h-8 w-16 mt-1" />
+                ) : summaryError ? (
+                  <p className="mt-1 text-xl font-bold text-muted-foreground">—</p>
                 ) : (
                   <p className={`mt-1 text-xl font-bold ${stat.color}`}>{stat.value}</p>
                 )}
@@ -152,29 +160,37 @@ const SMOverview = () => {
 
 
       {/* Resource Heatmap */}
-      <div className="bento-card premium-halo hover-lift enter-soft">
-        <h3 className="text-sm font-semibold tracking-tight mb-4">Resource Utilization (Live)</h3>
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-          {resourceData.map((res) => (
-            <div key={res.label} className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-foreground">{res.label}</span>
-                <span className={`text-sm font-bold ${
-                  res.value > 80 ? 'text-destructive' : res.value > 60 ? 'text-accent-amber' : 'text-accent-emerald'
-                }`}>
-                  {loading ? '...' : `${Math.round(res.value)}%`}
-                </span>
+      {!summaryError && (
+        <div className="bento-card premium-halo hover-lift enter-soft">
+          <h3 className="text-sm font-semibold tracking-tight mb-4">Resource Utilization (Live)</h3>
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+            {resourceData.map((res) => (
+              <div key={res.label} className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-foreground">{res.label}</span>
+                  <span
+                    className={`text-sm font-bold ${
+                      res.value > 80
+                        ? 'text-destructive'
+                        : res.value > 60
+                          ? 'text-accent-amber'
+                          : 'text-accent-emerald'
+                    }`}
+                  >
+                    {loading ? '...' : `${Math.round(res.value)}%`}
+                  </span>
+                </div>
+                <div className="h-4 bg-surface rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${res.color} rounded-full transition-all duration-500`}
+                    style={{ width: `${Math.min(100, res.value)}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-4 bg-surface rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${res.color} rounded-full transition-all duration-500`}
-                  style={{ width: `${Math.min(100, res.value)}%` }}
-                />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Recent Alerts */}
       <div className="bento-card premium-halo hover-lift enter-soft">
