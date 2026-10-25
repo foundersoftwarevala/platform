@@ -10,6 +10,7 @@ import {
   createMarketplaceCheckout,
   getMarketplaceCart,
   listMarketplaceOrders,
+  setMarketplaceCartItemPricing,
 } from "@/lib/marketplace-commerce.functions";
 import { useServerFn } from "@/lib/serverFn";
 import { authHeaders } from "@/lib/auth/operator-fetch";
@@ -79,6 +80,7 @@ function CheckoutPage() {
   const { t } = useTranslation();
   const getCart = useServerFn(getMarketplaceCart);
   const checkout = useServerFn(createMarketplaceCheckout);
+  const setCartPricing = useServerFn(setMarketplaceCartItemPricing);
   const [idempotencyKey] = useState(createIdempotencyKey);
 
   const cartQuery = useQuery({
@@ -123,10 +125,16 @@ function CheckoutPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const pricingMutation = useMutation({
+    mutationFn: ({ cartItemId, pricingId }: { cartItemId: string; pricingId: string }) =>
+      setCartPricing({ data: { cartItemId, pricingId } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["marketplace-cart"] }),
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const items = cartQuery.data?.items ?? [];
   const quote = cartQuery.data?.quote;
-  const lineTotal = new Map((quote?.lines ?? []).map((l) => [l.cart_item_id, l.line_total]));
+  const lineQuotes = new Map((quote?.lines ?? []).map((line) => [line.cart_item_id, line]));
   const money = (value: number | string | undefined) =>
     `${quote?.currency ?? ""} ${Number(value ?? 0).toFixed(2)}`.trim();
   const result = checkoutMutation.data as { order_number?: string; total?: number; payment_status?: string } | undefined;
@@ -160,12 +168,50 @@ function CheckoutPage() {
                   <div>
                     <p className="font-semibold">{item.marketplace_products?.name ?? t("checkout.product_fallback")}</p>
                     <p className="text-sm text-slate-400">{t("checkout.quantity", { quantity: item.quantity })}</p>
+                    {(item.pricing_options ?? []).length > 0 ? (
+                      <label className="mt-2 flex flex-col gap-1 text-xs text-slate-400">
+                        Billing period and currency
+                        <select
+                          aria-label={`Billing period and currency for ${item.marketplace_products?.name ?? "product"}`}
+                          className="max-w-xs rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-white"
+                          value={item.selected_pricing_id ?? ""}
+                          disabled={pricingMutation.isPending}
+                          onChange={(event) =>
+                            pricingMutation.mutate({
+                              cartItemId: item.id,
+                              pricingId: event.currentTarget.value,
+                            })
+                          }
+                        >
+                          <option value="" disabled>Select a billing period</option>
+                          {(item.pricing_options ?? []).map((option: any) => (
+                            <option key={option.id} value={option.id}>
+                              {option.billing_period} · {option.currency} {Number(option.amount).toFixed(2)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <p className="mt-2 text-xs text-amber-300">No active pricing is available for this item.</p>
+                    )}
                   </div>
                   <span className="text-sm text-slate-300">
-                    {lineTotal.has(item.id) ? money(lineTotal.get(item.id)) : t("checkout.server_priced")}
+                    {lineQuotes.has(item.id)
+                      ? money(lineQuotes.get(item.id)?.line_total)
+                      : "Select a billing period to see the price"}
                   </span>
                 </div>
               ))}
+              {quote?.mixed && (
+                <p className="text-sm text-amber-300">
+                  This basket contains more than one currency. Choose prices in a single currency to continue.
+                </p>
+              )}
+              {(quote?.unavailable_count ?? 0) > 0 && (
+                <p className="text-sm text-amber-300">
+                  One or more products are no longer available and will not be included in this order.
+                </p>
+              )}
               {quote && (
                 <dl className="space-y-1 text-sm" data-cart-quote data-quote-total={quote.total}>
                   <div className="flex justify-between text-slate-300">
@@ -192,7 +238,7 @@ function CheckoutPage() {
                   )}
                 </dl>
               )}
-              <Button disabled={checkoutMutation.isPending || paying} onClick={() => checkoutMutation.mutate()} className="w-full bg-cyan-500 text-slate-950 hover:bg-cyan-400">
+              <Button disabled={!quote?.ready || checkoutMutation.isPending || pricingMutation.isPending || paying} onClick={() => checkoutMutation.mutate()} className="w-full bg-cyan-500 text-slate-950 hover:bg-cyan-400">
                 {checkoutMutation.isPending || paying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
                 {paying ? t("checkout.opening_payment") : t("checkout.pay_securely")}
               </Button>

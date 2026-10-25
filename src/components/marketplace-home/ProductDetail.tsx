@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { LIFETIME_LABEL, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content/constants";
 // useEffect was used without ever being imported. The product page never
 // rendered - the marketplace layout swallowed it - so the reference error sat
 // unnoticed until the page was finally drawn.
@@ -323,11 +322,9 @@ export function ProductDetail() {
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                 Price
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm text-muted-foreground line-through">{LIFETIME_MRP}</span>
-                <div className="text-3xl font-bold text-cyan-300">{LIFETIME_PRICE}</div>
+              <div className="mb-4 text-sm text-muted-foreground">
+                Select the billing period and currency at checkout to see the active price.
               </div>
-              <div className="text-sm text-muted-foreground mb-4">{LIFETIME_LABEL}</div>
 
               {/* Drawn from the Action Layer, not from this file. The resolver
                   decides which of these appear, in what order and with which
