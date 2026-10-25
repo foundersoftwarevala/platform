@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
+import { protectAiMessages } from "@/lib/ai/prompt-boundary";
 import { decryptAiCredential, isEncryptedAiCredential } from "./ai-credentials.server";
 import { assertManagedProviderEndpoint } from "./managed-api-endpoints.server";
 /**
@@ -36,12 +37,9 @@ export type AiTarget = {
 
 function serverClient() {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
-    "";
-  if (!url || !key) throw new Error("Supabase is not configured on the server.");
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  if (!url || !key)
+    throw new Error("Supabase server credentials are required for AI API Manager access.");
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
@@ -274,7 +272,7 @@ async function meter(
   }
 }
 
-export type AiMessage = { role: "system" | "user" | "assistant"; content: string };
+export type AiMessage = import("@/lib/ai/prompt-boundary").AiPromptMessage;
 
 /** A single completion. Returns the text, or throws with the provider's reason. */
 /**
@@ -317,6 +315,8 @@ export async function aiComplete(options: {
   maxTokens?: number;
   json?: boolean;
 }): Promise<{ text: string; model: string | null; service: string }> {
+  const messages = protectAiMessages(options.messages);
+  const safeOptions = { ...options, messages };
   // `serviceId` is an exact match against api_services.id; `serviceName` is a
   // fuzzy ilike("name", ...) fallback. Passing an id as `serviceName` would
   // silently miss the row and fall through to "any active AI service".
@@ -335,7 +335,7 @@ export async function aiComplete(options: {
     const target = targets[i];
     const isLast = i === targets.length - 1;
     try {
-      return await callTarget(target, options);
+      return await callTarget(target, safeOptions);
     } catch (problem) {
       const status = problem instanceof AiProviderError ? problem.status : 0;
       const message = problem instanceof Error ? problem.message : String(problem);
@@ -489,13 +489,14 @@ export async function aiStream(options: {
   messages: AiMessage[];
   serviceName?: string;
 }): Promise<Response> {
+  const safeOptions = { ...options, messages: protectAiMessages(options.messages) };
   const targets = await resolveAiTargets(options.serviceName);
   const attempts: string[] = [];
 
   for (let i = 0; i < targets.length; i += 1) {
     const target = targets[i];
     const isLast = i === targets.length - 1;
-    const response = await streamFromTarget(target, options);
+    const response = await streamFromTarget(target, safeOptions);
     if (response.ok) return response.stream;
 
     attempts.push(`${target.serviceName}: ${response.detail}`);

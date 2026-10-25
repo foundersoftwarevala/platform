@@ -28,26 +28,37 @@ export const submitTeamFeedback = createServerFn({ method: "POST" })
       })
       .parse(i),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     await (await import("./rd-gate.server")).requireRdUnlocked();
     const db = await admin();
-    const { data: row, error } = await db.from("rnd_team_feedback").insert(data).select().single();
+    const { data: row, error } = await db
+      .from("rnd_team_feedback")
+      .insert({ ...data, submitted_by: context.rdOperator.userId })
+      .select()
+      .single();
     if (error) throw new Error("Could not save feedback");
     return row;
   });
 
+export async function loadFeedbackForAi(userId: string) {
+  const db = await admin();
+  const { data, error } = await db
+    .from("rnd_team_feedback")
+    .select("member, area, content")
+    .eq("submitted_by", userId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) throw new Error("Could not load your feedback");
+  return data ?? [];
+}
+
 /** Runs AI over the latest team feedback and stores a new insight snapshot. */
 export const runFeedbackInsights = createServerFn({ method: "POST" })
   .middleware([rdOperator])
-  .handler(async () => {
+  .handler(async ({ context }) => {
     await (await import("./rd-gate.server")).requireRdUnlocked();
     const db = await admin();
-    const { data: entries, error } = await db
-      .from("rnd_team_feedback")
-      .select("member, area, content")
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error) throw new Error("Could not load feedback");
+    const entries = await loadFeedbackForAi(context.rdOperator.userId);
     if (!entries || entries.length < 2)
       throw new Error("Add at least 2 feedback entries before running analysis.");
     const { generateFeedbackInsights, INSIGHTS_MODEL } = await import("./feedback-insights.server");
@@ -60,6 +71,7 @@ export const runFeedbackInsights = createServerFn({ method: "POST" })
         improvements: result.improvements as never,
         feedback_count: entries.length,
         model: INSIGHTS_MODEL,
+        submitted_by: context.rdOperator.userId,
       })
       .select("id")
       .single();

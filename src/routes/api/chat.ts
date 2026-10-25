@@ -33,6 +33,43 @@ const CHAT_TURNS_PER_MINUTE = 20;
 const chatLimiter = new SlidingWindowLimiter(60_000);
 const CHAT_IP_TURNS_PER_MINUTE = 60;
 const chatIpLimiter = new SlidingWindowLimiter(60_000);
+const MAX_CHAT_REQUEST_BYTES = 100 * 1024;
+
+class ChatRequestTooLarge extends Error {}
+
+async function readChatBody(request: Request): Promise<{ messages?: ChatMessage[] }> {
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_CHAT_REQUEST_BYTES) {
+    throw new ChatRequestTooLarge();
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("Request body is required.");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_CHAT_REQUEST_BYTES) {
+        await reader.cancel();
+        throw new ChatRequestTooLarge();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes)) as { messages?: ChatMessage[] };
+}
 
 export const Route = createFileRoute("/api/chat")({
   server: {
@@ -73,8 +110,11 @@ export const Route = createFileRoute("/api/chat")({
 
         let body: { messages?: ChatMessage[] };
         try {
-          body = (await request.json()) as { messages?: ChatMessage[] };
-        } catch {
+          body = await readChatBody(request);
+        } catch (error) {
+          if (error instanceof ChatRequestTooLarge) {
+            return new Response("Request body is too large.", { status: 413 });
+          }
           return new Response("Invalid request", { status: 400 });
         }
         // Only the two conversational roles cross from the browser. Anything

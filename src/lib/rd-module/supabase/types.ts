@@ -1279,6 +1279,7 @@ export type Database = {
           model: string;
           summary: string;
           themes: Json;
+          submitted_by: string | null;
         };
         Insert: {
           created_at?: string;
@@ -1288,6 +1289,7 @@ export type Database = {
           model?: string;
           summary?: string;
           themes?: Json;
+          submitted_by?: string | null;
         };
         Update: {
           created_at?: string;
@@ -1297,6 +1299,7 @@ export type Database = {
           model?: string;
           summary?: string;
           themes?: Json;
+          submitted_by?: string | null;
         };
         Relationships: [];
       };
@@ -1571,6 +1574,7 @@ export type Database = {
           created_at: string;
           id: string;
           member: string;
+          submitted_by: string | null;
         };
         Insert: {
           area?: string;
@@ -1578,6 +1582,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           member: string;
+          submitted_by?: string | null;
         };
         Update: {
           area?: string;
@@ -1585,6 +1590,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           member?: string;
+          submitted_by?: string | null;
         };
         Relationships: [];
       };

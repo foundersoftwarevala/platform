@@ -148,8 +148,8 @@ describe("requests through the gateway", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     aiComplete.mockReturnValue(new Promise(() => {}));
     const pending = chat([{ role: "user", content: "u" }]);
-    const assertion = expect(pending).rejects.toThrow(/did not answer within 600s/);
-    await vi.advanceTimersByTimeAsync(600_000);
+    const assertion = expect(pending).rejects.toThrow(/did not answer within 30s/);
+    await vi.advanceTimersByTimeAsync(30_000);
     await assertion;
     vi.useRealTimers();
   });

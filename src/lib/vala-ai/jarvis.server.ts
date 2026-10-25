@@ -73,6 +73,7 @@ const transcriptionSchema = z.object({ text: z.string().trim().min(1).max(6000) 
 
 async function request(path: string, body?: object, signal?: AbortSignal): Promise<unknown> {
   const target = `${localJarvisBase()}${path}`;
+  const timeoutMs = body ? Math.min(getSettings().model_timeout_s * 1000, 30_000) : 5_000;
   let response: Response;
   try {
     response = await fetch(target, {
@@ -80,7 +81,8 @@ async function request(path: string, body?: object, signal?: AbortSignal): Promi
       headers: body ? { "content-type": "application/json" } : {},
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.any([
-        AbortSignal.timeout(body ? getSettings().model_timeout_s * 1000 : 5000),
+        ...(body ? [AbortSignal.timeout(30_000)] : []),
+        AbortSignal.timeout(timeoutMs),
         ...(signal ? [signal] : []),
       ]),
     });
@@ -126,6 +128,7 @@ export async function jarvisTranscribe(audio: Blob, signal?: AbortSignal) {
   if (!audio.size || audio.size > 20 * 1024 * 1024)
     throw new ValaError(400, "Audio must contain 1 byte to 20 MiB.");
   const target = `${localJarvisBase()}/api/transcribe`;
+  const timeoutMs = Math.min(getSettings().model_timeout_s * 1000, 30_000);
   let response: Response;
   try {
     const form = new FormData();
@@ -134,7 +137,8 @@ export async function jarvisTranscribe(audio: Blob, signal?: AbortSignal) {
       method: "POST",
       body: form,
       signal: AbortSignal.any([
-        AbortSignal.timeout(getSettings().model_timeout_s * 1000),
+        AbortSignal.timeout(30_000),
+        ...(timeoutMs < 30_000 ? [AbortSignal.timeout(timeoutMs)] : []),
         ...(signal ? [signal] : []),
       ]),
     });

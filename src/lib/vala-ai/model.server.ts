@@ -1,5 +1,6 @@
 import { getSettings } from "./settings.server.ts";
 import { ValaError } from "./util.server.ts";
+import { protectAiMessages } from "@/lib/ai/prompt-boundary";
 
 /**
  * The model behind the agent, from one of two sources (Settings → model_source):
@@ -197,13 +198,12 @@ async function chatViaGateway(
     : messages;
   const { aiComplete } = await gateway();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutMs = Math.min(settings.model_timeout_s * 1000, 30_000);
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(
       () =>
-        reject(
-          new ValaError(504, `AI API Manager did not answer within ${settings.model_timeout_s}s.`),
-        ),
-      settings.model_timeout_s * 1000,
+        reject(new ValaError(504, `AI API Manager did not answer within ${timeoutMs / 1000}s.`)),
+      timeoutMs,
     );
   });
   const cancelled = new Promise<never>((_, reject) => {
@@ -258,8 +258,11 @@ export async function chat(
 ): Promise<ModelReply> {
   const settings = getSettings();
   if (settings.model_source === "ai-api-manager") return chatViaGateway(messages, opts);
+  const safeMessages = protectAiMessages(messages);
   const started = Date.now();
-  const signals = [AbortSignal.timeout(settings.model_timeout_s * 1000)];
+  const timeoutSeconds = Math.min(settings.model_timeout_s, 30);
+  const signals = [AbortSignal.timeout(30_000)];
+  if (timeoutSeconds < 30) signals.push(AbortSignal.timeout(timeoutSeconds * 1000));
   if (opts.signal) signals.push(opts.signal);
   let res: Response;
   try {
@@ -268,7 +271,7 @@ export async function chat(
       headers: { "content-type": "application/json" },
       signal: AbortSignal.any(signals),
       body: JSON.stringify({
-        messages,
+        messages: safeMessages,
         temperature: opts.temperature ?? 0.2,
         max_tokens: opts.maxTokens ?? settings.model_max_tokens,
         ...(opts.schema ? { response_format: { type: "json_object", schema: opts.schema } } : {}),
@@ -278,7 +281,7 @@ export async function chat(
     if (opts.signal?.aborted) throw new ValaError(499, "Cancelled.");
     const err = e as Error;
     if (err.name === "TimeoutError")
-      throw new ValaError(504, `Local model did not answer within ${settings.model_timeout_s}s.`);
+      throw new ValaError(504, `Local model did not answer within ${timeoutSeconds}s.`);
     throw new ModelOfflineError(err.message);
   }
   const body = (await res.json().catch(() => null)) as {

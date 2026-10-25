@@ -15,6 +15,7 @@ export interface FeedbackEntry {
   area: string;
   content: string;
   created_at: string;
+  submitted_by: string | null;
 }
 
 export const feedbackKeys = {
@@ -26,9 +27,13 @@ export function useTeamFeedback() {
   return useQuery({
     queryKey: feedbackKeys.team,
     queryFn: async () => {
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+      if (authError) throw new Error(authError.message);
+      if (!auth.user) throw new Error("Sign in to view your feedback.");
       const { data, error } = await supabase
         .from("rnd_team_feedback")
         .select("*")
+        .eq("submitted_by", auth.user.id)
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw new Error(error.message);
@@ -41,9 +46,13 @@ function useInsights() {
   return useQuery({
     queryKey: feedbackKeys.insights,
     queryFn: async () => {
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+      if (authError) throw new Error(authError.message);
+      if (!auth.user) throw new Error("Sign in to view your feedback insights.");
       const { data, error } = await supabase
         .from("rnd_feedback_insights")
         .select("*")
+        .eq("submitted_by", auth.user.id)
         .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw new Error(error.message);
