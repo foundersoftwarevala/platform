@@ -48,7 +48,12 @@ export const getMarketingProviders = createServerFn({ method: "GET" }).handler(
     // had no check, so anyone could ask and read the list of names.
     const { requireOperator } = await import("@/lib/auth/require-operator.server");
     await requireOperator("Reading the marketing channels", { alsoAllow: ["marketing", "seo"] });
-    const email = hasAny("SMTP_HOST", "SENDGRID_API_KEY", "RESEND_API_KEY", "POSTMARK_TOKEN");
+    const emailPresent = ["RESEND_API_KEY", "SMTP_RELAY_URL", "SMTP_RELAY_TOKEN"].filter(
+      (name) => (process.env[name] ?? "").trim() !== "",
+    );
+    const emailConnected =
+      emailPresent.includes("RESEND_API_KEY") ||
+      (emailPresent.includes("SMTP_RELAY_URL") && emailPresent.includes("SMTP_RELAY_TOKEN"));
     const sms = hasAny("TWILIO_ACCOUNT_SID", "SMS_PROVIDER_KEY", "MSG91_KEY");
     const whatsapp = hasAny("WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID", "META_WA_TOKEN");
     const push = has("VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY");
@@ -60,10 +65,10 @@ export const getMarketingProviders = createServerFn({ method: "GET" }).handler(
       {
         channel: "email",
         label: "Email",
-        connected: email.ok,
-        requires: ["SMTP_HOST", "SENDGRID_API_KEY", "RESEND_API_KEY", "POSTMARK_TOKEN"],
-        present: email.present,
-        note: "Any one of these connects email. Until then no campaign can be delivered and none is reported as sent.",
+        connected: emailConnected,
+        requires: ["RESEND_API_KEY", "SMTP_RELAY_URL", "SMTP_RELAY_TOKEN"],
+        present: emailPresent,
+        note: "Email is connected only when RESEND_API_KEY is set or both SMTP_RELAY_URL and SMTP_RELAY_TOKEN are set.",
       },
       {
         channel: "sms",

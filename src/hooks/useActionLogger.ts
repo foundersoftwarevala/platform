@@ -138,6 +138,7 @@ export function useActionLogger(): UseActionLoggerReturn {
           description: `Action "${params.buttonId}" could not be recorded.`,
           variant: "destructive",
         });
+        throw new Error(`Audit log failed for action "${params.buttonId}".`, { cause: error });
       }
     };
 
@@ -196,7 +197,7 @@ export function withActionLogging<T extends (...args: unknown[]) => Promise<unkn
     } finally {
       const responseTimeMs = Math.round(performance.now() - startTime);
 
-      // Log asynchronously without blocking - with retry
+      // Retried audit writes must settle before this action is reported complete.
       const logWithRetry = async (retries = 2) => {
         try {
           await recordAuditEvent({
@@ -215,10 +216,11 @@ export function withActionLogging<T extends (...args: unknown[]) => Promise<unkn
             return logWithRetry(retries - 1);
           }
           console.error("[ActionLogger] HOF logging failed:", err);
+          throw new Error(`Audit log failed for action "${buttonId}".`, { cause: err });
         }
       };
 
-      logWithRetry();
+      await logWithRetry();
     }
   };
 }

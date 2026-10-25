@@ -116,7 +116,7 @@ export function buildProvider(binding: ProviderBinding): AiProvider | null {
       generateContent: (system, user, signal) =>
         fetch(`${base}/messages`, {
           method: "POST",
-          signal,
+          signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
           headers: {
             "content-type": "application/json",
             "x-api-key": key ?? "",
@@ -147,7 +147,7 @@ export function buildProvider(binding: ProviderBinding): AiProvider | null {
       generateContent: (system, user, signal) =>
         fetch(`${base}/chat/completions`, {
           method: "POST",
-          signal,
+          signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
           headers: { "content-type": "application/json", authorization: `Bearer ${key ?? ""}` },
           body: JSON.stringify({
             model, temperature, max_tokens: maxTokens,
@@ -261,28 +261,41 @@ export async function generate(
     };
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), binding.timeout_ms ?? 60000);
+  const signal = AbortSignal.timeout(30000);
 
   let response: Response;
   try {
-    response = await provider.generateContent(system, user, controller.signal);
+    response = await provider.generateContent(system, user, signal);
   } catch (error) {
-    clearTimeout(timer);
-    const aborted = error instanceof Error && error.name === "AbortError";
+    const aborted =
+      error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
     return {
       ok: false, status: "FAILED",
       code: aborted ? "AI_TIMEOUT" : "AI_REQUEST_FAILED",
       detail: aborted
-        ? `The provider did not answer within ${binding.timeout_ms ?? 60000}ms.`
+        ? "The provider did not answer within 30000ms."
         : `The request to ${provider.slug} could not be made: ${error instanceof Error ? error.message : String(error)}`,
       usage: { ...none, latency_ms: Date.now() - started },
     };
   }
-  clearTimeout(timer);
 
   const latency = Date.now() - started;
-  const text = await response.text();
+  let text: string;
+  try {
+    text = await response.text();
+  } catch (error) {
+    const timedOut =
+      error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
+    return {
+      ok: false,
+      status: "FAILED",
+      code: timedOut ? "AI_TIMEOUT" : "AI_REQUEST_FAILED",
+      detail: timedOut
+        ? "The provider did not answer within 30000ms."
+        : `The response from ${provider.slug} could not be read.`,
+      usage: { ...none, latency_ms: Date.now() - started },
+    };
+  }
   let body: unknown = null;
   try {
     body = JSON.parse(text);

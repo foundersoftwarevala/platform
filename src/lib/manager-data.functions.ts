@@ -288,7 +288,7 @@ async function writeAudit(
   severity = "info",
 ) {
   const actor = context.actor;
-  await context.client.from("audit_logs").insert({
+  const { error } = await context.client.from("audit_logs").insert({
     actor: actor.email ?? actor.id,
     action,
     entity_type: entityType,
@@ -300,6 +300,7 @@ async function writeAudit(
       actor_role: actor.role,
     } as never,
   });
+  if (error) throw new Error(`Audit log write failed: ${error.message}`);
 }
 
 async function validateApiServiceActivation(

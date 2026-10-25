@@ -50,24 +50,42 @@ const STALE = 30_000;
 /** Generic list reader for the Sales & Support tables. */
 function useTable<T>(
   table: SalesSupportTable,
-  options?: { orderBy?: string; ascending?: boolean; limit?: number; retry?: boolean },
+  options?: { orderBy?: string; ascending?: boolean; limit?: number; retry?: boolean; fetchAll?: boolean },
 ) {
   const orderBy = options?.orderBy ?? "created_at";
   const ascending = options?.ascending ?? false;
   const limit = options?.limit ?? 500;
+  const fetchAll = options?.fetchAll ?? false;
 
   return useQuery({
-    queryKey: [table, orderBy, ascending, limit],
+    queryKey: fetchAll
+      ? [table, orderBy, ascending, limit, "all"]
+      : [table, orderBy, ascending, limit],
     staleTime: STALE,
     retry: options?.retry ?? 3,
     queryFn: async (): Promise<T[]> => {
-      const { data, error } = await db
-        .from(table)
-        .select("*")
-        .order(orderBy, { ascending })
-        .limit(limit);
-      if (error) throw error;
-      return (data ?? []) as T[];
+      if (!fetchAll) {
+        const { data, error } = await db
+          .from(table)
+          .select("*")
+          .order(orderBy, { ascending })
+          .limit(limit);
+        if (error) throw error;
+        return (data ?? []) as T[];
+      }
+
+      const rows: T[] = [];
+      for (let offset = 0; ; offset += limit) {
+        const { data, error } = await db
+          .from(table)
+          .select("*")
+          .order(orderBy, { ascending })
+          .order("id", { ascending: true })
+          .range(offset, offset + limit - 1);
+        if (error) throw error;
+        rows.push(...((data ?? []) as T[]));
+        if ((data ?? []).length < limit) return rows;
+      }
     },
   });
 }
@@ -85,7 +103,7 @@ export const useLeads = () => useTable<SalesLead>("sales_leads");
 export const useDeals = () => useTable<SalesDeal>("sales_deals");
 export const useTasks = () => useTable<CrmTask>("crm_tasks", { orderBy: "due_at", ascending: true });
 export const useCommissions = () => useTable<SalesCommission>("sales_commissions");
-export const useTickets = () => useTable<SupportTicket>("support_tickets");
+export const useTickets = () => useTable<SupportTicket>("support_tickets", { fetchAll: true });
 export const useEscalations = () => useTable<SupportEscalation>("support_escalations");
 export const useCallLogs = () => useTable<CallLog>("call_logs", { orderBy: "started_at" });
 export const useEmailQueue = () => useTable<EmailQueueItem>("email_queue", { orderBy: "received_at" });

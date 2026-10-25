@@ -72,25 +72,27 @@ export const syncBingWebmasterData = createServerFn({ method: "POST" })
           },
         );
 
-        if (trafficResponse.ok) {
-          trafficData = await trafficResponse.json();
+        if (!trafficResponse.ok) {
+          throw new Error(`Bing traffic API error (HTTP ${trafficResponse.status}).`);
+        }
+        trafficData = await trafficResponse.json();
 
-          // Store Bing traffic data
-          if (trafficData.d?.QueryStats) {
-            for (const stat of trafficData.d.QueryStats) {
-              await admin.from("bing_webmaster_data").insert({
-                site_url: data.site_url,
-                query: stat.Query,
-                impressions: stat.Impressions || 0,
-                clicks: stat.Clicks || 0,
-                ctr: stat.CTR || 0,
-                avg_position: stat.AvgPosition || 0,
-                date: stat.Date || new Date().toISOString().split("T")[0],
-                device: stat.Device || "desktop",
-                country: stat.Country || "all",
-                created_at: new Date().toISOString(),
-              });
-            }
+        // Store Bing traffic data
+        if (trafficData.d?.QueryStats) {
+          for (const stat of trafficData.d.QueryStats) {
+            const { error } = await admin.from("bing_webmaster_data").insert({
+              site_url: data.site_url,
+              query: stat.Query,
+              impressions: stat.Impressions || 0,
+              clicks: stat.Clicks || 0,
+              ctr: stat.CTR || 0,
+              avg_position: stat.AvgPosition || 0,
+              date: stat.Date || new Date().toISOString().split("T")[0],
+              device: stat.Device || "desktop",
+              country: stat.Country || "all",
+              created_at: new Date().toISOString(),
+            });
+            if (error) throw new Error(`Could not save Bing traffic data: ${error.message}`);
           }
         }
       }
@@ -102,10 +104,10 @@ export const syncBingWebmasterData = createServerFn({ method: "POST" })
           { method: "GET" },
         );
 
-        if (keywordResponse.ok) {
-          const keywordData = await keywordResponse.json();
-          // Store keyword rankings
+        if (!keywordResponse.ok) {
+          throw new Error(`Bing keyword API error (HTTP ${keywordResponse.status}).`);
         }
+        await keywordResponse.json();
       }
 
       // Get crawl issues
@@ -115,10 +117,10 @@ export const syncBingWebmasterData = createServerFn({ method: "POST" })
           { method: "GET" },
         );
 
-        if (crawlResponse.ok) {
-          const crawlData = await crawlResponse.json();
-          // Store crawl errors/warnings
+        if (!crawlResponse.ok) {
+          throw new Error(`Bing crawl API error (HTTP ${crawlResponse.status}).`);
         }
+        await crawlResponse.json();
       }
 
       return {
@@ -212,7 +214,7 @@ export const submitUrlsToBing = createServerFn({ method: "POST" })
         }
       }
 
-      return { success: true, submissions: results };
+      return { success: results.every((result) => result.success), submissions: results };
     } catch (error) {
       console.error("Bing URL submission error:", error);
       throw error;

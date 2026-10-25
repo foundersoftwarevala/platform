@@ -66,6 +66,8 @@ export const MANAGER_MESSAGES = {
   "manager.finance.ledger_title": "The money that has moved",
   "manager.finance.ledger_note":
     "Read from the finance tables themselves. An amount is what happened and cannot be edited here; what an operator decides is whether it is approved, rejected or settled.",
+  "manager.governance.policy_only_warning":
+    "Policy Setting Only: retention days and masking are recorded as governance settings. They do not currently trigger automated data deletion or masking.",
 
   // AMS role engine.
   "manager.ams.no_ladder": ["no ladder recorded", "a role with no XP stages stored"],
@@ -597,6 +599,9 @@ export const MANAGER_MESSAGES = {
     "Stored encrypted on the server; only its prefix and last four characters are shown.",
   "manager.registry.rotate_submit": ["Rotate", "button that saves the replacement secret"],
   "manager.support_ai.loading": "Loading live data…",
+  "manager.support_analytics.loading": "Loading support analytics…",
+  "manager.support_analytics.load_failed":
+    "Failed to load support analytics data. Retry the query before relying on these figures.",
   "manager.support_ai.not_permitted": [
     "Not permitted to read {source}",
     "source names a table or data feed",

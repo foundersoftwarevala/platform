@@ -6,11 +6,17 @@ const SENSITIVE_ASSIGNMENT =
 
 const URL_SECRET =
   /([?&](?:password|token|api[_-]?key|secret|access[_-]?token|refresh[_-]?token)=)[^&#\s]*/gi;
+const EMAIL_ADDRESS =
+  /\b[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+\b/gi;
+const PHONE_NUMBER =
+  /(?<![\w])(?:\+\d{1,3}[\s.-]?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{4}|(?:\(\d{2,4}\)|\d{2,4})[\s.-]\d{3,4}[\s.-]\d{4}|\d{10,15})(?!\w)/g;
 
 export function redactSensitiveText(value: string): string {
   return value
     .replace(SENSITIVE_ASSIGNMENT, "$1$2[REDACTED]")
     .replace(URL_SECRET, "$1[REDACTED]")
+    .replace(EMAIL_ADDRESS, "[REDACTED_EMAIL]")
+    .replace(PHONE_NUMBER, "[REDACTED_PHONE]")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_TOKEN]");
 }

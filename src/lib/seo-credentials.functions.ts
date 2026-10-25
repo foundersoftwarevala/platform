@@ -47,12 +47,27 @@ function maskSecret(value: string): string {
 // CREDENTIAL SCHEMAS
 // ============================================================================
 
-export const GoogleCredentialInput = z.object({
-  credential_type: z.enum(["api_key", "oauth2", "service_account"]),
-  api_key: z.string().optional(),
-  oauth_token: z.string().optional(),
-  service_account_json: z.record(z.any()).optional(),
-});
+export const GoogleCredentialInput = z
+  .object({
+    credential_type: z.enum(["api_key", "oauth2", "service_account"]),
+    api_key: z.string().optional(),
+    oauth_token: z.string().optional(),
+    oauth_refresh_token: z.string().optional(),
+    service_account_json: z.record(z.any()).optional(),
+  })
+  .superRefine((input, context) => {
+    if (
+      input.credential_type === "oauth2" &&
+      !input.oauth_refresh_token?.trim() &&
+      !input.oauth_token?.trim()
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide an OAuth refresh token or an unexpired OAuth access token.",
+        path: ["oauth_refresh_token"],
+      });
+    }
+  });
 
 export const BingCredentialInput = z.object({
   api_key: z.string(),
@@ -121,21 +136,27 @@ export const registerGoogleCredentials = createServerFn({ method: "POST" })
     if (!provider) throw new Error("Provider not found");
 
     const credentialValue =
-      data.api_key || data.oauth_token || JSON.stringify(data.service_account_json || {});
+      data.credential_type === "oauth2" && data.oauth_refresh_token
+        ? JSON.stringify({ refresh_token: data.oauth_refresh_token })
+        : data.api_key || data.oauth_token || JSON.stringify(data.service_account_json || {});
 
     // Store credential (encrypted)
-    await admin.from("seo_api_credentials").upsert(
+    const { error } = await admin.from("seo_api_credentials").upsert(
       {
         provider_id: provider.id,
         credential_type: data.credential_type,
         credential_value: encryptAiCredential(credentialValue),
         is_active: true,
-        expires_at: data.credential_type === "oauth2" ? new Date(Date.now() + 3600 * 1000) : null,
+        expires_at:
+          data.credential_type === "oauth2" && !data.oauth_refresh_token
+            ? new Date(Date.now() + 3600 * 1000)
+            : null,
       },
       {
         onConflict: "provider_id,credential_type",
       },
     );
+    if (error) throw new Error(`Could not save Google credentials: ${error.message}`);
 
     return { success: true, provider_id: provider.id };
   });

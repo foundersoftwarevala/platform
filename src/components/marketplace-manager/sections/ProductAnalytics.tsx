@@ -26,7 +26,7 @@ import { Card, LoadFailure, PageHeader, PillButton, StatCard, SubNav } from "../
 type Product = {
   product_id: string; name: string; views: number; demo_clicks: number;
   cta_clicks: number; leads: number; qualified_leads: number; orders: number;
-  revenue: number; currencies: string[]; shares_and_scans: number;
+  revenue_by_currency: Record<string, number>; currencies: string[]; shares_and_scans: number;
   conversion_rate: number | null; conversion_basis: string;
   ctr: number | null; ctr_basis: string;
   trending: { score: number; version: string; weights: Record<string, number>; note: string };
@@ -36,15 +36,17 @@ type Data = {
   ok: boolean; period: string; since: string | null;
   totals: {
     events: number; views: number; demo_clicks: number; cta_clicks: number;
-    paid_orders: number; revenue: number; currencies: string[];
+    paid_orders: number; revenue_by_currency: Record<string, number>; currencies: string[];
     leads_with_product: number; short_link_clicks: number; qr_scans: number;
     views_without_a_product: number;
   };
   products: Product[];
   unavailable: Record<string, string>;
   reconciliation: {
-    orders_paid: number; revenue_from_line_items: number;
-    revenue_from_order_totals: number; matches: boolean;
+    orders_paid: number;
+    revenue_from_line_items_by_currency: Record<string, number>;
+    revenue_from_order_totals_by_currency: Record<string, number>;
+    matches: boolean;
   };
 };
 
@@ -58,6 +60,11 @@ const PERIODS = [
 
 const n = (v: number | null | undefined) =>
   v === null || v === undefined ? "—" : new Intl.NumberFormat().format(v);
+const currencyTotals = (values: Record<string, number>) =>
+  Object.entries(values)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([currency, amount]) => `${currency} ${n(amount)}`)
+    .join(" · ") || "—";
 
 export function ProductAnalytics() {
   const [data, setData] = useState<Data | null>(null);
@@ -97,10 +104,10 @@ export function ProductAnalytics() {
   const exportCsv = () => {
     if (!data) return;
     const head = ["product", "views", "demo_clicks", "cta_clicks", "leads", "qualified_leads",
-      "orders", "revenue", "conversion_rate", "ctr", "trending_score"];
+      "orders", "revenue_by_currency", "conversion_rate", "ctr", "trending_score"];
     const body = data.products.map((p) =>
       [p.name, p.views, p.demo_clicks, p.cta_clicks, p.leads, p.qualified_leads, p.orders,
-       p.revenue, p.conversion_rate ?? "", p.ctr ?? "", p.trending.score]
+       currencyTotals(p.revenue_by_currency), p.conversion_rate ?? "", p.ctr ?? "", p.trending.score]
         // Product names come from sellers; a name starting with = runs as a
         // formula in a spreadsheet unless it is made text.
         .map(csvCell)
@@ -147,7 +154,7 @@ export function ProductAnalytics() {
         <StatCard label="Leads with a product" value={n(t?.leads_with_product)} />
         <StatCard
           label="Revenue"
-          value={t ? `${t.currencies[0] ?? "USD"} ${n(t.revenue)}` : "—"}
+          value={t ? currencyTotals(t.revenue_by_currency) : "—"}
           tone="premium"
         />
       </div>
@@ -166,9 +173,9 @@ export function ProductAnalytics() {
             <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                Revenue from order line items ({n(data.reconciliation.revenue_from_line_items)}) does not match the
-                sum of paid order totals ({n(data.reconciliation.revenue_from_order_totals)}). Reported, not smoothed
-                over — the orders are the source of truth.
+                Revenue from order line items ({currencyTotals(data.reconciliation.revenue_from_line_items_by_currency)})
+                does not match paid order totals ({currencyTotals(data.reconciliation.revenue_from_order_totals_by_currency)}).
+                Reported, not smoothed over — the orders are the source of truth.
               </span>
             </div>
           )}
@@ -206,7 +213,7 @@ export function ProductAnalytics() {
                         <td className="px-2 py-1.5">{n(p.leads)}</td>
                         <td className="px-2 py-1.5">{n(p.qualified_leads)}</td>
                         <td className="px-2 py-1.5">{n(p.orders)}</td>
-                        <td className="px-2 py-1.5">{p.revenue ? `${p.currencies[0] ?? "USD"} ${n(p.revenue)}` : "—"}</td>
+                        <td className="px-2 py-1.5">{currencyTotals(p.revenue_by_currency)}</td>
                         <td className="px-2 py-1.5" title={p.conversion_basis}>
                           {p.conversion_rate === null ? "—" : `${p.conversion_rate}%`}
                         </td>

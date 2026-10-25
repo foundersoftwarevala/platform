@@ -41,12 +41,26 @@ function admin() {
 type Row = Record<string, unknown>;
 
 async function read(path: string): Promise<Row[]> {
-  try {
-    const response = await fetch(`${url()}/rest/v1/${path}`, { headers: admin() });
-    if (!response.ok) return [];
-    return (await response.json()) as Row[];
-  } catch {
-    return [];
+  const [resource, query = ""] = path.split("?", 2);
+  const params = new URLSearchParams(query);
+  params.delete("limit");
+  params.delete("offset");
+  params.set("order", "id.asc");
+
+  const rows: Row[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    params.set("limit", String(pageSize));
+    params.set("offset", String(offset));
+    const response = await fetch(`${url()}/rest/v1/${resource}?${params.toString()}`, {
+      headers: admin(),
+    });
+    if (!response.ok) {
+      throw new Error(`Analytics read failed for ${resource} (HTTP ${response.status}).`);
+    }
+    const page = (await response.json()) as Row[];
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
   }
 }
 
@@ -91,34 +105,62 @@ export const Route = createFileRoute("/api/analytics/products")({
           : null;
         const window = since ? `&created_at=gte.${since}` : "";
 
-        const [events, paidOrders, leads, shortClicks, qrScans] = await Promise.all([
-          read(`marketplace_events?select=event_type,product_id,metadata,session_id,created_at&limit=20000${window}`),
-          read(`marketplace_orders?select=id,total,currency,created_at&status=eq.paid&limit=5000${window}`),
-          read(`leads?select=id,product_id,status,created_at&product_id=not.is.null&limit=5000${window}`),
-          read(`product_short_link_events?select=product_id,created_at&limit=20000${window}`),
-          read(`product_qr_events?select=product_id,created_at&limit=20000${window}`),
-        ]);
+        let events: Row[];
+        let paidOrders: Row[];
+        let leads: Row[];
+        let shortClicks: Row[];
+        let qrScans: Row[];
+        try {
+          [events, paidOrders, leads, shortClicks, qrScans] = await Promise.all([
+            read(`marketplace_events?select=id,event_type,product_id,metadata,session_id,created_at${window}`),
+            read(`marketplace_orders?select=id,total,currency,created_at&status=eq.paid${window}`),
+            read(`leads?select=id,product_id,status,created_at&product_id=not.is.null${window}`),
+            read(`product_short_link_events?select=id,product_id,created_at${window}`),
+            read(`product_qr_events?select=id,product_id,created_at${window}`),
+          ]);
+        } catch {
+          return Response.json(
+            { ok: false },
+            { status: 500 },
+          );
+        }
 
         // Revenue is attributed through the order's line items, which is the
         // only place a paid order says which product it was for.
         const paidIds = paidOrders.map((o) => String(o.id));
-        const items = paidIds.length
-          ? await read(
-              `marketplace_order_items?select=order_id,product_id,line_total,currency,product_name` +
-                `&order_id=in.(${paidIds.join(",")})&limit=10000`,
+        const orderCurrency = new Map(
+          paidOrders.map((order) => [String(order.id), String(order.currency ?? "USD").toUpperCase()]),
+        );
+        let items: Row[];
+        try {
+          items = (
+            await Promise.all(
+              Array.from({ length: Math.ceil(paidIds.length / 100) }, (_, index) => {
+                const ids = paidIds.slice(index * 100, (index + 1) * 100);
+                return read(
+                  `marketplace_order_items?select=id,order_id,product_id,line_total,currency,product_name` +
+                    `&order_id=in.(${ids.join(",")})`,
+                );
+              }),
             )
-          : [];
+          ).flat();
+        } catch {
+          return Response.json(
+            { ok: false },
+            { status: 500 },
+          );
+        }
 
         type Acc = {
           views: number; demo: number; cta: number; leads: number;
-          qualified: number; orders: Set<string>; revenue: number;
+          qualified: number; orders: Set<string>; revenue: Map<string, number>;
           currencies: Set<string>; shares: number;
         };
         const per = new Map<string, Acc>();
         const acc = (id: string) => {
           let a = per.get(id);
           if (!a) {
-            a = { views: 0, demo: 0, cta: 0, leads: 0, qualified: 0, orders: new Set(), revenue: 0, currencies: new Set(), shares: 0 };
+            a = { views: 0, demo: 0, cta: 0, leads: 0, qualified: 0, orders: new Set(), revenue: new Map(), currencies: new Set(), shares: 0 };
             per.set(id, a);
           }
           return a;
@@ -164,17 +206,33 @@ export const Route = createFileRoute("/api/analytics/products")({
           if (!i.product_id) continue;
           const a = acc(String(i.product_id));
           a.orders.add(String(i.order_id));
-          a.revenue += Number(i.line_total ?? 0);
-          a.currencies.add(String(i.currency ?? "USD"));
+          const currency = String(i.currency ?? orderCurrency.get(String(i.order_id)) ?? "USD").toUpperCase();
+          a.revenue.set(currency, (a.revenue.get(currency) ?? 0) + Number(i.line_total ?? 0));
+          a.currencies.add(currency);
         }
         for (const s of [...shortClicks, ...qrScans]) {
           if (s.product_id) acc(String(s.product_id)).shares++;
         }
 
         const ids = [...per.keys()];
-        const products = ids.length
-          ? await read(`marketplace_products?select=id,name,slug&id=in.(${ids.join(",")})&limit=1000`)
-          : [];
+        let products: Row[];
+        try {
+          products = (
+            await Promise.all(
+              Array.from({ length: Math.ceil(ids.length / 100) }, (_, index) => {
+                const productIds = ids.slice(index * 100, (index + 1) * 100);
+                return read(
+                  `marketplace_products?select=id,name,slug&id=in.(${productIds.join(",")})`,
+                );
+              }),
+            )
+          ).flat();
+        } catch {
+          return Response.json(
+            { ok: false },
+            { status: 500 },
+          );
+        }
         const nameOf = new Map(products.map((p) => [String(p.id), String(p.name ?? "")]));
 
         const rows = ids.map((id) => {
@@ -189,7 +247,12 @@ export const Route = createFileRoute("/api/analytics/products")({
             leads: a.leads,
             qualified_leads: a.qualified,
             orders,
-            revenue: Math.round(a.revenue * 100) / 100,
+            revenue_by_currency: Object.fromEntries(
+              [...a.revenue.entries()].map(([currency, amount]) => [
+                currency,
+                Math.round(amount * 100) / 100,
+              ]),
+            ),
             currencies: [...a.currencies],
             shares_and_scans: a.shares,
             // Stated, not implied: this is paid orders divided by product views.
@@ -201,8 +264,40 @@ export const Route = createFileRoute("/api/analytics/products")({
           };
         }).sort((x, y) => y.trending.score - x.trending.score);
 
-        const totalRevenue = items.reduce((t, i) => t + Number(i.line_total ?? 0), 0);
-        const currencies = [...new Set(paidOrders.map((o) => String(o.currency ?? "USD")))];
+        const lineItemsByCurrency = new Map<string, number>();
+        for (const item of items) {
+          const currency = String(item.currency ?? orderCurrency.get(String(item.order_id)) ?? "USD").toUpperCase();
+          lineItemsByCurrency.set(
+            currency,
+            (lineItemsByCurrency.get(currency) ?? 0) + Number(item.line_total ?? 0),
+          );
+        }
+        const orderTotalsByCurrency = new Map<string, number>();
+        for (const order of paidOrders) {
+          const currency = String(order.currency ?? "USD").toUpperCase();
+          orderTotalsByCurrency.set(
+            currency,
+            (orderTotalsByCurrency.get(currency) ?? 0) + Number(order.total ?? 0),
+          );
+        }
+        const revenueByCurrency = (amounts: Map<string, number>) =>
+          Object.fromEntries(
+            [...amounts.entries()].map(([currency, amount]) => [
+              currency,
+              Math.round(amount * 100) / 100,
+            ]),
+          );
+        const currencyCodes = new Set([
+          ...lineItemsByCurrency.keys(),
+          ...orderTotalsByCurrency.keys(),
+        ]);
+        const matches = [...currencyCodes].every(
+          (currency) =>
+            Math.abs(
+              (lineItemsByCurrency.get(currency) ?? 0) -
+                (orderTotalsByCurrency.get(currency) ?? 0),
+            ) < 0.01,
+        );
 
         return Response.json({
           ok: true,
@@ -214,8 +309,8 @@ export const Route = createFileRoute("/api/analytics/products")({
             demo_clicks: events.filter((e) => e.event_type === "demo_click").length,
             cta_clicks: events.filter((e) => e.event_type === "cta_click").length,
             paid_orders: paidOrders.length,
-            revenue: Math.round(totalRevenue * 100) / 100,
-            currencies,
+            revenue_by_currency: revenueByCurrency(lineItemsByCurrency),
+            currencies: [...new Set([...lineItemsByCurrency.keys(), ...orderTotalsByCurrency.keys()])],
             leads_with_product: leads.length,
             short_link_clicks: shortClicks.length,
             qr_scans: qrScans.length,
@@ -253,14 +348,10 @@ export const Route = createFileRoute("/api/analytics/products")({
           },
           reconciliation: {
             orders_paid: paidOrders.length,
-            revenue_from_line_items: Math.round(totalRevenue * 100) / 100,
-            revenue_from_order_totals:
-              Math.round(paidOrders.reduce((t, o) => t + Number(o.total ?? 0), 0) * 100) / 100,
+            revenue_from_line_items_by_currency: revenueByCurrency(lineItemsByCurrency),
+            revenue_from_order_totals_by_currency: revenueByCurrency(orderTotalsByCurrency),
             // Section 45. A mismatch is surfaced, never smoothed over.
-            matches:
-              Math.abs(
-                paidOrders.reduce((t, o) => t + Number(o.total ?? 0), 0) - totalRevenue,
-              ) < 0.01,
+            matches,
           },
         });
       },

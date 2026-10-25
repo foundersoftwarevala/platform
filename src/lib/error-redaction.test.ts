@@ -28,4 +28,14 @@ describe("error data redaction", () => {
       }),
     ).toEqual({ kind: "boundary", reported_severity: "error" });
   });
+
+  it("redacts email addresses and formatted or unformatted phone numbers in error text", () => {
+    expect(
+      redactSensitiveText(
+        "Contact support at customer@example.com or +1 (415) 555-2671; callback 415-555-2671 or 4155552671.",
+      ),
+    ).toBe(
+      "Contact support at [REDACTED_EMAIL] or [REDACTED_PHONE]; callback [REDACTED_PHONE] or [REDACTED_PHONE].",
+    );
+  });
 });

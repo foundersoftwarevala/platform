@@ -10,20 +10,25 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTeamMembers, useTickets } from '@/hooks/useSalesSupportData';
 import { downloadCsv, stampedName } from '@/lib/export/download';
+import { useTranslation } from '@/lib/i18n/use-translation';
 
 const DAY = 86_400_000;
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 /** Percentage change, or 0 where the earlier period has nothing to compare with. */
 const changeOf = (now: number | null, before: number | null) =>
-  now == null || before == null || before === 0 ? 0 : Math.round(((now - before) / before) * 1000) / 10;
+  now == null || before == null || before === 0 ? null : Math.round(((now - before) / before) * 1000) / 10;
+const trendOf = (now: number | null, before: number | null, lowerIsBetter = false) => {
+  if (now == null || before == null || before === 0) return null;
+  return (lowerIsBetter ? now <= before : now >= before) ? 'up' : 'down';
+};
 const minutes = (m: number | null) => (m == null ? '—' : m >= 90 ? `${(m / 60).toFixed(1)} hrs` : `${Math.round(m)} min`);
 
 interface MetricCard {
   id: string;
   label: string;
   value: string;
-  change: number;
-  trend: 'up' | 'down';
+  change: number | null;
+  trend: 'up' | 'down' | null;
   icon: React.ElementType;
   color: string;
 }
@@ -32,18 +37,26 @@ interface ChannelStat {
   channel: string;
   tickets: number;
   avgResponse: string;
-  satisfaction: number;
+  satisfaction: number | null;
 }
 
 /**
  * Support analytics, counted from the support tickets over the last seven days
- * and compared with the seven before. Every figure, channel row and hourly bar
- * here was typed in, and Export and Refresh only announced themselves.
+ * and compared with the seven before.
  */
 const SupportAnalytics = () => {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data: ticketRows } = useTickets();
-  const { data: members } = useTeamMembers('support');
+  const {
+    data: ticketRows,
+    error: ticketsError,
+    isLoading: ticketsLoading,
+  } = useTickets();
+  const {
+    data: members,
+    error: membersError,
+    isLoading: membersLoading,
+  } = useTeamMembers('support');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const all = (ticketRows ?? []) as any[];
   const now = Date.now();
@@ -60,10 +73,10 @@ const SupportAnalytics = () => {
   const agents = (members ?? []).length;
 
   const metrics: MetricCard[] = [
-    { id: '1', label: 'Avg Resolution Time', value: minutes(resolution(week)), change: changeOf(resolution(week), resolution(prior)), trend: (resolution(week) ?? 0) <= (resolution(prior) ?? Infinity) ? 'down' : 'up', icon: Clock, color: 'text-emerald-400' },
-    { id: '2', label: 'Open Tickets per Agent', value: agents ? (open.length / agents).toFixed(1) : '—', change: 0, trend: 'up', icon: Users, color: 'text-orange-400' },
-    { id: '3', label: 'CSAT Score', value: csat(week) == null ? '—' : `${csat(week)!.toFixed(1)}/5`, change: changeOf(csat(week), csat(prior)), trend: (csat(week) ?? 0) >= (csat(prior) ?? 0) ? 'up' : 'down', icon: TrendingUp, color: 'text-teal-400' },
-    { id: '4', label: 'First Response Time', value: minutes(response(week)), change: changeOf(response(week), response(prior)), trend: (response(week) ?? 0) <= (response(prior) ?? Infinity) ? 'down' : 'up', icon: MessageSquare, color: 'text-purple-400' },
+    { id: '1', label: 'Avg Resolution Time', value: minutes(resolution(week)), change: changeOf(resolution(week), resolution(prior)), trend: trendOf(resolution(week), resolution(prior), true), icon: Clock, color: 'text-emerald-400' },
+    { id: '2', label: 'Open Tickets per Agent', value: agents ? (open.length / agents).toFixed(1) : '—', change: null, trend: null, icon: Users, color: 'text-orange-400' },
+    { id: '3', label: 'CSAT Score', value: csat(week) == null ? '—' : `${csat(week)!.toFixed(1)}/5`, change: changeOf(csat(week), csat(prior)), trend: trendOf(csat(week), csat(prior)), icon: TrendingUp, color: 'text-teal-400' },
+    { id: '4', label: 'First Response Time', value: minutes(response(week)), change: changeOf(response(week), response(prior)), trend: trendOf(response(week), response(prior), true), icon: MessageSquare, color: 'text-purple-400' },
   ];
 
   const channels = [...new Set(week.map((t) => String(t.channel ?? 'other')))];
@@ -74,7 +87,7 @@ const SupportAnalytics = () => {
       channel: channel.charAt(0).toUpperCase() + channel.slice(1),
       tickets: list.length,
       avgResponse: minutes(response(list)),
-      satisfaction: c == null ? 0 : Math.round((c / 5) * 100),
+      satisfaction: c == null ? null : Math.round((c / 5) * 100),
     };
   });
 
@@ -99,7 +112,27 @@ const SupportAnalytics = () => {
     toast.success('Figures counted again');
   }, [queryClient]);
 
+  if (ticketsLoading || membersLoading) {
+    return <div className="p-6 text-sm text-muted-foreground">{t("manager.support_analytics.loading")}</div>;
+  }
+  if (ticketsError || membersError) {
+    return (
+      <div role="alert" className="flex items-center justify-between gap-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        <span>{t("manager.support_analytics.load_failed")}</span>
+        <Button variant="outline" onClick={handleRefresh}>{t("manager.console.retry")}</Button>
+      </div>
+    );
+  }
+
   const maxTickets = Math.max(1, ...hourlyData.map(d => d.tickets));
+  const countStatus = (...statuses: string[]) =>
+    all.filter((ticket) => statuses.includes(String(ticket.status ?? "").toLowerCase())).length;
+  const funnel = [
+    { stage: 'New Tickets', count: countStatus('new', 'open'), color: 'from-red-500 to-orange-500' },
+    { stage: 'In Progress', count: countStatus('in_progress', 'in progress'), color: 'from-orange-500 to-yellow-500' },
+    { stage: 'Pending Response', count: countStatus('pending', 'pending_response', 'waiting'), color: 'from-yellow-500 to-teal-500' },
+    { stage: 'Resolved', count: countStatus('resolved', 'closed'), color: 'from-teal-500 to-emerald-500' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -143,10 +176,14 @@ const SupportAnalytics = () => {
           >
             <div className="flex items-center justify-between mb-2">
               <metric.icon className={`w-5 h-5 ${metric.color}`} />
-              <div className={`flex items-center gap-1 text-xs ${metric.trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
-                {metric.trend === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {Math.abs(metric.change)}%
-              </div>
+              {metric.change != null && metric.trend ? (
+                <div className={`flex items-center gap-1 text-xs ${metric.trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {metric.trend === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {Math.abs(metric.change)}%
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">—</span>
+              )}
             </div>
             <p className={`text-2xl font-bold ${metric.color}`}>{metric.value}</p>
             <p className="text-xs text-muted-foreground">{metric.label}</p>
@@ -224,8 +261,8 @@ const SupportAnalytics = () => {
                 <div className="flex items-center gap-4 text-xs">
                   <span className="text-muted-foreground w-16">{channel.tickets} tickets</span>
                   <span className="text-teal-400 w-16">{channel.avgResponse}</span>
-                  <Badge className={channel.satisfaction >= 95 ? 'bg-emerald-500/20 text-emerald-400' : channel.satisfaction >= 90 ? 'bg-teal-500/20 text-teal-400' : 'bg-yellow-500/20 text-yellow-400'}>
-                    {channel.satisfaction}%
+                  <Badge className={channel.satisfaction == null ? 'bg-muted text-muted-foreground' : channel.satisfaction >= 95 ? 'bg-emerald-500/20 text-emerald-400' : channel.satisfaction >= 90 ? 'bg-teal-500/20 text-teal-400' : 'bg-yellow-500/20 text-yellow-400'}>
+                    {channel.satisfaction == null ? '—' : `${channel.satisfaction}%`}
                   </Badge>
                 </div>
               </motion.div>
@@ -244,12 +281,7 @@ const SupportAnalytics = () => {
         <h3 className="text-lg font-semibold text-foreground mb-4">Resolution Funnel</h3>
         
         <div className="flex items-center justify-between">
-          {[
-            { stage: 'New Tickets', count: 1234, color: 'from-red-500 to-orange-500' },
-            { stage: 'In Progress', count: 856, color: 'from-orange-500 to-yellow-500' },
-            { stage: 'Pending Response', count: 423, color: 'from-yellow-500 to-teal-500' },
-            { stage: 'Resolved', count: 1089, color: 'from-teal-500 to-emerald-500' },
-          ].map((stage, idx) => (
+          {funnel.map((stage, idx) => (
             <motion.div
               key={idx}
               initial={{ scale: 0.8, opacity: 0 }}

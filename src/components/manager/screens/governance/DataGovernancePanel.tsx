@@ -24,8 +24,10 @@ import { Switch } from "@/components/ui/switch";
 
 import { useInsertRecord, useUpdateRecord, type Row } from "@/lib/manager-queries";
 import { EmptyState, GlassCard, StatCard } from "@/components/manager/primitives";
+import { useTranslation } from "@/lib/i18n/use-translation";
 
 export function DataGovernancePanel({ rules }: { rules: Row[] }) {
+  const { t } = useTranslation();
   const insert = useInsertRecord("Governance rule created");
   const update = useUpdateRecord("Rule updated");
   const [open, setOpen] = useState(false);
@@ -115,6 +117,12 @@ export function DataGovernancePanel({ rules }: { rules: Row[] }) {
           </Dialog>
         }
       >
+        <div
+          role="note"
+          className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700"
+        >
+          {t("manager.governance.policy_only_warning")}
+        </div>
         {rules.length === 0 ? (
           <EmptyState message="No data governance rules yet" />
         ) : (

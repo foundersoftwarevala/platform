@@ -407,6 +407,7 @@ async function callTarget(
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30000),
   });
   type ProviderError = { message?: string };
   type ProviderResponse = {
@@ -545,6 +546,7 @@ async function streamFromTarget(
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30000),
   });
 
   void meter(target, options.module, started, upstream.status, upstream.ok);

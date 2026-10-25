@@ -5,6 +5,8 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
+import { readStoredCredential } from "@/lib/ai-credentials.server";
+import { refreshGoogleAccessToken } from "@/lib/google-oauth.server";
 
 /**
  * Every server function in this file is a public RPC endpoint and works with
@@ -37,6 +39,56 @@ async function getGoogleApiKey() {
   return key;
 }
 
+async function getGoogleAccessToken(): Promise<string> {
+  const refreshTokenFromEnv = process.env.GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN?.trim();
+  if (refreshTokenFromEnv) return refreshGoogleAccessToken(refreshTokenFromEnv);
+
+  const admin = getSupabaseAdmin();
+  const { data: provider, error: providerError } = await admin
+    .from("seo_api_providers")
+    .select("id")
+    .eq("name", "Google Search Console")
+    .maybeSingle();
+  if (providerError) {
+    throw new Error(`Could not read Google OAuth provider: ${providerError.message}`);
+  }
+  if (!provider) throw new Error("Google Search Console OAuth credentials are not configured.");
+
+  const { data: credential, error: credentialError } = await admin
+    .from("seo_api_credentials")
+    .select("credential_value, expires_at")
+    .eq("provider_id", provider.id)
+    .eq("credential_type", "oauth2")
+    .eq("is_active", true)
+    .maybeSingle();
+  if (credentialError) {
+    throw new Error(`Could not read Google OAuth credentials: ${credentialError.message}`);
+  }
+  if (!credential) throw new Error("Google Search Console OAuth credentials are not configured.");
+
+  const stored = readStoredCredential(credential.credential_value);
+  let refreshToken: string | null = null;
+  try {
+    const value: unknown = JSON.parse(stored);
+    if (
+      value &&
+      typeof value === "object" &&
+      "refresh_token" in value &&
+      typeof value.refresh_token === "string"
+    ) {
+      refreshToken = value.refresh_token;
+    }
+  } catch {
+    // Existing rows may contain a short-lived OAuth access token.
+  }
+  if (refreshToken) return refreshGoogleAccessToken(refreshToken);
+
+  if (credential.expires_at && Date.parse(credential.expires_at) > Date.now()) return stored;
+  throw new Error(
+    "The stored Google OAuth access token has expired. Register an OAuth refresh token to renew it.",
+  );
+}
+
 // ============================================================================
 // GOOGLE SEARCH CONSOLE INTEGRATION
 // ============================================================================
@@ -54,23 +106,18 @@ export const syncSearchConsoleData = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await seoGuard("syncSearchConsoleData");
     const admin = getSupabaseAdmin();
+    const accessToken = await getGoogleAccessToken();
 
     try {
-      // Note: In production, use OAuth2 for Search Console
-      // This example shows the structure for real GSC API integration
-      // GSC API requires OAuth2 bearer token from authenticated user
-
       const gscApiUrl = "https://www.googleapis.com/webmasters/v3/sites";
 
-      // Fetch query stats (requires OAuth2)
       const queryStats = await fetch(
         `${gscApiUrl}/${encodeURIComponent(data.site_url)}/searchAnalytics/query`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // OAuth2 token would be here in production
-            // Authorization: `Bearer ${oauthToken}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
             startDate:
@@ -298,8 +345,7 @@ export const inspectUrl = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     await seoGuard("inspectUrl");
-    // Note: URL Inspection API requires OAuth2
-    // This is the structure for real integration
+    const accessToken = await getGoogleAccessToken();
 
     try {
       const response = await fetch(
@@ -308,8 +354,7 @@ export const inspectUrl = createServerFn({ method: "POST" })
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // OAuth2 token would be here
-            // Authorization: `Bearer ${oauthToken}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
             inspectionUrl: data.url,
@@ -383,15 +428,14 @@ export const submitSitemapToGSC = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     await seoGuard("submitSitemapToGSC");
-    // Requires OAuth2
+    const accessToken = await getGoogleAccessToken();
     const response = await fetch(
       `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(data.site_url)}/sitemaps/${encodeURIComponent(data.sitemap_url)}`,
       {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          // OAuth2 token would be here
-          // Authorization: `Bearer ${oauthToken}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       },
     );
