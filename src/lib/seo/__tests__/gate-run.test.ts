@@ -39,6 +39,28 @@ describe("whole-run gate safeguards", () => {
       gained: 0,
     });
   });
+  it("compares nested decision records without treating key order or evaluation time as a change", () => {
+    const before = [
+      {
+        ...row("/a"),
+        evaluated_at: "2026-10-22T12:00:00.000Z",
+        evidence: { source: "live", checks: ["title", "canonical"] },
+      },
+    ];
+    const after = [
+      {
+        evidence: { checks: ["title", "canonical"], source: "live" },
+        ...row("/a"),
+        evaluated_at: "2026-10-23T12:00:00.000Z",
+      },
+    ];
+
+    expect(prepareGateRun(before, [], input(after)).stats.verdictChanges).toBe(0);
+    expect(
+      prepareGateRun(before, [], input([{ ...after[0], evidence: { source: "changed" } }])).stats
+        .verdictChanges,
+    ).toBe(1);
+  });
   it("exact duplicates keep priority inside a larger country-swap group", () => {
     const rows = [row("/a"), row("/b"), row("/c")];
     const prints = [

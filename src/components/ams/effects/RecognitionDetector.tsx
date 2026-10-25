@@ -51,6 +51,8 @@ export function RecognitionDetector() {
     unlockAudioOnFirstGesture();
     let alive = true;
     let poll: ReturnType<typeof setInterval> | null = null;
+    let unsubscribe: (() => void) | undefined;
+    let unsubscribeAuth: (() => void) | undefined;
 
     const flush = async () => {
       timer.current = null;
@@ -106,21 +108,53 @@ export function RecognitionDetector() {
       }
     };
 
-    const unsubscribe = subscribeNotificationStream((e) => {
-      if (e.type === "open") {
-        if (poll) clearInterval(poll);
-        poll = null;
-        void catchUp();
-      } else if (e.type === "unavailable") {
-        // No live stream from this server: look periodically instead.
-        if (!poll) poll = setInterval(() => {
-          if (document.visibilityState === "visible") void catchUp();
-        }, POLL_MS);
-        void catchUp();
-      } else if (e.type === "notification" && e.event?.startsWith("ams.recognition.")) {
-        offer(e.ledger_id);
-      }
-    });
+    try {
+      unsubscribe = subscribeNotificationStream((e) => {
+        if (e.type === "open") {
+          if (poll) clearInterval(poll);
+          poll = null;
+          void catchUp();
+        } else if (e.type === "unavailable") {
+          // No live stream from this server: look periodically instead.
+          if (!poll)
+            poll = setInterval(() => {
+              if (document.visibilityState === "visible") void catchUp();
+            }, POLL_MS);
+          void catchUp();
+        } else if (e.type === "notification" && e.event?.startsWith("ams.recognition.")) {
+          offer(e.ledger_id);
+        }
+      });
+
+      // Recognition belongs to whoever is signed in now; a new person starts clean.
+      const readUser = (id: string | null) => {
+        signedIn.current = Boolean(id);
+        pending.current.clear();
+        handled.current.clear();
+      };
+      void supabase.auth
+        .getUser()
+        .then(({ data }) => {
+          if (alive) {
+            signedIn.current = Boolean(data.user?.id);
+            if (signedIn.current) void catchUp();
+          }
+        })
+        .catch((error: unknown) => {
+          console.error("[ams-recognition] Could not read the signed-in user.", error);
+        });
+      let lastUser: string | null = null;
+      const { data: authSub } = supabase.auth.onAuthStateChange((_event, session) => {
+        const id = session?.user?.id ?? null;
+        if (id !== lastUser) {
+          lastUser = id;
+          readUser(id);
+        }
+      });
+      unsubscribeAuth = () => authSub.subscription.unsubscribe();
+    } catch (error) {
+      console.error("[ams-recognition] Authentication or live updates are unavailable.", error);
+    }
 
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
@@ -129,31 +163,10 @@ export function RecognitionDetector() {
     };
     document.addEventListener("visibilitychange", onVisible);
 
-    // Recognition belongs to whoever is signed in now; a new person starts clean.
-    const readUser = (id: string | null) => {
-      signedIn.current = Boolean(id);
-      pending.current.clear();
-      handled.current.clear();
-    };
-    void supabase.auth.getUser().then(({ data }) => {
-      if (alive) {
-        signedIn.current = Boolean(data.user?.id);
-        if (signedIn.current) void catchUp();
-      }
-    });
-    let lastUser: string | null = null;
-    const { data: authSub } = supabase.auth.onAuthStateChange((_event, session) => {
-      const id = session?.user?.id ?? null;
-      if (id !== lastUser) {
-        lastUser = id;
-        readUser(id);
-      }
-    });
-
     return () => {
       alive = false;
-      unsubscribe();
-      authSub.subscription.unsubscribe();
+      unsubscribe?.();
+      unsubscribeAuth?.();
       document.removeEventListener("visibilitychange", onVisible);
       if (poll) clearInterval(poll);
       if (timer.current) clearTimeout(timer.current);

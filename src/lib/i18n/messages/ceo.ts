@@ -349,6 +349,11 @@ export const CEO_MESSAGES = {
   "ceo.heal_detected_word": ["detected", "precedes the time an incident was noticed"],
 
   // AYRA: the Founder's executive secretary.
+  "ceo.agent_workspace": ["Agent Workspace", "heading for the embedded Agent Zero workspace"],
+  "ceo.agent_workspace_tunnel_help": [
+    "Start the SSH tunnel to localhost:50001 before using this workspace. The iframe connects to your browser's localhost, not directly to the VPS.",
+    "instructions for opening the Agent Zero iframe through a local SSH tunnel",
+  ],
   "ceo.ayra_title": ["AYRA", "name of the Founder's executive secretary"],
   "ceo.ayra_home_read_only": [
     "READ-ONLY",

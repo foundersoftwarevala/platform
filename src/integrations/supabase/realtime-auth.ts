@@ -25,30 +25,40 @@ import { supabase } from "./client";
 export function useRealtimeAuth(): void {
   useEffect(() => {
     let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
 
-    const apply = (token: string | null) => {
-      if (cancelled) return;
-      try {
-        // Passing null drops back to the anon key, which is correct after a
-        // sign-out: the socket should stop seeing protected rows immediately.
-        supabase.realtime.setAuth(token);
-      } catch (error) {
-        console.error("[realtime] could not set the socket token", error);
-      }
-    };
+    try {
+      const client = supabase;
+      const apply = (token: string | null) => {
+        if (cancelled) return;
+        try {
+          // Passing null drops back to the anon key, which is correct after a
+          // sign-out: the socket should stop seeing protected rows immediately.
+          client.realtime.setAuth(token);
+        } catch (error) {
+          console.error("[realtime] could not set the socket token", error);
+        }
+      };
 
-    void supabase.auth
-      .getSession()
-      .then(({ data }) => apply(data.session?.access_token ?? null))
-      .catch(() => apply(null));
+      void client.auth
+        .getSession()
+        .then(({ data }) => apply(data.session?.access_token ?? null))
+        .catch((error: unknown) => {
+          console.error("[realtime] could not read the current session", error);
+          apply(null);
+        });
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      apply(session?.access_token ?? null);
-    });
+      const { data: subscription } = client.auth.onAuthStateChange((_event, session) => {
+        apply(session?.access_token ?? null);
+      });
+      unsubscribe = () => subscription.subscription.unsubscribe();
+    } catch (error) {
+      console.error("[realtime] authentication client is unavailable", error);
+    }
 
     return () => {
       cancelled = true;
-      subscription.subscription.unsubscribe();
+      unsubscribe?.();
     };
   }, []);
 }

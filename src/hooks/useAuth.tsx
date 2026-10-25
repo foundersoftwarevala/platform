@@ -61,23 +61,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setIsLoading(false);
-      void loadRoles(nextSession?.user?.id);
-    });
+    let unsubscribe: (() => void) | undefined;
 
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      setIsLoading(false);
-      void loadRoles(data.session?.user?.id);
-    });
+    try {
+      const client = supabase;
+      const {
+        data: { subscription },
+      } = client.auth.onAuthStateChange((_event, nextSession) => {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        setIsLoading(false);
+        void loadRoles(nextSession?.user?.id);
+      });
+      unsubscribe = () => subscription.unsubscribe();
 
-    return () => subscription.unsubscribe();
+      void client.auth
+        .getSession()
+        .then(({ data }) => {
+          setSession(data.session);
+          setUser(data.session?.user ?? null);
+          setIsLoading(false);
+          void loadRoles(data.session?.user?.id);
+        })
+        .catch((error: unknown) => {
+          console.error("[auth] could not read the current session", error);
+          setIsLoading(false);
+        });
+    } catch (error) {
+      console.error("[auth] authentication client is unavailable", error);
+      setIsLoading(false);
+    }
+
+    return () => unsubscribe?.();
   }, []);
 
   const value = useMemo<AuthContextValue>(() => {

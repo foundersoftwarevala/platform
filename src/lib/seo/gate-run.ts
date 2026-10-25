@@ -1,5 +1,3 @@
-import { isDeepStrictEqual } from "node:util";
-
 export type GateRow = {
   url: string;
   entity_type: string;
@@ -18,6 +16,31 @@ export type GateInput = {
   maxDropPercent: number;
   crossOnly: boolean;
 };
+
+function isDeepEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (typeof left !== "object" || left === null || typeof right !== "object" || right === null) {
+    return false;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => isDeepEqual(value, right[index]))
+    );
+  }
+
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key) =>
+        Object.hasOwn(right, key) && isDeepEqual(Reflect.get(left, key), Reflect.get(right, key)),
+    )
+  );
+}
 
 export function expectedSlotHreflang(
   siblings: { status: string; country_code: string | null }[],
@@ -106,7 +129,7 @@ export function prepareGateRun(before: GateRow[], hashes: GateHash[], input: Gat
     Object.fromEntries(Object.entries(row).filter(([key]) => key !== "evaluated_at"));
   const changed = after.filter((row) => {
     const old = previousByUrl.get(row.url);
-    return !old || !isDeepStrictEqual(meaningful(old), meaningful(row));
+    return !old || !isDeepEqual(meaningful(old), meaningful(row));
   }).length;
   const stateCounts = (list: GateRow[]) => {
     const counts = new Map<string, number>();

@@ -73,5 +73,9 @@ export const AUTH_MESSAGES = {
   "auth.access.restricted": "Access restricted",
   "auth.access.missing_role":
     "This authenticated account does not have the required Control Panel role.",
+  "auth.access.verification_failed": "Unable to verify workspace access",
+  "auth.access.verification_failed_body":
+    "The sign-in service could not confirm your access. Check the local authentication configuration or connection, then retry.",
+  "auth.access.retry": ["Retry access check", "button to retry workspace access verification"],
   "auth.access.return": "Return to sign in",
 } as const;

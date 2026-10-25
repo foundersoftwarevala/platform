@@ -124,6 +124,22 @@ const AICEOAyra = () => {
       <AyraCommandCenter />
       <AyraLiveFeed />
 
+      <Card className="card3d premium-halo hover-lift shimmer-sweep enter-soft rounded-2xl">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-foreground">{t("ceo.agent_workspace")}</CardTitle>
+          <p className="text-sm text-muted-foreground">{t("ceo.agent_workspace_tunnel_help")}</p>
+        </CardHeader>
+        <CardContent>
+          <iframe
+            src="http://localhost:50001/"
+            title={t("ceo.agent_workspace")}
+            className="min-h-[720px] w-full rounded-lg border border-border bg-background"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        </CardContent>
+      </Card>
+
       {degraded.length > 0 && <DegradedNotice sources={degraded} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

@@ -4,7 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
 function normalizeRole(value: unknown): string {
-  return String(value ?? "").trim().toLowerCase();
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 /**
@@ -14,7 +16,11 @@ function normalizeRole(value: unknown): string {
  */
 const OPERATOR_ROLES = ["boss", "boss_owner", "admin", "super_admin", "founder"];
 
-export function RequireRole({ role, children, allowOperators = true }: {
+export function RequireRole({
+  role,
+  children,
+  allowOperators = true,
+}: {
   role: string | string[];
   children: ReactNode;
   /** Set false for a workspace that must exclude even platform operators. */
@@ -22,44 +28,66 @@ export function RequireRole({ role, children, allowOperators = true }: {
 }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [state, setState] = useState<"loading" | "allowed" | "denied">("loading");
+  const [state, setState] = useState<"loading" | "allowed" | "denied" | "error">("loading");
+  const [retryCount, setRetryCount] = useState(0);
   const allowedRoles = Array.isArray(role) ? role : [role];
-  const normalizedAllowed = new Set(
-    [...allowedRoles, ...(allowOperators ? OPERATOR_ROLES : [])].map(normalizeRole),
-  );
+  const allowedRoleKey = [...allowedRoles, ...(allowOperators ? OPERATOR_ROLES : [])]
+    .map(normalizeRole)
+    .join(",");
 
   useEffect(() => {
     let active = true;
-    const { data: authSubscription } = supabase.auth.onAuthStateChange((event) => {
-      if (!active) return;
-      if (event === "SIGNED_OUT") setState("denied");
-    });
-    void (async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
-        if (active) setState("denied");
-        return;
-      }
-      const { data: rows } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userData.user.id);
+    let unsubscribe: (() => void) | undefined;
+    const fail = (error: unknown) => {
+      console.error("[RequireRole] Access verification failed:", error);
+      if (active) setState("error");
+    };
 
-      const allowed = rows?.some((row) => {
-        const normalized = normalizeRole(row.role);
-        return normalizedAllowed.has(normalized);
-      }) ?? false;
+    try {
+      const { data: authSubscription } = supabase.auth.onAuthStateChange((event) => {
+        if (active && event === "SIGNED_OUT") setState("denied");
+      });
+      unsubscribe = () => authSubscription.subscription.unsubscribe();
 
-      if (active) setState(allowed ? "allowed" : "denied");
-    })();
+      void (async () => {
+        try {
+          const normalizedAllowed = new Set(allowedRoleKey.split(","));
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+          if (userError && userError.name !== "AuthSessionMissingError") throw userError;
+          if (!userData.user) {
+            if (active) setState("denied");
+            return;
+          }
+
+          const { data: rows, error: rolesError } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", userData.user.id);
+          if (rolesError) throw rolesError;
+
+          const allowed =
+            rows?.some((row) => normalizedAllowed.has(normalizeRole(row.role))) ?? false;
+          if (active) setState(allowed ? "allowed" : "denied");
+        } catch (error) {
+          fail(error);
+        }
+      })();
+    } catch (error) {
+      fail(error);
+    }
+
     return () => {
       active = false;
-      authSubscription.subscription.unsubscribe();
+      unsubscribe?.();
     };
-  }, [allowedRoles.join(",")]);
+  }, [allowedRoleKey, retryCount]);
 
   if (state === "loading") {
-    return <main className="grid min-h-dvh place-items-center bg-background text-sm text-muted-foreground">{t("auth.access.checking")}</main>;
+    return (
+      <main className="grid min-h-dvh place-items-center bg-background text-sm text-muted-foreground">
+        {t("auth.access.checking")}
+      </main>
+    );
   }
 
   if (state === "denied") {
@@ -68,7 +96,36 @@ export function RequireRole({ role, children, allowOperators = true }: {
         <section className="max-w-md space-y-3">
           <h1 className="text-xl font-semibold">{t("auth.access.restricted")}</h1>
           <p className="text-sm text-muted-foreground">{t("auth.access.missing_role")}</p>
-          <button type="button" onClick={() => void navigate({ to: "/login" })} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">{t("auth.access.return")}</button>
+          <button
+            type="button"
+            onClick={() => void navigate({ to: "/login" })}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+          >
+            {t("auth.access.return")}
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-background px-6 text-center">
+        <section className="max-w-md space-y-3">
+          <h1 className="text-xl font-semibold">{t("auth.access.verification_failed")}</h1>
+          <p className="text-sm text-muted-foreground">
+            {t("auth.access.verification_failed_body")}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setState("loading");
+              setRetryCount((count) => count + 1);
+            }}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+          >
+            {t("auth.access.retry")}
+          </button>
         </section>
       </main>
     );
