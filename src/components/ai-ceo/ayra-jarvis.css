@@ -1,0 +1,321 @@
+.ayra-source-avatar {
+  --ayra-scene-base: oklch(0.16 0.035 240);
+  --ayra-scene-foreground: oklch(0.95 0.02 230);
+  --primary: oklch(0.72 0.17 235);
+  position: relative;
+}
+
+.ayra-source-avatar .core {
+  --core-glow: var(--primary);
+}
+
+.ayra-source-avatar .core[data-state="listening"] {
+  --core-glow: var(--success);
+}
+
+.ayra-source-avatar .core[data-state="thinking"],
+.ayra-source-avatar .core[data-state="speaking"] {
+  --core-glow: var(--accent);
+}
+
+.ayra-source-avatar .core[data-state="executing"] {
+  --core-glow: var(--warn);
+}
+
+.ayra-source-avatar .core[data-state="verifying"] {
+  --core-glow: var(--primary);
+}
+
+.ayra-source-avatar .core[data-state="completed"] {
+  --core-glow: var(--success);
+}
+
+.ayra-source-avatar .core[data-state="error"] {
+  --core-glow: var(--danger);
+}
+
+.ayra-source-avatar .ayra-cinematic-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.ayra-source-avatar .ayra-office-wall {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+}
+
+.ayra-source-avatar .ayra-office-logo {
+  position: absolute;
+  left: 25%;
+  top: 34%;
+  width: min(40%, 560px);
+  height: auto;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: multiply;
+}
+
+.ayra-source-avatar .ayra-office-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(42px) saturate(1.3) brightness(0.7);
+  transform: scale(1.25);
+  opacity: 0.55;
+}
+
+.ayra-source-avatar .ayra-banner-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, var(--ayra-scene-base), transparent 55%),
+    linear-gradient(90deg, var(--ayra-scene-base), transparent 65%);
+}
+
+.ayra-source-avatar .ayra-banner-portrait {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: ayra-float 6s ease-in-out infinite, ayra-sway 14s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+.ayra-source-avatar .ayra-banner-look,
+.ayra-source-avatar .ayra-banner-video {
+  object-fit: contain;
+  object-position: center bottom;
+  animation: ayra-breathe 4s ease-in-out infinite, ayra-blink 5s linear infinite;
+  transform-origin: center top;
+}
+
+.ayra-source-avatar .ayra-banner-video {
+  z-index: 2;
+  animation: fade-up 0.6s ease both;
+}
+
+.ayra-source-avatar .ayra-name-tag {
+  position: absolute;
+  z-index: 4;
+  inset: auto auto 6% 50%;
+  width: auto;
+  height: auto;
+  translate: -50% 0;
+  padding: 2px 12px;
+  border-radius: 999px;
+  color: var(--primary);
+  background: color-mix(in oklab, white 70%, transparent);
+  border: 1px solid color-mix(in oklab, var(--primary) 45%, transparent);
+  backdrop-filter: blur(6px);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.ayra-source-avatar .ayra-energy {
+  position: absolute;
+  z-index: 3;
+  inset: auto 0 0;
+  height: 20%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.ayra-source-avatar .ayra-energy .energy-line {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(0deg, transparent, var(--primary), transparent);
+  background-size: 100% 200%;
+  box-shadow: 0 0 10px var(--primary);
+  opacity: 0.55;
+  animation: energy-flow 2.4s linear infinite;
+}
+
+.ayra-source-avatar .ayra-energy .energy-line.l {
+  left: 42%;
+  transform: rotate(-12deg);
+}
+
+.ayra-source-avatar .ayra-energy .energy-line.r {
+  left: 57%;
+  transform: rotate(12deg);
+  animation-delay: 1.2s;
+}
+
+.ayra-source-avatar .ayra-energy i {
+  position: absolute;
+  bottom: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 8px 2px var(--primary);
+  animation: energy-spark 3.3s ease-in-out infinite;
+  opacity: 0;
+}
+
+.ayra-source-avatar .scan-line {
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  animation: scan-sweep 1s ease-in-out infinite alternate;
+}
+
+.ayra-source-avatar .wave-bar {
+  animation: wave 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.ayra-source-avatar .anim-pop {
+  animation: pop 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.ayra-source-avatar .anim-shake {
+  animation: shake 0.35s ease 2;
+}
+
+@keyframes ayra-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.01);
+  }
+}
+
+@keyframes ayra-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -2px;
+  }
+}
+
+@keyframes ayra-sway {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  25% {
+    rotate: 0.4deg;
+  }
+  75% {
+    rotate: -0.4deg;
+  }
+}
+
+@keyframes ayra-blink {
+  0%,
+  95%,
+  100% {
+    filter: brightness(1);
+  }
+  96.5% {
+    filter: brightness(0.9);
+  }
+}
+
+@keyframes energy-flow {
+  from {
+    background-position: 0 200%;
+  }
+  to {
+    background-position: 0 -200%;
+  }
+}
+
+@keyframes energy-spark {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  70% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-60px);
+    opacity: 0;
+  }
+}
+
+@keyframes scan-sweep {
+  from {
+    top: 10%;
+  }
+  to {
+    top: 90%;
+  }
+}
+
+@keyframes wave {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ayra-source-avatar .ayra-banner-portrait,
+  .ayra-source-avatar .ayra-banner-portrait > *,
+  .ayra-source-avatar .ayra-energy *,
+  .ayra-source-avatar .wave-bar {
+    animation: none;
+  }
+}
