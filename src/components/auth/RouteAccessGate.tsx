@@ -1,5 +1,6 @@
 import { useRouterState } from "@tanstack/react-router";
 import { DEMO_ROUTE_ROLES } from "@/lib/auth/demo-roles";
+import { MARKETPLACE_MANAGER_API_ROLES } from "@/lib/auth/marketplace-manager-roles";
 import { type ReactNode } from "react";
 
 import { RequireRole } from "@/components/auth/RequireRole";
@@ -32,13 +33,12 @@ const PROTECTED: { prefix: string; roles: string[]; label: string }[] = [
     roles: ["developer", "finance", "support", "sales_support_manager"],
     label: "Manager",
   },
-  // These are the roles public.mm_is_operator() honours, on top of the
-  // platform operators RequireRole always admits. The list used to be
-  // finance/support/sales_support_manager, none of which that function
-  // accepts: they reached the console and every read it makes was refused,
-  // which is what an empty Marketplace Manager actually was. Marketing and
-  // SEO, which the database does accept, were kept out of it entirely.
-  { prefix: "/marketplace-manager", roles: ["marketing", "seo"], label: "Marketplace Manager" },
+  // Match the manager API role gate while keeping platform operators explicit.
+  {
+    prefix: "/marketplace-manager",
+    roles: [...MARKETPLACE_MANAGER_API_ROLES],
+    label: "Marketplace Manager",
+  },
   { prefix: "/marketplace-recovery", roles: ["developer"], label: "Marketplace Recovery" },
   {
     prefix: "/reseller-manager",

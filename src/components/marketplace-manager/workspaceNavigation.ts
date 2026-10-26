@@ -51,8 +51,22 @@ export function resolveMarketplaceSection(
   return Object.prototype.hasOwnProperty.call(sections, section) ? section : "Dashboard";
 }
 
-export function hrefWithMarketplaceSection(href: string, section: string): string {
-  const url = new URL(href);
-  url.searchParams.set("section", section);
-  return `${url.pathname}${url.search}${url.hash}`;
+export function hrefWithMarketplaceSection(
+  href: string,
+  section: string,
+  parametersToDelete: readonly string[] = [],
+): string {
+  const hashIndex = href.indexOf("#");
+  const hash = hashIndex < 0 ? "" : href.slice(hashIndex);
+  const withoutHash = hashIndex < 0 ? href : href.slice(0, hashIndex);
+  const queryIndex = withoutHash.indexOf("?");
+  const search = queryIndex < 0 ? "" : withoutHash.slice(queryIndex);
+  const pathname = (queryIndex < 0 ? withoutHash : withoutHash.slice(0, queryIndex)) || "/";
+  const searchParams = new URLSearchParams(search);
+  searchParams.set("section", section);
+  for (const parameter of parametersToDelete) {
+    searchParams.delete(parameter);
+  }
+  const nextSearch = searchParams.toString();
+  return `${pathname}${nextSearch ? `?${nextSearch}` : ""}${hash}`;
 }

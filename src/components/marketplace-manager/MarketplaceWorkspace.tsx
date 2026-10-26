@@ -63,11 +63,11 @@ export function MarketplaceWorkspace() {
       setActive(section);
       const filters = parseFilterParams(section, window.location.search);
       if (requested !== section || filters.invalidParameters.length > 0) {
-        const nextUrl = new URL(hrefWithMarketplaceSection(window.location.href, section));
-        for (const parameter of filters.invalidParameters) {
-          nextUrl.searchParams.delete(parameter);
-        }
-        const nextHref = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+        const nextHref = hrefWithMarketplaceSection(
+          `${window.location.pathname}${window.location.search}${window.location.hash}`,
+          section,
+          filters.invalidParameters,
+        );
         const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
         if (nextHref !== currentHref) navigate(nextHref, { replace: true });
       }
@@ -84,7 +84,10 @@ export function MarketplaceWorkspace() {
     const section = sectionRegistry[label] ? label : "Dashboard";
     setActive(section);
     setMobileOpen(false);
-    const nextHref = hrefWithMarketplaceSection(window.location.href, section);
+    const nextHref = hrefWithMarketplaceSection(
+      `${window.location.pathname}${window.location.search}${window.location.hash}`,
+      section,
+    );
     if (
       nextHref !== `${window.location.pathname}${window.location.search}${window.location.hash}`
     ) {

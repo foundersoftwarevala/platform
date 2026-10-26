@@ -50,12 +50,31 @@ describe("Marketplace Manager workspace navigation", () => {
   });
 
   it("preserves existing filter and deep-link parameters when the section changes", () => {
+    const href = hrefWithMarketplaceSection(
+      "/marketplace-manager?status=draft&range=30d&product=sku#list",
+      "Products",
+    );
+
+    expect(href).toBe("/marketplace-manager?status=draft&range=30d&product=sku&section=Products#list");
+  });
+
+  it("accepts a relative URL without constructing an absolute URL", () => {
     expect(
       hrefWithMarketplaceSection(
-        "https://example.test/marketplace-manager?status=draft&range=30d&product=sku#list",
+        "/marketplace-manager?status=draft#list",
         "Products",
       ),
-    ).toBe("/marketplace-manager?status=draft&range=30d&product=sku&section=Products#list");
+    ).toBe("/marketplace-manager?status=draft&section=Products#list");
+  });
+
+  it("removes invalid section filters without dropping unrelated URL parameters", () => {
+    expect(
+      hrefWithMarketplaceSection(
+        "/marketplace-manager?section=__invalid__&status=unknown&view=recent#list",
+        "Dashboard",
+        ["status"],
+      ),
+    ).toBe("/marketplace-manager?section=Dashboard&view=recent#list");
   });
 
   it("declares filter schemas only for product queue sections", () => {

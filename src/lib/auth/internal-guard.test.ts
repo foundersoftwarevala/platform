@@ -61,6 +61,19 @@ describe("Marketplace Manager API authority", () => {
     vi.unstubAllEnvs();
   });
 
+  it("shares one allowlist with the Marketplace Manager route gate", () => {
+    expect(MARKETPLACE_MANAGER_API_ROLES).toEqual([
+      "boss",
+      "boss_owner",
+      "admin",
+      "super_admin",
+      "owner",
+      "founder",
+      "marketing",
+      "seo",
+    ]);
+  });
+
   it("refuses a developer-only account even though demo publishing admits developers", async () => {
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       if (String(input).endsWith("/auth/v1/user")) {
@@ -94,4 +107,54 @@ describe("Marketplace Manager API authority", () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.roles).toEqual(["admin"]);
   });
+
+  it("explicitly admits a Super Admin to Marketplace Manager APIs", async () => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/auth/v1/user")) {
+        return new Response(JSON.stringify({ id: "user-fixture" }), { status: 200 });
+      }
+      return new Response(JSON.stringify([{ role: "super_admin" }]), { status: 200 });
+    });
+
+    const result = await requireInternalOperator(
+      new Request("https://fixture.invalid", {
+        headers: { authorization: "Bearer fixture-token" },
+      }),
+      { allowedRoles: MARKETPLACE_MANAGER_API_ROLES },
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.roles).toEqual(["super_admin"]);
+  });
+
+  it.each([
+    "boss",
+    "boss_owner",
+    "admin",
+    "super_admin",
+    "owner",
+    "founder",
+    "marketing",
+    "seo",
+  ])(
+    "accepts the %s Marketplace Manager operator role",
+    async (role) => {
+      vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+        if (String(input).endsWith("/auth/v1/user")) {
+          return new Response(JSON.stringify({ id: "user-fixture" }), { status: 200 });
+        }
+        return new Response(JSON.stringify([{ role }]), { status: 200 });
+      });
+
+      const result = await requireInternalOperator(
+        new Request("https://fixture.invalid", {
+          headers: { authorization: "Bearer fixture" },
+        }),
+        { allowedRoles: MARKETPLACE_MANAGER_API_ROLES },
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.roles).toEqual([role]);
+    },
+  );
 });
