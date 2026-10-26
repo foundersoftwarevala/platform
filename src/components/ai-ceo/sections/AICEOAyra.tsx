@@ -6,9 +6,9 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  PageBanner,
   PageShell,
 } from "@/components/ai-ceo/PageShell";
-import { AyraHeroBanner } from "@/components/ai-ceo/AyraHeroBanner";
 import { SourceNote } from "@/components/ai-ceo/ops/shared";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,7 +88,7 @@ const AICEOAyra = () => {
 
   return (
     <PageShell>
-      <AyraHeroBanner connected={connected} notConnected={notConnected} />
+      <PageBanner icon={Sparkles} title={t("ceo.ayra_title")} />
 
       {capsLoading || ordersLoading ? (
         <LoadingState label={t("ceo.ayra_loading")} rows={2} />

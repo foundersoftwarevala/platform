@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { DegradedNotice, LoadingState, PageBanner, PageShell } from "@/components/ai-ceo/PageShell";
+import { AyraWorldBanner } from "@/components/ai-ceo/AyraWorldBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,7 @@ const AICEODashboardMain = () => {
 
   return (
     <PageShell>
+      <AyraWorldBanner />
       <PageBanner
         icon={Brain}
         title="AI CEO Dashboard"

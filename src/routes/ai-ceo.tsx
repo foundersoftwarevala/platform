@@ -42,7 +42,7 @@ import type { NavGroup, NavItem } from "@/components/creator/navigation";
  * sits inside the product rather than beside it, and the sidebar, top bar,
  * theme, routing and sign-in flow all stay exactly as they were.
  *
- * Access is restricted to boss and admin. There is no `ceo` role in the
+ * Access is restricted to platform operators. There is no `ceo` role in the
  * database, and these screens carry platform-wide revenue, risk and customer
  * data, so they must not open for an ordinary signed-in account.
  */
@@ -134,7 +134,7 @@ function AICEOLayout() {
     SECTIONS[0].label;
 
   return (
-    <RequireRole role={["boss", "admin"]}>
+    <RequireRole role={["boss", "boss_owner", "founder", "super_admin", "admin"]}>
       <TooltipProvider delayDuration={120}>
         <div className="creator-theme mm-scope flex min-h-screen w-full">
           <CreatorSidebar

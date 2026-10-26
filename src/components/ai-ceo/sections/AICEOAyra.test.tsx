@@ -18,15 +18,20 @@ vi.mock("@/components/vala-ai/chat-stream", () => ({
 }));
 vi.mock("@/components/JarvisCore", () => ({
   JarvisCore: () => <div aria-label="AYRA avatar" />,
+  AYRA_LOOKS: { default: "/ayra.jpg" },
+  LOOK_NAMES: { default: "AYRA" },
+  LOOK_VIDEO: {},
+  LOOK_SCENE: { default: "/ayra-scene.jpg" },
+  LOOK_SCENE_VIDEO: {},
 }));
 
-describe("AICEOAyra page banner", () => {
+describe("AICEOAyra page", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it("renders exactly one hero before the existing capability lists", () => {
+  it("keeps the purple AYRA banner and capability lists on the AYRA sub-page", () => {
     mocks.useAyraCapabilities.mockReturnValue({
       capabilities: [],
       connected: 0,
@@ -46,18 +51,18 @@ describe("AICEOAyra page banner", () => {
     });
 
     const { container } = render(<AICEOAyra />);
-    const hero = screen.getByTestId("ayra-hero-banner");
+    const purpleBanner = screen.getByRole("heading", { name: "ceo.ayra_title" });
     const capabilityList = screen.getByText("ceo.ayra_can");
 
-    expect(container.querySelectorAll('[data-testid="ayra-hero-banner"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="ayra-world-banner"]')).toHaveLength(0);
     expect(
-      hero.compareDocumentPosition(capabilityList) & Node.DOCUMENT_POSITION_FOLLOWING,
+      purpleBanner.compareDocumentPosition(capabilityList) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(screen.getByText("ceo.ayra_cannot")).toBeTruthy();
     expect(screen.getByText("ceo.ayra_orders")).toBeTruthy();
   });
 
-  it("keeps the hero visible while the VPS capability data is loading", () => {
+  it("keeps the AYRA loading state on the sub-page", () => {
     mocks.useAyraCapabilities.mockReturnValue({
       capabilities: [],
       connected: 0,
@@ -78,7 +83,7 @@ describe("AICEOAyra page banner", () => {
 
     render(<AICEOAyra />);
 
-    expect(screen.getAllByTestId("ayra-hero-banner")).toHaveLength(1);
+    expect(screen.queryByTestId("ayra-world-banner")).toBeNull();
     expect(screen.getByText("ceo.ayra_loading")).toBeTruthy();
   });
 });
