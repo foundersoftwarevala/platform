@@ -40,6 +40,10 @@
 .aw-menu { position: absolute; right: 0; top: 56px; z-index: 30; display: grid; min-width: 232px; padding: .5rem; border-radius: 14px;
   border: 1px solid oklch(0.55 0.12 230 / .5); background: oklch(0.2 0.05 255 / .92); backdrop-filter: blur(14px);
   box-shadow: 0 24px 48px -12px oklch(0 0 0 / .7); animation: aw-pop .16s ease-out; }
+.aw-command-overlay { position: fixed; inset: 0; z-index: 60; background: oklch(0.08 0.03 255 / .58); backdrop-filter: blur(10px); animation: aw-pop .16s ease-out; }
+.aw-command-drawer { position: absolute; top: 0; right: 0; height: 100%; width: min(100%, 28rem); overflow-y: auto; border-left: 1px solid var(--aw-line); background: linear-gradient(160deg, oklch(0.22 0.06 255 / .98), oklch(0.14 0.04 255 / .98)); padding: 1.5rem; box-shadow: -24px 0 56px -24px oklch(0 0 0 / .8); animation: aw-command-slide .35s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes aw-command-slide { from { transform: translateX(100%); opacity: .7; } to { transform: translateX(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .aw-command-overlay, .aw-command-drawer { animation: none; } }
 @keyframes aw-pop { from { opacity: 0; transform: translateY(-4px); } }
 .aw-menu button { text-align: left; padding: .6rem .85rem; border-radius: 8px; font-size: 15px; font-weight: 500; }
 .aw-menu button:hover { background: oklch(0.82 0.15 210 / .16); }

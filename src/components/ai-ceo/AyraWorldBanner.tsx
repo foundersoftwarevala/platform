@@ -1,11 +1,14 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityPanel, AgentStage, BrowserPanel, TopBar } from "@/components/ai-ceo/AyraWorld";
 import type { CoreState } from "@/components/JarvisCore";
 import { streamChat, type ChatTurn } from "@/components/vala-ai/chat-stream";
 import { useSpeech } from "@/lib/use-speech";
+import { useSpeechSynthesis } from "@/lib/use-speech-synthesis";
+import { AyraCommandCenter } from "@/components/ai-ceo/AyraCommandCenter";
 import "./ayra-world.css";
 
 export function AyraWorldBanner() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [cmd, setCmd] = useState("");
   const [reply, setReply] = useState("");
   const [core, setCore] = useState<CoreState>("idle");
@@ -14,6 +17,8 @@ export function AyraWorldBanner() {
   const [messages, setMessages] = useState<ChatTurn[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const controller = useRef<AbortController | null>(null);
+  const mutedRef = useRef(muted);
+  const voice = useSpeechSynthesis();
 
   const run = async (command = cmd) => {
     const content = command.trim();
@@ -37,7 +42,20 @@ export function AyraWorldBanner() {
       if (!result.trim()) throw new Error("AYRA returned an empty response. Please try again.");
       setMessages([...nextMessages, { role: "assistant", content: result }]);
       setReply(result);
-      setCore("completed");
+      if (mutedRef.current) {
+        setCore("completed");
+      } else {
+        let speechFailed = false;
+        const accepted = voice.speak(result, {
+          onEnd: () => setCore("completed"),
+          onError: (message) => {
+            speechFailed = true;
+            setReply(`${result}\n\n${message}`);
+            setCore("error");
+          },
+        });
+        setCore(accepted ? "speaking" : speechFailed ? "error" : "completed");
+      }
     } catch (error) {
       if (request.signal.aborted) return;
       setReply(error instanceof Error ? error.message : "AYRA could not process that request.");
@@ -47,9 +65,11 @@ export function AyraWorldBanner() {
     }
   };
 
-  const speech = useSpeech((text) => void run(text));
+  const speech = useSpeech((text) => {
+    if (!mutedRef.current) void run(text);
+  });
   const toggleTalk = () => {
-    if (speech.listening) {
+    if (speech.listening || speech.status === "asking") {
       speech.stop();
       return;
     }
@@ -59,9 +79,23 @@ export function AyraWorldBanner() {
     }
     void speech.start();
   };
+  const updateMuted = (nextMuted: boolean) => {
+    mutedRef.current = nextMuted;
+    setMuted(nextMuted);
+    if (nextMuted) {
+      speech.stop();
+      voice.stop();
+      setCore((current) => (current === "speaking" ? "completed" : current));
+    }
+  };
+  useEffect(() => () => controller.current?.abort(), []);
 
   const busy = core === "thinking" || core === "executing" || core === "speaking";
-  const status = busy ? "AYRA is responding..." : core === "error" ? "Request failed" : "Ready for your command";
+  const status = busy
+    ? "AYRA is responding..."
+    : core === "error"
+      ? "Request failed"
+      : "Ready for your command";
 
   return (
     <div className="ayra-world" data-testid="ayra-world-banner">
@@ -72,27 +106,27 @@ export function AyraWorldBanner() {
         listening={speech.listening}
         onMic={toggleTalk}
         onTools={(tool) => setReply(`${tool} is available in the AYRA Command Center.`)}
-        onSettings={() => setReply("Settings are available in the AYRA Command Center.")}
+        onSettings={() => setSettingsOpen(true)}
         role="AYRA"
         inputRef={inputRef}
       />
       <main className="aw-main">
         <AgentStage
-          core={speech.listening ? "listening" : core}
+          core={speech.listening ? "listening" : voice.speaking ? "speaking" : core}
           look={look}
           setLook={setLook}
           reply={reply}
           muted={muted}
-          micNote={muted ? "Microphone muted" : undefined}
+          micNote={muted ? "Microphone muted" : speech.error || voice.error || undefined}
           micState={muted ? "muted" : speech.status}
-          setMuted={(nextMuted) => {
-            setMuted(nextMuted);
-            if (nextMuted) speech.stop();
-          }}
+          setMuted={updateMuted}
           onTalk={toggleTalk}
           onEnd={() => {
             controller.current?.abort();
             speech.stop();
+            voice.stop();
+            mutedRef.current = false;
+            setMuted(false);
             setCmd("");
             setReply("");
             setMessages([]);
@@ -109,6 +143,7 @@ export function AyraWorldBanner() {
         </div>
       </main>
       <footer className="aw-foot">Powered by Software Vala™</footer>
+      <AyraCommandCenter open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }
