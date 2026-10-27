@@ -9,7 +9,6 @@ import { Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { SafeAssistUser } from './SafeAssistUser';
-import safeAssistIcon from '@/assets/safe-assist-icon.jpg';
 
 interface SafeAssistTriggerProps {
   variant?: 'icon' | 'compact' | 'full';
@@ -40,7 +39,7 @@ export function SafeAssistTrigger({ variant = 'compact', className }: SafeAssist
                 onClick={() => setIsOpen(true)}
                 className={`flex items-center justify-center w-10 h-10 rounded-full overflow-hidden border-2 border-green-500/30 hover:border-green-500/50 transition-all ${className}`}
               >
-                <img src={safeAssistIcon} alt="Safe Assist" className="w-full h-full object-cover" />
+                <Headphones className="w-5 h-5" />
               </motion.button>
             ) : (
               <Button 
@@ -49,7 +48,7 @@ export function SafeAssistTrigger({ variant = 'compact', className }: SafeAssist
                 onClick={() => setIsOpen(true)}
                 className={`border-green-500/30 hover:bg-green-500/10 ${className}`}
               >
-                <img src={safeAssistIcon} alt="Safe Assist" className="w-5 h-5 rounded object-contain" />
+                <Headphones className="w-5 h-5" />
               </Button>
             )}
           </TooltipTrigger>
