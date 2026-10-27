@@ -292,6 +292,7 @@ import { Route as ApiDemoCheckRouteImport } from './routes/api/demo/check'
 import { Route as ApiDemoInvestigateRouteImport } from './routes/api/demo/investigate'
 import { Route as ApiDemoOpsRouteImport } from './routes/api/demo/ops'
 import { Route as ApiDemoProcessRouteImport } from './routes/api/demo/process'
+import { Route as ApiDemoSessionRouteImport } from './routes/api/demo/session'
 import { Route as ApiDemoTicketRouteImport } from './routes/api/demo/ticket'
 import { Route as ApiFinanceResellerMembershipRouteImport } from './routes/api/finance/reseller-membership'
 import { Route as ApiGovernanceConsoleRouteImport } from './routes/api/governance/console'
@@ -1825,6 +1826,11 @@ const ApiDemoProcessRoute = ApiDemoProcessRouteImport.update({
   path: '/api/demo/process',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDemoSessionRoute = ApiDemoSessionRouteImport.update({
+  id: '/api/demo/session',
+  path: '/api/demo/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDemoTicketRoute = ApiDemoTicketRouteImport.update({
   id: '/api/demo/ticket',
   path: '/api/demo/ticket',
@@ -2582,6 +2588,7 @@ export interface FileRoutesByFullPath {
   '/api/demo/investigate': typeof ApiDemoInvestigateRoute
   '/api/demo/ops': typeof ApiDemoOpsRoute
   '/api/demo/process': typeof ApiDemoProcessRoute
+  '/api/demo/session': typeof ApiDemoSessionRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
@@ -2948,6 +2955,7 @@ export interface FileRoutesByTo {
   '/api/demo/investigate': typeof ApiDemoInvestigateRoute
   '/api/demo/ops': typeof ApiDemoOpsRoute
   '/api/demo/process': typeof ApiDemoProcessRoute
+  '/api/demo/session': typeof ApiDemoSessionRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
@@ -3326,6 +3334,7 @@ export interface FileRoutesById {
   '/api/demo/investigate': typeof ApiDemoInvestigateRoute
   '/api/demo/ops': typeof ApiDemoOpsRoute
   '/api/demo/process': typeof ApiDemoProcessRoute
+  '/api/demo/session': typeof ApiDemoSessionRoute
   '/api/demo/ticket': typeof ApiDemoTicketRoute
   '/api/finance/reseller-membership': typeof ApiFinanceResellerMembershipRoute
   '/api/governance/console': typeof ApiGovernanceConsoleRoute
@@ -3705,6 +3714,7 @@ export interface FileRouteTypes {
     | '/api/demo/investigate'
     | '/api/demo/ops'
     | '/api/demo/process'
+    | '/api/demo/session'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/governance/console'
@@ -4071,6 +4081,7 @@ export interface FileRouteTypes {
     | '/api/demo/investigate'
     | '/api/demo/ops'
     | '/api/demo/process'
+    | '/api/demo/session'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/governance/console'
@@ -4448,6 +4459,7 @@ export interface FileRouteTypes {
     | '/api/demo/investigate'
     | '/api/demo/ops'
     | '/api/demo/process'
+    | '/api/demo/session'
     | '/api/demo/ticket'
     | '/api/finance/reseller-membership'
     | '/api/governance/console'
@@ -4657,6 +4669,7 @@ export interface RootRouteChildren {
   ApiDemoInvestigateRoute: typeof ApiDemoInvestigateRoute
   ApiDemoOpsRoute: typeof ApiDemoOpsRoute
   ApiDemoProcessRoute: typeof ApiDemoProcessRoute
+  ApiDemoSessionRoute: typeof ApiDemoSessionRoute
   ApiDemoTicketRoute: typeof ApiDemoTicketRoute
   ApiFinanceResellerMembershipRoute: typeof ApiFinanceResellerMembershipRoute
   ApiGovernanceConsoleRoute: typeof ApiGovernanceConsoleRoute
@@ -6717,6 +6730,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDemoProcessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/demo/session': {
+      id: '/api/demo/session'
+      path: '/api/demo/session'
+      fullPath: '/api/demo/session'
+      preLoaderRoute: typeof ApiDemoSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/demo/ticket': {
       id: '/api/demo/ticket'
       path: '/api/demo/ticket'
@@ -7984,6 +8004,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDemoInvestigateRoute: ApiDemoInvestigateRoute,
   ApiDemoOpsRoute: ApiDemoOpsRoute,
   ApiDemoProcessRoute: ApiDemoProcessRoute,
+  ApiDemoSessionRoute: ApiDemoSessionRoute,
   ApiDemoTicketRoute: ApiDemoTicketRoute,
   ApiFinanceResellerMembershipRoute: ApiFinanceResellerMembershipRoute,
   ApiGovernanceConsoleRoute: ApiGovernanceConsoleRoute,

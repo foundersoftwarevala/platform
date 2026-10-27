@@ -1,72 +1,56 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
 import { DEMO_COOKIE, demoCookiePath, ticketFromRequest } from "@/lib/demo/ticket";
+import { originalDemoForSession } from "@/lib/demo/sessions.server";
 import { DEMO_BRAND } from "@/lib/demo/brand";
 import { initialDemoPath } from "@/lib/demo/entry-path";
 import {
-  applyPresentation,
-  cleanBundle,
-  activeDemoRules,
-  cleanText,
+  applySurfaceBranding,
   rewriteDemoAssetPaths,
-  rewriteDemoHydrationAssets,
   type PresentationRules,
 } from "@/lib/demo/presentation";
 import { safeFetchResponse } from "@/lib/demo/safe-fetch.server";
 import { rateLimited } from "@/lib/server/rate-limit";
 
 /**
- * Full Reverse Proxy for Demo Applications
+ * Session-scoped proxy for Demo Applications
  *
- * This endpoint acts as a complete reverse proxy for demo applications,
- * enabling them to run through a Software Vala controlled URL while
- * maintaining full functionality (assets, APIs, routing, etc.).
+ * This endpoint routes demo pages and assets through a visitor-specific path.
+ * It changes only HTML asset URLs and surface branding; author scripts and
+ * data responses are passed through unchanged.
  *
- * Route: GET /api/proxy/demo/{slug}
+ * Route: GET /api/proxy/demo/{slug}/{visitor_session_id}
  * Returns: Proxied content from the actual demo URL
  */
 
 type OriginalDemo = { url: string; name: string; rules: PresentationRules | null };
 
-async function getOriginalDemo(slug: string): Promise<OriginalDemo | null> {
-  const env = typeof process !== "undefined" ? process.env : undefined;
-  const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
-  const supabaseUrl = viteEnv?.VITE_SUPABASE_URL ?? env?.SUPABASE_URL;
-  // Read the demo with the server's own key. The anon key cannot see
-  // product_demo_urls - the policy that keeps the catalogue from being walked
-  // denies it - so this lookup returned nothing and every demo answered 404.
-  // The key stays on the server; the visitor is checked separately, above.
-  const supabaseKey =
-    env?.SUPABASE_SERVICE_ROLE_KEY ??
-    viteEnv?.VITE_SUPABASE_PUBLISHABLE_KEY ??
-    viteEnv?.VITE_SUPABASE_ANON_KEY ??
-    env?.SUPABASE_PUBLISHABLE_KEY ??
-    env?.SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) return null;
-  const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
-  const { data: product } = await supabase
-    .from("marketplace_products")
-    .select("id, name")
-    .eq("slug", slug)
-    .eq("visible", true)
-    .maybeSingle();
-  if (!product) return null;
-  const { data: demo } = await supabase
-    .from("product_demo_urls")
-    .select("url, demo_name, processing_status, processing")
-    .eq("product_id", product.id)
-    .eq("status", "active")
-    .order("sort_order")
-    .limit(1)
-    .maybeSingle();
-  if (!demo?.url) return null;
-  // Revalidation never makes an existing active demo shed its saved branding.
-  const processed = demo as {
-    processing_status?: string;
-    processing?: { rules?: PresentationRules } | null;
-  };
-  const rules = activeDemoRules(processed.processing);
-  return { url: demo.url, name: demo.demo_name || product.name, rules };
+function unavailableResponse(): Response {
+  const html =
+    '<!doctype html><html data-demo-unavailable="true"><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>Demo currently unavailable</title><body style="margin:0;background:#020617;color:#e2e8f0;' +
+    'font:16px system-ui;display:grid;min-height:100vh;place-items:center">' +
+    '<main style="max-width:32rem;padding:2rem;text-align:center"><h1>Demo currently unavailable</h1>' +
+    "<p>The demo provider is not responding. Please try again later.</p></main></body></html>";
+  return new Response(html, {
+    status: 503,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "frame-ancestors https://softwarevala.net",
+    },
+  });
+}
+
+async function getOriginalDemo(
+  slug: string,
+  sessionId: string,
+  demoId: string,
+  categoryId: string,
+): Promise<OriginalDemo | null> {
+  const demo = await originalDemoForSession(sessionId, slug, demoId, categoryId);
+  return demo ? { ...demo, rules: null } : null;
 }
 
 function shouldProxyRequest(pathname: string): boolean {
@@ -80,14 +64,15 @@ function extractDemoSlugFromPath(pathname: string): string {
   return match?.[1] || "";
 }
 
-function extractAssetPath(pathname: string, slug: string): string {
-  // Extract the rest of the path after /api/proxy/demo/{slug}
-  // e.g., /api/proxy/demo/nepali-school-demo/assets/app.js → /assets/app.js
-  const prefix = `/api/proxy/demo/${slug}`;
-  if (pathname.startsWith(prefix)) {
-    return pathname.slice(prefix.length) || "/";
-  }
-  return "/";
+function extractAssetPath(pathname: string, slug: string, sessionId: string): string {
+  if (!sessionId) return "/";
+  const prefix = `/api/proxy/demo/${slug}/${sessionId}`;
+  if (!pathname.startsWith(`${prefix}/`) && pathname !== prefix) return "/";
+  return pathname.slice(prefix.length) || "/";
+}
+
+function extractDemoSessionIdFromPath(pathname: string): string {
+  return pathname.match(/^\/api\/proxy\/demo\/[^/]+\/([0-9a-f-]{36})(?:\/|$)/i)?.[1] ?? "";
 }
 
 /**
@@ -115,7 +100,12 @@ async function fetchPublic(
   }
 }
 
-async function fetchFromOriginalDomain(demoUrl: string, path: string): Promise<Response | null> {
+async function fetchFromOriginalDomain(
+  demoUrl: string,
+  path: string,
+  incomingSearch: URLSearchParams,
+  sessionId: string,
+): Promise<Response | null> {
   try {
     let actualUrl = demoUrl;
 
@@ -142,8 +132,13 @@ async function fetchFromOriginalDomain(demoUrl: string, path: string): Promise<R
     // as /demo); everything the page loads is asked of its host. A host that
     // resolves to a private network is never fetched.
     // fetchPublic checks the host, and every host a redirect points at.
-    const assetUrl = path === "/" ? actualUrl : baseDomain + path;
-    console.log(`[demo-proxy] Fetching: ${assetUrl}`);
+    const upstream = new URL(path === "/" ? actualUrl : baseDomain + path);
+    for (const [key, value] of incomingSearch) {
+      if (key !== "t" && key !== "visitor_session_id") upstream.searchParams.append(key, value);
+    }
+    upstream.searchParams.set("sv_session_id", sessionId);
+    const assetUrl = upstream.toString();
+    console.log(`[demo-proxy] Fetching: ${upstream.origin}${upstream.pathname}`);
 
     const fetched = await fetchPublic(assetUrl);
     return fetched ? fetched.response : null;
@@ -153,7 +148,7 @@ async function fetchFromOriginalDomain(demoUrl: string, path: string): Promise<R
   }
 }
 
-function rewriteHtmlAssetUrls(html: string, slug: string): string {
+function rewriteHtmlAssetUrls(html: string, prefix: string): string {
   // Rewrite asset URLs to route through our proxy
   // IMPORTANT: Only rewrite URLs that are NOT already proxied
 
@@ -164,13 +159,13 @@ function rewriteHtmlAssetUrls(html: string, slug: string): string {
   // But SKIP paths that are already proxied (/api/proxy/demo/...)
   rewritten = rewritten.replace(
     /((?:src|href|data-src)\s*=\s*)"(\/(?!api\/proxy\/demo)[^"]*)"(?=[^\w]|$)/g,
-    `$1"/api/proxy/demo/${slug}$2"`,
+    `$1"${prefix}$2"`,
   );
 
   // Also handle single quotes
   rewritten = rewritten.replace(
     /((?:src|href|data-src)\s*=\s*)'(\/(?!api\/proxy\/demo)[^']*)'(?=[^\w]|$)/g,
-    `$1'/api/proxy/demo/${slug}$2'`,
+    `$1'${prefix}$2'`,
   );
 
   return rewritten;
@@ -200,19 +195,20 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
             });
           }
 
-          // Require a valid short-lived pass for this product, whether issued
-          // to a signed-in visitor or a public guest.
-          const pass = ticketFromRequest(request, slug);
-          if (!pass || pass.slug !== slug) {
+          const sessionId = extractDemoSessionIdFromPath(pathname);
+          const pass = ticketFromRequest(request, slug, sessionId);
+          if (!pass) {
             return new Response(
-              JSON.stringify({ error: "Sign in to open this demo.", reason: "sign_in_required" }),
-              { status: 401, headers: { "Content-Type": "application/json" } },
+              JSON.stringify({ error: "This demo session is invalid or has expired." }),
+              {
+                status: 401,
+                headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+              },
             );
           }
           const passFromQuery = url.searchParams.get("t");
 
-          // Get the original demo URL from catalog
-          const originalDemo = await getOriginalDemo(slug);
+          const originalDemo = await getOriginalDemo(slug, sessionId, pass.demoId, pass.categoryId);
           if (!originalDemo) {
             console.log(`[demo-proxy] >>> Demo not found for slug: ${slug}`);
             return new Response(JSON.stringify({ error: "Demo not found", slug }), {
@@ -221,12 +217,12 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
             });
           }
 
-          // Extract the asset path (everything after /api/proxy/demo/{slug})
-          const assetPath = extractAssetPath(pathname, slug);
+          // Extract the asset path after the product and session scope.
+          const assetPath = extractAssetPath(pathname, slug, sessionId);
           const entryPath = initialDemoPath(slug, assetPath, url.searchParams.has("t"));
           if (entryPath) {
             return Response.redirect(
-              new URL(`/api/proxy/demo/${slug}${entryPath}${url.search}`, url),
+              new URL(`/api/proxy/demo/${slug}/${sessionId}${entryPath}${url.search}`, url),
               307,
             );
           }
@@ -237,16 +233,21 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
           );
 
           // Fetch from original domain
-          const proxiedResponse = await fetchFromOriginalDomain(originalDemoUrl, assetPath);
+          const proxiedResponse = await fetchFromOriginalDomain(
+            originalDemoUrl,
+            assetPath,
+            url.searchParams,
+            sessionId,
+          );
           if (!proxiedResponse) {
             console.log(`[demo-proxy] >>> Fetch failed, returning 502`);
-            return new Response(JSON.stringify({ error: "Failed to fetch from original domain" }), {
-              status: 502,
-              headers: { "Content-Type": "application/json" },
-            });
+            return unavailableResponse();
           }
 
           console.log(`[demo-proxy] >>> Got response: status=${proxiedResponse.status}`);
+          if (proxiedResponse.status === 404 || proxiedResponse.status >= 500) {
+            return unavailableResponse();
+          }
 
           // If it's an HTML response, rewrite asset URLs
           const contentType = proxiedResponse.headers.get("content-type") || "";
@@ -255,44 +256,18 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
             let html = await proxiedResponse.text();
             console.log(`[demo-proxy] >>> HTML length: ${html.length}`);
 
-            // Rewrite asset URLs to go through our proxy
-            // Entry modules and lazy imports must share one URL/React instance.
-            // Rewritten responses already use private, no-store.
-            html = rewriteHtmlAssetUrls(html, slug);
-            html = rewriteDemoHydrationAssets(html, `/api/proxy/demo/${slug}`);
-
-            // The three replacements that used to sit here caught the phrase
-            // "powered by lovable" and nothing else. applyPresentation now runs
-            // stripPlatformBranding on every page, which takes the badge itself,
-            // the analytics script, the back-link and the default social preview.
-            html = html.replace(/powered by lovable/gi, "");
-            html = html.replace(/Built on Lovable/gi, "");
-
-            // The Software Vala presentation: favicon, logo, and the developer's
-            // contact details and credits removed (src/lib/demo/presentation.ts).
-            {
-              /**
-               * Applied to every demo, not only one the pipeline has processed.
-               * This used to run only when the demo carried rules, so a demo
-               * added straight through the URL Manager was served exactly as its
-               * developer built it - their logo, their contact details, and the
-               * platform's badge pointing back at the project. Without rules of
-               * its own a demo still gets the favicon, the logo swap and the
-               * platform furniture stripped, which is the floor.
-               */
-              const rules = originalDemo.rules ?? { remove: [], rebrand: [], logos: [], links: [] };
-              html = applyPresentation(
-                html,
-                {
-                  ...rules,
-                  // Root-relative logos were just moved under the proxy path.
-                  logos: rules.logos.flatMap((l) =>
-                    l.startsWith("/") ? [l, `/api/proxy/demo/${slug}${l}`] : [l],
-                  ),
-                },
-                DEMO_BRAND,
-              );
-            }
+            const proxyPrefix = `/api/proxy/demo/${slug}/${sessionId}`;
+            html = rewriteHtmlAssetUrls(html, proxyPrefix);
+            const rules = originalDemo.rules ?? {
+              remove: [],
+              rebrand: [],
+              logos: [],
+              links: [],
+            };
+            const logoPaths = rules.logos.flatMap((logo) =>
+              logo.startsWith("/") ? [logo, `${proxyPrefix}${logo}`] : [logo],
+            );
+            html = applySurfaceBranding(html, { ...rules, logos: logoPaths }, DEMO_BRAND);
 
             // Update title
             const demoName = originalDemo.name || "Demo";
@@ -313,15 +288,13 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
               "Content-Security-Policy": "frame-ancestors https://softwarevala.net",
             });
 
-            // The demo asks for its own scripts and images, and a browser will
-            // not put the pass on those requests. Hand it back as a cookie
-            // scoped to this demo so they carry it and the rest of the demo
-            // loads; it is unreadable to scripts and expires with the pass.
+            // The path includes this session ID, so concurrent tabs cannot
+            // overwrite one another's proxy pass cookie.
             if (passFromQuery) {
               const remaining = Math.max(0, Math.floor((pass.expiresAt - Date.now()) / 1000));
               htmlHeaders.append(
                 "Set-Cookie",
-                `${DEMO_COOKIE}=${encodeURIComponent(passFromQuery)}; Path=${demoCookiePath(slug)}; ` +
+                `${DEMO_COOKIE}=${encodeURIComponent(passFromQuery)}; Path=${demoCookiePath(slug, sessionId)}; ` +
                   `Max-Age=${remaining}; HttpOnly; SameSite=Lax; Secure`,
               );
             }
@@ -329,22 +302,15 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
             return new Response(html, { status: 200, headers: htmlHeaders });
           }
 
-          // For non-HTML responses (JS, CSS, images, etc.), just proxy through
+          // Do not inspect or rewrite author JavaScript/data responses.
           console.log(`[demo-proxy] >>> Processing non-HTML response (${contentType})`);
           let responseBuffer = await proxiedResponse.arrayBuffer();
 
-          // A single-page app carries its words, and the developer's contact
-          // details, in its scripts and data files: clean those as well.
-          if (originalDemo.rules && /javascript|json|css|text\//i.test(contentType)) {
-            const text = new TextDecoder().decode(responseBuffer);
-            const prefix = `/api/proxy/demo/${slug}`;
-            const cleaned = /javascript/i.test(contentType)
-              ? cleanBundle(text, originalDemo.rules, DEMO_BRAND.name, prefix)
-              : cleanText(text, originalDemo.rules, DEMO_BRAND.name);
-            const presented = /css/i.test(contentType)
-              ? rewriteDemoAssetPaths(cleaned, prefix)
-              : cleaned;
-            responseBuffer = new TextEncoder().encode(presented).buffer as ArrayBuffer;
+          if (/css/i.test(contentType)) {
+            const css = new TextDecoder().decode(responseBuffer);
+            responseBuffer = new TextEncoder().encode(
+              rewriteDemoAssetPaths(css, `/api/proxy/demo/${slug}/${sessionId}`),
+            ).buffer as ArrayBuffer;
           }
           console.log(`[demo-proxy] >>> Buffer size: ${responseBuffer.byteLength}`);
 
@@ -368,7 +334,7 @@ export const Route = createFileRoute("/api/proxy/demo/$")({
             }
           });
 
-          if (originalDemo.rules && /javascript|json|css|text\//i.test(contentType)) {
+          if (/css/i.test(contentType)) {
             responseHeaders.set("Cache-Control", "private, no-store");
             responseHeaders.delete("etag");
             responseHeaders.delete("last-modified");

@@ -1,238 +1,196 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, ArrowLeft, Loader, RefreshCw } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { pageHead } from "@/lib/seo-head";
-import { useEffect, useState, useMemo, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { resolveDemoUrl, BRANDING_CONFIG } from "@/lib/demo-gateway";
-import { getPublicProduct, recordPublicDemoClick } from "@/lib/marketplace.functions";
-import { useServerFn } from "@/lib/serverFn";
-import { AlertCircle, Loader, ArrowLeft, LogIn } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { SOFTWARE_VALA_CONTACT } from "@/lib/demo/brand";
+import { DEMO_BRAND, SOFTWARE_VALA_CONTACT } from "@/lib/demo/brand";
+
+const BRANDING_CONFIG = {
+  title: "Software Vala™ — The Name of Trust",
+  favicon: DEMO_BRAND.favicon,
+};
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const Route = createFileRoute("/demo/$slug")({
   head: pageHead("Live Demo", "A working demo of the product, running on real software."),
   component: () => (
     <>
       <DemoBrandedGatewayPage />
-      {/* Without this, every message this page tries to show is invisible. */}
       <Toaster />
     </>
   ),
 });
 
 function DemoBrandedGatewayPage() {
-  // Extract slug from URL - TanStack Router params seem to have issues
-  const [slug, setSlug] = useState<string>("");
-
-  useEffect(() => {
-    const pathname = window.location.pathname;
-    const match = pathname.match(/^\/demo\/([^/]+)/);
-    const extractedSlug = match?.[1] || "";
-    console.log(
-      "[demo-gateway] Extracted slug from URL:",
-      extractedSlug,
-      "from pathname:",
-      pathname,
-    );
-    setSlug(extractedSlug);
-  }, []);
-
-  const getProductFn = useServerFn(getPublicProduct);
-  const recordClickFn = useServerFn(recordPublicDemoClick);
-  const clickRecorded = useRef(false);
+  const [slug, setSlug] = useState("");
   const [demoUrl, setDemoUrl] = useState<string | null>(null);
-  const [demoName, setDemoName] = useState<string>("");
+  const [demoName, setDemoName] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [ticket, setTicket] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isSafeUrl, setIsSafeUrl] = useState(false);
-  const [isEmbeddable, setIsEmbeddable] = useState(true);
-  const [pass, setPass] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [frameLoading, setFrameLoading] = useState(true);
+  const [retry, setRetry] = useState(0);
   const demoFrame = useRef<HTMLIFrameElement>(null);
 
-  const [gate, setGate] = useState<"checking" | "open" | "sign_in" | "verify" | "unavailable">(
-    "checking",
-  );
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/demo\/([^/]+)/);
+    setSlug(match?.[1] ?? "");
+  }, []);
 
-  /** Obtain a short-lived, product-scoped pass before loading the demo. */
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
+    setChecking(true);
+    setError(null);
+    setDemoUrl(null);
+    setFrameLoading(true);
 
     void (async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (token) {
-          headers.Authorization = `Bearer ${token}`;
+        let visitorSessionId =
+          retry === 0
+            ? new URLSearchParams(window.location.search).get("visitor_session_id")
+            : null;
+        if (!visitorSessionId || !UUID.test(visitorSessionId)) {
+          const created = await fetch("/api/demo/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slug }),
+          });
+          const sessionResult = (await created.json().catch(() => ({}))) as {
+            sessionId?: string;
+            error?: string;
+          };
+          if (!created.ok || !sessionResult.sessionId || !UUID.test(sessionResult.sessionId)) {
+            throw new Error(sessionResult.error || "Could not start this demo.");
+          }
+          visitorSessionId = sessionResult.sessionId;
         }
+
         const response = await fetch("/api/demo/ticket", {
           method: "POST",
-          headers,
-          body: JSON.stringify({ slug }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug, visitor_session_id: visitorSessionId }),
         });
         const payload = (await response.json().catch(() => ({}))) as {
           ticket?: string;
+          sessionId?: string;
+          demoName?: string;
           error?: string;
-          reason?: string;
         };
-        if (cancelled) return;
+        if (!response.ok || !payload.ticket || !payload.sessionId) {
+          if (response.status === 404 && retry === 0) {
+            const created = await fetch("/api/demo/session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ slug }),
+            });
+            const sessionResult = (await created.json().catch(() => ({}))) as {
+              sessionId?: string;
+              error?: string;
+            };
+            if (!created.ok || !sessionResult.sessionId) {
+              throw new Error(sessionResult.error || payload.error || "This demo is unavailable.");
+            }
+            const fresh = await fetch("/api/demo/ticket", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ slug, visitor_session_id: sessionResult.sessionId }),
+            });
+            const freshPayload = (await fresh.json().catch(() => ({}))) as typeof payload;
+            if (!fresh.ok || !freshPayload.ticket || !freshPayload.sessionId) {
+              throw new Error(freshPayload.error || "This demo is unavailable.");
+            }
+            payload.ticket = freshPayload.ticket;
+            payload.sessionId = freshPayload.sessionId;
+            payload.demoName = freshPayload.demoName;
+          } else {
+            throw new Error(payload.error || "This demo is unavailable.");
+          }
+        }
 
-        if (response.ok && payload.ticket) {
-          setPass(payload.ticket);
-          setGate("open");
-          return;
-        }
-        if (payload.reason === "sign_in_required") setGate("sign_in");
-        else if (payload.reason === "verification_required") setGate("verify");
-        else setGate("unavailable");
-        setError(payload.error ?? "This demo could not be opened.");
-      } catch {
+        if (cancelled) return;
+        setSessionId(payload.sessionId);
+        setTicket(payload.ticket);
+        setDemoName(payload.demoName || "Live Demo");
+        const path =
+          `/api/proxy/demo/${encodeURIComponent(slug)}/${encodeURIComponent(payload.sessionId)}` +
+          `?t=${encodeURIComponent(payload.ticket)}`;
+        setDemoUrl(path);
+      } catch (cause) {
         if (!cancelled) {
-          setGate("unavailable");
-          setError("Could not reach the server.");
+          setError(cause instanceof Error ? cause.message : "This demo is currently unavailable.");
         }
+      } finally {
+        if (!cancelled) setChecking(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [slug]);
-
-  // Fetch product and demo information from Marketplace API
-  const { data: productData, isLoading } = useQuery({
-    queryKey: ["marketplace-product-demo", slug],
-    queryFn: async () => {
-      try {
-        if (!slug) {
-          console.warn("[demo-gateway] Slug is undefined");
-          return null;
-        }
-        const result = await getProductFn({ data: { slug } });
-        return result;
-      } catch (error) {
-        console.error(`[demo-gateway-${slug}] Error loading product:`, error);
-        return null;
-      }
-    },
-    enabled: !!slug, // Only run query when slug is available
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
-
-  // Only an active database relation can make a demo launchable.
-  const activeDemo = useMemo(() => {
-    return productData?.active_demos?.find((demo) => demo.status === "active") ?? null;
-  }, [productData?.active_demos]);
+  }, [retry, slug]);
 
   useEffect(() => {
-    if (clickRecorded.current || !productData?.product?.id || !activeDemo?.id) return;
-    clickRecorded.current = true;
-    void recordClickFn({
-      data: {
-        productId: productData.product.id,
-        demoUrlId: activeDemo.id,
-        sourcePage: window.location.pathname,
-        referrer: document.referrer || undefined,
-        deviceType: /Mobi|Android/i.test(navigator.userAgent) ? "mobile" : "desktop",
-        browser: navigator.userAgent.slice(0, 120),
-      },
-    }).catch(() => {
-      clickRecorded.current = false;
-    });
-  }, [activeDemo, productData?.product?.id, recordClickFn]);
-
-  // Validate and resolve demo URL
-  useEffect(() => {
-    const resolve = async () => {
-      console.log("[demo-gateway] Resolving demo for slug:", slug);
-      if (!pass) return;
-      if (!activeDemo) {
-        setError(`No active demo found for product: ${slug}`);
-        return;
-      }
-
-      const demoName = activeDemo.demo_name || productData?.product?.name || "Demo";
-      setDemoName(demoName);
-      console.log("[demo-gateway] Demo name:", demoName);
-
-      // Use the API proxy endpoint with query parameters
-      const proxyUrl = `/api/proxy/demo/${slug}?t=${encodeURIComponent(pass)}`;
-      console.log("[demo-gateway] Proxy URL:", proxyUrl);
-      console.log("[demo-gateway] Resolving proxy URL:", proxyUrl);
-
-      const resolution = await resolveDemoUrl(slug, proxyUrl);
-      console.log("[demo-gateway] Resolution result:", resolution);
-
-      if (resolution.safe) {
-        setDemoUrl(resolution.url);
-        setIsSafeUrl(true);
-        setIsEmbeddable(resolution.embeddable ?? true);
-        setError(null);
-        console.log("[demo-gateway] Demo URL set successfully:", resolution.url);
-      } else {
-        setError(resolution.error || "Demo URL validation failed");
-        setDemoUrl(null);
-        setIsSafeUrl(false);
-        setIsEmbeddable(false);
-        console.log("[demo-gateway] Demo URL validation failed:", resolution.error);
+    if (!sessionId || !ticket) return;
+    const endSession = (event: PageTransitionEvent) => {
+      if (event.persisted) return;
+      const body = JSON.stringify({ action: "end", sessionId, ticket });
+      const queued = navigator.sendBeacon(
+        "/api/demo/session",
+        new Blob([body], { type: "application/json" }),
+      );
+      if (!queued) {
+        void fetch("/api/demo/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          keepalive: true,
+        });
       }
     };
+    window.addEventListener("pagehide", endSession, { once: true });
+    return () => window.removeEventListener("pagehide", endSession);
+  }, [sessionId, ticket]);
 
-    resolve();
-  }, [activeDemo, slug, pass, productData?.product?.name]);
-
-  // Set page title and favicon
   useEffect(() => {
     document.title = BRANDING_CONFIG.title;
-
-    // Set favicon
-    const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
-    if (favicon) {
-      favicon.href = BRANDING_CONFIG.favicon;
-    }
+    const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (favicon) favicon.href = BRANDING_CONFIG.favicon;
   }, []);
 
-  if (gate === "sign_in" || gate === "verify") {
-    const verifying = gate === "verify";
-    return (
-      <div className="flex h-screen flex-col bg-linear-to-b from-slate-950 to-slate-900">
-        <div className="border-b border-slate-700 bg-slate-900 px-6 py-4">
-          <a
-            href="/"
-            className="flex w-fit items-center gap-2 text-sm text-slate-400 transition-colors hover:text-slate-200"
+  const unavailable = (message: string) => (
+    <div className="flex h-screen flex-col bg-linear-to-b from-slate-950 to-slate-900">
+      <div className="border-b border-slate-700 bg-slate-900 px-6 py-4">
+        <a
+          href="/"
+          className="flex w-fit items-center gap-2 text-sm text-slate-400 transition-colors hover:text-slate-200"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Marketplace
+        </a>
+      </div>
+      <div className="flex flex-1 items-center justify-center px-6">
+        <div className="max-w-md space-y-5 text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-amber-400" />
+          <h1 className="text-2xl font-bold text-white">Demo currently unavailable</h1>
+          <p className="text-slate-400">{message}</p>
+          <button
+            type="button"
+            onClick={() => setRetry((value) => value + 1)}
+            className="inline-flex items-center gap-2 rounded-md bg-cyan-500 px-5 py-2.5 text-sm font-medium text-slate-950 hover:bg-cyan-400"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Marketplace
-          </a>
-        </div>
-        <div className="flex flex-1 items-center justify-center px-6">
-          <div className="max-w-md space-y-5 text-center">
-            <LogIn className="mx-auto h-10 w-10 text-blue-400" />
-            <h1 className="text-xl font-semibold text-slate-100">
-              {verifying ? "Confirm your email to open this demo" : "Sign in to open this demo"}
-            </h1>
-            <p className="text-sm text-slate-400">
-              {verifying
-                ? "We have sent a confirmation link to your address. Open it, then come back to this page."
-                : "Live demos open for signed-in visitors. It takes a moment with Google or your email address, and you come straight back here."}
-            </p>
-            {!verifying && (
-              <a
-                href={`/login?redirect=${encodeURIComponent(`/demo/${slug}`)}`}
-                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-500"
-              >
-                <LogIn className="h-4 w-4" />
-                Sign in and open the demo
-              </a>
-            )}
-          </div>
+            <RefreshCw className="h-4 w-4" />
+            Try again
+          </button>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (isLoading || gate === "checking") {
+  if (checking) {
     return (
       <div className="flex h-screen items-center justify-center bg-linear-to-b from-slate-950 to-slate-900">
         <div className="space-y-4 text-center">
@@ -243,121 +201,13 @@ function DemoBrandedGatewayPage() {
     );
   }
 
-  if (error || !isSafeUrl || !demoUrl) {
-    return (
-      <div className="flex h-screen flex-col bg-linear-to-b from-slate-950 to-slate-900">
-        {/* Header */}
-        <div className="border-b border-slate-700 bg-slate-900 px-6 py-4">
-          <a
-            href="/"
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors w-fit"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Marketplace
-          </a>
-        </div>
-
-        {/* Error Content */}
-        <div className="flex flex-1 items-center justify-center px-6">
-          <div className="space-y-6 max-w-md text-center">
-            <div className="flex justify-center">
-              <AlertCircle className="h-12 w-12 text-red-500" />
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-white">Demo Unavailable</h1>
-              <p className="text-slate-400">
-                {error || "This demo could not be loaded. Please try again later."}
-              </p>
-            </div>
-            <div className="space-y-2 text-xs text-slate-500">
-              <p>
-                Product: <code className="bg-slate-800 px-2 py-1 rounded">{slug}</code>
-              </p>
-              {demoUrl && (
-                <p>
-                  Intended URL:{" "}
-                  <code className="bg-slate-800 px-2 py-1 rounded block break-all">{demoUrl}</code>
-                </p>
-              )}
-            </div>
-            <a
-              href="/"
-              className="inline-block mt-6 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
-            >
-              Return to Marketplace
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Success - render branded demo gateway
-  if (!isEmbeddable && demoUrl) {
-    return (
-      <div className="flex h-screen flex-col bg-slate-950">
-        <div className="flex h-16 items-center gap-3 border-b border-slate-700 bg-linear-to-r from-slate-900 to-slate-800 px-6 shadow-lg">
-          <img src={BRANDING_CONFIG.favicon} alt="Software Vala™" className="h-7 w-7" />
-          <div className="flex items-center gap-2 flex-1">
-            <span className="text-sm font-semibold text-white">Software Vala™</span>
-            <span className="text-xs text-slate-500">Demo</span>
-            <span className="text-xs text-slate-400">—</span>
-            <span className="text-xs text-slate-400">{demoName}</span>
-          </div>
-          <a
-            href="/"
-            className="ml-auto inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
-            title="Back to Marketplace"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back</span>
-          </a>
-        </div>
-
-        <div className="flex flex-1 items-center justify-center bg-slate-950 px-6">
-          <div className="max-w-xl rounded-2xl border border-cyan-500/20 bg-slate-900/80 p-8 text-center shadow-2xl">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300">
-              <img src={BRANDING_CONFIG.favicon} alt="Software Vala™" className="h-10 w-10" />
-            </div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">
-              External Demo
-            </p>
-            <h1 className="text-3xl font-bold text-white">{demoName}</h1>
-            <p className="mt-4 text-sm text-slate-300">
-              This demo is hosted by an external provider that does not allow in-page embedding.
-              Open it in a new tab to continue with the full experience while keeping the Software
-              Vala branded flow.
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-              <a
-                href={demoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-lg bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-              >
-                Open Demo in New Tab
-              </a>
-              <a
-                href="/marketplace"
-                className="inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-700"
-              >
-                Back to Marketplace
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <DemoContactFooter />
-      </div>
-    );
-  }
+  if (error || !demoUrl) return unavailable(error || "This demo could not be loaded.");
 
   return (
     <div className="flex h-screen flex-col bg-slate-950">
-      {/* Software Vala Branded Header */}
       <div className="flex h-16 items-center gap-3 border-b border-slate-700 bg-linear-to-r from-slate-900 to-slate-800 px-6 shadow-lg">
         <img src={BRANDING_CONFIG.favicon} alt="Software Vala™" className="h-7 w-7" />
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex flex-1 items-center gap-2">
           <span className="text-sm font-semibold text-white">Software Vala™</span>
           <span className="text-xs text-slate-500">Demo</span>
           <span className="text-xs text-slate-400">—</span>
@@ -365,28 +215,42 @@ function DemoBrandedGatewayPage() {
         </div>
         <a
           href="/"
-          className="ml-auto inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors"
+          className="ml-auto inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs text-slate-400 hover:bg-slate-700 hover:text-slate-200"
           title="Back to Marketplace"
         >
           <ArrowLeft className="h-4 w-4" />
           <span className="hidden sm:inline">Back</span>
         </a>
       </div>
-
-      {/* Demo Container - Iframe with Software Vala Context */}
-      <div className="flex-1 overflow-hidden">
+      <div className="relative flex-1 overflow-hidden">
+        {frameLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950">
+            <Loader className="h-8 w-8 animate-spin text-cyan-400" />
+          </div>
+        )}
         <iframe
           ref={demoFrame}
-          key={demoUrl}
           src={demoUrl}
           title={`Software Vala™ — ${demoName}`}
           className="h-full w-full border-0"
-          allow="geolocation;camera;microphone;payment;clipboard-read;clipboard-write"
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-presentation"
+          onLoad={() => {
+            setFrameLoading(false);
+            try {
+              if (demoFrame.current?.contentDocument?.documentElement.dataset.demoUnavailable) {
+                setError("The demo provider is not responding. Please try again later.");
+                setDemoUrl(null);
+              }
+            } catch (cause) {
+              console.warn("[demo gateway] Could not inspect proxy response status.", cause);
+            }
+          }}
+          onError={() => {
+            setFrameLoading(false);
+            setError("The demo could not be loaded. Please try again later.");
+            setDemoUrl(null);
+          }}
         />
       </div>
-
-      {/* Footer - Subtle branding */}
       <DemoContactFooter />
     </div>
   );

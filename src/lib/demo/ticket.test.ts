@@ -3,10 +3,15 @@ import {
   DEMO_COOKIE,
   demoCookiePath,
   issueDemoTicket,
-  PUBLIC_DEMO_VISITOR,
   readDemoTicket,
   ticketFromRequest,
 } from "./ticket";
+
+const SESSION_A = "54c1c6a9-2423-48b3-a26f-9879a8d75c83";
+const SESSION_B = "8086cf05-5924-4d64-af0a-b75a06d251aa";
+const DEMO_A = "6a193884-f46f-4f3d-af68-c005b43a2c89";
+const DEMO_B = "4ea1f878-ea2c-4c33-9dad-0ae10fd27ce2";
+const CATEGORY = "6b12d20f-f009-4f7b-aa18-29fdb9fd2fad";
 
 describe("demo asset tickets", () => {
   beforeEach(() => {
@@ -18,69 +23,68 @@ describe("demo asset tickets", () => {
     vi.useRealTimers();
   });
 
-  function token(slug: string): string {
-    const value = issueDemoTicket(slug, "verified-visitor");
+  function token(slug: string, sessionId = SESSION_A, demoId = DEMO_A): string {
+    const value = issueDemoTicket(slug, sessionId, demoId, CATEGORY);
     if (!value) throw new Error("Test ticket issuance failed");
     return value;
   }
 
-  function request(slug: string, values: string[], query = ""): Request {
-    return new Request(`https://softwarevala.net/api/proxy/demo/${slug}/assets/app.js${query}`, {
-      headers: { cookie: values.map((value) => `${DEMO_COOKIE}=${value}`).join("; ") },
-    });
+  function request(slug: string, sessionId: string, values: string[], query = ""): Request {
+    return new Request(
+      `https://softwarevala.net/api/proxy/demo/${slug}/${sessionId}/assets/app.js${query}`,
+      { headers: { cookie: values.map((value) => `${DEMO_COOKIE}=${value}`).join("; ") } },
+    );
   }
 
-  it("scopes each cookie to its product rather than the shared proxy root", () => {
-    expect(demoCookiePath("art-drawing-classes")).toBe("/api/proxy/demo/art-drawing-classes");
-    expect(demoCookiePath("food-truck-pos")).toBe("/api/proxy/demo/food-truck-pos");
-    expect(demoCookiePath("a;b")).toBe("/api/proxy/demo/a%3Bb");
-  });
-
-  it("keeps simultaneous product asset requests independent of cookie ordering", () => {
-    const art = token("art");
-    const food = token("food");
-    for (const cookies of [
-      [art, food],
-      [food, art],
-    ]) {
-      expect(ticketFromRequest(request("art", cookies), "art")?.slug).toBe("art");
-      expect(ticketFromRequest(request("food", cookies), "food")?.slug).toBe("food");
-    }
-  });
-
-  it("accepts a still-valid legacy cookie for the same product", () => {
-    expect(ticketFromRequest(request("art", [token("art")]), "art")?.slug).toBe("art");
-  });
-
-  it("issues a product-scoped ticket for public demo visitors", () => {
-    const guest = issueDemoTicket("art", PUBLIC_DEMO_VISITOR);
-    expect(readDemoTicket(guest)).toMatchObject({ slug: "art", userId: PUBLIC_DEMO_VISITOR });
-    expect(ticketFromRequest(request("art", [], `?t=${guest}`), "art")?.userId).toBe(
-      PUBLIC_DEMO_VISITOR,
+  it("scopes each cookie to one product and visitor session", () => {
+    expect(demoCookiePath("art-drawing-classes", SESSION_A)).toBe(
+      `/api/proxy/demo/art-drawing-classes/${SESSION_A}`,
     );
+    expect(demoCookiePath("food-truck-pos", SESSION_B)).toBe(
+      `/api/proxy/demo/food-truck-pos/${SESSION_B}`,
+    );
+    expect(demoCookiePath("a;b", SESSION_A)).toBe(`/api/proxy/demo/a%3Bb/${SESSION_A}`);
   });
 
-  it("does not authorize another product's assets", () => {
-    expect(ticketFromRequest(request("art", [token("food")]), "art")).toBeNull();
-  });
-
-  it("ignores malformed and invalid cookies without hiding a valid matching pass", () => {
+  it("keeps simultaneous sessions for the same product independent", () => {
+    const first = token("art", SESSION_A, DEMO_A);
+    const second = token("art", SESSION_B, DEMO_B);
     expect(
-      ticketFromRequest(request("art", ["%broken", "invalid", token("art")]), "art")?.slug,
-    ).toBe("art");
+      ticketFromRequest(request("art", SESSION_A, [second, first]), "art", SESSION_A),
+    ).toMatchObject({
+      sessionId: SESSION_A,
+      demoId: DEMO_A,
+    });
+    expect(
+      ticketFromRequest(request("art", SESSION_B, [first, second]), "art", SESSION_B),
+    ).toMatchObject({
+      sessionId: SESSION_B,
+      demoId: DEMO_B,
+    });
   });
 
-  it("accepts a matching query ticket and rejects a different product's query ticket", () => {
+  it("rejects a ticket from a different visitor session", () => {
+    expect(
+      ticketFromRequest(request("art", SESSION_B, [token("art", SESSION_A)]), "art", SESSION_B),
+    ).toBeNull();
+  });
+
+  it("accepts a matching query ticket and rejects another product's ticket", () => {
     const art = token("art");
-    expect(ticketFromRequest(request("art", [], `?t=${art}`), "art")?.slug).toBe("art");
-    expect(ticketFromRequest(request("art", [art], `?t=${token("food")}`), "art")).toBeNull();
+    expect(ticketFromRequest(request("art", SESSION_A, [], `?t=${art}`), "art")?.sessionId).toBe(
+      SESSION_A,
+    );
+    expect(
+      ticketFromRequest(request("art", SESSION_A, [art], `?t=${token("food")}`), "art"),
+    ).toBeNull();
   });
 
-  it("rejects expired and tampered tickets", () => {
+  it("rejects expired, malformed and tampered tickets", () => {
     vi.useFakeTimers();
-    const art = token("art");
-    expect(ticketFromRequest(request("art", [`${art}x`]), "art")).toBeNull();
+    const ticket = token("art");
+    expect(readDemoTicket(`${ticket}x`)).toBeNull();
+    expect(readDemoTicket("malformed")).toBeNull();
     vi.advanceTimersByTime(31 * 60 * 1000);
-    expect(ticketFromRequest(request("art", [art]), "art")).toBeNull();
+    expect(readDemoTicket(ticket)).toBeNull();
   });
 });

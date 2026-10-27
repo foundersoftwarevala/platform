@@ -1,3 +1,5 @@
+import { demoCategoryMatches } from "@/lib/demo/category";
+
 /**
  * The marketplace product card: which columns of `marketplace_products` a card
  * reads, and how a row becomes a card.
@@ -17,7 +19,7 @@ export const CARD_FIELDS =
   // deployment / subcategory 67%.
   "description,features,tech_stack,license,deployment,subcategory," +
   // Whether a demo exists. The address itself is never sent to a browser.
-  "product_demo_urls(url,status)";
+  "category_id,product_demo_urls(url,status,detected_category_id)";
 
 export type CatalogCard = {
   id: string;
@@ -91,8 +93,21 @@ export function toCard(row: Row): CatalogCard {
     subcategory: text(row.subcategory),
     // A demo counts only if it is switched on and actually has an address.
     hasDemo: Array.isArray(row.product_demo_urls)
-      ? (row.product_demo_urls as { url?: unknown; status?: unknown }[]).some(
-          (d) => typeof d?.url === "string" && d.url.trim() !== "" && d?.status === "active",
+      ? (
+          row.product_demo_urls as {
+            url?: unknown;
+            status?: unknown;
+            detected_category_id?: unknown;
+          }[]
+        ).some(
+          (d) =>
+            typeof d?.url === "string" &&
+            d.url.trim() !== "" &&
+            d?.status === "active" &&
+            demoCategoryMatches(
+              typeof row.category_id === "string" ? row.category_id : null,
+              typeof d.detected_category_id === "string" ? d.detected_category_id : null,
+            ),
         )
       : false,
   };

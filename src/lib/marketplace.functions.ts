@@ -14,6 +14,7 @@ import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
 import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
 import { catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
+import { demoCategoryMatches } from "@/lib/demo/category";
 import {
   callMarketplaceManagerRpc,
   withMarketplaceManagerDatabase,
@@ -51,6 +52,7 @@ export type ProductDemoBinding = {
   status: string;
   environment: string;
   url: string;
+  detected_category_id?: string | null;
 };
 
 export type MarketProduct = {
@@ -214,7 +216,7 @@ function privilegedClient() {
 }
 
 const PRODUCT_COLS =
-  "id, slug, name, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, description, thumbnail_url, public_repo_url, tags, tech_stack, features, content_status";
+  "id, slug, name, category_id, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, description, thumbnail_url, public_repo_url, tags, tech_stack, features, content_status";
 
 /** Returns only product slugs with an active Demo Manager URL. */
 export const getPublicDemoAvailability = createServerFn({ method: "GET" }).handler(
@@ -468,7 +470,7 @@ function withoutAddress(demos: ProductDemoBinding[]): ProductDemoBinding[] {
 async function loadPublicDemosForProduct(sb: any, productId: string) {
   const demoResult = await sb
     .from("product_demo_urls")
-    .select("id, demo_name, role_name, status, environment, url")
+    .select("id, demo_name, role_name, status, environment, url, detected_category_id")
     .eq("product_id", productId)
     .eq("status", "active")
     .order("sort_order")
@@ -540,9 +542,15 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       if (!productRow) {
         const fallbackProduct = await findFallbackProduct(data.slug);
         if (fallbackProduct) {
+          const listedProduct = {
+            ...fallbackProduct,
+            demo_count: 0,
+            demo_urls: [],
+            demo_url: null,
+          };
           return {
-            product: fallbackProduct,
-            active_demos: fallbackProduct.demo_urls ?? [],
+            product: listedProduct,
+            active_demos: [],
             seo: null,
           };
         }
@@ -551,7 +559,15 @@ export const getPublicProduct = createServerFn({ method: "GET" })
 
       const activeDemos = withoutAddress(
         (await loadPublicDemosForProduct(sb, productRow.id)).filter((demo) => {
-          if (!demo.url) return false;
+          if (
+            !demo.url ||
+            !demoCategoryMatches(
+              typeof productRow.category_id === "string" ? productRow.category_id : null,
+              demo.detected_category_id,
+            )
+          ) {
+            return false;
+          }
           return /^https?:\/\//i.test(demo.url);
         }),
       );
@@ -572,9 +588,15 @@ export const getPublicProduct = createServerFn({ method: "GET" })
       console.error("getPublicProduct error:", err);
       const fallbackProduct = await findFallbackProduct(data.slug);
       if (fallbackProduct) {
+        const listedProduct = {
+          ...fallbackProduct,
+          demo_count: 0,
+          demo_urls: [],
+          demo_url: null,
+        };
         return {
-          product: fallbackProduct,
-          active_demos: fallbackProduct.demo_urls ?? [],
+          product: listedProduct,
+          active_demos: [],
           seo: null,
         };
       }
@@ -628,53 +650,7 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
         return { category: categoryData as Category, products: [] };
       }
 
-      // Education & Coaching is the public live-demo catalog: it shows its own
-      // products plus any visible product that has a live demo, wherever that
-      // product happens to be filed.
-      //
-      // The way that was expressed asked for every visible product in the
-      // catalogue - 7,357 of them against this category's own 80 - and then,
-      // below, opened one demo lookup per row. The page stopped answering at
-      // all: 504 from the edge, and nothing over the loopback after two
-      // minutes.
-      //
-      // It did not fail alone. Seven thousand concurrent queries leave the
-      // application unable to answer what comes next, so a sweep of all
-      // ninety-one category pages found three 504s - this one, healthcare and
-      // legal - and the other two answer in 1.6s and 0.7s when asked on their
-      // own. That is also why a sample of twenty pages only ever found one.
-      //
-      // The set it was reaching for can be asked for directly: the products
-      // that actually have an active demo. That is one product today, so the
-      // page loads 81 rows instead of 7,357 and shows what a working version
-      // of the old code would have shown.
-      type CatalogRow = { id: string };
-      let catalogRows = productRows as unknown as CatalogRow[];
-
-      if (categoryData.slug === "education-coaching") {
-        const { data: demoRows } = await sb
-          .from("product_demo_urls")
-          .select("product_id")
-          .eq("status", "active");
-
-        const already = new Set(catalogRows.map((row) => row.id));
-        const extraIds = [
-          ...new Set(
-            ((demoRows ?? []) as { product_id: string }[])
-              .map((row) => row.product_id)
-              .filter((id) => id && !already.has(id)),
-          ),
-        ];
-
-        if (extraIds.length) {
-          const { data: liveRows, error: liveError } = await onSale(
-            sb.from("marketplace_products").select(PRODUCT_COLS).in("id", extraIds),
-          ).order("sort_order");
-          if (!liveError && Array.isArray(liveRows)) {
-            catalogRows = [...catalogRows, ...(liveRows as unknown as CatalogRow[])];
-          }
-        }
-      }
+      const catalogRows = productRows as unknown as { id: string; category_id?: string | null }[];
 
       // Every product's demos, in one query per batch instead of one per product.
       //
@@ -691,7 +667,9 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
         const ids = catalogRows.slice(at, at + ID_BATCH).map((row) => row.id);
         const { data: demoRows, error: demoError } = await sb
           .from("product_demo_urls")
-          .select("id, demo_name, role_name, status, environment, url, product_id")
+          .select(
+            "id, demo_name, role_name, status, environment, url, product_id, detected_category_id",
+          )
           .in("product_id", ids)
           .eq("status", "active")
           .order("sort_order");
@@ -707,7 +685,15 @@ export const getPublicProductsByCategory = createServerFn({ method: "GET" })
       const productsWithDemos = catalogRows.map((product) => {
         const activeDemos = withoutAddress(
           (demosByProduct.get(product.id) ?? []).filter((demo) => {
-            if (!demo.url) return false;
+            if (
+              !demo.url ||
+              !demoCategoryMatches(
+                typeof product.category_id === "string" ? product.category_id : null,
+                demo.detected_category_id,
+              )
+            ) {
+              return false;
+            }
             return /^https?:\/\//i.test(demo.url);
           }),
         );

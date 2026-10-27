@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyPresentation,
+  applySurfaceBranding,
   bundleStrings,
   cleanText,
   cleanBundle,
@@ -174,6 +175,24 @@ const RULES: PresentationRules = {
   logos: ["/img/acme-logo.png"],
   links: ["https://wa.me/919876543210", "https://acme-devs.example"],
 };
+
+describe("surface-only demo branding", () => {
+  it("replaces rendered favicon and verified logo attributes without rewriting app source or copy", () => {
+    const html =
+      '<html><head><link rel="icon" href="/author.ico"></head><body>' +
+      '<img src="/author-logo.png"><script>const logo="/author-logo.png";</script>' +
+      "<p>Author brand and contact@example.test</p></body></html>";
+    const result = applySurfaceBranding(
+      html,
+      { remove: [], rebrand: [], logos: ["/author-logo.png"], links: [] },
+      BRAND,
+    );
+    expect(result).toContain('href="/favicon.png"');
+    expect(result).toContain('src="/assets/sv-logo.jpg" data-sv-brand="logo"');
+    expect(result).toContain('const logo="/author-logo.png";');
+    expect(result).toContain("Author brand and contact@example.test");
+  });
+});
 
 describe("demo evidence", () => {
   it("finds favicons, logos, contacts and credits", () => {

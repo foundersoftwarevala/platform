@@ -2,14 +2,11 @@ import { aiComplete } from "@/lib/ai-gateway.server";
 import { catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
 import { parseStructured } from "@/lib/ai/content-provider";
 import {
-  applyPresentation,
-  cleanBundle,
+  applySurfaceBranding,
   evidenceCorpus,
   extractEvidence,
   hasStarterApp,
   hasBrandFavicon,
-  remainingViolations,
-  remainingBundleViolations,
   retainVerifiedScopes,
   type Evidence,
   type PresentationRules,
@@ -22,15 +19,14 @@ import { DEMO_BRAND } from "./brand";
  * The Demo Manager's processing of a submitted demo address.
  *
  *   investigate(product, url)
- *     fetch the page safely, collect the evidence, ask the AI Manager what the
- *     software is, which marketplace category it belongs to and which of the
- *     contact details and branding are the developer's; keep only answers that
- *     can be checked against the page; store the result on the product's
+ *     fetch the submitted HTML page safely, collect visible-page evidence,
+ *     ask the AI Manager which marketplace category and logo are present, and
+ *     store the result on the product's
  *     demo row (status inactive, processing_status 'review').
  *
  *   activate(row)
- *     fetch the page again, apply the presentation, and check that it is
- *     clean - Software Vala favicon present, none of the removed details left.
+ *     fetch the page again, apply favicon/logo presentation to its HTML, and
+ *     check that the branding is present.
  *     Only then does the row become status 'active', which is what the
  *     marketplace card's LIVE DEMO badge and the demo gateway read.
  *
@@ -110,27 +106,7 @@ async function fetchDemo(url: string) {
       `The demo address returned ${page.contentType || "no content type"}, not a web page.`,
     );
   }
-  const base = new URL(page.url);
-  const scripts = [...page.body.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)]
-    .map((m) => {
-      try {
-        return new URL(m[1], base);
-      } catch {
-        return null;
-      }
-    })
-    .filter((u): u is URL => Boolean(u) && u!.hostname === base.hostname)
-    .slice(0, 3);
-  const bundles: string[] = [];
-  for (const script of scripts) {
-    try {
-      const js = await safeFetch(script.toString(), { maxBytes: 6_000_000, timeoutMs: 20_000 });
-      if (js.status >= 200 && js.status < 300) bundles.push(js.body);
-    } catch (error) {
-      console.warn("[demo-process] bundle skipped", script.toString(), String(error));
-    }
-  }
-  return { page, bundles };
+  return page;
 }
 
 const SYSTEM_PROMPT = `You prepare third-party software demos for the Software Vala marketplace.
@@ -325,8 +301,8 @@ export async function investigateDemo(input: { productId: string; url: string; a
     // otherwise fail a check the demo itself would pass. The submitted form is
     // kept in the record either way.
     const target = String(row.url ?? input.url);
-    const { page, bundles } = await fetchDemo(target);
-    if (hasStarterApp(page.body, bundles)) {
+    const page = await fetchDemo(target);
+    if (hasStarterApp(page.body)) {
       throw new Error(
         "The original demo contains an unbuilt starter landing page. Supply the completed application's URL; no replacement data was created.",
       );
@@ -335,8 +311,8 @@ export async function investigateDemo(input: { productId: string; url: string; a
     // https is the same demo as one already stored under its destination, and
     // only a fetch can say so.
     const finalIdentity = canonicalFrom(page.url);
-    const evidence = extractEvidence(page.body, page.url, bundles);
-    const corpus = evidenceCorpus(page.body, bundles);
+    const evidence = extractEvidence(page.body, page.url);
+    const corpus = evidenceCorpus(page.body, []);
 
     const categories = await store.get<{ id: string; slug: string; name: string }[]>(
       "marketplace_categories?select=id,slug,name&is_hidden=eq.false&order=sort_order.asc",
@@ -362,7 +338,7 @@ export async function investigateDemo(input: { productId: string; url: string; a
             demo_address: page.url,
             marketplace_product: product.name,
             categories: categories.map((c) => `${c.slug}: ${c.name}`),
-            evidence: evidenceForPrompt(evidence, [page.body, ...bundles]),
+            evidence: evidenceForPrompt(evidence, [page.body]),
           }),
         },
       ],
@@ -441,7 +417,7 @@ export async function investigateDemo(input: { productId: string; url: string; a
         redirected_elsewhere: finalIdentity !== identity.canonical,
         http_status: page.status,
         redirects: page.redirects,
-        bundles: bundles.length,
+        bundles: 0,
       },
       ai: { service: ai.service, model: ai.model, module: "demo-manager" },
       identity: {
@@ -513,16 +489,7 @@ export async function investigateDemo(input: { productId: string; url: string; a
 }
 
 /** Verify the presented demo and, only if it is clean, make it the product's live demo. */
-export async function activateDemo(input: {
-  id: string;
-  actor: Actor;
-  /**
-   * An operator's explicit decision to publish a demo whose detected category
-   * is not the category of the product it hangs on. Nothing else can set it,
-   * and the reason is written into the audit trail.
-   */
-  confirmCategoryMismatch?: boolean;
-}) {
+export async function activateDemo(input: { id: string; actor: Actor }) {
   const store = db();
   const [row] = await store.get<Row[]>(
     `product_demo_urls?select=${DEMO_ROW_FIELDS}&id=eq.${encodeURIComponent(input.id)}&limit=1`,
@@ -543,10 +510,8 @@ export async function activateDemo(input: {
    * is not the product's category is how admissionschool-desk came to show an
    * AnnadanamKitchen demo.
    *
-   * Eight of the seventeen demos live today are in that state. They are left
-   * exactly as they are - deactivating a working demo is not this function's
-   * decision - but no further one can be published into it without an operator
-   * saying so explicitly, and that decision is recorded.
+   * A mismatch is never overridable. Public reads also enforce the same rule,
+   * so legacy records cannot leak across categories while they are reviewed.
    */
   if (!row.product_id) {
     throw new UnsafeUrlError(
@@ -570,13 +535,22 @@ export async function activateDemo(input: {
   }
   const detected = row.detected_category_id ? String(row.detected_category_id) : null;
   const productCategory = product.category_id ? String(product.category_id) : null;
-  const categoryMismatch = Boolean(detected && productCategory && detected !== productCategory);
-  if (categoryMismatch && !input.confirmCategoryMismatch) {
-    const [detectedCategory] = await store.get<Row[]>(
-      `marketplace_categories?select=name&id=eq.${encodeURIComponent(detected as string)}&limit=1`,
+  if (!productCategory) {
+    throw new UnsafeUrlError(
+      "This product has no marketplace category, so its demo cannot be published.",
     );
+  }
+  const categoryMismatch = !detected || detected !== productCategory;
+  if (categoryMismatch) {
+    const detectedCategory = detected
+      ? (
+          await store.get<Row[]>(
+            `marketplace_categories?select=name&id=eq.${encodeURIComponent(detected)}&limit=1`,
+          )
+        )[0]
+      : null;
     const [productCategoryRow] = await store.get<Row[]>(
-      `marketplace_categories?select=name&id=eq.${encodeURIComponent(productCategory as string)}&limit=1`,
+      `marketplace_categories?select=name&id=eq.${encodeURIComponent(productCategory)}&limit=1`,
     );
     await audit(String(row.id), "demo_url.activate.category_blocked", input.actor, {
       detected_category_id: detected,
@@ -584,9 +558,13 @@ export async function activateDemo(input: {
       product_id: row.product_id,
     });
     throw new UnsafeUrlError(
-      `This demo looks like ${String(detectedCategory?.name ?? "another category")} software, but ` +
+      `This demo is ${
+        detected
+          ? `identified as ${String(detectedCategory?.name ?? "another category")}`
+          : "not category-verified"
+      }, but ` +
         `"${String(product.name)}" is filed under ${String(productCategoryRow?.name ?? "a different category")}. ` +
-        "Re-assign it to the right product, or confirm the mismatch to publish it anyway.",
+        "Re-assign it to a product in the matching category before publishing.",
     );
   }
 
@@ -594,9 +572,9 @@ export async function activateDemo(input: {
   const checks: { check: string; ok: boolean; detail?: string }[] = [];
   let ok = false;
   try {
-    const { page, bundles } = await fetchDemo(String(row.url));
+    const page = await fetchDemo(String(row.url));
     checks.push({ check: "demo answers", ok: true, detail: `HTTP ${page.status}` });
-    const starterApp = hasStarterApp(page.body, bundles);
+    const starterApp = hasStarterApp(page.body);
     checks.push({
       check: "real application",
       ok: !starterApp,
@@ -604,24 +582,15 @@ export async function activateDemo(input: {
         ? "The original source contains an unbuilt starter landing page."
         : undefined,
     });
-    const presented = applyPresentation(page.body, rules, DEMO_BRAND);
+    const presented = applySurfaceBranding(page.body, rules, DEMO_BRAND);
     const favicon = hasBrandFavicon(presented, DEMO_BRAND.favicon);
     checks.push({ check: "Software Vala favicon", ok: favicon });
-    const left = [
-      ...new Set([
-        ...remainingViolations(presented, rules),
-        ...bundles.flatMap((bundle) =>
-          remainingBundleViolations(cleanBundle(bundle, rules, DEMO_BRAND.name), rules),
-        ),
-      ]),
-    ];
+    const unbrandedLogos = rules.logos.filter((logo) => logo && presented.includes(logo));
     checks.push({
-      check: "developer contact and branding removed",
-      ok: left.length === 0,
-      detail: left.length ? `still present: ${left.join(", ")}` : undefined,
+      check: "Software Vala logo presentation",
+      ok: unbrandedLogos.length === 0,
+      detail: unbrandedLogos.length ? "A recorded logo address was not replaced." : undefined,
     });
-    const script = presented.includes("data-sv-presentation");
-    checks.push({ check: "presentation script installed", ok: script });
     ok = checks.every((c) => c.ok);
   } catch (error) {
     checks.push({
@@ -637,7 +606,6 @@ export async function activateDemo(input: {
     verified_at: new Date().toISOString(),
     ok,
     checks,
-    ...(categoryMismatch ? { category_mismatch_confirmed_by: input.actor } : {}),
   };
   if (!ok) {
     const updated = await store.patch(`product_demo_urls?id=eq.${row.id}`, {

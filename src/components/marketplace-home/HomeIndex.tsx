@@ -123,7 +123,8 @@ import { extraDemos, allMasterCategories55 } from "@/data/extraDemos";
 import { buildRow } from "@/data/rowFill";
 import { GRID_ANCHOR } from "@/lib/marketplace-home/anchors";
 import { useProductActions } from "@/lib/marketplace/useActionLayer";
-import { demoNumbersInRow, marketplaceDemoHref } from "@/lib/marketplace/demo-link";
+import { demoNumbersInRow } from "@/lib/marketplace/demo-link";
+import { DemoLaunchButton } from "@/components/marketplace-home/DemoLaunchButton";
 import { useDebouncedValue, useFavorites } from "@/lib/marketplace-home/persistentState";
 import { useMatch } from "@tanstack/react-router";
 import { useHomeRouteData, useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
@@ -138,6 +139,8 @@ import {
 
 interface Demo {
   id: string;
+  slug?: string;
+  hasDemo?: boolean;
   name: string;
   category: string;
   masterCategory: string;
@@ -4438,7 +4441,7 @@ export const DemoCard = memo(
                     </Badge>
                   )}
                   {/* Only for a product that actually has one. */}
-                  {demo.status === "ACTIVE" && (
+                  {demo.status === "ACTIVE" && demo.hasDemo === true && (
                     <Badge className="bg-emerald-500/90 text-white font-bold text-xs flex items-center gap-1">
                       <span className="sv-live-dot" />
                       LIVE DEMO
@@ -4463,15 +4466,14 @@ export const DemoCard = memo(
                     className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-white"}`}
                   />
                 </button>
-                {demo.status === "ACTIVE" && demo.url.trim() && demo.url !== "#" && (
-                  <a
-                    href={demo.url}
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label={`Preview ${demo.name}`}
+                {demo.hasDemo === true && demo.slug && (
+                  <DemoLaunchButton
+                    slug={demo.slug}
+                    ariaLabel={`Preview ${demo.name}`}
                     className="sv-icon-btn"
                   >
                     <Eye className="h-4 w-4 text-white" />
-                  </a>
+                  </DemoLaunchButton>
                 )}
               </div>
             </div>
@@ -4484,7 +4486,7 @@ export const DemoCard = memo(
                     {demo.name}
                   </h3>
                 )}
-                {demo.status === "ACTIVE" && (
+                {demo.status === "ACTIVE" && demo.hasDemo === true && (
                   <Badge className="bg-cyan-500/20 text-cyan-300 text-[10px] shrink-0 ml-2">
                     #{demoNumber ?? index + 1}
                   </Badge>
@@ -4597,26 +4599,21 @@ export const DemoCard = memo(
                 };
                 const productHref =
                   d.href ?? d.url ?? (d.slug ? `/marketplace/product/${d.slug}` : "#");
-                const demoHref =
-                  d.demoUrl ??
-                  marketplaceDemoHref({ hasDemo: d.hasDemo, slug: d.slug, url: d.url });
                 const buyHref = `${productHref}${productHref.includes("?") ? "&" : "?"}buy=1`;
                 return (
                   <div className="flex gap-2 mt-auto">
-                    {demo.status === "ACTIVE" ? (
+                    {demo.status === "ACTIVE" && d.hasDemo === true && d.slug ? (
                       <>
                         {/* Only offered when there is a demo to open. */}
-                        {shows("action", "live-demo") && allowed("LIVE_DEMO") && demoHref && (
-                          <a
-                            href={demoHref}
-                            className="flex-1"
-                            target={demoHref.startsWith("http") ? "_blank" : undefined}
-                            rel="noreferrer"
+                        {shows("action", "live-demo") && allowed("LIVE_DEMO") && (
+                          <DemoLaunchButton
+                            slug={d.slug}
+                            className="flex-1 sv-btn sv-btn-cyan w-full"
                           >
-                            <Button className="sv-btn sv-btn-cyan w-full">
+                            <span className="inline-flex items-center justify-center">
                               <Play className="h-4 w-4 mr-2" /> Live Demo
-                            </Button>
-                          </a>
+                            </span>
+                          </DemoLaunchButton>
                         )}
                         {/* Goes to the product page ready to buy. The Add to cart
                       mutation and the sign-in redirect already live there. */}

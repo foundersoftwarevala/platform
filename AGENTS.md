@@ -98,6 +98,20 @@ existed, while both old/new declarations have zero non-formatting lint errors.
    (for example the `GLOBAL` region on `sales-intelligence`) is a migration to
    write, not a manual fix to repeat.
 
+### Demo visitor sessions
+
+`src/lib/demo/sessions.server.ts` stores short-lived visitor sessions through a
+direct PostgreSQL connection to `sv_platform`; it does not use a Supabase
+client. The additive table definition is
+`supabase/migrations/20261108T160000_demo_visitor_sessions.sql` and must be
+applied to the VPS before the public session and ticket routes can work. Do
+not apply it to the cloud project for this feature.
+
+The UUID is forwarded to the author's demo as `sv_session_id` only. It is a
+tracking hint, not an isolation boundary: an external demo must explicitly
+consume it to partition its server-side state. Browser storage isolation is
+not guaranteed by the proxy.
+
 ## Known bugs (as of 2026-10-11)
 
 Columns the code reads that exist in **no** database (the field is always

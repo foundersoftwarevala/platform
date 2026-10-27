@@ -29,6 +29,7 @@ import { Card } from "@/components/ui/card";
 // unnoticed until the page was finally drawn.
 import { useEffect, useState } from "react";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import { DemoLaunchButton } from "@/components/marketplace-home/DemoLaunchButton";
 
 /**
  * The page's own "Product Not Found" screen. Exported so the route can draw the
@@ -292,15 +293,13 @@ export function ProductDetail() {
                             Role: {demo.role_name} · Environment: {demo.environment}
                           </div>
                         </div>
-                        <a
-                          href={`/demo/${slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <DemoLaunchButton
+                          slug={slug}
                           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 hover:text-cyan-200 transition font-medium text-sm"
                         >
                           <ExternalLink className="h-4 w-4" />
                           Launch Demo
-                        </a>
+                        </DemoLaunchButton>
                       </div>
                     </Card>
                   ))}

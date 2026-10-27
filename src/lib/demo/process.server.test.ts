@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { listProcessedDemos, publishDemo } from "./process.server";
+import { activateDemo, listProcessedDemos, publishDemo } from "./process.server";
 import { safeFetch } from "./safe-fetch.server";
 
 vi.mock("@/lib/ai-gateway.server", () => ({
@@ -134,3 +134,47 @@ it.each([
     expect(writes).toHaveLength(2);
   },
 );
+
+it("refuses activation until the detected demo category matches the product category", async () => {
+  vi.stubEnv("SUPABASE_URL", "https://database.test");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "unit-test-only");
+  vi.mocked(safeFetch).mockClear();
+  const productId = "030420be-2499-496a-945a-9065b5a58364";
+  const categoryId = "4c39f027-3383-4ce7-b660-2608cadcf7f1";
+  const row = {
+    id: "e5e41e27-000b-4f57-b79e-4a88f4ff7376",
+    product_id: productId,
+    url: "https://health-prep-forge.lovable.app/",
+    status: "inactive",
+    processing_status: "review",
+    detected_category_id: null,
+    processing: { rules: { remove: [], rebrand: [], logos: [], links: [] } },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string) => {
+      const url = new URL(input);
+      const resource = url.pathname.split("/").at(-1);
+      if (resource === "product_demo_urls") return Response.json([row]);
+      if (resource === "marketplace_products") {
+        return Response.json([
+          {
+            id: productId,
+            name: "Nursing Training Institute",
+            category_id: categoryId,
+            visible: true,
+            moderation_status: "approved",
+          },
+        ]);
+      }
+      if (resource === "marketplace_categories") return Response.json([{ name: "Education" }]);
+      if (resource === "demo_url_audit_log") return Response.json([{}]);
+      throw new Error(`Unexpected test request: ${resource}`);
+    }),
+  );
+
+  await expect(activateDemo({ id: row.id, actor: { id: null, email: null } })).rejects.toThrow(
+    "not category-verified",
+  );
+  expect(safeFetch).not.toHaveBeenCalled();
+});

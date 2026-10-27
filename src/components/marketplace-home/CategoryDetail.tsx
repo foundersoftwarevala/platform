@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { toast } from "sonner";
+import { DemoLaunchButton } from "@/components/marketplace-home/DemoLaunchButton";
 
 export function CategoryDetail() {
   const { slug } = useParams({ from: "/marketplace/category/$slug" });
@@ -124,7 +125,6 @@ export function CategoryDetail() {
               {products.map((product) => {
                 const isFavorite = favorites.has(product.id);
                 const activeDemo = product.demo_urls?.[0];
-                const demoGatewayUrl = `/demo/${product.slug}`;
 
                 return (
                   <Card
@@ -212,17 +212,15 @@ export function CategoryDetail() {
                       {/* Actions */}
                       <div className="flex gap-2 pt-2">
                         {activeDemo && (
-                          <a
-                            href={demoGatewayUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1"
+                          <DemoLaunchButton
+                            slug={product.slug}
+                            className="flex-1 inline-flex items-center justify-center rounded-md bg-cyan-500 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-600"
                           >
-                            <Button size="sm" className="w-full bg-cyan-500 hover:bg-cyan-600">
+                            <span className="inline-flex items-center">
                               <Play className="h-3 w-3 mr-1" />
                               Try Live
-                            </Button>
-                          </a>
+                            </span>
+                          </DemoLaunchButton>
                         )}
                         <Button
                           size="sm"

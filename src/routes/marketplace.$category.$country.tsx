@@ -6,6 +6,7 @@ import { absoluteUrl, siteUrl } from "@/lib/seo/site-url";
 import { getCardSlot } from "@/lib/marketplace/card-slot.functions";
 import { mergedInto } from "@/lib/marketplace/merged-categories";
 import type { CardSlot } from "@/lib/marketplace/card-slot";
+import { DemoLaunchButton } from "@/components/marketplace-home/DemoLaunchButton";
 
 /**
  * One card slot: a category in a country, at a URL of its own.
@@ -348,14 +349,13 @@ function SlotPage() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               {product.hasDemo && (
-                <Link
-                  to="/demo/$slug"
-                  params={{ slug: product.slug }}
+                <DemoLaunchButton
+                  slug={product.slug}
                   className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-emerald-300"
                 >
                   {t("marketplace.slot.launch_demo")}
                   <ExternalLink className="h-4 w-4" />
-                </Link>
+                </DemoLaunchButton>
               )}
               <Link
                 to="/marketplace/product/$slug"

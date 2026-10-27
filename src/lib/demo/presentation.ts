@@ -466,6 +466,30 @@ function escapeHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
+/** Replace only rendered image/favicons, leaving author scripts and copy intact. */
+export function applySurfaceBranding(
+  html: string,
+  rules: PresentationRules,
+  brand: { favicon: string; logo: string },
+): string {
+  let out = html.replace(/<link\b[^>]*\brel\s*=\s*["']?[^"'>]*icon[^>]*>\s*/gi, "");
+  const icons =
+    `<link rel="icon" href="${escapeHtml(brand.favicon)}">` +
+    `<link rel="apple-touch-icon" href="${escapeHtml(brand.favicon)}">`;
+  out = /<head[^>]*>/i.test(out) ? out.replace(/<head[^>]*>/i, (head) => `${head}${icons}`) : icons + out;
+
+  for (const source of rules.logos) {
+    if (!source) continue;
+    const escaped = escapeRegExp(source);
+    out = out.replace(
+      new RegExp(`(\\ssrc\\s*=\\s*["'])${escaped}(["'])`, "gi"),
+      (_match, open: string, close: string) =>
+        `${open}${escapeHtml(brand.logo)}${close} data-sv-brand="logo"`,
+    );
+  }
+  return out;
+}
+
 /**
  * The proxy's rewrite of one HTML page. `brand` holds absolute addresses on
  * softwarevala.net, so the proxy's own asset rewriting leaves them alone.

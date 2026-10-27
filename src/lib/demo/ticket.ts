@@ -7,32 +7,30 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * elsewhere and the live URL is the only source detail to protect. The server
  * issues a scoped pass only after checking the product and active demo.
  *
- * The pass is signed rather than stored, so checking one costs no database
- * round trip; it names the single product it opens and expires on its own, so a
- * leaked pass opens one demo for a short while and nothing more. The demo's
- * real address never appears in it. Signed-in visitors are identified for lead
- * attribution; guests receive a non-identifying public pass.
+ * The pass is signed and bound to the exact product, demo, category, and
+ * persisted visitor session. The hosted demo address never appears in it.
  */
 
-const TTL_MS = 30 * 60 * 1000;
-
-/** The cookie the proxy reads for the asset requests an iframe makes itself. */
+/** The cookie the proxy reads for one product-and-session asset path. */
 export const DEMO_COOKIE = "sv_demo_pass";
-export const PUBLIC_DEMO_VISITOR = "public-guest";
 
-/** Keep each iframe's pass independent when several products are open. */
-export function demoCookiePath(slug: string): string {
-  return `/api/proxy/demo/${encodeURIComponent(slug)}`;
+export function demoCookiePath(slug: string, sessionId: string): string {
+  return `/api/proxy/demo/${encodeURIComponent(slug)}/${encodeURIComponent(sessionId)}`;
 }
 
-export type DemoTicket = { slug: string; userId: string; expiresAt: number };
+export type DemoTicket = {
+  slug: string;
+  sessionId: string;
+  demoId: string;
+  categoryId: string;
+  expiresAt: number;
+};
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function secret(): string | null {
   const value =
-    process.env.DEMO_TICKET_SECRET?.trim() ||
-    process.env.INTERNAL_API_TOKEN?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    "";
+    process.env.DEMO_TICKET_SECRET?.trim() || process.env.INTERNAL_API_TOKEN?.trim() || "";
   return value || null;
 }
 
@@ -49,11 +47,24 @@ function sign(payload: string, key: string): string {
  * Returns null on a server with no secret configured, so a misconfigured
  * deployment refuses demos rather than handing them out unsigned.
  */
-export function issueDemoTicket(slug: string, userId: string): string | null {
+export function issueDemoTicket(
+  slug: string,
+  sessionId: string,
+  demoId: string,
+  categoryId: string,
+): string | null {
   const key = secret();
-  if (!key || !slug || !userId) return null;
+  if (!key || !slug || !UUID.test(sessionId) || !UUID.test(demoId) || !UUID.test(categoryId)) {
+    return null;
+  }
   const payload = encode(
-    JSON.stringify({ slug, userId, expiresAt: Date.now() + TTL_MS } satisfies DemoTicket),
+    JSON.stringify({
+      slug,
+      sessionId,
+      demoId,
+      categoryId,
+      expiresAt: Date.now() + 30 * 60 * 1000,
+    } satisfies DemoTicket),
   );
   return `${payload}.${sign(payload, key)}`;
 }
@@ -76,7 +87,14 @@ export function readDemoTicket(value: string | null | undefined): DemoTicket | n
 
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as DemoTicket;
-    if (!parsed?.slug || !parsed?.userId) return null;
+    if (
+      !parsed?.slug ||
+      !UUID.test(parsed.sessionId) ||
+      !UUID.test(parsed.demoId) ||
+      !UUID.test(parsed.categoryId)
+    ) {
+      return null;
+    }
     if (!Number.isFinite(parsed.expiresAt) || parsed.expiresAt < Date.now()) return null;
     return parsed;
   } catch {
@@ -85,10 +103,16 @@ export function readDemoTicket(value: string | null | undefined): DemoTicket | n
 }
 
 /** The pass carried on a request, from the query string or the cookie. */
-export function ticketFromRequest(request: Request, slug: string): DemoTicket | null {
+export function ticketFromRequest(
+  request: Request,
+  slug: string,
+  sessionId?: string,
+): DemoTicket | null {
   const fromQuery = new URL(request.url).searchParams.get("t");
   const direct = readDemoTicket(fromQuery);
-  if (direct) return direct.slug === slug ? direct : null;
+  if (direct) {
+    return direct.slug === slug && (!sessionId || direct.sessionId === sessionId) ? direct : null;
+  }
 
   const cookies = request.headers.get("cookie") ?? "";
   for (const part of cookies.split(";")) {
@@ -96,7 +120,7 @@ export function ticketFromRequest(request: Request, slug: string): DemoTicket | 
     if (name === DEMO_COOKIE) {
       // Signed tokens contain only base64url and a dot, so no URI decoding is needed.
       const pass = readDemoTicket(rest.join("="));
-      if (pass?.slug === slug) return pass;
+      if (pass?.slug === slug && (!sessionId || pass.sessionId === sessionId)) return pass;
     }
   }
   return null;
