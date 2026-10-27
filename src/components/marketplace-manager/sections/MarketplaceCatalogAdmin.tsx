@@ -4,9 +4,9 @@ import { useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/serverFn";
 import { toast } from "sonner";
-import { Plus, Save, Trash2, X, Loader2, Edit3, Eye, EyeOff } from "lucide-react";
+import { Plus, Save, X, Loader2, Edit3, Eye, EyeOff } from "lucide-react";
 import {
-  listProductsAdmin, listProductsAdminPage, upsertProduct, deleteProduct,
+  listProductsAdminPage, upsertProduct, deleteProduct,
   layoutHistory, layoutRestore,
   listCategoriesAdmin, upsertCategory, deleteCategory,
   listSectionsAdmin, setSectionEnabled, reorderSections,
@@ -84,7 +84,7 @@ export function ProductsAdmin() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["mp_products_admin"] });
       qc.invalidateQueries({ queryKey: ["marketplace"] });
-      toast.success(t("storeadmin.catalog.product_deleted"));
+      toast.success("Product archived from the catalogue.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -138,7 +138,7 @@ export function ProductsAdmin() {
                   <Td>
                     <div className="flex gap-1">
                       <IconBtn onClick={() => setEditing(p)} label={t("storeadmin.catalog.edit")}><Edit3 className="h-3.5 w-3.5"/></IconBtn>
-                      <IconBtn onClick={() => { if (confirm(t("storeadmin.catalog.confirm_delete", { name: p.name }))) delMut.mutate(p.id); }} label={t("storeadmin.catalog.delete")}><Trash2 className="h-3.5 w-3.5"/></IconBtn>
+                      <IconBtn onClick={() => { if (confirm(`Archive "${p.name}" from the catalogue? Its order and license history will be preserved.`)) delMut.mutate(p.id); }} label="Archive product"><EyeOff className="h-3.5 w-3.5"/></IconBtn>
                     </div>
                   </Td>
                 </tr>
@@ -289,7 +289,7 @@ export function CategoriesAdmin() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["mp_categories_admin"] });
       qc.invalidateQueries({ queryKey: ["marketplace"] });
-      toast.success(t("storeadmin.catalog.deleted"));
+      toast.success("Category hidden from the storefront.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -334,7 +334,11 @@ export function CategoriesAdmin() {
               </div>
               <div className="flex gap-1">
                 <IconBtn onClick={() => setEditing(c)} label={t("storeadmin.catalog.edit")}><Edit3 className="h-3.5 w-3.5"/></IconBtn>
-                <IconBtn onClick={() => { if (confirm(t("storeadmin.catalog.confirm_delete", { name: c.name }))) delMut.mutate(c.id); }} label={t("storeadmin.catalog.delete")}><Trash2 className="h-3.5 w-3.5"/></IconBtn>
+                <IconBtn
+                  disabled={c.is_hidden}
+                  onClick={() => { if (confirm(`Hide "${c.name}" from the storefront?`)) delMut.mutate(c.id); }}
+                  label={c.is_hidden ? "Category already hidden" : "Hide category"}
+                ><EyeOff className="h-3.5 w-3.5"/></IconBtn>
               </div>
             </div>
           ))}
@@ -718,9 +722,9 @@ function Td({ children, className = "" }: { children: ReactNode; className?: str
 function Chip({ children }: { children: ReactNode }) {
   return <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">{children}</span>;
 }
-function IconBtn({ children, onClick, label }: { children: ReactNode; onClick: () => void; label: string }) {
+function IconBtn({ children, onClick, label, disabled = false }: { children: ReactNode; onClick: () => void; label: string; disabled?: boolean }) {
   return (
-    <button aria-label={label} onClick={onClick} className="rounded border border-border p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/[0.05]">
+    <button aria-label={label} title={label} disabled={disabled} onClick={onClick} className="rounded border border-border p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-40">
       {children}
     </button>
   );

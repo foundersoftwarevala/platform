@@ -1,4 +1,7 @@
 import { useState, type ComponentType } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@/lib/serverFn";
+import { toast } from "sonner";
 import {
   Package,
   FileText,
@@ -29,9 +32,14 @@ import {
   CheckCircle2,
   Plus,
 } from "lucide-react";
-import { Card, EmptyHint, PageHeader, PillButton, StatCard, SubNav } from "../ui";
+import { Card, EmptyHint, LoadFailure, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import { TableToolbar, RowActions, BulkActionBar } from "../actions";
 import { useTranslation } from "@/lib/i18n/use-translation";
+import {
+  listProductContent,
+  saveProductContent,
+  type ProductContentRow,
+} from "@/lib/marketplace-manager/catalog-data.functions";
 
 // ---------- Reusable module scaffold ----------
 type Stat = {
@@ -131,45 +139,176 @@ function ModulePage({
 export { ProductsAdmin as ProductsSection } from "./MarketplaceCatalogAdmin";
 
 export function ProductContentSection() {
+  const queryClient = useQueryClient();
+  const listFn = useServerFn(listProductContent);
+  const saveFn = useServerFn(saveProductContent);
+  const [search, setSearch] = useState("");
+  const [missingOnly, setMissingOnly] = useState(false);
+  const [page, setPage] = useState(0);
+  const [editing, setEditing] = useState<ProductContentRow | null>(null);
+  const [draft, setDraft] = useState<{
+    description: string;
+    benefits: string;
+    featuresJson: string;
+    tags: string;
+    techStack: string;
+  } | null>(null);
+
+  const products = useQuery({
+    queryKey: ["marketplace", "product-content", search, missingOnly, page],
+    queryFn: () => listFn({ data: { search, missingOnly, limit: 50, offset: page * 50 } }),
+  });
+  const save = useMutation({
+    mutationFn: () => {
+      if (!editing || !draft) throw new Error("Choose a product before saving.");
+      return saveFn({
+        data: {
+          id: editing.id,
+          description: draft.description,
+          benefits: draft.benefits,
+          featuresJson: draft.featuresJson,
+          tags: draft.tags.split(/[\n,]/).map((value) => value.trim()).filter(Boolean),
+          techStack: draft.techStack.split(/[\n,]/).map((value) => value.trim()).filter(Boolean),
+        },
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["marketplace", "product-content"] });
+      void queryClient.invalidateQueries({ queryKey: ["mp_products_admin"] });
+      toast.success("Product content saved.");
+      setEditing(null);
+      setDraft(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const edit = (row: ProductContentRow) => {
+    setEditing(row);
+    setDraft({
+      description: row.description ?? "",
+      benefits: row.benefits ?? "",
+      featuresJson: JSON.stringify(row.features ?? [], null, 2),
+      tags: (row.tags ?? []).join(", "),
+      techStack: (row.tech_stack ?? []).join(", "),
+    });
+  };
+
   return (
-    <ModulePage
-      eyebrow="Product Content"
-      title="Product Content"
-      description="Rich content blocks: overview, specs, docs, FAQs, roadmap, cross-sell, bundles."
-      Icon={FileText}
-      tabs={["Overview", "Descriptions", "Specs", "Docs", "Support", "Related"]}
-      stats={[
-        { label: "Blocks" },
-        { label: "AI Drafts" },
-        { label: "Complete", tone: "success" },
-        { label: "Missing", tone: "warning" },
-      ]}
-      features={[
-        { label: "Overview" },
-        { label: "Short Description" },
-        { label: "Long Description" },
-        { label: "Features" },
-        { label: "Benefits" },
-        { label: "Specifications" },
-        { label: "Requirements" },
-        { label: "Installation Guide" },
-        { label: "Documentation" },
-        { label: "Release Notes" },
-        { label: "Roadmap" },
-        { label: "FAQs" },
-        { label: "Known Issues" },
-        { label: "Support Info" },
-        { label: "License Details" },
-        { label: "Compatibility" },
-        { label: "Dependencies" },
-        { label: "Alternative Products" },
-        { label: "Related Products" },
-        { label: "Cross Sell" },
-        { label: "Upsell" },
-        { label: "Frequently Bought Together" },
-        { label: "Bundles" },
-      ]}
-    />
+    <div className="px-4 py-8 md:px-8">
+      <PageHeader
+        eyebrow="Product Content"
+        title="Product Content"
+        description="Edit descriptions, benefits, features, tags and technology stack on the canonical marketplace products."
+      />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <input
+          value={search}
+          onChange={(event) => { setSearch(event.target.value); setPage(0); }}
+          placeholder="Search products by name or slug"
+          aria-label="Search product content"
+          className="h-9 min-w-56 rounded-md border border-border bg-background px-3 text-sm"
+        />
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={missingOnly}
+            onChange={(event) => { setMissingOnly(event.target.checked); setPage(0); }}
+          />
+          Missing descriptions only
+        </label>
+        <span className="text-xs text-muted-foreground">
+          {products.isLoading ? "Loading…" : products.isError ? "Unavailable" : `${products.data?.total ?? 0} products`}
+        </span>
+      </div>
+      {products.isError ? (
+        <LoadFailure error={products.error} what="product content" onRetry={() => void products.refetch()} />
+      ) : products.isLoading ? (
+        <Card><div className="text-sm text-muted-foreground">Reading product content…</div></Card>
+      ) : (products.data?.rows.length ?? 0) === 0 ? (
+        <Card><EmptyHint text={missingOnly ? "No products with missing descriptions match this search." : "No products match this search."} /></Card>
+      ) : (
+        <Card className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Product</th>
+                  <th className="px-4 py-3">Description</th>
+                  <th className="px-4 py-3">Features</th>
+                  <th className="px-4 py-3">Updated</th>
+                  <th className="px-4 py-3">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {products.data?.rows.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold">{row.name}</div>
+                      <div className="text-xs text-muted-foreground">{row.slug}</div>
+                    </td>
+                    <td className="max-w-lg px-4 py-3 text-xs text-muted-foreground">
+                      {row.description?.trim() || <span className="text-warning">Missing</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {Array.isArray(row.features) ? `${row.features.length} entries` : "Structured"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                      {new Date(row.updated_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <PillButton onClick={() => edit(row)}>Edit content</PillButton>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
+            <span>Showing {page * 50 + 1}–{Math.min((page + 1) * 50, products.data?.total ?? 0)} of {products.data?.total ?? 0}</span>
+            <div className="flex gap-2">
+              <PillButton variant="ghost" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Previous</PillButton>
+              <PillButton variant="ghost" disabled={(page + 1) * 50 >= (products.data?.total ?? 0)} onClick={() => setPage((value) => value + 1)}>Next</PillButton>
+            </div>
+          </div>
+        </Card>
+      )}
+      {editing && draft && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
+          <Card className="max-h-[90vh] w-full max-w-3xl overflow-y-auto">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold">Edit product content</h2>
+                <p className="text-xs text-muted-foreground">{editing.name} · {editing.slug}</p>
+              </div>
+              <button type="button" onClick={() => { setEditing(null); setDraft(null); }} aria-label="Close editor">×</button>
+            </div>
+            <div className="grid gap-3">
+              <label className="grid gap-1 text-xs font-semibold">Description
+                <textarea rows={5} maxLength={20000} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="rounded-md border border-border bg-background p-2 text-sm font-normal" />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold">Benefits
+                <textarea rows={3} maxLength={8000} value={draft.benefits} onChange={(event) => setDraft({ ...draft, benefits: event.target.value })} className="rounded-md border border-border bg-background p-2 text-sm font-normal" />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold">Features (JSON)
+                <textarea rows={7} maxLength={20000} value={draft.featuresJson} onChange={(event) => setDraft({ ...draft, featuresJson: event.target.value })} className="rounded-md border border-border bg-background p-2 font-mono text-xs font-normal" />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold">Tags (comma or newline separated)
+                <textarea rows={2} value={draft.tags} onChange={(event) => setDraft({ ...draft, tags: event.target.value })} className="rounded-md border border-border bg-background p-2 text-sm font-normal" />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold">Tech stack (comma or newline separated)
+                <textarea rows={2} value={draft.techStack} onChange={(event) => setDraft({ ...draft, techStack: event.target.value })} className="rounded-md border border-border bg-background p-2 text-sm font-normal" />
+              </label>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <PillButton variant="ghost" onClick={() => { setEditing(null); setDraft(null); }}>Cancel</PillButton>
+              <PillButton variant="primary" disabled={save.isPending} onClick={() => save.mutate()}>
+                {save.isPending ? "Saving…" : "Save content"}
+              </PillButton>
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -4,10 +4,11 @@ import { toast } from "sonner";
 import { Download, RefreshCw, Search, ShoppingBag, X } from "lucide-react";
 
 import { useTranslation } from "@/lib/i18n/use-translation";
-import { authHeaders } from "@/lib/auth/operator-fetch";
 import { Card, EmptyHint, LoadFailure, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import {
   listOrders,
+  getOrdersSummary,
+  listPaymentLog,
   getOrderDetail,
   listOrderDocs,
   requestRefund,
@@ -43,8 +44,6 @@ import {
  * Proforma and Disputes are both genuinely empty, and say so. That is a fact
  * about this marketplace, not a gap in this screen.
  */
-
-type Counts = { orders: number; paid: number; refunded: number; pending: number };
 
 const TABS = [
   "All Orders",
@@ -121,8 +120,6 @@ export function OrdersSection() {
   const qc = useQueryClient();
 
   const [active, setActive] = useState<string>(TABS[0]);
-  const [counts, setCounts] = useState<Counts | null>(null);
-  const [failed, setFailed] = useState(false);
 
   // Filters. Typing is debounced into `search` so a keystroke is not a query.
   const [typed, setTyped] = useState("");
@@ -141,37 +138,19 @@ export function OrdersSection() {
     return () => clearTimeout(id);
   }, [typed]);
 
-  // The four counters, unchanged in meaning and still read in one round trip.
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        const headers = await authHeaders();
-        const read = async (resource: string) => {
-          const res = await fetch(`/api/manager/resource?resource=${resource}&limit=500`, {
-            headers,
-          });
-          if (!res.ok) throw new Error(String(res.status));
-          return (await res.json()) as { rows?: Record<string, unknown>[]; total?: number };
-        };
-        const [orders, refunds] = await Promise.all([read("orders"), read("refunds")]);
-        if (!alive) return;
-        const rows = orders.rows ?? [];
-        setCounts({
-          orders: orders.total ?? rows.length,
-          paid: rows.filter((r) => r.status === "paid").length,
-          refunded: refunds.total ?? (refunds.rows ?? []).length,
-          pending: rows.filter((r) => r.status === "pending" || r.status === "pending_payment")
-            .length,
-        });
-      } catch {
-        if (alive) setFailed(true);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const summary = useQuery({
+    queryKey: ["marketplace", "orders-summary"],
+    queryFn: () => getOrdersSummary(),
+    staleTime: 20_000,
+  });
+  const paymentLog = useQuery({
+    queryKey: ["marketplace", "orders-payment-log"],
+    queryFn: () => listPaymentLog({ data: { limit: 100 } }),
+    staleTime: 20_000,
+    enabled: active === "Payments",
+  });
+  const counts = summary.data ?? null;
+  const failed = summary.isError;
 
   const query = useMemo(
     () => ({
@@ -234,6 +213,8 @@ export function OrdersSection() {
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["marketplace", "orders"] });
+    void qc.invalidateQueries({ queryKey: ["marketplace", "orders-summary"] });
+    void qc.invalidateQueries({ queryKey: ["marketplace", "orders-payment-log"] });
     void qc.invalidateQueries({ queryKey: ["marketplace", "order-docs"] });
     void qc.invalidateQueries({ queryKey: ["marketplace", "order-detail"] });
   };
@@ -653,13 +634,54 @@ export function OrdersSection() {
           </Card>
         )}
 
-        {active === "Payments" && (
+        {active === "Payments" && paymentLog.isError && (
+          <LoadFailure error={paymentLog.error} what={t("manager.orders.payment_log")} onRetry={() => void paymentLog.refetch()} />
+        )}
+        {active === "Payments" && paymentLog.isLoading && (
+          <Card><EmptyHint text="Reading the payment log…" /></Card>
+        )}
+        {active === "Payments" && !paymentLog.isLoading && !paymentLog.isError && (paymentLog.data?.rows.length ?? 0) === 0 && (
+          <Card className="p-0">
+            <div className="border-b border-border px-4 py-3 text-sm font-bold">{t("manager.orders.payment_log")}</div>
+            <div className="p-6">
+              <EmptyHint text="No payment events have been recorded in payment_logs. Payment status and references for existing orders remain available in All Orders." />
+            </div>
+          </Card>
+        )}
+        {active === "Payments" && !paymentLog.isLoading && !paymentLog.isError && (paymentLog.data?.rows.length ?? 0) > 0 && paymentLog.data && (
           <Card className="p-0">
             <div className="border-b border-border px-4 py-3 text-sm font-bold">
               {t("manager.orders.payment_log")}
+              <span className="ml-2 text-[11px] font-normal text-muted-foreground">
+                {paymentLog.data.total} events
+              </span>
             </div>
-            <div className="p-6">
-              <EmptyHint text="Payment state is shown against each order in All Orders — gateway, reference and captured status come from the same record. The standalone payment log stays below." />
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-[12px]">
+                <thead className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-2">Event</th>
+                    <th className="px-4 py-2">Order</th>
+                    <th className="px-4 py-2">Provider</th>
+                    <th className="px-4 py-2">Signature</th>
+                    <th className="px-4 py-2">Recorded</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {paymentLog.data.rows.map((row) => (
+                    <tr key={row.id}>
+                      <td className="px-4 py-2">{row.event_type}</td>
+                      <td className="px-4 py-2 font-mono">{row.order_number ?? row.order_id ?? "—"}</td>
+                      <td className="px-4 py-2">{row.provider ?? "—"}</td>
+                      <td className="px-4 py-2">{row.signature_valid === null ? "Not recorded" : row.signature_valid ? "Valid" : "Invalid"}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{when(row.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+              Showing {paymentLog.data.rows.length} of {paymentLog.data.total} events. Payloads are intentionally not displayed.
             </div>
           </Card>
         )}

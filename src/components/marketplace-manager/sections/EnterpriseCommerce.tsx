@@ -1,4 +1,7 @@
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@/lib/serverFn";
+import { toast } from "sonner";
 import { getLicenseOverview } from "@/lib/marketplace-manager/license.functions";
 import {
   KeyRound,
@@ -61,9 +64,20 @@ import {
   Hash,
   ScanLine,
 } from "lucide-react";
-import { authHeaders } from "@/lib/auth/operator-fetch";
-import { Card, EmptyHint, PageHeader, PillButton, StatCard, SubNav } from "../ui";
+import { Card, EmptyHint, LoadFailure, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import { TableToolbar, RowActions } from "../actions";
+import { authHeaders } from "@/lib/auth/operator-fetch";
+import {
+  deactivateProductPricing,
+  getPricingSummary,
+  listMarketplaceCoupons,
+  listPricingProductOptions,
+  listProductPricing,
+  listPaymentGateways,
+  saveProductPricing,
+  type ProductPricingRow,
+} from "@/lib/marketplace-manager/commerce.functions";
+import { listPaymentLog, type PaymentLogRow } from "@/lib/marketplace-manager/orders.functions";
 
 /**
  * Rows from the manager's own read endpoint.
@@ -74,35 +88,8 @@ import { TableToolbar, RowActions } from "../actions";
  * added for this — no table, no endpoint, no server function; only the call
  * was missing.
  */
-function useResourceRows(resource: string, limit = 20) {
-  const [rows, setRows] = useState<Record<string, unknown>[] | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        const headers = await authHeaders();
-        const res = await fetch(`/api/manager/resource?resource=${resource}&limit=${limit}`, {
-          headers,
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        const payload = (await res.json()) as { rows?: Record<string, unknown>[] };
-        if (alive) setRows(payload.rows ?? []);
-      } catch (problem) {
-        if (alive) setFailed(problem instanceof Error ? problem.message : "unreadable");
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [resource, limit]);
-
-  return { rows, failed, loading: rows === null && failed === null };
-}
-
 import { notBuilt } from "@/lib/ui/not-built";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useResource, figure } from "@/lib/manager/use-resource";
 // ReleaseStats reads this; it was called without being imported, so the
 // Release Management section crashed when it opened.
@@ -2239,24 +2226,102 @@ function couponValue(row: Record<string, unknown>): string {
 }
 
 export function PricingSection() {
-  const [tab, setTab] = useState("Plans");
-  const priced = useResource("products", { limit: 1, filters: ["price_label.not.is.null"] });
-  const coupons = useResource("offers", { limit: 100 });
-  const activeCoupons = useResource("offers", { limit: 1, filters: ["active.eq.true"] });
-  const currencies = new Set(
-    coupons.rows.map((r) => String(r.currency ?? "").trim()).filter(Boolean),
-  );
+  const [tab, setTab] = useState("Prices");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [draft, setDraft] = useState<{
+    id?: string;
+    product_id: string;
+    product_name: string;
+    amount: string;
+    currency: string;
+    billing_period: "lifetime" | "month" | "year" | "one_time";
+    active: boolean;
+  } | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+  const queryClient = useQueryClient();
+  const pricingFn = useServerFn(listProductPricing);
+  const summaryFn = useServerFn(getPricingSummary);
+  const couponsFn = useServerFn(listMarketplaceCoupons);
+  const productsFn = useServerFn(listPricingProductOptions);
+  const saveFn = useServerFn(saveProductPricing);
+  const deactivateFn = useServerFn(deactivateProductPricing);
+
+  const pricing = useQuery({
+    queryKey: ["marketplace", "product-pricing", search, page],
+    queryFn: () => pricingFn({ data: { search, limit: 50, offset: page * 50 } }),
+  });
+  const summary = useQuery({
+    queryKey: ["marketplace", "pricing-summary"],
+    queryFn: () => summaryFn(),
+    staleTime: 30_000,
+  });
+  const coupons = useQuery({
+    queryKey: ["marketplace", "pricing-coupons"],
+    queryFn: () => couponsFn({ data: { limit: 100 } }),
+  });
+  const products = useQuery({
+    queryKey: ["marketplace", "pricing-product-options", productSearch],
+    queryFn: () => productsFn({ data: { search: productSearch } }),
+    enabled: draft !== null && !draft.id,
+  });
+  const save = useMutation({
+    mutationFn: () => {
+      if (!draft || !draft.product_id) throw new Error("Choose a product.");
+      const amount = Number(draft.amount);
+      if (!Number.isFinite(amount) || amount < 0) throw new Error("Enter a nonnegative amount.");
+      return saveFn({
+        data: {
+          ...(draft.id ? { id: draft.id } : {}),
+          product_id: draft.product_id,
+          amount,
+          currency: draft.currency.trim().toUpperCase(),
+          billing_period: draft.billing_period,
+          active: draft.active,
+        },
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["marketplace", "product-pricing"] });
+      void queryClient.invalidateQueries({ queryKey: ["marketplace", "pricing-summary"] });
+      toast.success("Product price saved.");
+      setDraft(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const deactivate = useMutation({
+    mutationFn: (id: string) => deactivateFn({ data: { id } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["marketplace", "product-pricing"] });
+      void queryClient.invalidateQueries({ queryKey: ["marketplace", "pricing-summary"] });
+      toast.success("Price deactivated.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
         eyebrow="Pricing · Enterprise"
         title="Pricing & Plans"
-        description="Multi-currency plans, trials, EMI, coupons, gift cards, regional taxation and subscription billing controls."
+        description="Manage the actual product price rows and review coupons stored in the VPS marketplace database."
         actions={
-          <PillButton variant="primary" disabled title={NO_PLAN_TABLE}>
+          <PillButton
+            variant="primary"
+            onClick={() => {
+              setProductSearch("");
+              setDraft({
+                product_id: "",
+                product_name: "",
+                amount: "0",
+                currency: "INR",
+                billing_period: "lifetime",
+                active: true,
+              });
+            }}
+          >
             <span className="inline-flex items-center gap-1.5">
-              <Plus className="h-3.5 w-3.5" /> New plan
+              <Plus className="h-3.5 w-3.5" /> Add price
             </span>
           </PillButton>
         }
@@ -2265,20 +2330,20 @@ export function PricingSection() {
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <MiniStat
           label="Priced products"
-          value={figure(priced.total, priced)}
-          delta="marketplace_products"
+          value={summary.isLoading ? "…" : summary.isError ? "—" : String(summary.data?.priced_products ?? "—")}
+          delta="active marketplace_product_pricing"
           tone="success"
           icon={DollarSign}
         />
         <MiniStat
           label="Coupon currencies"
-          value={coupons.loading ? "…" : coupons.failed ? "—" : String(currencies.size)}
+          value={summary.isLoading ? "…" : summary.isError ? "—" : String(summary.data?.coupon_currencies ?? "—")}
           tone="premium"
           icon={Globe2}
         />
         <MiniStat
           label="Active coupons"
-          value={figure(activeCoupons.total, activeCoupons)}
+          value={summary.isLoading ? "…" : summary.isError ? "—" : String(summary.data?.active_coupons ?? "—")}
           delta="marketplace_coupons"
           tone="warning"
           icon={TicketPercent}
@@ -2293,24 +2358,120 @@ export function PricingSection() {
       </div>
 
       <SubNav
-        items={["Plans", "Trials", "Coupons", "Gift Cards", "EMI", "Currency", "Tax", "Regional"]}
+        items={["Prices", "Coupons", "Trials", "Gift Cards", "EMI", "Currency", "Tax", "Regional"]}
         active={tab}
         onChange={setTab}
       />
 
-      {tab === "Plans" && <EmptyTable title="No plans exist" hint={NO_PLAN_TABLE} />}
+      {tab === "Prices" && (
+        <div className="mt-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <input
+              value={search}
+              onChange={(event) => { setSearch(event.target.value); setPage(0); }}
+              placeholder="Search priced products"
+              aria-label="Search product prices"
+              className="h-9 min-w-56 rounded-md border border-border bg-background px-3 text-sm"
+            />
+            <span className="text-xs text-muted-foreground">
+              {pricing.isLoading ? "Loading…" : pricing.isError ? "Unavailable" : `${pricing.data?.total ?? 0} prices`}
+            </span>
+          </div>
+          {pricing.isError ? (
+            <LoadFailure error={pricing.error} what="product prices" onRetry={() => void pricing.refetch()} />
+          ) : pricing.isLoading ? (
+            <Card><EmptyHint text="Reading product prices…" /></Card>
+          ) : (pricing.data?.rows.length ?? 0) === 0 ? (
+            <Card><EmptyHint text="No product prices match this search. Add a price to attach one to a marketplace product." /></Card>
+          ) : (
+            <Card className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3">Product</th>
+                      <th className="px-4 py-3">Variant</th>
+                      <th className="px-4 py-3">Amount</th>
+                      <th className="px-4 py-3">Billing</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {pricing.data?.rows.map((row: ProductPricingRow) => (
+                      <tr key={row.id}>
+                        <td className="px-4 py-3">
+                          <div className="font-semibold">{row.product_name}</div>
+                          <div className="text-xs text-muted-foreground">{row.product_slug}</div>
+                        </td>
+                        <td className="px-4 py-3 text-xs">{row.variant_name ?? "Base price"}</td>
+                        <td className="px-4 py-3 font-mono">{row.currency} {Number(row.amount).toLocaleString()}</td>
+                        <td className="px-4 py-3">{row.billing_period.replace(/_/g, " ")}</td>
+                        <td className="px-4 py-3">{row.active ? "Active" : "Inactive"}</td>
+                        <td className="px-4 py-3">
+                          {row.variant_id ? (
+                            <span className="text-xs text-muted-foreground">Edit in variant manager</span>
+                          ) : (
+                            <div className="flex gap-2">
+                              <PillButton
+                                onClick={() => setDraft({
+                                  id: row.id,
+                                  product_id: row.product_id,
+                                  product_name: row.product_name,
+                                  amount: String(row.amount),
+                                  currency: row.currency,
+                                  billing_period: row.billing_period,
+                                  active: row.active,
+                                })}
+                              >
+                                Edit
+                              </PillButton>
+                              {row.active && (
+                                <PillButton
+                                  variant="ghost"
+                                  disabled={deactivate.isPending}
+                                  onClick={() => {
+                                    if (window.confirm(`Deactivate ${row.billing_period} pricing for ${row.product_name}?`)) {
+                                      deactivate.mutate(row.id);
+                                    }
+                                  }}
+                                >
+                                  Deactivate
+                                </PillButton>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
+                <span>Showing {page * 50 + 1}–{Math.min((page + 1) * 50, pricing.data?.total ?? 0)} of {pricing.data?.total ?? 0}</span>
+                <div className="flex gap-2">
+                  <PillButton variant="ghost" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Previous</PillButton>
+                  <PillButton variant="ghost" disabled={(page + 1) * 50 >= (pricing.data?.total ?? 0)} onClick={() => setPage((value) => value + 1)}>Next</PillButton>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
 
-      {tab === "Coupons" && coupons.loading && <EmptyHint text="Reading the coupons…" />}
-      {tab === "Coupons" && coupons.failed && <EmptyHint text="The coupons could not be read." />}
-      {tab === "Coupons" && !coupons.loading && !coupons.failed && coupons.rows.length === 0 && (
+      {tab === "Coupons" && coupons.isError && (
+        <LoadFailure error={coupons.error} what="coupons" onRetry={() => void coupons.refetch()} />
+      )}
+      {tab === "Coupons" && coupons.isLoading && <EmptyHint text="Reading the coupons…" />}
+      {tab === "Coupons" && !coupons.isLoading && !coupons.isError && (coupons.data?.rows.length ?? 0) === 0 && (
         <EmptyTable
           title="No coupon has been created"
           hint="Company coupons are controlled by Software Vala. marketplace_coupons, the table behind the Offers section, holds none yet, so there is nothing to list."
         />
       )}
-      {tab === "Coupons" && coupons.rows.length > 0 && (
+      {tab === "Coupons" && (coupons.data?.rows.length ?? 0) > 0 && (
         <div className="grid gap-3">
-          {coupons.rows.map((r) => {
+          {coupons.data?.rows.map((r) => {
             const on = r.active === true;
             const cap =
               r.max_redemptions === null || r.max_redemptions === undefined
@@ -2411,6 +2572,59 @@ export function PricingSection() {
             </PillButton>
           </div>
         </Card>
+      )}
+      {draft && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
+          <Card className="w-full max-w-xl">
+            <h2 className="mb-4 text-lg font-bold">{draft.id ? "Edit product price" : "Add product price"}</h2>
+            <div className="grid gap-3">
+              {draft.id ? (
+                <div className="text-sm text-muted-foreground">Product · {draft.product_name}</div>
+              ) : (
+                <>
+                  <label className="grid gap-1 text-xs font-semibold">Find product
+                    <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} className="h-9 rounded-md border border-border bg-background px-3 text-sm font-normal" placeholder="Search by name or slug" />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold">Product
+                    <select value={draft.product_id} onChange={(event) => {
+                      const selected = products.data?.find((product) => product.id === event.target.value);
+                      setDraft({ ...draft, product_id: event.target.value, product_name: selected?.name ?? "" });
+                    }} className="h-9 rounded-md border border-border bg-background px-3 text-sm font-normal">
+                      <option value="">Select a product</option>
+                      {(products.data ?? []).map((product) => <option key={product.id} value={product.id}>{product.name} · {product.slug}</option>)}
+                    </select>
+                  </label>
+                </>
+              )}
+              <label className="grid gap-1 text-xs font-semibold">Amount
+                <input type="number" min="0" step="0.01" value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} className="h-9 rounded-md border border-border bg-background px-3 text-sm font-normal" />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1 text-xs font-semibold">Currency
+                  <input value={draft.currency} maxLength={3} onChange={(event) => setDraft({ ...draft, currency: event.target.value.toUpperCase() })} className="h-9 rounded-md border border-border bg-background px-3 text-sm font-normal" />
+                </label>
+                <label className="grid gap-1 text-xs font-semibold">Billing period
+                  <select value={draft.billing_period} onChange={(event) => setDraft({ ...draft, billing_period: event.target.value as typeof draft.billing_period })} className="h-9 rounded-md border border-border bg-background px-3 text-sm font-normal">
+                    <option value="lifetime">Lifetime</option>
+                    <option value="month">Monthly</option>
+                    <option value="year">Yearly</option>
+                    <option value="one_time">One time</option>
+                  </select>
+                </label>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={draft.active} onChange={(event) => setDraft({ ...draft, active: event.target.checked })} />
+                Active
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <PillButton variant="ghost" onClick={() => setDraft(null)}>Cancel</PillButton>
+              <PillButton variant="primary" disabled={save.isPending} onClick={() => save.mutate()}>
+                {save.isPending ? "Saving…" : "Save price"}
+              </PillButton>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );
@@ -3489,7 +3703,28 @@ const NO_QR =
 
 export function PaymentsSection() {
   const [tab, setTab] = useState("Gateways");
-  const gateways = useResourceRows("finance_gateways", 50);
+  const gatewayFn = useServerFn(listPaymentGateways);
+  const paymentLogFn = useServerFn(listPaymentLog);
+  const gatewayQuery = useQuery({
+    queryKey: ["marketplace", "payment-gateways"],
+    queryFn: () => gatewayFn(),
+    staleTime: 30_000,
+  });
+  const paymentLog = useQuery({
+    queryKey: ["marketplace", "payment-log"],
+    queryFn: () => paymentLogFn({ data: { limit: 100 } }),
+    staleTime: 20_000,
+    enabled: tab === "Payment Log",
+  });
+  const gateways = {
+    rows: gatewayQuery.data ?? null,
+    loading: gatewayQuery.isLoading,
+    failed: gatewayQuery.error
+      ? gatewayQuery.error instanceof Error
+        ? gatewayQuery.error.message
+        : "unreadable"
+      : null,
+  };
 
   const live = (gateways.rows ?? []).map((row) => {
     const status = String(row.status ?? "");
@@ -3622,14 +3857,18 @@ export function PaymentsSection() {
       </div>
 
       <SubNav
-        items={["Gateways", "QR Payment", "Subscriptions", "Payouts", "Wallets", "Coupons"]}
+        items={["Gateways", "Payment Log", "QR Payment", "Subscriptions", "Payouts", "Wallets", "Coupons"]}
         active={tab}
         onChange={setTab}
       />
 
       {tab === "Gateways" && gateways.loading && <EmptyHint text="Reading the payment gateways…" />}
       {tab === "Gateways" && gateways.failed && (
-        <EmptyHint text={`The payment gateways could not be read (${gateways.failed}).`} />
+        <LoadFailure
+          error={gatewayQuery.error}
+          what="payment gateways"
+          onRetry={() => void gatewayQuery.refetch()}
+        />
       )}
       {tab === "Gateways" && !gateways.loading && !gateways.failed && live.length === 0 && (
         <EmptyHint text="No payment gateway is configured yet." />
@@ -3670,6 +3909,47 @@ export function PaymentsSection() {
             </Card>
           ))}
         </div>
+      )}
+
+      {tab === "Payment Log" && paymentLog.isError && (
+        <LoadFailure error={paymentLog.error} what="payment log" onRetry={() => void paymentLog.refetch()} />
+      )}
+      {tab === "Payment Log" && paymentLog.isLoading && (
+        <Card><EmptyHint text="Reading the payment log…" /></Card>
+      )}
+      {tab === "Payment Log" && !paymentLog.isLoading && !paymentLog.isError && paymentLog.data?.rows.length === 0 && (
+        <Card><EmptyHint text="No payment events have been recorded in payment_logs." /></Card>
+      )}
+      {tab === "Payment Log" && !paymentLog.isLoading && !paymentLog.isError && (paymentLog.data?.rows.length ?? 0) > 0 && paymentLog.data && (
+        <Card className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Event</th>
+                  <th className="px-4 py-3">Order</th>
+                  <th className="px-4 py-3">Provider</th>
+                  <th className="px-4 py-3">Signature</th>
+                  <th className="px-4 py-3">Recorded</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {paymentLog.data.rows.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-4 py-3">{row.event_type}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{row.order_number ?? row.order_id ?? "—"}</td>
+                    <td className="px-4 py-3">{row.provider ?? "—"}</td>
+                    <td className="px-4 py-3">{row.signature_valid === null ? "Not recorded" : row.signature_valid ? "Valid" : "Invalid"}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(row.created_at).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+            Showing {paymentLog.data.rows.length} of {paymentLog.data.total} events. Payloads are intentionally not displayed.
+          </div>
+        </Card>
       )}
 
       {/* The QR card printed a VPA, an amount of ₹14,999 and a countdown that

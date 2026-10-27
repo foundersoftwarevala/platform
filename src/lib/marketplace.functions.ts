@@ -8,7 +8,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 import { resolveMarketplacePublicConfig } from "@/lib/marketplace-public-config";
-import type { Database, Json, Tables } from "@/integrations/supabase/types";
+import type { Database, Tables } from "@/integrations/supabase/types";
+import { requireJsonObject, type Json } from "@/lib/json";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
 import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
@@ -769,9 +770,14 @@ export const upsertProduct = createServerFn({ method: "POST" })
       "@/lib/marketplace/product-safety"
     );
     const result = await withMarketplaceManagerDatabase(context.userId, async (tx) => {
-      const [existing] = await tx<{ id: string }[]>`
-        select id from public.marketplace_products where slug = ${data.slug} limit 1
-      `;
+      const [existing] = data.id
+        ? await tx<{ id: string }[]>`
+            select id from public.marketplace_products where id = ${data.id}::uuid for update
+          `
+        : await tx<{ id: string }[]>`
+            select id from public.marketplace_products where slug = ${data.slug} limit 1
+          `;
+      if (data.id && !existing) throw new Error("The product does not exist.");
       const review = existing ? null : productCreationReview(data.name);
       const values = { ...data, ...(review ? productReviewFields(review) : {}) };
       const allowedColumns = new Set([
@@ -805,23 +811,36 @@ export const upsertProduct = createServerFn({ method: "POST" })
       const entries = Object.entries(values).filter(
         ([column, value]) => allowedColumns.has(column) && value !== undefined,
       );
-      if (!entries.some(([column]) => column === "slug")) {
-        throw new Error("Product slug is required.");
+      if (!entries.some(([column]) => column === "slug") ||
+          !entries.some(([column]) => column === "name")) {
+        throw new Error("Product slug and name are required.");
       }
-      const columns = entries.map(([column]) => `"${column}"`).join(", ");
-      const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
-      const updateEntries = entries.filter(([column]) => column !== "slug");
-      const valuesSql = entries.map(([, value]) => value);
-      const conflictSql =
-        !review?.review_required && updateEntries.length > 0
-          ? `on conflict (slug) do update set ${updateEntries
-              .map(([column]) => `"${column}" = excluded."${column}"`)
-              .join(", ")}`
-          : "";
-      const rows = await tx.unsafe<Tables<"marketplace_products">[]>(
-        `insert into public.marketplace_products (${columns}) values (${placeholders}) ${conflictSql} returning *`,
-        valuesSql,
-      );
+      let rows: Tables<"marketplace_products">[];
+      if (data.id) {
+        const updates = entries.filter(([column]) => column !== "id");
+        const assignments = updates.map(([column], index) => `"${column}" = $${index + 1}`);
+        const valuesSql = updates.map(([, value]) => value);
+        const idParameter = valuesSql.length + 1;
+        rows = await tx.unsafe<Tables<"marketplace_products">[]>(
+          `update public.marketplace_products set ${assignments.join(", ")}, updated_at = now()` +
+            ` where id = $${idParameter}::uuid and deleted_at is null returning *`,
+          [...valuesSql, data.id],
+        );
+      } else {
+        const columns = entries.map(([column]) => `"${column}"`).join(", ");
+        const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
+        const updateEntries = entries.filter(([column]) => column !== "slug");
+        const conflictSql =
+          !review?.review_required && updateEntries.length > 0
+            ? `on conflict (slug) do update set ${updateEntries
+                .map(([column]) => `"${column}" = excluded."${column}"`)
+                .join(", ")}`
+            : "";
+        rows = await tx.unsafe<Tables<"marketplace_products">[]>(
+          `insert into public.marketplace_products (${columns}) values (${placeholders}) ${conflictSql} returning *`,
+          entries.map(([, value]) => value),
+        );
+      }
       const [row] = rows;
       if (!row) throw new Error("Product write could not be verified.");
       return { row, review, productId: row.id };
@@ -836,41 +855,47 @@ export const deleteProduct = createServerFn({ method: "POST" })
   .validator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
     if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
-    const deleted = await withMarketplaceManagerDatabase(context.userId, (tx) =>
-      tx<{ id: string }[]>`
-        delete from public.marketplace_products
+    const archived = await withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      const [product] = await tx<{ moderation_status: string; moderation_lock: number }[]>`
+        select moderation_status, moderation_lock
+        from public.marketplace_products
         where id = ${data.id}::uuid
-        returning id
-      `,
-    );
-    if (deleted.length > 0) await catalogueChanged();
-    return { ok: true };
+        for update
+      `;
+      if (!product) throw new Error("The product does not exist.");
+      if (product.moderation_status === "archived") return false;
+      const [result] = await tx<{ response: Json }[]>`
+        select public.mm_product_moderate(
+          ${data.id}::uuid, 'archived', null, ${product.moderation_lock}
+        ) as response
+      `;
+      if (!result) throw new Error("The product archive could not be verified.");
+      const response = requireJsonObject(result.response, "Product archive response");
+      if (response.ok !== true) {
+        throw new Error(
+          typeof response.message === "string"
+            ? response.message
+            : `The product cannot be archived (${String(response.reason ?? "unknown error")}).`,
+        );
+      }
+      return true;
+    });
+    if (archived) await catalogueChanged();
+    return { ok: true as const, archived: true as const };
   });
 
 export const listProductsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    try {
-      if (!context?.supabase) {
-        throw new Error("Unauthorized: Supabase context is unavailable.");
-      }
-
-      const { data, error } = await context.supabase
-        .from("marketplace_products")
-        .select("*")
-        .order("sort_order")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("[marketplace] listProductsAdmin error:", error);
-        return [];
-      }
-
-      return data ?? [];
-    } catch (error) {
-      console.error("[marketplace] listProductsAdmin error:", error);
-      return [];
-    }
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    return withMarketplaceManagerDatabase(context.userId, (tx) =>
+      tx<Tables<"marketplace_products">[]>`
+        select *
+        from public.marketplace_products
+        where deleted_at is null
+        order by sort_order, created_at desc, id
+      `,
+    );
   });
 
 /**
@@ -904,44 +929,28 @@ export const listProductsAdminPage = createServerFn({ method: "GET" })
     return { page, pageSize, search };
   })
   .handler(async ({ context, data }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
     const { page, pageSize, search } = data;
-    const from = page * pageSize;
-
-    try {
-      let query = context.supabase
-        .from("marketplace_products")
-        .select("*", { count: "exact" })
-        .order("sort_order")
-        .order("created_at", { ascending: false })
-        .range(from, from + pageSize - 1);
-
-      if (search) {
-        // Escaped: a comma or a parenthesis in the box would otherwise be read
-        // as PostgREST filter syntax rather than as text to look for.
-        const term = search.replace(/[%,()]/g, " ").trim();
-        if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%`);
-      }
-
-      const { data: rows, error, count } = await query;
-      if (error) {
-        console.error("[marketplace] listProductsAdminPage error:", error);
-        return { rows: [], total: 0, page, pageSize, ok: false, error: error.message };
-      }
-      return { rows: rows ?? [], total: count ?? 0, page, pageSize, ok: true };
-    } catch (error) {
-      console.error("[marketplace] listProductsAdminPage error:", error);
-      return {
-        rows: [],
-        total: 0,
-        page,
-        pageSize,
-        ok: false,
-        error: error instanceof Error ? error.message : "Could not read the catalogue.",
-      };
-    }
+    const term = search.replace(/[%,()]/g, " ").trim();
+    const offset = page * pageSize;
+    return withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      const rows = await tx<Tables<"marketplace_products">[]>`
+        select *
+        from public.marketplace_products
+        where deleted_at is null
+          and (${term} = '' or name ilike ${`%${term}%`} or slug ilike ${`%${term}%`})
+        order by sort_order, created_at desc, id
+        limit ${pageSize} offset ${offset}
+      `;
+      const [count] = await tx<{ total: number }[]>`
+        select count(*)::int as total
+        from public.marketplace_products
+        where deleted_at is null
+          and (${term} = '' or name ilike ${`%${term}%`} or slug ilike ${`%${term}%`})
+      `;
+      if (!count) throw new Error("The catalogue count could not be verified.");
+      return { rows, total: count.total, page, pageSize, ok: true as const };
+    });
   });
 /**
  * Just enough of the catalogue to fill a product picker.
@@ -971,42 +980,28 @@ export const listProductOptions = createServerFn({ method: "GET" })
     };
   })
   .handler(async ({ context, data }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
     const { search, selected } = data;
-    try {
-      let query = context.supabase
-        .from("marketplace_products")
-        .select("id, name, slug")
-        .order("name")
-        .limit(200);
-
-      if (search) {
-        const term = search.replace(/[%,()]/g, " ").trim();
-        if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%`);
-      }
-
-      const { data: rows, error } = await query;
-      if (error) {
-        console.error("[marketplace] listProductOptions error:", error);
-        return [];
-      }
-
-      const options = (rows ?? []) as { id: string; name: string; slug: string }[];
-      if (selected && !options.some((o) => o.id === selected)) {
-        const { data: current } = await context.supabase
-          .from("marketplace_products")
-          .select("id, name, slug")
-          .eq("id", selected)
-          .maybeSingle();
-        if (current) options.unshift(current as { id: string; name: string; slug: string });
+    const term = search.replace(/[%,()]/g, " ").trim();
+    return withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      const options = await tx<{ id: string; name: string; slug: string }[]>`
+        select id, name, slug
+        from public.marketplace_products
+        where deleted_at is null
+          and (${term} = '' or name ilike ${`%${term}%`} or slug ilike ${`%${term}%`})
+        order by name, id
+        limit 200
+      `;
+      if (selected && !options.some((option) => option.id === selected)) {
+        const [current] = await tx<{ id: string; name: string; slug: string }[]>`
+          select id, name, slug
+          from public.marketplace_products
+          where id::text = ${selected} and deleted_at is null
+        `;
+        if (current) options.unshift(current);
       }
       return options;
-    } catch (error) {
-      console.error("[marketplace] listProductOptions error:", error);
-      return [];
-    }
+    });
   });
 
 export const listProductDemoBindings = createServerFn({ method: "GET" })
@@ -1096,18 +1091,32 @@ export const upsertCategory = createServerFn({ method: "POST" })
     }
 
     const row = await withMarketplaceManagerDatabase(context.userId, async (tx) => {
-      const columns = entries.map(([column]) => `"${column}"`).join(", ");
-      const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
-      const updates = entries
-        .filter(([column]) => column !== "slug")
-        .map(([column]) => `"${column}" = excluded."${column}"`)
-        .join(", ");
-      const values = entries.map(([, value]) => value);
-      const [saved] = await tx.unsafe<Tables<"marketplace_categories">[]>(
-        `insert into public.marketplace_categories (${columns}) values (${placeholders}) ` +
-          `on conflict (slug) do update set ${updates} returning *`,
-        values,
-      );
+      const id = data.id;
+      let saved: Tables<"marketplace_categories"> | undefined;
+      if (id) {
+        const updates = entries.filter(([column]) => column !== "id");
+        const assignments = updates.map(([column], index) => `"${column}" = $${index + 1}`);
+        const values = updates.map(([, value]) => value);
+        const [updated] = await tx.unsafe<Tables<"marketplace_categories">[]>(
+          `update public.marketplace_categories set ${assignments.join(", ")}, updated_at = now()` +
+            ` where id = $${values.length + 1}::uuid returning *`,
+          [...values, id],
+        );
+        saved = updated;
+      } else {
+        const columns = entries.map(([column]) => `"${column}"`).join(", ");
+        const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
+        const updates = entries
+          .filter(([column]) => column !== "slug")
+          .map(([column]) => `"${column}" = excluded."${column}"`)
+          .join(", ");
+        const [inserted] = await tx.unsafe<Tables<"marketplace_categories">[]>(
+          `insert into public.marketplace_categories (${columns}) values (${placeholders}) ` +
+            `on conflict (slug) do update set ${updates} returning *`,
+          entries.map(([, value]) => value),
+        );
+        saved = inserted;
+      }
       if (!saved) throw new Error("Category write could not be verified.");
       return saved;
     });
@@ -1120,14 +1129,22 @@ export const deleteCategory = createServerFn({ method: "POST" })
   .validator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
     if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
-    await withMarketplaceManagerDatabase(context.userId, async (tx) => {
-      await tx`
-        delete from public.marketplace_categories
-        where id = ${data.id}::uuid
+    const changed = await withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      const [row] = await tx<{ id: string; is_hidden: boolean }[]>`
+        update public.marketplace_categories
+        set is_hidden = true, updated_at = now()
+        where id = ${data.id}::uuid and is_hidden = false
+        returning id, is_hidden
       `;
+      if (row) return true;
+      const [existing] = await tx<{ id: string }[]>`
+        select id from public.marketplace_categories where id = ${data.id}::uuid
+      `;
+      if (!existing) throw new Error("The category does not exist.");
+      return false;
     });
-    await catalogueChanged();
-    return { ok: true };
+    if (changed) await catalogueChanged();
+    return { ok: true as const, hidden: true as const, changed };
   });
 
 export const listCategoriesAdmin = createServerFn({ method: "GET" })

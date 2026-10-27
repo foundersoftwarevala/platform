@@ -1,6 +1,7 @@
-import { callAsUser } from "@/lib/supabase-rpc.server";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
+import { callMarketplaceManagerFunction, withMarketplaceManagerDatabase } from "./vps-rpc.server";
 
 import { z } from "zod";
 
@@ -73,6 +74,7 @@ export type OrderRow = {
 };
 
 export const listOrders = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
     z
       .object({
@@ -92,15 +94,16 @@ export const listOrders = createServerFn({ method: "GET" })
       })
       .parse(i ?? {}),
   )
-  .handler(async ({ data }) => {
-    const r = await callAsUser<{
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const r = await callMarketplaceManagerFunction<{
       ok: boolean;
       reason?: string;
       total: number;
       limit: number;
       offset: number;
       orders: OrderRow[];
-    }>("mm_orders_list", { p_query: data });
+    }>("mm_orders_list", { p_query: data }, context.userId);
     return settle(r as Outcome, "The orders could not be loaded.") as unknown as {
       ok: true;
       total: number;
@@ -111,13 +114,20 @@ export const listOrders = createServerFn({ method: "GET" })
   });
 
 export const getOrderDetail = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => z.object({ orderId: z.string().uuid() }).parse(i))
-  .handler(async ({ data }) => {
-    const r = await callAsUser<Outcome>("mm_order_detail", { p_order_id: data.orderId });
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const r = await callMarketplaceManagerFunction<Outcome>(
+      "mm_order_detail",
+      { p_order_id: data.orderId },
+      context.userId,
+    );
     return settle(r, "That order could not be loaded.");
   });
 
 export const listOrderDocs = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
     z
       .object({
@@ -126,11 +136,13 @@ export const listOrderDocs = createServerFn({ method: "GET" })
       })
       .parse(i),
   )
-  .handler(async ({ data }) => {
-    const r = await callAsUser<Outcome>("mm_order_docs", {
-      p_tab: data.tab,
-      p_limit: data.limit ?? 50,
-    });
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const r = await callMarketplaceManagerFunction<Outcome>(
+      "mm_order_docs",
+      { p_tab: data.tab, p_limit: data.limit ?? 50 },
+      context.userId,
+    );
     return settle(r, "Those records could not be loaded.");
   });
 
@@ -144,6 +156,7 @@ export const listOrderDocs = createServerFn({ method: "GET" })
  * plainly whether a provider was available.
  */
 export const requestRefund = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
     z
       .object({
@@ -153,16 +166,18 @@ export const requestRefund = createServerFn({ method: "POST" })
       })
       .parse(i),
   )
-  .handler(async ({ data }) => {
-    const r = await callAsUser<Outcome & { provider_configured?: boolean }>("mm_refund_request", {
-      p_order_id: data.orderId,
-      p_amount: data.amount,
-      p_reason: data.reason,
-    });
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const r = await callMarketplaceManagerFunction<Outcome & { provider_configured?: boolean }>(
+      "mm_refund_request",
+      { p_order_id: data.orderId, p_amount: data.amount, p_reason: data.reason },
+      context.userId,
+    );
     return settle(r, "The refund could not be requested.");
   });
 
 export const openDispute = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
     z
       .object({
@@ -172,16 +187,18 @@ export const openDispute = createServerFn({ method: "POST" })
       })
       .parse(i),
   )
-  .handler(async ({ data }) => {
-    const r = await callAsUser<Outcome>("mm_dispute_open", {
-      p_order_id: data.orderId,
-      p_reason: data.reason,
-      p_amount: data.amount ?? null,
-    });
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const r = await callMarketplaceManagerFunction<Outcome>(
+      "mm_dispute_open",
+      { p_order_id: data.orderId, p_reason: data.reason, p_amount: data.amount ?? null },
+      context.userId,
+    );
     return settle(r, "The dispute could not be opened.");
   });
 
 export const resolveDispute = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
     z
       .object({
@@ -198,12 +215,17 @@ export const resolveDispute = createServerFn({ method: "POST" })
       })
       .parse(i),
   )
-  .handler(async ({ data }) => {
-    const r = await callAsUser<Outcome>("mm_dispute_resolve", {
-      p_dispute_id: data.disputeId,
-      p_status: data.status,
-      p_resolution: data.resolution ?? null,
-    });
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const r = await callMarketplaceManagerFunction<Outcome>(
+      "mm_dispute_resolve",
+      {
+        p_dispute_id: data.disputeId,
+        p_status: data.status,
+        p_resolution: data.resolution ?? null,
+      },
+      context.userId,
+    );
     return settle(r, "The dispute could not be updated.");
   });
 
@@ -215,6 +237,7 @@ export const resolveDispute = createServerFn({ method: "POST" })
  * happened.
  */
 export const exportOrders = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
     z
       .object({
@@ -225,10 +248,12 @@ export const exportOrders = createServerFn({ method: "POST" })
       })
       .parse(i ?? {}),
   )
-  .handler(async ({ data }) => {
-    const r = await callAsUser<{ ok: boolean; orders: OrderRow[]; total: number }>(
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const r = await callMarketplaceManagerFunction<{ ok: boolean; orders: OrderRow[]; total: number }>(
       "mm_orders_list",
       { p_query: { ...data, limit: data.limit ?? 100 } },
+      context.userId,
     );
     settle(r as Outcome, "The export could not be produced.");
 
@@ -309,15 +334,88 @@ export type OrderPartner = {
 };
 
 export const getOrderPartners = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) => z.object({ orderId: z.string().uuid() }).parse(i))
-  .handler(async ({ data }) => {
-    const r = await callAsUser<{ ok: boolean; count: number; attributions: OrderPartner[] }>(
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const r = await callMarketplaceManagerFunction<{
+      ok: boolean;
+      count: number;
+      attributions: OrderPartner[];
+    }>(
       "mm_order_partners",
       { p_order_id: data.orderId },
+      context.userId,
     );
     return settle(r as Outcome, "The order's partner credit could not be read.") as unknown as {
       ok: boolean;
       count: number;
       attributions: OrderPartner[];
     };
+  });
+
+export type OrderSummary = {
+  orders: number;
+  paid: number;
+  refunded: number;
+  pending: number;
+};
+
+export const getOrdersSummary = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<OrderSummary> => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    return withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      const [orders] = await tx<OrderSummary[]>`
+        select
+          count(*)::int as orders,
+          count(*) filter (where status = 'paid')::int as paid,
+          count(*) filter (where status in ('pending', 'pending_payment'))::int as pending,
+          (select count(*)::int from public.marketplace_order_refunds) as refunded
+        from public.marketplace_orders
+      `;
+      if (!orders) throw new Error("The order summary could not be loaded.");
+      return orders;
+    });
+  });
+
+export type PaymentLogRow = {
+  id: string;
+  order_id: string | null;
+  order_number: string | null;
+  event_type: string;
+  provider: string | null;
+  signature_valid: boolean | null;
+  created_at: string;
+};
+
+export const listPaymentLog = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) =>
+    z.object({ limit: z.number().int().min(1).max(100).optional() }).parse(i ?? {}),
+  )
+  .handler(async ({ data, context }): Promise<{ rows: PaymentLogRow[]; total: number }> => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    return withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      const limit = data.limit ?? 50;
+      const [count] = await tx<{ total: number }[]>`
+        select count(*)::int as total from public.payment_logs
+      `;
+      const rows = await tx<PaymentLogRow[]>`
+        select
+          log.id,
+          log.order_id,
+          orders.order_number,
+          log.event_type,
+          log.provider,
+          log.signature_valid,
+          log.created_at
+        from public.payment_logs as log
+        left join public.marketplace_orders as orders on orders.id = log.order_id
+        order by log.created_at desc, log.id desc
+        limit ${limit}
+      `;
+      if (!count) throw new Error("The payment log count could not be loaded.");
+      return { rows, total: count.total };
+    });
   });

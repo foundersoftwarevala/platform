@@ -1,6 +1,6 @@
 import postgres, { type Sql, type TransactionSql } from "postgres";
 import { deploymentSetting } from "@/lib/seo/seo-store.server";
-import type { Json } from "@/integrations/supabase/types";
+import { requireJson, requireJsonObject, type Json } from "@/lib/json";
 
 const PLATFORM_DATABASE = "sv_platform";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -86,5 +86,128 @@ export async function callMarketplaceManagerRpc(
     `;
     if (!row) throw new Error("The homepage layout could not be restored.");
     return row.result;
+  });
+}
+
+type MarketplaceManagerFunction =
+  | "mm_filters"
+  | "mm_filter_set"
+  | "mm_license_overview"
+  | "mm_orders_list"
+  | "mm_order_detail"
+  | "mm_order_docs"
+  | "mm_refund_request"
+  | "mm_dispute_open"
+  | "mm_dispute_resolve"
+  | "mm_order_partners";
+
+function stringArgument(args: Record<string, unknown>, key: string): string {
+  const value = args[key];
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`The ${key} argument is required.`);
+  }
+  return value;
+}
+
+function numberArgument(args: Record<string, unknown>, key: string): number {
+  const value = args[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`The ${key} argument must be a finite number.`);
+  }
+  return value;
+}
+
+function jsonArgument(args: Record<string, unknown>, key: string): string {
+  return JSON.stringify(requireJsonObject(args[key], `The ${key} argument`));
+}
+
+/**
+ * Run the audited Marketplace Manager functions inside the guarded VPS
+ * transaction. Function names and SQL signatures stay static; no PostgREST or
+ * hosted Supabase data path is involved.
+ */
+export async function callMarketplaceManagerFunction<T extends Json = Json>(
+  name: MarketplaceManagerFunction,
+  args: Record<string, unknown>,
+  userId: string,
+): Promise<T> {
+  return withMarketplaceManagerDatabase(userId, async (tx) => {
+    let rows: { result: unknown }[];
+    switch (name) {
+      case "mm_filters":
+        rows = await tx<{ result: unknown }[]>`select public.mm_filters() as result`;
+        break;
+      case "mm_filter_set":
+        rows = await tx<{ result: unknown }[]>`
+          select public.mm_filter_set(
+            ${stringArgument(args, "p_key")},
+            ${jsonArgument(args, "p_patch")}::jsonb
+          ) as result
+        `;
+        break;
+      case "mm_license_overview":
+        rows = await tx<{ result: unknown }[]>`
+          select public.mm_license_overview(${stringArgument(args, "p_window")}) as result
+        `;
+        break;
+      case "mm_orders_list":
+        rows = await tx<{ result: unknown }[]>`
+          select public.mm_orders_list(${jsonArgument(args, "p_query")}::jsonb) as result
+        `;
+        break;
+      case "mm_order_detail":
+        rows = await tx<{ result: unknown }[]>`
+          select public.mm_order_detail(${stringArgument(args, "p_order_id")}::uuid) as result
+        `;
+        break;
+      case "mm_order_docs":
+        rows = await tx<{ result: unknown }[]>`
+          select public.mm_order_docs(
+            ${stringArgument(args, "p_tab")},
+            ${numberArgument(args, "p_limit")}
+          ) as result
+        `;
+        break;
+      case "mm_refund_request":
+        rows = await tx<{ result: unknown }[]>`
+          select public.mm_refund_request(
+            ${stringArgument(args, "p_order_id")}::uuid,
+            ${numberArgument(args, "p_amount")},
+            ${stringArgument(args, "p_reason")}
+          ) as result
+        `;
+        break;
+      case "mm_dispute_open": {
+        const amount = args.p_amount;
+        if (amount !== null && (typeof amount !== "number" || !Number.isFinite(amount))) {
+          throw new Error("The p_amount argument must be null or a finite number.");
+        }
+        rows = await tx<{ result: unknown }[]>`
+          select public.mm_dispute_open(
+            ${stringArgument(args, "p_order_id")}::uuid,
+            ${stringArgument(args, "p_reason")},
+            ${amount ?? null}
+          ) as result
+        `;
+        break;
+      }
+      case "mm_dispute_resolve":
+        rows = await tx<{ result: unknown }[]>`
+          select public.mm_dispute_resolve(
+            ${stringArgument(args, "p_dispute_id")}::uuid,
+            ${stringArgument(args, "p_status")},
+            ${typeof args.p_resolution === "string" ? args.p_resolution : null}
+          ) as result
+        `;
+        break;
+      case "mm_order_partners":
+        rows = await tx<{ result: unknown }[]>`
+          select public.mm_order_partners(${stringArgument(args, "p_order_id")}::uuid) as result
+        `;
+        break;
+    }
+
+    if (!rows[0]) throw new Error(`The VPS function ${name} returned no row.`);
+    return requireJson(rows[0].result, `VPS function ${name} response`) as T;
   });
 }

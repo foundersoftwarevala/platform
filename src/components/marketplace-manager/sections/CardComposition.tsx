@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, Info } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { Card, EmptyHint, PageHeader, StatCard } from "../ui";
+import { Card, EmptyHint, LoadFailure, PageHeader, StatCard } from "../ui";
 import {
   getCardFields, setCardField, reorderCardFields, type CardField,
 } from "@/lib/marketplace-manager/cards.functions";
@@ -231,17 +231,6 @@ export function CardComposition() {
         description="Toggle fields, badges, platforms and actions shown on every product card across the storefront."
       />
 
-      {data?.ok === false && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
-          <span>
-            {data.reason === "not_permitted"
-              ? "Changing the product card needs marketplace operator rights."
-              : "The card configuration could not be read."}
-          </span>
-        </div>
-      )}
-
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Visible Fields" value={`${onOf(VISIBLE_FIELDS)} / ${VISIBLE_FIELDS.length}`} />
         <StatCard label="Card Actions" value={`${onOf(CARD_ACTIONS)} / ${CARD_ACTIONS.length}`} tone="success" />
@@ -261,39 +250,43 @@ export function CardComposition() {
         </span>
       </div>
 
-      {fields.isLoading && <EmptyHint text="Reading the card configuration…" />}
+      {fields.isError ? (
+        <LoadFailure error={fields.error} what="card configuration" onRetry={() => void fields.refetch()} />
+      ) : fields.isLoading ? (
+        <EmptyHint text="Reading the card configuration…" />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+          <Card>
+            {renderGroup("Visible Fields", VISIBLE_FIELDS, "metadata")}
+            {renderGroup("Card Actions", CARD_ACTIONS, "action")}
+            {renderGroup("Badges", BADGES, "badge")}
+            {renderGroup("Platform Badges", PLATFORMS, "platform")}
+          </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <Card>
-          {renderGroup("Visible Fields", VISIBLE_FIELDS, "metadata")}
-          {renderGroup("Card Actions", CARD_ACTIONS, "action")}
-          {renderGroup("Badges", BADGES, "badge")}
-          {renderGroup("Platform Badges", PLATFORMS, "platform")}
-        </Card>
-
-        <Card className="overflow-hidden">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Live Preview
-          </div>
-          {sample ? (
-            <div className="w-full max-w-[330px]">
-              <DemoCard
-                demo={toDemo(sample, 0)}
-                index={0}
-                isFavorite={false}
-                onToggleFavorite={() => {}}
-              />
+          <Card className="overflow-hidden">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Live Preview
             </div>
-          ) : (
-            <EmptyHint text="Loading a real product to preview…" />
-          )}
-          <div className="mt-3 text-[10px] text-muted-foreground">
-            This is DemoCard — the component the public homepage renders — drawn against a
-            real catalogue product, not a mockup. It shows what a card looks like today;
-            fields that no product can answer do not appear on it.
-          </div>
-        </Card>
-      </div>
+            {sample ? (
+              <div className="w-full max-w-[330px]">
+                <DemoCard
+                  demo={toDemo(sample, 0)}
+                  index={0}
+                  isFavorite={false}
+                  onToggleFavorite={() => {}}
+                />
+              </div>
+            ) : (
+              <EmptyHint text="Loading a real product to preview…" />
+            )}
+            <div className="mt-3 text-[10px] text-muted-foreground">
+              This is DemoCard — the component the public homepage renders — drawn against a
+              real catalogue product, not a mockup. It shows what a card looks like today;
+              fields that no product can answer do not appear on it.
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

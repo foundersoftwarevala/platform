@@ -1,70 +1,80 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { callMarketplaceManagerFunction } from "@/lib/marketplace-manager/vps-rpc.server";
+
 /**
- * Storefront filters.
- *
- * Only the group configuration is stored. The values are derived from the
- * canonical product and category tables on every read, so there is no second
- * copy of the taxonomy to drift out of step with the catalogue.
+ * Storefront filters. Both configuration and derived values are read from the
+ * canonical VPS catalogue database, never through hosted PostgREST.
  */
+const FilterValueSchema = z.object({
+  value: z.string(),
+  label: z.string(),
+  count: z.number(),
+});
 
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
+const FilterGroupSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  source: z.string(),
+  enabled: z.boolean(),
+  position: z.number(),
+  select_mode: z.enum(["single", "multi"]),
+  combine: z.enum(["and", "or"]),
+  visible_desktop: z.boolean(),
+  visible_mobile: z.boolean(),
+  values: z.array(FilterValueSchema),
+});
 
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
+const FilterResponseSchema = z.object({
+  ok: z.boolean(),
+  reason: z.string().optional(),
+  groups: z.array(FilterGroupSchema).optional(),
+});
+
+export type FilterValue = z.infer<typeof FilterValueSchema>;
+export type FilterGroup = z.infer<typeof FilterGroupSchema>;
+
+export const listStorefrontFilters = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: true; groups: FilterGroup[] }> => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const response = FilterResponseSchema.parse(
+      await callMarketplaceManagerFunction("mm_filters", {}, context.userId),
+    );
+    if (!response.ok) {
+      throw new Error(
+        response.reason === "not_permitted"
+          ? "Reading storefront filters needs marketplace operator rights."
+          : "The VPS refused to return storefront filters.",
+      );
+    }
+    if (!response.groups) throw new Error("The VPS returned an incomplete storefront filter response.");
+    return { ok: true, groups: response.groups };
   });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
-
-export type FilterValue = { value: string; label: string; count: number };
-
-export type FilterGroup = {
-  key: string;
-  label: string;
-  source: string;
-  enabled: boolean;
-  position: number;
-  select_mode: "single" | "multi";
-  combine: "and" | "or";
-  visible_desktop: boolean;
-  visible_mobile: boolean;
-  values: FilterValue[];
-};
-
-export const listStorefrontFilters = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ ok: boolean; reason?: string; groups?: FilterGroup[] }> =>
-    callAsUser("mm_filters", {}),
-);
 
 export const configureStorefrontFilter = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((i: unknown) =>
     z.object({
       key: z.string().min(1).max(60),
       patch: z.record(z.string(), z.unknown()),
     }).parse(i),
   )
-  .handler(async ({ data }) => {
-    const result = await callAsUser<{ ok?: boolean; reason?: string }>("mm_filter_set", {
-      p_key: data.key,
-      p_patch: data.patch,
-    });
-    if (!result?.ok) {
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const result = await callMarketplaceManagerFunction(
+      "mm_filter_set",
+      { p_key: data.key, p_patch: data.patch },
+      context.userId,
+    );
+    const response = z.object({ ok: z.boolean(), reason: z.string().optional() }).parse(result);
+    if (!response.ok) {
       throw new Error(
-        result?.reason === "not_permitted"
+        response.reason === "not_permitted"
           ? "Changing storefront filters needs marketplace operator rights."
-          : "The change was refused.",
+          : "The filter change was refused.",
       );
     }
     return { ok: true as const };

@@ -3,7 +3,7 @@ import { AlertTriangle, ChevronDown, ChevronUp, Filter, Info } from "lucide-reac
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { Card, EmptyHint, PageHeader, StatCard } from "../ui";
+import { Card, EmptyHint, LoadFailure, PageHeader, StatCard } from "../ui";
 import {
   listStorefrontFilters, configureStorefrontFilter, type FilterGroup,
 } from "@/lib/marketplace-manager/filters.functions";
@@ -53,8 +53,7 @@ export function StorefrontFiltersSection() {
     onError: (e: Error) => toast.error(e.message || "The change was refused."),
   });
 
-  const data = filters.data;
-  const groups = (data?.groups ?? []) as FilterGroup[];
+  const groups = filters.data?.groups ?? [];
   const totalValues = groups.reduce((n, g) => n + (g.values?.length ?? 0), 0);
   const enabled = groups.filter((g) => g.enabled).length;
 
@@ -74,17 +73,6 @@ export function StorefrontFiltersSection() {
         title="Storefront Filters"
         description="Faceted filters for category, deployment, platform, tags, price, rating & license."
       />
-
-      {data?.ok === false && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
-          <span>
-            {data.reason === "not_permitted"
-              ? "Changing storefront filters needs marketplace operator rights."
-              : "The filters could not be read."}
-          </span>
-        </div>
-      )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Filter groups" value={String(groups.length)} />
@@ -115,10 +103,16 @@ export function StorefrontFiltersSection() {
         </span>
       </div>
 
-      {filters.isLoading && <EmptyHint text="Reading the filters…" />}
+      {filters.isError ? (
+        <LoadFailure error={filters.error} what="storefront filters" onRetry={() => void filters.refetch()} />
+      ) : filters.isLoading ? (
+        <EmptyHint text="Reading the filters…" />
+      ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {groups.map((g) => {
+      {!filters.isLoading && !filters.isError && <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {groups.length === 0 ? (
+          <Card><EmptyHint text="No storefront filter groups are configured." /></Card>
+        ) : groups.map((g) => {
           const open = expanded === g.key;
           const shown = open ? g.values : (g.values ?? []).slice(0, 8);
           return (
@@ -225,7 +219,7 @@ export function StorefrontFiltersSection() {
             </Card>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }

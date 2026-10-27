@@ -3,7 +3,7 @@ import { AlertTriangle, Check, Info, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { Card, EmptyHint, PageHeader, StatCard } from "../ui";
+import { Card, EmptyHint, LoadFailure, PageHeader, StatCard } from "../ui";
 import { getCardFields, setCardField, type CardField } from "@/lib/marketplace-manager/cards.functions";
 
 /**
@@ -88,17 +88,6 @@ export function CardManagerSection() {
         description="Govern every visual, metadata and action surface on product cards across the marketplace — homepage, walls, search, recommendations."
       />
 
-      {data?.ok === false && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
-          <span>
-            {data.reason === "not_permitted"
-              ? "Changing the product card needs marketplace operator rights."
-              : "The card configuration could not be read."}
-          </span>
-        </div>
-      )}
-
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Visual Fields" value={`${onOf("visual")} / ${countOf("visual")}`} />
         <StatCard label="Metadata Fields" value={`${onOf("metadata")} / ${countOf("metadata")}`} tone="success" />
@@ -140,9 +129,13 @@ export function CardManagerSection() {
         />
       </div>
 
-      {fields.isLoading && <EmptyHint text="Reading the card configuration…" />}
+      {fields.isError ? (
+        <LoadFailure error={fields.error} what="card configuration" onRetry={() => void fields.refetch()} />
+      ) : fields.isLoading ? (
+        <EmptyHint text="Reading the card configuration…" />
+      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      {!fields.isLoading && !fields.isError && <div className="grid gap-4 lg:grid-cols-3">
         {(["visual", "metadata", "action"] as const).map((kind) => (
           <Card key={kind}>
             <h3 className="mb-3 text-base font-bold capitalize">
@@ -185,7 +178,7 @@ export function CardManagerSection() {
             </div>
           </Card>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
