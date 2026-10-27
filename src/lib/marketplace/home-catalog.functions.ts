@@ -1,13 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 
-import {
-  catalogConfigured,
-  readCatalogRows,
-  type CatalogPage,
-  type CatalogRow,
-} from "./catalog.server";
-import { onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
-import { invalidateRedisCacheTag, redisCached } from "@/lib/server/redis-cache.server";
+import { type CatalogPage, type CatalogRow } from "./catalog.server";
 
 /**
  * The home page's first page of catalogue rows, rendered on the server so the
@@ -23,40 +16,12 @@ import { invalidateRedisCacheTag, redisCached } from "@/lib/server/redis-cache.s
 const ROWS = 8;
 const PER_ROW = 12;
 
-// The first page is the same for everybody, so it is built once a minute
-// rather than on every visit.
-const CACHE_MS = 60_000;
-let cached: { at: number; payload: HomeCatalogSeed } | null = null;
-// Emptied by a Manager write (catalogue-invalidation.ts), not only by time.
-onCatalogueChange(() => {
-  cached = null;
-  void invalidateRedisCacheTag("marketplace-home");
-});
-
 export type SeededRow = CatalogRow;
 export type HomeCatalogSeed = CatalogPage | null;
 
 export const getHomeCatalog = createServerFn({ method: "GET" }).handler(
   async (): Promise<HomeCatalogSeed> => {
-    // A server that cannot reach the catalogue renders nothing here rather
-    // than inventing rows; the browser then asks for them itself.
-    if (!catalogConfigured()) return null;
-    return redisCached("marketplace-home", "first-page:v1", CACHE_MS, async () => {
-      if (!process.env.REDIS_URL?.trim() && cached && Date.now() - cached.at < CACHE_MS) {
-        return cached.payload;
-      }
-      try {
-        const payload = await readCatalogRows({
-          rowOffset: 0,
-          rowCount: ROWS,
-          perRow: PER_ROW,
-        });
-        if (payload) cached = { at: Date.now(), payload };
-        return payload;
-      } catch (error) {
-        console.error("[home catalogue] seed failed", error);
-        return null;
-      }
-    });
+    const { readHomeCatalogSeed } = await import("./home-catalog-cache.server");
+    return readHomeCatalogSeed(ROWS, PER_ROW);
   },
 );

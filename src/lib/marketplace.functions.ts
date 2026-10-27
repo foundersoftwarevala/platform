@@ -760,14 +760,15 @@ const productSchema = z.object({
 export const upsertProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => productSchema.parse(v))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
     // These fields include publication, visibility and merchandising controls.
     // The direct VPS writer therefore requires the same marketplace operator
     // policy as the homepage-row manager before it reads or writes the product.
     const { productCreationReview, productReviewFields, logProductReview } = await import(
       "@/lib/marketplace/product-safety"
     );
-    const result = await withMarketplaceManagerDatabase(async (tx) => {
+    const result = await withMarketplaceManagerDatabase(context.userId, async (tx) => {
       const [existing] = await tx<{ id: string }[]>`
         select id from public.marketplace_products where slug = ${data.slug} limit 1
       `;
@@ -833,8 +834,9 @@ export const upsertProduct = createServerFn({ method: "POST" })
 export const deleteProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ id: z.string().uuid() }).parse(v))
-  .handler(async ({ data }) => {
-    const deleted = await withMarketplaceManagerDatabase((tx) =>
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const deleted = await withMarketplaceManagerDatabase(context.userId, (tx) =>
       tx<{ id: string }[]>`
         delete from public.marketplace_products
         where id = ${data.id}::uuid
@@ -1054,20 +1056,61 @@ const categorySchema = z.object({
   is_hidden: z.boolean().optional(),
 });
 
+type CategoryAdminRow = Pick<
+  Tables<"marketplace_categories">,
+  | "id"
+  | "slug"
+  | "name"
+  | "icon"
+  | "image_key"
+  | "tone"
+  | "sort_order"
+  | "is_featured"
+  | "is_hidden"
+>;
+
 export const upsertCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => categorySchema.parse(v))
   .handler(async ({ data, context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const allowedColumns = new Set([
+      "id",
+      "slug",
+      "name",
+      "icon",
+      "image_key",
+      "tone",
+      "sort_order",
+      "is_featured",
+      "is_hidden",
+    ]);
+    const entries = Object.entries(data).filter(
+      ([column, value]) => allowedColumns.has(column) && value !== undefined,
+    );
+    if (
+      !entries.some(([column]) => column === "slug") ||
+      !entries.some(([column]) => column === "name")
+    ) {
+      throw new Error("Category slug and name are required.");
     }
 
-    const { error, data: row } = await context.supabase
-      .from("marketplace_categories")
-      .upsert(data as any, { onConflict: "slug" })
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
+    const row = await withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      const columns = entries.map(([column]) => `"${column}"`).join(", ");
+      const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
+      const updates = entries
+        .filter(([column]) => column !== "slug")
+        .map(([column]) => `"${column}" = excluded."${column}"`)
+        .join(", ");
+      const values = entries.map(([, value]) => value);
+      const [saved] = await tx.unsafe<Tables<"marketplace_categories">[]>(
+        `insert into public.marketplace_categories (${columns}) values (${placeholders}) ` +
+          `on conflict (slug) do update set ${updates} returning *`,
+        values,
+      );
+      if (!saved) throw new Error("Category write could not be verified.");
+      return saved;
+    });
     await catalogueChanged();
     return row;
   });
@@ -1076,15 +1119,13 @@ export const deleteCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ id: z.string().uuid() }).parse(v))
   .handler(async ({ data, context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
-
-    const { error } = await context.supabase
-      .from("marketplace_categories")
-      .delete()
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    await withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      await tx`
+        delete from public.marketplace_categories
+        where id = ${data.id}::uuid
+      `;
+    });
     await catalogueChanged();
     return { ok: true };
   });
@@ -1092,23 +1133,23 @@ export const deleteCategory = createServerFn({ method: "POST" })
 export const listCategoriesAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
-
-    const { data, error } = await context.supabase
-      .from("marketplace_categories")
-      .select("*")
-      .order("sort_order");
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    return withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      return tx<CategoryAdminRow[]>`
+        select id, slug, name, icon, image_key, tone, sort_order, is_featured, is_hidden
+        from public.marketplace_categories
+        order by sort_order, id
+      `;
+    });
   });
 
 // Homepage section ordering
 export const setSectionEnabled = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ key: z.string(), enabled: z.boolean() }).parse(v))
-  .handler(async ({ data }) => {
-    const row = await withMarketplaceManagerDatabase(async (tx) => {
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const row = await withMarketplaceManagerDatabase(context.userId, async (tx) => {
       const [before] = await tx<{ state: Json; status: string }[]>`
         select to_jsonb(section) as state, section.status
         from public.marketplace_homepage_sections as section
@@ -1152,6 +1193,7 @@ export const setSectionEnabled = createServerFn({ method: "POST" })
   });
 
 export const reorderSections = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .validator((v) =>
     z
       .object({
@@ -1164,8 +1206,9 @@ export const reorderSections = createServerFn({ method: "POST" })
       })
       .parse(v),
   )
-  .handler(async ({ data }) => {
-    const moved = await withMarketplaceManagerDatabase(async (tx) => {
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const moved = await withMarketplaceManagerDatabase(context.userId, async (tx) => {
       const current = await tx<{ key: string; sort_order: number }[]>`
         select key, sort_order
         from public.marketplace_homepage_sections
@@ -1222,10 +1265,15 @@ export const reorderSections = createServerFn({ method: "POST" })
  * signed in but not an operator is refused by the database rather than by a
  * hidden button.
  */
-export const layoutHistory = createServerFn({ method: "GET" }).handler(async () => {
-    const result = await callMarketplaceManagerRpc<unknown>("mm_layout_history", {
-      p_limit: 20,
-    });
+export const layoutHistory = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const result = await callMarketplaceManagerRpc(
+      "mm_layout_history",
+      { p_limit: 20 },
+      context.userId,
+    );
     return z
       .object({
         entries: z.array(
@@ -1243,25 +1291,32 @@ export const layoutHistory = createServerFn({ method: "GET" }).handler(async () 
   });
 
 export const layoutRestore = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ auditId: z.string().uuid() }).parse(v))
-  .handler(async ({ data }) => {
-    const result = await callMarketplaceManagerRpc<unknown>("mm_layout_restore", {
-      p_audit_id: data.auditId,
-    });
+  .handler(async ({ data, context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    const result = await callMarketplaceManagerRpc(
+      "mm_layout_restore",
+      { p_audit_id: data.auditId },
+      context.userId,
+    );
     const restored = z.object({ ok: z.boolean() }).parse(result);
     if (restored.ok) await catalogueChanged();
     return restored;
   });
 
-export const listSectionsAdmin = createServerFn({ method: "GET" }).handler(async () => {
-  return withMarketplaceManagerDatabase(async (tx) => {
-    return tx<Tables<"marketplace_homepage_sections">[]>`
-      select *
-      from public.marketplace_homepage_sections
-      order by sort_order, key
-    `;
+export const listSectionsAdmin = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    if (!context?.userId) throw new Error("Unauthorized: a signed-in user is required.");
+    return withMarketplaceManagerDatabase(context.userId, async (tx) => {
+      return tx<Tables<"marketplace_homepage_sections">[]>`
+        select *
+        from public.marketplace_homepage_sections
+        order by sort_order, key
+      `;
+    });
   });
-});
 
 // ============================================================================
 // DEMO URL CRUD ENDPOINTS

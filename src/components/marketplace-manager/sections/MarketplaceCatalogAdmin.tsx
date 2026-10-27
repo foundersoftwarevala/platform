@@ -263,7 +263,14 @@ export function CategoriesAdmin() {
   const deleteFn = useServerFn(deleteCategory);
 
   const { data = [], isLoading, isError, error, refetch } = useQuery<Category[]>({
-    queryKey: ["mp_categories_admin"], queryFn: async () => (await listFn()) as unknown as Category[],
+    queryKey: ["mp_categories_admin"],
+    queryFn: async () => {
+      const categories = await listFn();
+      if (!Array.isArray(categories)) {
+        throw new Error("The category list response was not an array.");
+      }
+      return categories;
+    },
   });
 
   const [editing, setEditing] = useState<Partial<Category> | null>(null);
@@ -304,7 +311,16 @@ export function CategoriesAdmin() {
       ) : isLoading ? (
         <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin"/> {t("storeadmin.catalog.loading")}</div>
       ) : data.length === 0 ? (
-        <Card><div className="text-sm text-muted-foreground">{t("storeadmin.catalog.categories_empty")}</div></Card>
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-muted-foreground">{t("storeadmin.catalog.categories_empty")}</div>
+            <PillButton variant="primary" onClick={() => setEditing({ ...EMPTY_CAT })}>
+              <span className="inline-flex items-center gap-1.5">
+                <Plus className="h-3.5 w-3.5" /> {t("storeadmin.catalog.new_category")}
+              </span>
+            </PillButton>
+          </div>
+        </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data.map((c) => (

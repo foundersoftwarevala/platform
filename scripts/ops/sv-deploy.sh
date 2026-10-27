@@ -20,6 +20,7 @@ BUILD="/var/www/sv-build"
 TEST_PORT=3011
 MIN_BYTES=20000
 MARKER="Software Vala"
+LIVE_HOST="softwarevala.net"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
@@ -80,12 +81,12 @@ SMOKE_PID=$!
 ok=0
 for i in $(seq 1 30); do
   sleep 2
-  code=$(curl -s -o /tmp/sv-smoke.html -w '%{http_code}' -m 20 "http://127.0.0.1:$TEST_PORT/" 2>/dev/null)
+  code=$(curl -s -H "Host: $LIVE_HOST" -o /tmp/sv-smoke.html -w '%{http_code}' -m 20 "http://127.0.0.1:$TEST_PORT/" 2>/dev/null)
   [ "$code" = "200" ] && { ok=1; break; }
 done
 size=$(wc -c < /tmp/sv-smoke.html 2>/dev/null || echo 0)
 language_code=$(curl -s -o /tmp/sv-smoke-language.json -w '%{http_code}' -m 30 \
-  "http://127.0.0.1:$TEST_PORT/api/i18n/pack?lang=hi")
+  -H "Host: $LIVE_HOST" "http://127.0.0.1:$TEST_PORT/api/i18n/pack?lang=hi")
 language_ok=0
 if [ "$language_code" = "200" ]; then
   node -e 'const p=JSON.parse(require("fs").readFileSync("/tmp/sv-smoke-language.json","utf8"));process.exit(p.source==="vps-postgresql"&&p.count>0?0:1)' &&
@@ -93,6 +94,7 @@ if [ "$language_code" = "200" ]; then
 fi
 session_code=$(curl -s -o /tmp/sv-smoke-session.json -w '%{http_code}' -m 15 \
   -H "Cookie: __Host-sv_language_session=$(printf 'a%.0s' {1..64})" \
+  -H "Host: $LIVE_HOST" \
   "http://127.0.0.1:$TEST_PORT/api/i18n/session")
 session_ok=0
 if [ "$session_code" = "200" ]; then
@@ -102,7 +104,7 @@ fi
 locale_ok=1
 for locale in en hi ar; do
   locale_code=$(curl -s -D /tmp/sv-smoke-locale.headers -o /tmp/sv-smoke-locale.html \
-    -w '%{http_code}' -m 45 "http://127.0.0.1:$TEST_PORT/?lang=$locale")
+    -w '%{http_code}' -m 45 -H "Host: $LIVE_HOST" "http://127.0.0.1:$TEST_PORT/?lang=$locale")
   direction=ltr
   [ "$locale" = "ar" ] && direction=rtl
   if [ "$locale_code" != "200" ] ||
@@ -201,7 +203,7 @@ holder="$(ss -ltnp 2>/dev/null | grep ':3000 ' | grep -o 'pid=[0-9]*' | head -1 
 echo "  port 3000 is held by ${holder:-nobody}, pm2 runs ${PM2_PID:-nothing}, copies running: $(pgrep -fc "$ENTRY" 2>/dev/null; true)"
 
 step "6/6 Verifying the live site"
-code=$(curl -s -o /tmp/sv-live.html -w '%{http_code}' -m 25 "http://127.0.0.1:3000/")
+code=$(curl -s -H "Host: $LIVE_HOST" -o /tmp/sv-live.html -w '%{http_code}' -m 25 "http://127.0.0.1:3000/")
 size=$(wc -c < /tmp/sv-live.html)
 # A homepage answered by yesterday's process is not this build being live.
 if [ -n "$holder" ] && [ -n "$PM2_PID" ] && [ "$holder" != "$PM2_PID" ]; then
@@ -228,6 +230,6 @@ mv "$LIVE/.output" "$LIVE/.output.failed-$STAMP"
 mv "$LIVE/.output.prev-$STAMP" "$LIVE/.output"
 pm2 restart "$APP" --update-env >/dev/null 2>&1
 sleep 8
-back=$(curl -s -o /dev/null -m 25 -w '%{http_code}' "http://127.0.0.1:3000/")
+back=$(curl -s -H "Host: $LIVE_HOST" -o /dev/null -m 25 -w '%{http_code}' "http://127.0.0.1:3000/")
 echo "  rolled back to the previous build (http=$back)"
 fail "the new build did not serve the homepage; the previous build is live again"
