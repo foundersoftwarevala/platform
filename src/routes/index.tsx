@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { createFileRoute } from "@tanstack/react-router";
-import "@/styles/sapphire-home.css";
-import HomeIndex from "@/components/sapphire-home/HomeIndex";
+import "@/styles/marketplace-home.css";
+import HomeIndex from "@/components/marketplace-home/HomeIndex";
 import { absoluteUrl } from "@/lib/seo/site-url";
 import { getPublicHomeSeo } from "@/lib/i18n/public-seo.functions";
 
@@ -21,39 +21,32 @@ export const Route = createFileRoute("/")({
    * it, and no piece of metadata is worth a blank screen.
    */
   /*
-   * Alongside it, two more reads the page's own sections quote: the live-demo
-   * count (getHomeStats) and the published Vala TV films (the storefront
-   * chrome). Each is settled on its own and capped at a second and a half, so
-   * none of them can fail or stall the page - a missing answer only means that
-   * section shows no number, or does not render.
+   * Load the same VPS-backed homepage data used by /marketplace/ so the root
+   * route renders the same ordered, published section registry.
    */
   loader: async ({ context }) => {
-    const [{ getCatalogueHeadline }, { getHomeStats }, { getStorefrontChrome }] = await Promise.all(
-      [
-        import("@/lib/seo/catalogue-headline.server"),
-        import("@/lib/marketplace/home-stats.functions"),
-        import("@/lib/storefront/chrome.functions"),
-      ],
-    );
+    const [{ getCatalogueHeadline }, { loadHomeRouteData }] = await Promise.all([
+      import("@/lib/seo/catalogue-headline.server"),
+      import("@/lib/marketplace/home-route-data"),
+    ]);
     const capped = <T,>(read: () => Promise<T>): Promise<T | null> =>
       Promise.race([
         read().catch(() => null),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
       ]);
-    const [headline, stats, chrome] = await Promise.all([
+    const [headline, homeData] = await Promise.all([
       capped(() => getCatalogueHeadline()),
-      capped(() => getHomeStats()),
-      capped(() => getStorefrontChrome()),
+      loadHomeRouteData(),
     ]);
     const seo = await getPublicHomeSeo({
       data: {
         products: headline?.products ?? null,
         categories: headline?.visibleCategories ?? null,
-        liveDemos: stats?.liveDemos ?? null,
+        liveDemos: homeData.stats?.liveDemos ?? null,
         bootstrap: context.languageBootstrap,
       },
     });
-    return { headline, stats, chrome, seo };
+    return { ...homeData, headline, seo };
   },
   head: ({ loaderData }) => {
     const headline = loaderData?.headline ?? null;

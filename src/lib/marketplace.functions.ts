@@ -1,6 +1,6 @@
-// Marketplace ↔ Manager data layer.
-// Public reads use a server publishable client (RLS enforced as anon).
-// Admin mutations use requireSupabaseAuth — RLS enforces boss/admin role.
+// Marketplace ↔ Manager server functions. The catalogue admin product writes
+// below use the canonical VPS database; legacy public and read-only routes keep
+// their existing PostgREST client.
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestIP } from "@tanstack/react-start/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -8,10 +8,15 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { SlidingWindowLimiter } from "@/lib/i18n/limits";
 import { resolveMarketplacePublicConfig } from "@/lib/marketplace-public-config";
-import type { Database, Json } from "@/integrations/supabase/types";
+import type { Database, Json, Tables } from "@/integrations/supabase/types";
 import { SUPPLIED_DEMOS_16 } from "@/lib/supplied-demos-catalog";
 import { catalogueEntries, type CatalogueEntry } from "@/data/catalogue";
 import { LIFETIME_PRICE } from "@/lib/site-content/constants";
+import { catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
+import {
+  callMarketplaceManagerRpc,
+  withMarketplaceManagerDatabase,
+} from "@/lib/marketplace-manager/vps-rpc.server";
 
 // These migration-backed RPCs are absent from cloud-generated metadata.
 type MarketplaceRpcDatabase = Omit<Database, "public"> & {
@@ -737,6 +742,9 @@ const productSchema = z.object({
   downloads: z.number().int().optional(),
   downloads_label: z.string().nullable().optional(),
   badge: z.enum(["NEW", "HOT", "TOP", "DEAL"]).nullable().optional(),
+  description: z.string().nullable().optional(),
+  demo_url: z.string().nullable().optional(),
+  demo_video_url: z.string().nullable().optional(),
   is_featured: z.boolean().optional(),
   is_trending: z.boolean().optional(),
   is_new_release: z.boolean().optional(),
@@ -752,34 +760,88 @@ const productSchema = z.object({
 export const upsertProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => productSchema.parse(v))
-  .handler(async ({ data, context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
-    // Row level security also lets a seller member update their own products,
-    // and this schema carries visible, rating, downloads, badge, the featured
-    // flags and the publish window - none of them a seller's to set. Only the
-    // Marketplace Manager's own people may write through here.
-    const { requireOperator } = await import("@/lib/auth/require-operator.server");
-    await requireOperator("Editing the catalogue", { alsoAllow: ["marketing", "seo"] });
-
-    const { upsertReviewedProduct } = await import("@/lib/marketplace/product-write.server");
-    return upsertReviewedProduct(context.supabase, data);
+  .handler(async ({ data }) => {
+    // These fields include publication, visibility and merchandising controls.
+    // The direct VPS writer therefore requires the same marketplace operator
+    // policy as the homepage-row manager before it reads or writes the product.
+    const { productCreationReview, productReviewFields, logProductReview } = await import(
+      "@/lib/marketplace/product-safety"
+    );
+    const result = await withMarketplaceManagerDatabase(async (tx) => {
+      const [existing] = await tx<{ id: string }[]>`
+        select id from public.marketplace_products where slug = ${data.slug} limit 1
+      `;
+      const review = existing ? null : productCreationReview(data.name);
+      const values = { ...data, ...(review ? productReviewFields(review) : {}) };
+      const allowedColumns = new Set([
+        "id",
+        "slug",
+        "name",
+        "industry_label",
+        "icon",
+        "price_label",
+        "price_period",
+        "rating",
+        "downloads",
+        "downloads_label",
+        "badge",
+        "description",
+        "demo_url",
+        "demo_video_url",
+        "is_featured",
+        "is_trending",
+        "is_new_release",
+        "is_best_seller",
+        "is_ai",
+        "category_id",
+        "sort_order",
+        "visible",
+        "publish_at",
+        "unpublish_at",
+        "content_status",
+        "moderation_status",
+      ]);
+      const entries = Object.entries(values).filter(
+        ([column, value]) => allowedColumns.has(column) && value !== undefined,
+      );
+      if (!entries.some(([column]) => column === "slug")) {
+        throw new Error("Product slug is required.");
+      }
+      const columns = entries.map(([column]) => `"${column}"`).join(", ");
+      const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
+      const updateEntries = entries.filter(([column]) => column !== "slug");
+      const valuesSql = entries.map(([, value]) => value);
+      const conflictSql =
+        !review?.review_required && updateEntries.length > 0
+          ? `on conflict (slug) do update set ${updateEntries
+              .map(([column]) => `"${column}" = excluded."${column}"`)
+              .join(", ")}`
+          : "";
+      const rows = await tx.unsafe<Tables<"marketplace_products">[]>(
+        `insert into public.marketplace_products (${columns}) values (${placeholders}) ${conflictSql} returning *`,
+        valuesSql,
+      );
+      const [row] = rows;
+      if (!row) throw new Error("Product write could not be verified.");
+      return { row, review, productId: row.id };
+    });
+    if (result.review) logProductReview(result.review, "catalogue upsert", result.productId);
+    await catalogueChanged();
+    return result.row;
   });
 
 export const deleteProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ id: z.string().uuid() }).parse(v))
-  .handler(async ({ data, context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
-
-    const { error } = await context.supabase
-      .from("marketplace_products")
-      .delete()
-      .eq("id", data.id);
-    if (error) throw new Error(error.message);
+  .handler(async ({ data }) => {
+    const deleted = await withMarketplaceManagerDatabase((tx) =>
+      tx<{ id: string }[]>`
+        delete from public.marketplace_products
+        where id = ${data.id}::uuid
+        returning id
+      `,
+    );
+    if (deleted.length > 0) await catalogueChanged();
     return { ok: true };
   });
 
@@ -1006,6 +1068,7 @@ export const upsertCategory = createServerFn({ method: "POST" })
       .select()
       .single();
     if (error) throw new Error(error.message);
+    await catalogueChanged();
     return row;
   });
 
@@ -1022,6 +1085,7 @@ export const deleteCategory = createServerFn({ method: "POST" })
       .delete()
       .eq("id", data.id);
     if (error) throw new Error(error.message);
+    await catalogueChanged();
     return { ok: true };
   });
 
@@ -1042,46 +1106,107 @@ export const listCategoriesAdmin = createServerFn({ method: "GET" })
 
 // Homepage section ordering
 export const setSectionEnabled = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ key: z.string(), enabled: z.boolean() }).parse(v))
-  .handler(async ({ data, context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
+  .handler(async ({ data }) => {
+    const row = await withMarketplaceManagerDatabase(async (tx) => {
+      const [before] = await tx<{ state: Json; status: string }[]>`
+        select to_jsonb(section) as state, section.status
+        from public.marketplace_homepage_sections as section
+        where section.key = ${data.key}
+        for update
+      `;
+      if (!before) throw new Error(`Unknown homepage section: ${data.key}`);
+      if (before.status === "archived") {
+        throw new Error("Archived homepage sections must be restored before changing them.");
+      }
 
-    // Through the function rather than the table. It refuses out loud when the
-    // caller may not write - a filtered update reports zero rows, not an error,
-    // so the old direct write reported success while changing nothing - and it
-    // publishes a draft it is asked to enable, since a section that is enabled
-    // but unpublished is still not live.
-    const { data: row, error } = await context.supabase.rpc("mm_section_set_enabled", {
-      p_key: data.key,
-      p_enabled: data.enabled,
+      const status = data.enabled ? "published" : "unpublished";
+      const [updated] = await tx<Tables<"marketplace_homepage_sections">[]>`
+        update public.marketplace_homepage_sections
+        set enabled = ${data.enabled},
+            status = ${status},
+            published_at = case
+              when ${data.enabled} then coalesce(published_at, now())
+              else published_at
+            end,
+            updated_at = now()
+        where key = ${data.key}
+        returning *
+      `;
+      if (!updated) throw new Error(`Homepage section ${data.key} could not be updated.`);
+
+      await tx`
+        select public.mm_audit(
+          ${data.enabled ? "section.enable" : "section.disable"},
+          'homepage_section',
+          ${data.key},
+          ${JSON.stringify(before.state)}::jsonb,
+          ${JSON.stringify(updated)}::jsonb,
+          null
+        )
+      `;
+      return updated;
     });
-    if (error) throw new Error(error.message);
+    await catalogueChanged();
     return { ok: true, section: row };
   });
 
 export const reorderSections = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((v) =>
     z
-      .object({ order: z.array(z.object({ key: z.string(), sort_order: z.number().int() })) })
+      .object({
+        order: z
+          .array(z.object({ key: z.string().min(1), sort_order: z.number().int() }))
+          .min(1)
+          .max(200)
+          .refine((rows) => new Set(rows.map((row) => row.key)).size === rows.length)
+          .refine((rows) => new Set(rows.map((row) => row.sort_order)).size === rows.length),
+      })
       .parse(v),
   )
-  .handler(async ({ data, context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
+  .handler(async ({ data }) => {
+    const moved = await withMarketplaceManagerDatabase(async (tx) => {
+      const current = await tx<{ key: string; sort_order: number }[]>`
+        select key, sort_order
+        from public.marketplace_homepage_sections
+        order by sort_order, key
+        for update
+      `;
+      const knownKeys = new Set(current.map((row) => row.key));
+      if (
+        data.order.length !== current.length ||
+        data.order.some((row) => !knownKeys.has(row.key))
+      ) {
+        throw new Error("Reorder must include every existing homepage section exactly once.");
+      }
 
-    // One statement rather than one update per section, so a failure partway
-    // through cannot leave the page in an order nobody chose. Unknown or
-    // repeated keys are rejected rather than quietly skipped.
-    const { data: moved, error } = await context.supabase.rpc("mm_sections_reorder", {
-      p_order: data.order,
+      const before = JSON.stringify(current);
+      const requested = JSON.stringify(data.order);
+      const updated = await tx<{ key: string }[]>`
+        update public.marketplace_homepage_sections as section
+        set sort_order = incoming.sort_order,
+            updated_at = now()
+        from jsonb_to_recordset(${requested}::jsonb) as incoming(key text, sort_order integer)
+        where section.key = incoming.key
+          and section.sort_order is distinct from incoming.sort_order
+        returning section.key
+      `;
+      if (updated.length > 0) {
+        await tx`
+          select public.mm_audit(
+            'section.reorder',
+            'homepage_section',
+            null,
+            ${before}::jsonb,
+            ${requested}::jsonb,
+            null
+          )
+        `;
+      }
+      return updated.length;
     });
-    if (error) throw new Error(error.message);
-    return { ok: true, moved: typeof moved === "number" ? moved : 0 };
+    await catalogueChanged();
+    return { ok: true, moved };
   });
 
 /**
@@ -1097,47 +1222,46 @@ export const reorderSections = createServerFn({ method: "POST" })
  * signed in but not an operator is refused by the database rather than by a
  * hidden button.
  */
-export const layoutHistory = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
-    const client = context.supabase as SupabaseClient<MarketplaceRpcDatabase>;
-    const { data, error } = await client.rpc("mm_layout_history", { p_limit: 20 });
-    if (error) throw new Error(error.message);
-    return (data ?? { entries: [] }) as { entries: Json[] };
+export const layoutHistory = createServerFn({ method: "GET" }).handler(async () => {
+    const result = await callMarketplaceManagerRpc<unknown>("mm_layout_history", {
+      p_limit: 20,
+    });
+    return z
+      .object({
+        entries: z.array(
+          z.object({
+            id: z.string(),
+            action: z.string(),
+            created_at: z.string(),
+            actor_email: z.string().nullable(),
+            section_key: z.string().nullable(),
+            restorable: z.boolean(),
+          }),
+        ),
+      })
+      .parse(result);
   });
 
 export const layoutRestore = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((v) => z.object({ auditId: z.string().uuid() }).parse(v))
-  .handler(async ({ data, context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
-    const client = context.supabase as SupabaseClient<MarketplaceRpcDatabase>;
-    const { data: result, error } = await client.rpc("mm_layout_restore", {
+  .handler(async ({ data }) => {
+    const result = await callMarketplaceManagerRpc<unknown>("mm_layout_restore", {
       p_audit_id: data.auditId,
     });
-    if (error) throw new Error(error.message);
-    return (result ?? { ok: false }) as { ok: boolean };
+    const restored = z.object({ ok: z.boolean() }).parse(result);
+    if (restored.ok) await catalogueChanged();
+    return restored;
   });
 
-export const listSectionsAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    if (!context?.supabase) {
-      throw new Error("Unauthorized: Supabase context is unavailable.");
-    }
-
-    const { data, error } = await context.supabase
-      .from("marketplace_homepage_sections")
-      .select("*")
-      .order("sort_order");
-    if (error) throw new Error(error.message);
-    return data ?? [];
+export const listSectionsAdmin = createServerFn({ method: "GET" }).handler(async () => {
+  return withMarketplaceManagerDatabase(async (tx) => {
+    return tx<Tables<"marketplace_homepage_sections">[]>`
+      select *
+      from public.marketplace_homepage_sections
+      order by sort_order, key
+    `;
   });
+});
 
 // ============================================================================
 // DEMO URL CRUD ENDPOINTS
@@ -1182,6 +1306,7 @@ export const addProductDemo = createServerFn({ method: "POST" })
       console.error("[marketplace] addProductDemo error:", error);
       throw new Error(error.message);
     }
+    await catalogueChanged();
     return result;
   });
 
@@ -1215,6 +1340,7 @@ export const updateProductDemo = createServerFn({ method: "POST" })
       console.error("[marketplace] updateProductDemo error:", error);
       throw new Error(error.message);
     }
+    await catalogueChanged();
     return result;
   });
 
@@ -1231,6 +1357,7 @@ export const deleteProductDemo = createServerFn({ method: "POST" })
       console.error("[marketplace] deleteProductDemo error:", error);
       throw new Error(error.message);
     }
+    await catalogueChanged();
     return { ok: true };
   });
 

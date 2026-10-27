@@ -17,13 +17,55 @@ function fixture() {
     authorization: string | null;
     apikey: string | null;
   }[] = [];
+  const sqlCalls: { query: string; values: unknown[] }[] = [];
+  const rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
   const state = {
     authorized: true,
     roles: ["boss"],
     sectionStatus: "published",
+    sectionRows: [
+      {
+        id: ID,
+        key: "hero",
+        title: "Hero",
+        enabled: true,
+        status: "published",
+        sort_order: 1,
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000002",
+        key: "footer",
+        title: "Footer",
+        enabled: true,
+        status: "published",
+        sort_order: 2,
+      },
+    ],
     taskStatus: "submitted",
     failure: false,
     recoveryRpcFails: false,
+    homepageSections: [
+      {
+        key: "hero",
+        title: "Hero",
+        row_type: "hero",
+        source: "manual",
+        sort_order: 1,
+        status: "published",
+        enabled: true,
+        visible_desktop: true,
+        visible_mobile: true,
+        starts_at: null,
+        ends_at: null,
+        component: "HeroCarousel",
+        file: null,
+        owner: "hero-slides-manager",
+        data_source: null,
+        archived_reason: null,
+        live_now: true,
+        child_rows: null,
+      },
+    ] as unknown,
   };
   const fetch: typeof globalThis.fetch = vi.fn(async (input, init) => {
     const request = new Request(input, init);
@@ -144,6 +186,73 @@ function fixture() {
         if (id === "@/lib/auth/require-operator.server") return { requireOperator };
         if (id === "@/lib/json") return { requireJsonObject };
         if (id === "@/lib/marketplace/catalogue-invalidation") return { catalogueChanged };
+        if (id === "./vps-rpc.server" || id === "@/lib/marketplace-manager/vps-rpc.server")
+          return {
+            withMarketplaceManagerDatabase: async (
+              run: (
+                query: (parts: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>,
+              ) => Promise<unknown>,
+              requireOperator = true,
+            ) => {
+              const allowed = ["admin", "boss", "founder", "super_admin", "boss_owner"];
+              if (!state.authorized) throw new Error("Unauthorized");
+              if (requireOperator && !state.roles.some((role) => allowed.includes(role))) {
+                throw new Error("This action needs marketplace operator rights.");
+              }
+              const query = async (parts: TemplateStringsArray, ...values: unknown[]) => {
+                const text = Array.from(parts).join("?");
+                sqlCalls.push({ query: text, values });
+                if (state.failure && text.includes("update public.marketplace_homepage_sections")) {
+                  throw new Error("fixture write refused");
+                }
+                if (text.includes("select role::text as role")) {
+                  return state.roles.map((role) => ({ role }));
+                }
+                if (text.includes("select to_jsonb(section) as state")) {
+                  return [{ state: state.sectionRows[0], status: state.sectionStatus }];
+                }
+                if (text.includes("select status") && text.includes("for update")) {
+                  return [{ status: state.sectionStatus }];
+                }
+                if (
+                  text.includes("select key, sort_order") &&
+                  text.includes("from public.marketplace_homepage_sections")
+                ) {
+                  return state.sectionRows;
+                }
+                if (
+                  text.includes("select *") &&
+                  text.includes("from public.marketplace_homepage_sections")
+                ) {
+                  return state.sectionRows;
+                }
+                if (text.includes("update public.marketplace_homepage_sections")) {
+                  if (text.includes("set enabled")) {
+                    const updated = {
+                      ...state.sectionRows[0],
+                      enabled: values.includes(false) ? false : true,
+                      status: values.includes("unpublished") ? "unpublished" : "published",
+                    };
+                    state.sectionStatus = updated.status;
+                    state.sectionRows[0] = updated;
+                    return [updated];
+                  }
+                  return [{ key: "hero" }];
+                }
+                return [];
+              };
+              return run(query);
+            },
+            callMarketplaceManagerRpc: async (name: string, args: Record<string, unknown>) => {
+              rpcCalls.push({ name, args });
+              if (!state.authorized) throw new Error("Unauthorized");
+              if (state.failure) throw new Error("fixture RPC refused");
+              if (name === "mm_homepage_sections") return state.homepageSections;
+              if (name === "mm_layout_history") return { entries: [] };
+              if (name === "mm_layout_restore") return { ok: true };
+              return 1;
+            },
+          };
         if (id === "@/integrations/supabase/auth-middleware") return { requireSupabaseAuth: {} };
         if (id === "@/lib/i18n/limits")
           return {
@@ -181,7 +290,7 @@ function fixture() {
       return run({ data });
     };
   }
-  return { state, requests, load, requireOperator, catalogueChanged };
+  return { state, requests, sqlCalls, rpcCalls, load, requireOperator, catalogueChanged };
 }
 
 function recoveryMigration(): string {
@@ -204,17 +313,28 @@ describe("typed homepage section updates", () => {
         patch: { enabled: false, sort_order: 0, subtitle: null, starts_at: null, id: ID },
       }),
     ).resolves.toMatchObject({ ok: true });
-    const update = f.requests.find((r) => r.method === "PATCH");
-    expect(update?.body).toMatchObject({
+    const update = f.sqlCalls.find((call) =>
+      call.query.includes("update public.marketplace_homepage_sections"),
+    );
+    const persistedPatch = update?.values
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => {
+        try {
+          return JSON.parse(value) as Record<string, unknown>;
+        } catch {
+          return null;
+        }
+      })
+      .find((value) => value?.enabled === false);
+    expect(persistedPatch).toMatchObject({
       enabled: false,
       sort_order: 0,
       subtitle: null,
       starts_at: null,
     });
-    expect(update?.body).not.toHaveProperty("id");
-    expect(update?.body.updated_at).toEqual(expect.any(String));
-    expect(update?.url.searchParams.get("key")).toBe("eq.hero");
-    expect(f.requireOperator).toHaveBeenCalledOnce();
+    expect(persistedPatch).not.toHaveProperty("id");
+    expect(update?.values).toContain("hero");
+    expect(update?.query).toContain("updated_at = now()");
     expect(f.catalogueChanged).toHaveBeenCalledOnce();
   });
 
@@ -272,35 +392,161 @@ describe("typed homepage section updates", () => {
     ).rejects.toThrow("fixture write refused");
     expect(f.catalogueChanged).not.toHaveBeenCalled();
   });
+
+  it("reads section metadata from the canonical VPS RPC", async () => {
+    const f = fixture();
+    await expect(
+      f.load("../marketplace-manager/rows.functions.ts")("listHomepageSections"),
+    ).resolves.toEqual({
+      ok: true,
+      sections: f.state.homepageSections,
+    });
+    expect(f.rpcCalls).toEqual([{ name: "mm_homepage_sections", args: {} }]);
+  });
+
+  it("surfaces an invalid section payload instead of presenting it as an empty list", async () => {
+    const f = fixture();
+    f.state.homepageSections = null;
+    await expect(
+      f.load("../marketplace-manager/rows.functions.ts")("listHomepageSections"),
+    ).rejects.toThrow();
+    expect(f.rpcCalls).toHaveLength(1);
+  });
+
+  it("reorders with the audited VPS RPC and invalidates public layout caches", async () => {
+    const f = fixture();
+    await expect(
+      f.load("../marketplace-manager/rows.functions.ts")("reorderHomepageSections", {
+        keys: ["hero", "footer"],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(f.rpcCalls).toEqual([
+      {
+        name: "mm_sections_reorder",
+        args: {
+          p_order: [
+            { key: "hero", sort_order: 1 },
+            { key: "footer", sort_order: 2 },
+          ],
+        },
+      },
+    ]);
+    expect(f.catalogueChanged).toHaveBeenCalledOnce();
+  });
+
+  it("rejects duplicate section keys before any VPS request", async () => {
+    const f = fixture();
+    await expect(
+      f.load("../marketplace-manager/rows.functions.ts")("reorderHomepageSections", {
+        keys: ["hero", "hero"],
+      }),
+    ).rejects.toThrow();
+    expect(f.rpcCalls).toHaveLength(0);
+    expect(f.catalogueChanged).not.toHaveBeenCalled();
+  });
 });
 
-describe("migration-backed layout RPC contract", () => {
-  it("uses the existing authenticated client, argument names and user bearer", async () => {
+describe("VPS Layout Order RPC contract", () => {
+  it("uses the canonical VPS RPC helper and argument names", async () => {
     const f = fixture();
     const run = f.load("../marketplace.functions.ts");
     await expect(run("layoutHistory")).resolves.toEqual({ entries: [] });
     await expect(run("layoutRestore", { auditId: ID })).resolves.toEqual({ ok: true });
-    expect(f.requests.map((r) => r.body)).toEqual([{ p_limit: 20 }, { p_audit_id: ID }]);
-    expect(f.requests.map((r) => r.url.pathname)).toEqual([
-      "/rest/v1/rpc/mm_layout_history",
-      "/rest/v1/rpc/mm_layout_restore",
-    ]);
+    expect(f.rpcCalls.map(({ args }) => args)).toEqual([{ p_limit: 20 }, { p_audit_id: ID }]);
+    expect(f.rpcCalls.map(({ name }) => name)).toEqual(["mm_layout_history", "mm_layout_restore"]);
+    expect(f.requests).toHaveLength(0);
     expect(f.requests.every((r) => r.authorization === "Bearer fixture-user")).toBe(true);
   });
 
   it("keeps missing-context, malformed-ID and database refusals explicit", async () => {
     const f = fixture();
-    await expect(f.load("../marketplace.functions.ts", {})("layoutHistory")).rejects.toThrow(
+    f.state.authorized = false;
+    await expect(f.load("../marketplace.functions.ts")("layoutHistory")).rejects.toThrow(
       "Unauthorized",
     );
+    f.state.authorized = true;
     const run = f.load("../marketplace.functions.ts");
     await expect(run("layoutRestore", { auditId: "bad" })).rejects.toThrow();
     expect(f.requests).toHaveLength(0);
     f.state.failure = true;
-    await expect(run("layoutHistory")).rejects.toThrow("fixture write refused");
+    await expect(run("layoutHistory")).rejects.toThrow("fixture RPC refused");
   });
 });
 
+describe("VPS Layout Order functions", () => {
+  it("lists sections from the VPS homepage-section table", async () => {
+    const f = fixture();
+    await expect(f.load("../marketplace.functions.ts")("listSectionsAdmin")).resolves.toEqual(
+      f.state.sectionRows,
+    );
+
+    expect(f.sqlCalls).toHaveLength(1);
+    expect(f.sqlCalls[0].query).toContain("from public.marketplace_homepage_sections");
+    expect(f.requests).toHaveLength(0);
+  });
+
+  it("updates section state in VPS and invalidates the public layout cache", async () => {
+    const f = fixture();
+    await expect(
+      f.load("../marketplace.functions.ts")("setSectionEnabled", {
+        key: "hero",
+        enabled: false,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      section: { enabled: false, status: "unpublished" },
+    });
+
+    const update = f.sqlCalls.find((call) =>
+      call.query.includes("update public.marketplace_homepage_sections"),
+    );
+    expect(update?.query).toContain("set enabled = ?,");
+    expect(update?.query).toContain("status = ?");
+    expect(update?.values).toContain(false);
+    expect(update?.values).toContain("unpublished");
+    expect(f.catalogueChanged).toHaveBeenCalledOnce();
+    expect(f.requests).toHaveLength(0);
+  });
+
+  it("reorders sections with jsonb_to_recordset in a VPS update", async () => {
+    const f = fixture();
+    await expect(
+      f.load("../marketplace.functions.ts")("reorderSections", {
+        order: [
+          { key: "footer", sort_order: 1 },
+          { key: "hero", sort_order: 2 },
+        ],
+      }),
+    ).resolves.toMatchObject({ ok: true, moved: 1 });
+
+    const update = f.sqlCalls.find((call) =>
+      call.query.includes("update public.marketplace_homepage_sections"),
+    );
+    expect(update?.query).toContain("jsonb_to_recordset(?::jsonb)");
+    expect(update?.query).toContain("set sort_order = incoming.sort_order");
+    expect(update?.values).toContain('[{"key":"footer","sort_order":1},{"key":"hero","sort_order":2}]');
+    expect(f.catalogueChanged).toHaveBeenCalledOnce();
+    expect(f.requests).toHaveLength(0);
+  });
+
+  it("rejects incomplete or duplicate reorder lists before saving", async () => {
+    const f = fixture();
+    const run = f.load("../marketplace.functions.ts");
+    await expect(
+      run("reorderSections", { order: [{ key: "hero", sort_order: 1 }] }),
+    ).rejects.toThrow("every existing homepage section");
+    await expect(
+      run("reorderSections", {
+        order: [
+          { key: "hero", sort_order: 1 },
+          { key: "hero", sort_order: 2 },
+        ],
+      }),
+    ).rejects.toThrow();
+    expect(f.sqlCalls.some((call) => call.query.includes("jsonb_to_recordset"))).toBe(false);
+    expect(f.catalogueChanged).not.toHaveBeenCalled();
+  });
+});
 describe("Marketplace privileged server functions", () => {
   it.each(["listProductDemos", "recoverMarketplaceData"])(
     "denies direct calls to %s before privileged database access",
