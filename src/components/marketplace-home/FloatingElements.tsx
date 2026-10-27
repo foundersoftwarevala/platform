@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useHomeRouteData } from "@/lib/marketplace/home-route-data";
+import { getStorefrontChrome, type FloatingSnapshot } from "@/lib/storefront/chrome.functions";
+import { useAuth } from "@/hooks/useAuth";
+import { isPubliclyReachable } from "@/components/auth/RouteAccessGate";
+import { getFloatingScope, type FloatingPageScope } from "./floating-scope";
 import { Bot, MessageCircle, Plus, Sparkles, X } from "lucide-react";
-import type { FloatingElement, FloatingSnapshot } from "@/lib/storefront/chrome.functions";
+import type { FloatingElement } from "@/lib/storefront/chrome.functions";
 import { currentAttribution } from "@/lib/marketplace/attribution";
 
 /**
@@ -36,6 +42,7 @@ const THEME: Record<string, string> = {
   premium: "bg-amber-500 text-slate-900 hover:bg-amber-400",
   neutral: "bg-slate-700 text-white hover:bg-slate-600",
 };
+const EMPTY_ELEMENTS: FloatingElement[] = [];
 
 /**
  * Corner placement.
@@ -54,7 +61,21 @@ const CORNER: Record<string, string> = {
 function useFloating(): FloatingElement[] {
   const chrome = useHomeRouteData()?.chrome as { floating?: FloatingSnapshot } | undefined;
   const snapshot = chrome?.floating;
-  return snapshot?.published ? (snapshot.elements ?? []) : [];
+  return snapshot?.published ? (snapshot.elements ?? EMPTY_ELEMENTS) : EMPTY_ELEMENTS;
+}
+
+export function FloatingElementsHost() {
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const scope = isPubliclyReachable(pathname) ? getFloatingScope(pathname) : null;
+  const chrome = useQuery({
+    queryKey: ["storefront", "public-chrome"],
+    queryFn: () => getStorefrontChrome(),
+    enabled: scope !== null && scope !== "home",
+    staleTime: 30_000,
+  });
+
+  if (!scope || scope === "home") return null;
+  return <FloatingElements key={pathname} scope={scope} snapshot={chrome.data?.floating} />;
 }
 
 /** Whether this element's trigger has fired yet. */
@@ -169,8 +190,7 @@ export function DemoForm({
                   productId: product?.id ?? "",
                   // The endpoint resolves the product from this exactly when it
                   // is a /marketplace/product/<slug> path.
-                  sourcePage:
-                    typeof window === "undefined" ? "" : window.location.pathname,
+                  sourcePage: typeof window === "undefined" ? "" : window.location.pathname,
                   // Where this visit came from, read once on the first page
                   // of it. Without this the endpoint files every capture as
                   // a marketplace walk-in.
@@ -189,26 +209,57 @@ export function DemoForm({
             }
           }}
         >
-          <label htmlFor="fd-name" className="sr-only">Your name</label>
-          <input id="fd-name" name="name" required placeholder="Your name"
-            className="w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400" />
+          <label htmlFor="fd-name" className="sr-only">
+            Your name
+          </label>
+          <input
+            id="fd-name"
+            name="name"
+            required
+            placeholder="Your name"
+            className="w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+          />
 
-          <label htmlFor="fd-email" className="sr-only">Email address</label>
-          <input id="fd-email" name="email" type="email" required placeholder="Email address"
-            className="w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400" />
+          <label htmlFor="fd-email" className="sr-only">
+            Email address
+          </label>
+          <input
+            id="fd-email"
+            name="email"
+            type="email"
+            required
+            placeholder="Email address"
+            className="w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+          />
 
-          <label htmlFor="fd-phone" className="sr-only">Phone or WhatsApp</label>
-          <input id="fd-phone" name="phone" placeholder="Phone or WhatsApp"
-            className="w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400" />
+          <label htmlFor="fd-phone" className="sr-only">
+            Phone or WhatsApp
+          </label>
+          <input
+            id="fd-phone"
+            name="phone"
+            placeholder="Phone or WhatsApp"
+            className="w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+          />
 
-          <label htmlFor="fd-message" className="sr-only">What are you looking for?</label>
-          <textarea id="fd-message" name="message" rows={2} placeholder="What are you looking for?"
-            className="w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400" />
+          <label htmlFor="fd-message" className="sr-only">
+            What are you looking for?
+          </label>
+          <textarea
+            id="fd-message"
+            name="message"
+            rows={2}
+            placeholder="What are you looking for?"
+            className="w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-[13px] text-white placeholder:text-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+          />
 
           {error && <p className="text-[12px] text-red-400">{error}</p>}
 
-          <button type="submit" disabled={state === "sending"}
-            className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-[13px] font-bold text-white transition-colors hover:bg-cyan-400 disabled:opacity-60">
+          <button
+            type="submit"
+            disabled={state === "sending"}
+            className="w-full rounded-lg bg-cyan-500 px-3 py-2 text-[13px] font-bold text-white transition-colors hover:bg-cyan-400 disabled:opacity-60"
+          >
             {state === "sending" ? "Sending…" : "Request demo"}
           </button>
         </form>
@@ -276,18 +327,35 @@ function FloatingButton({ element }: { element: FloatingElement }) {
   );
 }
 
-export function FloatingElements({ scope = "home" }: { scope?: FloatingElement["scope"] }) {
-  const elements = useFloating();
+export function FloatingElements({
+  scope = "home",
+  snapshot,
+}: {
+  scope?: FloatingPageScope;
+  snapshot?: FloatingSnapshot;
+}) {
+  const { user, isLoading } = useAuth();
+  const homeElements = useFloating();
+  const elements = snapshot
+    ? snapshot.published
+      ? (snapshot.elements ?? EMPTY_ELEMENTS)
+      : EMPTY_ELEMENTS
+    : homeElements;
 
   const visible = useMemo(
     () =>
       elements
         .filter((e) => e.scope === "all" || e.scope === scope)
+        .filter((e) => {
+          if (e.audience === "all") return true;
+          if (isLoading) return false;
+          return e.audience === "authenticated" ? Boolean(user) : !user;
+        })
         // Section 11. Lowest priority number owns its corner; anything behind
         // it in the same corner is not drawn on top of it.
         .sort((a, b) => a.priority - b.priority)
         .filter((e, i, all) => all.findIndex((o) => o.position === e.position) === i),
-    [elements, scope],
+    [elements, isLoading, scope, user],
   );
 
   if (visible.length === 0) return null;
@@ -295,7 +363,7 @@ export function FloatingElements({ scope = "home" }: { scope?: FloatingElement["
   return (
     <>
       {visible.map((e) => (
-        <FloatingButton key={e.key} element={e} />
+        <FloatingButton key={`${e.key}:${e.trigger}:${e.trigger_value}`} element={e} />
       ))}
     </>
   );

@@ -22,6 +22,7 @@ import { getLanguage } from "@/lib/i18n/registry";
 import { useRealtimeAuth } from "@/integrations/supabase/realtime-auth";
 import { ReferralCapture } from "@/components/affiliate/ReferralCapture";
 import { AttributionCapture } from "@/components/marketplace/AttributionCapture";
+import { FloatingElementsHost } from "@/components/marketplace-home/FloatingElements";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { reportClientError } from "@/lib/error-monitor.functions";
 import { TooltipProvider } from "../components/ui/tooltip";
@@ -208,6 +209,7 @@ function RootComponent() {
               <RouteAccessGate>
                 <Outlet />
               </RouteAccessGate>
+              <FloatingElementsHost />
             </AuthProvider>
           </CelebrationProvider>
         </TooltipProvider>
