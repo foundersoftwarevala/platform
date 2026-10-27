@@ -146,19 +146,23 @@ available, and its `noeviction` policy prevents memory pressure from silently
 evicting active rate-limit counters. Cache writes may fail at the memory cap
 and fall back to the existing short-lived process cache.
 
-The Compose service binds only to `127.0.0.1:6379`, disables persistence, and
-caps memory at 256 MiB. Start it after deploying the files:
+The Compose service binds only to `127.0.0.1:6379`, disables persistence,
+requires a password while retaining Redis protected mode, and caps memory at
+256 MiB. Generate a strong `REDIS_PASSWORD` in the root-owned, mode-0600
+`/etc/softwarevala/redis.env`; never put it in git. Start it after deploying
+the files:
 
 ```sh
 sudo install -o root -g root -m 0755 deploy/production/system/sv-redis-up.sh /usr/local/bin/sv-redis-up.sh
 sudo /usr/local/bin/sv-redis-up.sh
 ```
 
-Set `REDIS_URL=redis://127.0.0.1:6379` in the PM2-managed application
-environment, then restart using the normal guarded deployment procedure.
-Confirm `docker compose ps` reports the Redis service healthy and verify that
-the application log contains no Redis connection errors. No Redis port should
-be opened to the network.
+Set `REDIS_URL=redis://:<password>@127.0.0.1:6379` in the root-only
+`/var/www/softwarevala/.env`; the application reads this setting from its
+deployment environment file. Then restart using the normal guarded deployment
+procedure. Confirm `docker compose ps` reports the Redis service healthy and
+verify that the application log contains no Redis connection errors. No Redis
+port should be opened to the network.
 
 ## Off-site database backups
 
