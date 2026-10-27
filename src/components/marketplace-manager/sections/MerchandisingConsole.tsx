@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
-  Info,
   Layers,
   Pin,
   PinOff,
@@ -57,10 +56,10 @@ import {
  * Four of the original eight cards were never placements and none is invented
  * here. Category Placement selects among the real category rows. Recommended
  * Placement surfaces the recommendation engines, including the ones that
- * honestly cannot run and why. Collection Placement reports that this database
- * has no marketplace collection system rather than pretending to one. Manual
- * and Automatic are source modes on a placement, and are shown as what they
- * are: a cross-placement view of how many slots each mode is filling.
+ * honestly cannot run and why. Collections are omitted because this marketplace
+ * has no collection system. Manual and Automatic are source modes on a
+ * placement, and are shown as a cross-placement view of how many slots each
+ * mode is filling.
  */
 
 /* ------------------------------------------------------------------ types */
@@ -101,7 +100,7 @@ const slotsKey = (key: string) => ["marketplace", "merch", "slots", key] as cons
 const PLACEMENTS: {
   label: string;
   rowKey?: string;
-  kind: "row" | "recommend" | "collection" | "category" | "mode";
+  kind: "row" | "recommend" | "category" | "mode";
   mode?: "manual" | "auto";
   note?: string;
 }[] = [
@@ -111,7 +110,6 @@ const PLACEMENTS: {
   { label: "New Releases Placement", rowKey: "new-releases", kind: "row" },
   { label: "Recommended Placement", kind: "recommend" },
   { label: "Category Placement", kind: "category" },
-  { label: "Collection Placement", kind: "collection" },
   { label: "Manual Placement", kind: "mode", mode: "manual" },
   { label: "Automatic Placement", kind: "mode", mode: "auto" },
 ];
@@ -304,16 +302,16 @@ function SlotGrid({ resolved, max }: { resolved?: Resolved; max: number }) {
  * whole catalogue.
  */
 function AssignDialog({
-  rowKey,
+  categoryId,
   position,
   onClose,
   onAssign,
   busy,
 }: {
-  rowKey: string;
+  categoryId: string | null;
   position: number;
   onClose: () => void;
-  onAssign: (productId: string, override: boolean) => void;
+  onAssign: (productId: string) => void;
   busy: boolean;
 }) {
   const { t } = useTranslation();
@@ -326,8 +324,11 @@ function AssignDialog({
   }, [term]);
 
   const results = useQuery({
-    queryKey: ["marketplace", "merch", "search", debounced],
-    queryFn: () => searchRowProducts({ data: { query: debounced, limit: 24 } }),
+    queryKey: ["marketplace", "merch", "search", categoryId, debounced],
+    queryFn: () =>
+      searchRowProducts({
+        data: { categoryId: categoryId ?? undefined, query: debounced, limit: 24 },
+      }),
     enabled: debounced.length >= 2,
     staleTime: 30_000,
   });
@@ -397,7 +398,7 @@ function AssignDialog({
                   {!live && <Pill tone="warn">{t("storeadmin.merch.not_live")}</Pill>}
                   <PillButton
                     variant="ghost"
-                    onClick={() => onAssign(String(p.id), true)}
+                    onClick={() => onAssign(String(p.id))}
                     disabled={busy}
                   >
                     {busy ? t("storeadmin.merch.assigning") : t("storeadmin.merch.assign")}
@@ -630,13 +631,13 @@ function PlacementEditor({ row, onBack }: { row: Row; onBack: () => void }) {
 
       {assigning !== null && (
         <AssignDialog
-          rowKey={row.key}
+          categoryId={row.category_id}
           position={assigning}
           busy={m.assign.isPending}
           onClose={() => setAssigning(null)}
-          onAssign={(productId, override) => {
+          onAssign={(productId) => {
             m.assign.mutate(
-              { position: assigning, productId, override },
+              { position: assigning, productId, override: false },
               { onSuccess: () => setAssigning(null) },
             );
           }}
@@ -722,21 +723,6 @@ function RecommendedCard() {
   );
 }
 
-function CollectionCard() {
-  const { t } = useTranslation();
-  return (
-    <Card>
-      <h3 className="mb-3 text-base font-bold">{t("storeadmin.merch.collection_title")}</h3>
-      <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-3 text-xs text-muted-foreground">
-        <Info className="mt-0.5 h-4 w-4 flex-none" />
-        <span>
-          {t("storeadmin.merch.collection_none")}
-        </span>
-      </div>
-    </Card>
-  );
-}
-
 function ModeCard({ mode, rows }: { mode: "manual" | "auto"; rows: Row[] }) {
   const { t } = useTranslation();
   const results = useQueries({
@@ -754,6 +740,7 @@ function ModeCard({ mode, rows }: { mode: "manual" | "auto"; rows: Row[] }) {
   });
   const total = per.reduce((a, b) => a + b.n, 0);
   const loading = results.some((r) => r.isLoading);
+  const failed = results.some((r) => r.isError);
 
   return (
     <Card>
@@ -761,7 +748,13 @@ function ModeCard({ mode, rows }: { mode: "manual" | "auto"; rows: Row[] }) {
         <h3 className="text-base font-bold">
           {mode === "manual" ? t("storeadmin.merch.manual_title") : t("storeadmin.merch.auto_title")}
         </h3>
-        <Pill tone="muted">{loading ? "…" : t("storeadmin.merch.slots_count", { count: total })}</Pill>
+        <Pill tone="muted">
+          {loading
+            ? "…"
+            : failed
+              ? "—"
+              : t("storeadmin.merch.slots_count", { count: total })}
+        </Pill>
       </div>
       <p className="mb-3 text-[11px] text-muted-foreground">
         {mode === "manual"
@@ -769,13 +762,14 @@ function ModeCard({ mode, rows }: { mode: "manual" | "auto"; rows: Row[] }) {
           : t("storeadmin.merch.auto_description")}
       </p>
       <div className="space-y-1">
+        {failed && <EmptyHint text={t("storeadmin.merch.placement_failed")} />}
         {per.map((p) => (
           <div
             key={p.key}
             className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-1.5"
           >
             <span className="truncate text-sm">{p.title}</span>
-            <span className="text-sm font-bold">{loading ? "…" : p.n}</span>
+            <span className="text-sm font-bold">{loading ? "…" : failed ? "—" : p.n}</span>
           </div>
         ))}
         {per.length === 0 && <EmptyHint text={t("storeadmin.merch.no_placements")} />}
@@ -925,7 +919,6 @@ export function MerchandisingConsole() {
             return <PlacementCard key={p.label} row={row} onOpen={() => setOpen(row)} />;
           }
           if (p.kind === "recommend") return <RecommendedCard key={p.label} />;
-          if (p.kind === "collection") return <CollectionCard key={p.label} />;
           if (p.kind === "category")
             return <CategoryCard key={p.label} rows={categories} onOpen={setOpen} />;
           return <ModeCard key={p.label} mode={p.mode as "manual" | "auto"} rows={curated} />;

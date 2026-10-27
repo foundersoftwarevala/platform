@@ -13963,7 +13963,7 @@ begin
                when 'trending'     then p.is_trending
                -- Sold for real, or flagged by an editor. The flag alone
                -- matched nothing.
-               when 'best_selling' then (coalesce(s.sold, 0) > 0 or p.is_best_seller)
+               when 'best_selling' then true
                when 'new_release'  then p.is_new_release
                else true end)
         and (v_taken is null or not (p.id = any(v_taken)))
@@ -13971,6 +13971,7 @@ begin
         case rw.auto_rule when 'newest' then extract(epoch from p.created_at) end desc nulls last,
         case rw.auto_rule when 'new_release' then extract(epoch from p.created_at) end desc nulls last,
         case rw.auto_rule when 'best_selling' then coalesce(s.sold,0) end desc nulls last,
+        case rw.auto_rule when 'best_selling' then p.is_best_seller end desc nulls last,
         case rw.auto_rule when 'trending' then coalesce(v.views,0) end desc nulls last,
         case rw.auto_rule when 'rating' then p.rating end desc nulls last,
         p.sort_order asc nulls last, p.name asc
@@ -14012,7 +14013,7 @@ begin
         and (rw.kind = 'category' or case rw.auto_rule
                when 'featured'     then p.is_featured
                when 'trending'     then p.is_trending
-               when 'best_selling' then (coalesce(s.sold, 0) > 0 or p.is_best_seller)
+               when 'best_selling' then true
                when 'new_release'  then p.is_new_release
                else true end)),
     'products', v_out);
@@ -14195,7 +14196,7 @@ CREATE FUNCTION public.mm_rows_list() RETURNS jsonb
           and case cfg.auto_rule
                 when 'featured'     then p.is_featured
                 when 'trending'     then p.is_trending
-                when 'best_selling' then p.is_best_seller
+                when 'best_selling' then true
                 when 'new_release'  then p.is_new_release
                 else true end),
       'updated_at', cfg.updated_at
