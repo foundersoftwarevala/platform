@@ -25,6 +25,9 @@ vi.mock("redis", () => ({
 vi.mock("@tanstack/react-start/server", () => ({
   getRequestIP: () => "127.0.0.1",
 }));
+vi.mock("@/lib/seo/seo-store.server", () => ({
+  deploymentSetting: (name: string) => process.env[name]?.trim() ?? "",
+}));
 
 import { RATE_LIMITS, rateLimited } from "./rate-limit";
 

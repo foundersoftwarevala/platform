@@ -3,6 +3,7 @@ import { getRequestIP } from "@tanstack/react-start/server";
 import { createClient } from "redis";
 
 import { clientAddress, SlidingWindowLimiter } from "@/lib/i18n/limits";
+import { deploymentSetting } from "@/lib/seo/seo-store.server";
 
 export type RateBucket =
   | "catalog"
@@ -77,7 +78,7 @@ function logRedisError(error: unknown): void {
 }
 
 async function sharedClient(): Promise<RedisClient | null> {
-  const url = process.env.REDIS_URL?.trim();
+  const url = deploymentSetting("REDIS_URL");
   if (!url) return null;
   if (client?.isOpen) return client;
   if (connecting) return connecting;
