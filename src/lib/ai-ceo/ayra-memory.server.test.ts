@@ -29,6 +29,7 @@ beforeEach(() => {
   database.results = [];
   vi.stubEnv("AYRA_EMBEDDING_MODEL", "local-embed-1536");
   vi.stubEnv("OLLAMA_BASE_URL", "http://127.0.0.1:11434");
+  vi.stubEnv("DEPLOY_REPO_DIR", "/tmp/ayra-memory-test-env");
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -52,6 +53,10 @@ describe("AYRA private VPS memory", () => {
       createdAt: "2026-10-28T00:00:00Z",
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe("http://127.0.0.1:11434/api/embed");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:11434/api/embed",
+      expect.objectContaining({ body: expect.stringContaining('"dimensions":1536') }),
+    );
     expect(database.calls).toHaveLength(1);
     expect(database.calls[0]?.sql).toContain("public.ayra_memory_vectors");
     expect(database.calls[0]?.sql).toContain("returning id::text");

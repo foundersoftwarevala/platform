@@ -220,10 +220,16 @@ Ollama `/api/chat` streaming, explicit private-fact commands, user-scoped
 top-five pgvector recall, management UI for facts, and verified-outcome prompt
 proposals that require an executive review and reject stale prompt hashes.
 No external provider connectivity is inferred from a stored credential.
-Production has not received this code. `qwen2.5:3b` is the installed local chat
-model; no 1536-dimensional local embedding model is installed or configured.
-Until one is available, memory is explicitly `not_configured` and is not sent
-to an external provider. Do not claim long-term recall is live.
+Release `596c2ecb` deployed the initial UI/server foundation. The VPS now also
+has the checksum-verified local `qwen3-embedding:4b` model configured as
+`AYRA_EMBEDDING_MODEL`; the app requests 1536 dimensions to match the verified
+`vector(1536)` schema. The model artifact was installed into Ollama's local
+store while preserving the service's deny-all network sandbox. Ollama is
+configured to keep the chat and embedding models loaded together under its
+existing memory cap. A read-only readiness check confirmed local embeddings
+and a VPS `sv_platform` recall query; no memory facts were seeded or written.
+Long-term memory stays user-scoped and uses local embeddings only. Do not send
+private facts to an external embedding service.
 
 Do not create a second unbounded task queue or rotate provider accounts to evade
 rate limits. The existing `fa_jobs` infrastructure remains; no reviewed

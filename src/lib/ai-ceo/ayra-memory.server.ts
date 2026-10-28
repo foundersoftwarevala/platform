@@ -48,7 +48,7 @@ export async function createLocalAyraEmbedding(
   const response = await fetch(config.url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ model: config.model, input: text }),
+    body: JSON.stringify({ model: config.model, input: text, dimensions: VECTOR_DIMENSIONS }),
     signal: AbortSignal.timeout(90_000),
   });
   if (!response.ok) {
