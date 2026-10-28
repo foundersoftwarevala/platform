@@ -132,6 +132,13 @@ as an executed operation. At the 2026-10-28 verification there were no eligible
 active incidents, so the live incident review path could not be exercised with
 real incident data.
 
+Validation for release `a7d06faa`: production build passed, full
+`npx tsc --noEmit -p .` passed, 35 focused Founder decision/healing tests
+passed, and scoped ESLint passed with the repository's existing Prettier rule
+disabled. The clean committed release was built and smoke-tested before swap;
+PM2 `softwarevala-staging` was online afterward, and the live homepage returned
+HTTP 200. The unrelated pre-existing worktree edits were not included.
+
 ### Applying a migration to the cloud project
 
 1. Read the whole file and check its dependencies exist on the cloud project.
