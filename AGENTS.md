@@ -239,6 +239,18 @@ authorized human approves them. Workspace URLs are attempted in an iframe, but
 Google/Gmail and other providers may block framing; the UI offers an explicit
 external-open fallback rather than bypassing provider policy.
 
+Follow-up `20261108T223000_ayra_company_autofill.sql` is applied on the VPS
+`sv_platform` only. It adds the RLS-protected singleton company profile and
+48 exact normalized form-field aliases. The initial profile is intentionally
+empty because no authoritative company contact/address values existed in the
+VPS schema; an executive must enter and save verified values in AYRA Command
+Center before Auto-Fill can populate fields. The browser sends field metadata,
+not page HTML or field contents, to the server. Auto-Fill works only when the
+iframe is same-origin with the app, fills supported empty text/email/phone/url,
+textarea, or existing select-option controls, skips sensitive/non-empty fields,
+and never submits the form. Browser same-origin restrictions prevent reading
+or writing forms on third-party domains; do not proxy or bypass those controls.
+
 ### Applying a migration to the cloud project
 
 1. Read the whole file and check its dependencies exist on the cloud project.

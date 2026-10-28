@@ -17,6 +17,8 @@ const server = vi.hoisted(() => ({
   memoryFacts: vi.fn(),
   rememberFact: vi.fn(),
   forgetFact: vi.fn(),
+  companyProfile: vi.fn(),
+  saveCompanyProfile: vi.fn(),
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/ai-ceo/ceo.functions", () => ({
@@ -38,6 +40,10 @@ vi.mock("@/lib/ai-ceo/ayra-memory.functions", () => ({
   loadAyraMemoryFacts: server.memoryFacts,
   rememberAyraFact: server.rememberFact,
   forgetAyraFact: server.forgetFact,
+}));
+vi.mock("@/lib/ai-ceo/ayra-autofill.functions", () => ({
+  loadAyraCompanyProfile: server.companyProfile,
+  saveAyraCompanyProfile: server.saveCompanyProfile,
 }));
 
 afterEach(() => cleanup());
@@ -81,6 +87,23 @@ beforeEach(() => {
     createdAt: "2026-10-28T00:00:00Z",
   });
   server.forgetFact.mockResolvedValue({ deleted: true });
+  server.companyProfile.mockResolvedValue({
+    configured: false,
+    profile: {
+      company_name: "",
+      contact_name: "",
+      email: "",
+      phone: "",
+      address: "",
+      address_line_2: "",
+      city: "",
+      region: "",
+      postal_code: "",
+      country: "",
+      website: "",
+    },
+  });
+  server.saveCompanyProfile.mockResolvedValue({ company_name: "Software Vala" });
 });
 
 function renderCenter(open = true, onClose = vi.fn()) {
@@ -157,6 +180,26 @@ describe("AYRA Command Center", () => {
     await waitFor(() =>
       expect(server.forgetFact).toHaveBeenCalledWith({
         data: { id: "00000000-0000-4000-8000-000000000001" },
+      }),
+    );
+  });
+
+  it("loads and saves company details from the VPS-backed profile", async () => {
+    renderCenter();
+    await screen.findByRole("switch", { name: "Allow system coding" });
+    fireEvent.click(screen.getByRole("tab", { name: "Company Profile" }));
+    const name = await screen.findByLabelText("Company name *");
+    fireEvent.change(name, { target: { value: "Software Vala" } });
+    fireEvent.change(screen.getByLabelText("Business email"), {
+      target: { value: "hello@softwarevala.net" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save company profile" }));
+    await waitFor(() =>
+      expect(server.saveCompanyProfile).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          company_name: "Software Vala",
+          email: "hello@softwarevala.net",
+        }),
       }),
     );
   });

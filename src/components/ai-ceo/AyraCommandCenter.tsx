@@ -24,11 +24,29 @@ import {
   rememberAyraFact,
 } from "@/lib/ai-ceo/ayra-memory.functions";
 import {
+  loadAyraCompanyProfile,
+  saveAyraCompanyProfile,
+} from "@/lib/ai-ceo/ayra-autofill.functions";
+import type { AyraCompanyProfile } from "@/lib/ai-ceo/ayra-autofill.server";
+import {
   generateAyraPromptProposals,
   loadAyraPromptProposals,
   reviewAyraPromptProposal,
 } from "@/lib/ai-ceo/ayra-improvement.functions";
 
+const COMPANY_PROFILE_FIELDS: { key: keyof AyraCompanyProfile; label: string; type?: string }[] = [
+  { key: "company_name", label: "Company name" },
+  { key: "contact_name", label: "Contact name" },
+  { key: "email", label: "Business email", type: "email" },
+  { key: "phone", label: "Business phone", type: "tel" },
+  { key: "address", label: "Street address" },
+  { key: "address_line_2", label: "Address line 2" },
+  { key: "city", label: "City" },
+  { key: "region", label: "State / region" },
+  { key: "postal_code", label: "Postal code" },
+  { key: "country", label: "Country" },
+  { key: "website", label: "Website", type: "url" },
+];
 const ROLE_LABELS: Record<AyraGrantRole, string> = {
   SUPER_ADMIN: "Super Admin",
   FRANCHISE: "Franchise",
@@ -39,6 +57,7 @@ const TABS = [
   "Connect Services",
   "Self Improvement",
   "Long-Term Memory",
+  "Company Profile",
   "Audit Logs",
 ] as const;
 type Tab = (typeof TABS)[number];
@@ -75,6 +94,19 @@ export function AyraCommandCenter({ open, onClose }: Props) {
   >({});
   const [selectedRole, setSelectedRole] = useState<AyraGrantRole>("SUPER_ADMIN");
   const [memoryDraft, setMemoryDraft] = useState("");
+  const [companyDraft, setCompanyDraft] = useState<AyraCompanyProfile>({
+    company_name: "",
+    contact_name: "",
+    email: "",
+    phone: "",
+    address: "",
+    address_line_2: "",
+    city: "",
+    region: "",
+    postal_code: "",
+    country: "",
+    website: "",
+  });
   const [selectedTab, setSelectedTab] = useState<Tab>("System Control");
 
   const grants = useQuery({
@@ -101,6 +133,26 @@ export function AyraCommandCenter({ open, onClose }: Props) {
     enabled: open && selectedTab === "Long-Term Memory",
     staleTime: 0,
   });
+  const companyProfile = useQuery({
+    queryKey: ["ayra", "company-profile"],
+    queryFn: () => loadAyraCompanyProfile(),
+    enabled: open && selectedTab === "Company Profile",
+    staleTime: 0,
+  });
+  const persistCompanyProfile = useMutation({
+    mutationFn: (profile: AyraCompanyProfile) => saveAyraCompanyProfile({ data: profile }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["ayra", "company-profile"] });
+      toast.success("Company profile saved to VPS Postgres.");
+    },
+    onError: (error: unknown) =>
+      toast.error("Could not save company details", {
+        description: error instanceof Error ? error.message : "The VPS-backed profile update failed.",
+      }),
+  });
+  useEffect(() => {
+    if (companyProfile.data) setCompanyDraft(companyProfile.data.profile);
+  }, [companyProfile.data]);
   const addMemoryFact = useMutation({
     mutationFn: (content: string) => rememberMemoryFact({ data: { content } }),
     onSuccess: async () => {
@@ -403,6 +455,86 @@ export function AyraCommandCenter({ open, onClose }: Props) {
                 );
               })}
             </div>
+          )
+        ) : selectedTab === "Company Profile" ? (
+          companyProfile.isLoading ? (
+            <p role="status" className="text-sm text-[color:var(--aw-soft)]">
+              Loading company details from VPS Postgres…
+            </p>
+          ) : companyProfile.isError ? (
+            <div role="alert" className="space-y-3 text-sm text-destructive">
+              <p>
+                {companyProfile.error instanceof Error
+                  ? companyProfile.error.message
+                  : "Could not load the company profile."}
+              </p>
+              <button
+                type="button"
+                onClick={() => void companyProfile.refetch()}
+                className="rounded border border-current px-3 py-2"
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <form
+              className="space-y-3"
+              aria-label="Software Vala company profile"
+              onSubmit={(event) => {
+                event.preventDefault();
+                persistCompanyProfile.mutate(companyDraft);
+              }}
+            >
+              <p className="rounded-md border border-[color:var(--aw-line)] bg-white/[0.04] p-3 text-xs text-[color:var(--aw-soft)]">
+                These details are stored on VPS Postgres and are sent only to this application when
+                you explicitly click Auto-Fill on a same-origin form. AYRA never submits the form.
+              </p>
+              {!companyProfile.data?.configured && (
+                <p className="rounded-md border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-100">
+                  No company profile is saved yet. Add and save the details you want AYRA to use.
+                </p>
+              )}
+              {COMPANY_PROFILE_FIELDS.map(({ key, label, type }) => (
+                <label key={key} className="block text-xs text-[color:var(--aw-soft)]">
+                  {label}{key === "company_name" ? " *" : ""}
+                  <input
+                    type={type ?? "text"}
+                    required={key === "company_name"}
+                    maxLength={
+                      key === "company_name" || key === "contact_name"
+                        ? 200
+                        : key === "email"
+                          ? 320
+                          : key === "phone"
+                            ? 80
+                            : key === "address"
+                              ? 300
+                              : key === "address_line_2"
+                                ? 200
+                                : key === "city" || key === "region" || key === "country"
+                                  ? 120
+                                  : key === "postal_code"
+                                    ? 40
+                                    : 500
+                    }
+                    value={companyDraft[key]}
+                    onChange={(event) =>
+                      setCompanyDraft((draft) => ({ ...draft, [key]: event.target.value }))
+                    }
+                    className="mt-1 w-full rounded-md border border-[color:var(--aw-line)] bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-[color:var(--aw-cyan)]"
+                  />
+                </label>
+              ))}
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={!companyDraft.company_name.trim() || persistCompanyProfile.isPending}
+                  className="rounded-md border border-[color:var(--aw-cyan)] px-3 py-2 text-sm text-[color:var(--aw-cyan)] disabled:opacity-50"
+                >
+                  {persistCompanyProfile.isPending ? "Saving…" : "Save company profile"}
+                </button>
+              </div>
+            </form>
           )
         ) : selectedTab === "Self Improvement" ? (
           <div className="space-y-3" aria-label="AYRA self-improvement proposals">

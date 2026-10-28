@@ -1,11 +1,15 @@
-import { useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import {
   ArrowLeft, ArrowRight, RotateCw, Sparkles, Mic, MicOff, Phone, Box, ChevronDown, Settings, Globe, Github, Plus,
-  ListChecks, Maximize2, Search, Download, Send, Grid3x3,
+  ListChecks, Maximize2, Search, Download, Send, Grid3x3, WandSparkles,
 } from "lucide-react";
 import { AYRA_LOOKS, LOOK_NAMES, LOOK_VIDEO, LOOK_SCENE, LOOK_SCENE_VIDEO, LOOK_THEME, type AyraLook, type CoreState } from "@/components/JarvisCore";
 import stage from "@/assets/ayra-world-stage.jpg";
 import { accessHeaders } from "@/lib/access-client";
+import { autoFillAyraCompanyForm } from "@/lib/ai-ceo/ayra-autofill.functions";
+import { fillCompanyFormControls, inspectEmptyCompanyFormControls } from "@/lib/ai-ceo/ayra-autofill.browser";
 
 export function AyraMark({ className = "" }: { className?: string }) {
   return (
@@ -299,6 +303,9 @@ function save(blob: Blob, name: string) {
 
 export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => void; reply: string; busy: boolean }) {
   const [tab, setTab] = useState("Browser");
+  const [autofillBusy, setAutofillBusy] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const runCompanyAutofill = useServerFn(autoFillAyraCompanyForm);
   const [q, setQ] = useState("");
   const [task, setTask] = useState("");
   const [shotUrl, setShotUrl] = useState("");
@@ -313,6 +320,51 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
     setTab("Browser");
   };
   const openSeparately = (u: string) => window.open(u, "_blank", "noopener,noreferrer");
+  const autofillCompanyDetails = async () => {
+    if (!embeddedUrl || !iframeRef.current) {
+      toast.info("Open a form in the workspace before using Auto-Fill.");
+      return;
+    }
+    let page: Document | null;
+    try {
+      if (new URL(embeddedUrl).origin !== window.location.origin) {
+        toast.error("Browser security prevents AYRA from reading forms on another website.", {
+          description: "Auto-Fill works only on same-origin pages. This page was not changed.",
+        });
+        return;
+      }
+      page = iframeRef.current.contentDocument;
+      if (!page) throw new Error("The form page is not available yet.");
+    } catch (error) {
+      toast.error("AYRA could not access this form.", {
+        description: error instanceof Error ? error.message : "The page may have navigated to another origin.",
+      });
+      return;
+    }
+    const inspected = inspectEmptyCompanyFormControls(page);
+    if (inspected.fields.length === 0) {
+      toast.info("No supported empty form fields were found. Existing values were left unchanged.");
+      return;
+    }
+    setAutofillBusy(true);
+    try {
+      const matches = await runCompanyAutofill({ data: { fields: inspected.fields } });
+      const filled = fillCompanyFormControls(inspected.controls, matches, page.defaultView);
+      if (filled === 0) {
+        toast.info("No empty fields matched the saved Software Vala company profile.");
+        return;
+      }
+      toast.success("Form filled with Software Vala details.", {
+        description: `${filled} field${filled === 1 ? "" : "s"} filled. Review them before submitting the form.`,
+      });
+    } catch (error) {
+      toast.error("Could not auto-fill this form.", {
+        description: error instanceof Error ? error.message : "The VPS-backed profile request failed.",
+      });
+    } finally {
+      setAutofillBusy(false);
+    }
+  };
   const search = (lucky = false) => q.trim() && open(`https://www.google.com/search?q=${encodeURIComponent(q.trim())}${lucky ? "&btnI=1" : ""}`);
   const automate = () => {
     const t = task.trim();
@@ -343,7 +395,12 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
             <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)} className={tab === t ? "aw-tab-on" : ""}>{t}</button>
           ))}
         </div>
-        <button aria-label="Open current page separately" onClick={() => openSeparately(embeddedUrl ?? "https://www.google.com")} className="aw-browser-open"><Maximize2 className="h-4 w-4" /></button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={() => void autofillCompanyDetails()} disabled={autofillBusy || !embeddedUrl} className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--primary)] px-2.5 py-1.5 text-xs text-[color:var(--primary)] disabled:cursor-not-allowed disabled:opacity-50" aria-label="Auto-fill company details">
+            <WandSparkles className="h-3.5 w-3.5" />{autofillBusy ? "Filling…" : "Auto-Fill"}
+          </button>
+          <button aria-label="Open current page separately" onClick={() => openSeparately(embeddedUrl ?? "https://www.google.com")} className="aw-browser-open"><Maximize2 className="h-4 w-4" /></button>
+        </div>
       </div>
       <div className="aw-chrome flex min-h-0 flex-1 flex-col">
         {tab === "Browser" ? (
@@ -360,9 +417,9 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
                 </div>
               </div>
               <div className="border-b border-[color:var(--g-line)] px-3 py-2 text-xs" role="note">
-                Some providers, including Google sign-in and Gmail, block iframe embedding. If the page stays blank, use “Open separately”; the site cannot override its framing policy.
+                Auto-Fill only reads same-origin forms, fills supported empty fields, and never submits. Cross-origin pages cannot be inspected by this browser panel. Some providers also block iframe embedding.
               </div>
-              <iframe title={`External page ${new URL(embeddedUrl).hostname}`} src={embeddedUrl} referrerPolicy="strict-origin-when-cross-origin" className="min-h-0 flex-1 border-0" />
+              <iframe ref={iframeRef} title={`External page ${new URL(embeddedUrl).hostname}`} src={embeddedUrl} referrerPolicy="strict-origin-when-cross-origin" className="min-h-0 flex-1 border-0" />
             </div>
           ) : (
           <div className="aw-google flex-1 overflow-auto">
