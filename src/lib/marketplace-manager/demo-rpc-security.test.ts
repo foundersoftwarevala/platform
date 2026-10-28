@@ -15,6 +15,15 @@ const auditMigration = readFileSync(
   join(process.cwd(), "supabase", "migrations", "20261108T153000_mm_audit_operator_gate.sql"),
   "utf8",
 );
+const auditServiceRoleMigration = readFileSync(
+  join(
+    process.cwd(),
+    "supabase",
+    "migrations",
+    "20261108T203000_mm_audit_operator_service_role.sql",
+  ),
+  "utf8",
+);
 const approvalFunctions = readFileSync(
   join(process.cwd(), "src", "lib", "marketplace-manager", "approvals.functions.ts"),
   "utf8",
@@ -90,6 +99,21 @@ describe("Marketplace audit RPC authorization migration", () => {
     expect(auditMigration).toContain("'public.mm_sections_reorder(jsonb)'");
     expect(auditMigration).toContain(
       "replace(v_definition, 'public.mm_audit(', 'public.mm_audit_operator(')",
+    );
+  });
+
+  it("allows trusted server routes while retaining operator checks for user JWTs", () => {
+    const definition = auditServiceRoleMigration.match(
+      /create or replace function public\.mm_audit_operator[\s\S]*?as \$\$([\s\S]*?)\$\$;/i,
+    );
+    expect(definition).not.toBeNull();
+
+    const body = definition?.[1] ?? "";
+    expect(body).toMatch(/auth\.role\(\)\s+is distinct from 'service_role'/i);
+    expect(body).toMatch(/and not public\.mm_is_operator\(\)/i);
+    expect(body.indexOf("auth.role()")).toBeLessThan(body.indexOf("return public.mm_audit("));
+    expect(auditServiceRoleMigration).toMatch(
+      /grant execute on function public\.mm_audit_operator\(text, text, text, jsonb, jsonb, text\)\s+to authenticated, service_role/i,
     );
   });
 });

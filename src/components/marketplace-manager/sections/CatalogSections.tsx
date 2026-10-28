@@ -815,50 +815,30 @@ export function MediaLibrarySection() {
 
 export function AiProvidersSection() {
   return (
-    <ModulePage
-      eyebrow="AI Providers & Generators"
-      title="AI Providers"
-      description="Connect providers and orchestrate generators: product, thumbnail, banner, SEO, docs."
-      Icon={Cpu}
-      tabs={["Providers", "Generators", "Prompts", "Usage"]}
-      stats={[
-        { label: "Providers" },
-        { label: "Connected", tone: "success" },
-        { label: "Tokens", tone: "premium" },
-        { label: "Errors", tone: "destructive" },
-      ]}
-      features={[
-        { label: "OpenAI" },
-        { label: "Gemini" },
-        { label: "Claude" },
-        { label: "Grok" },
-        { label: "DeepSeek" },
-        { label: "Mistral" },
-        { label: "OpenRouter" },
-        { label: "Ollama" },
-        { label: "HuggingFace" },
-        { label: "Replicate" },
-        { label: "Fal.ai" },
-        { label: "Cloudflare AI" },
-        { label: "Vertex AI" },
-        { label: "AWS Bedrock" },
-        { label: "Azure AI" },
-        { label: "AI Product Generator" },
-        { label: "AI Thumbnail Generator" },
-        { label: "AI Banner Generator" },
-        { label: "AI Gallery Generator" },
-        { label: "AI Description" },
-        { label: "AI Features" },
-        { label: "AI FAQs" },
-        { label: "AI SEO" },
-        { label: "AI Blogs" },
-        { label: "AI Documentation" },
-        { label: "AI Changelog" },
-        { label: "AI Release Notes" },
-        { label: "AI Tags" },
-        { label: "AI Translation" },
-      ]}
-    />
+    <div className="px-4 py-8 md:px-8">
+      <PageHeader
+        eyebrow="AI Providers & Generators"
+        title="AI Providers"
+        description="Provider records are shown from the VPS registry. Add credentials and manage routing in the secure AI API Manager."
+        actions={
+          <PillButton variant="primary" href="/ai-api-manager">
+            Manage providers and credentials
+          </PillButton>
+        }
+      />
+      <Card>
+        <div className="flex items-start gap-3">
+          <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+          <div>
+            <h2 className="text-sm font-bold text-foreground">Credentials are managed separately</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              This view does not collect or display secret values. Use AI API Manager to store
+              provider credentials securely and configure the services that use them.
+            </p>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }
 

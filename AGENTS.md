@@ -88,6 +88,20 @@ existed, while both old/new declarations have zero non-formatting lint errors.
   holds about 100 rows on each, far fewer than the files. Do not rely on
   `supabase db push`; compare real schema instead.
 
+### Marketplace audit gate (2026-10-28)
+
+The VPS `sv_platform` database has
+`20261108T153000_mm_audit_operator_gate.sql` and
+`20261108T203000_mm_audit_operator_service_role.sql` applied. Direct
+authenticated execution of `mm_audit` is revoked. `mm_audit_operator` checks
+`mm_is_operator()` for user JWTs and also accepts the trusted service-role
+JWT used by already-authorized internal server routes. The two SECURITY
+INVOKER homepage layout functions call the gated wrapper. Both migrations
+were dry-run and applied transactionally on the VPS only; the Supabase cloud
+project was not touched. Verified pre-migration definitions and rollback
+scripts are under `/root/sv-seo-backup/phase3-audit-gate-20261028T0134Z/`
+and `/root/sv-seo-backup/phase3-audit-service-role-20261028T0134Z/`.
+
 ### Applying a migration to the cloud project
 
 1. Read the whole file and check its dependencies exist on the cloud project.
