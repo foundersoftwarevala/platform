@@ -99,20 +99,34 @@ export interface CycleResult {
 }
 
 /** The agents that could be offered work, with what they are carrying. */
-async function loadEligibleAgents(): Promise<EligibleAgent[]> {
-  const agents = await rows(
-    "ai_agents",
-    "select=id,agent_key,name,specialization,lifecycle,permissions,max_concurrent,blocked_reason" +
-      "&agent_key=not.is.null&limit=500",
-  );
+export async function loadEligibleAgents(degraded: string[]): Promise<EligibleAgent[]> {
+  let agents: Row[];
+  try {
+    agents = await rows(
+      "ai_agents",
+      "select=id,agent_key,name,specialization,lifecycle,permissions,max_concurrent,blocked_reason" +
+        "&agent_key=not.is.null&limit=500",
+    );
+  } catch (error) {
+    degraded.push("ai_agents");
+    console.error(`[morning] ai_agents unavailable: ${String(error)}`);
+    return [];
+  }
   if (agents.length === 0) return [];
 
   // How much each is already carrying. Counted from the run log rather than
   // from the denormalised counters, which say nothing about what is open now.
-  const open = await rows(
-    "ai_agent_runs",
-    "select=agent_id&state=in.(RUNNING,WAITING,BLOCKED)&limit=2000",
-  ).catch(() => [] as Row[]);
+  let open: Row[];
+  try {
+    open = await rows(
+      "ai_agent_runs",
+      "select=agent_id&state=in.(RUNNING,WAITING,BLOCKED)&limit=2000",
+    );
+  } catch (error) {
+    degraded.push("ai_agent_runs");
+    console.error(`[morning] ai_agent_runs unavailable: ${String(error)}`);
+    return [];
+  }
 
   const load = new Map<string, number>();
   for (const run of open) {
@@ -134,11 +148,18 @@ async function loadEligibleAgents(): Promise<EligibleAgent[]> {
 }
 
 /** Decisions a person has not answered yet. */
-async function pendingDecisions(): Promise<Candidate[]> {
-  const open = await rows(
-    "founder_decisions",
-    "select=id,title,domain,risk_level,priority,state&state=in.(WAITING_APPROVAL,ESCALATED)&limit=200",
-  ).catch(() => [] as Row[]);
+export async function pendingDecisions(degraded: string[]): Promise<Candidate[]> {
+  let open: Row[];
+  try {
+    open = await rows(
+      "founder_decisions",
+      "select=id,title,domain,risk_level,priority,state&state=in.(WAITING_APPROVAL,ESCALATED)&limit=200",
+    );
+  } catch (error) {
+    degraded.push("founder_decisions");
+    console.error(`[morning] founder_decisions unavailable: ${String(error)}`);
+    return [];
+  }
 
   return open.map((decision) => ({
     source: "DECISION" as const,
@@ -214,14 +235,20 @@ export async function runMorningCycle(createdBy: string | null): Promise<CycleRe
   const cycle = created[0];
   if (!cycle) return { ok: false, error: "the cycle could not be started" };
   const cycleId = String(cycle.id);
+  const degraded = [...state.degraded];
 
   // What changed overnight, from the event log rather than from an impression.
   const changes = await rows(
     "founder_events",
     `select=id,event_type,domain,severity&occurred_at=gte.${encodeURIComponent(windowStart)}&limit=500`,
-  ).catch(() => [] as Row[]);
+  ).catch((error) => {
+    degraded.push("founder_events");
+    console.error(`[morning] founder_events unavailable: ${String(error)}`);
+    return [] as Row[];
+  });
 
-  const decisions = await pendingDecisions();
+  const decisions = await pendingDecisions(degraded);
+  const agents = await loadEligibleAgents(degraded);
   const candidates: Candidate[] = [
     ...fromAttention(state.attention),
     ...fromKpis(state.kpis),
@@ -240,8 +267,8 @@ export async function runMorningCycle(createdBy: string | null): Promise<CycleRe
   }));
 
   const limitations: string[] = [];
-  if (state.degraded.length > 0) {
-    limitations.push(`These sources could not be read: ${state.degraded.join(", ")}.`);
+  if (degraded.length > 0) {
+    limitations.push(`These sources could not be read: ${degraded.join(", ")}.`);
   }
   if (candidates.length === 0) {
     limitations.push(
@@ -270,7 +297,7 @@ export async function runMorningCycle(createdBy: string | null): Promise<CycleRe
       // A brief assembled while some sources were unreadable is an estimate,
       // not a measurement, and says so.
       confidence:
-        state.degraded.length > 0 ? "ESTIMATED" : candidates.length > 0 ? "MEASURED" : "UNKNOWN",
+        degraded.length > 0 ? "ESTIMATED" : candidates.length > 0 ? "MEASURED" : "UNKNOWN",
       insufficient_data: candidates.length === 0,
       status: "generated",
       produced_by_ai: true,
@@ -292,7 +319,6 @@ export async function runMorningCycle(createdBy: string | null): Promise<CycleRe
 
   // PLAN. Each item points at the work; the plan holds only the order, the
   // reason and the suggested agent.
-  const agents = await loadEligibleAgents().catch(() => [] as EligibleAgent[]);
   let unallocated = 0;
 
   const planRows = ordered.map((item: Scored, index) => {
@@ -344,7 +370,7 @@ export async function runMorningCycle(createdBy: string | null): Promise<CycleRe
     planned: planRows.length,
     unallocated,
     escalations,
-    degraded: [...state.degraded, ...(changes.length === 0 ? [] : [])],
+    degraded,
   };
 }
 
