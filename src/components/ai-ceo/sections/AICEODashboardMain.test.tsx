@@ -61,7 +61,12 @@ describe("AICEODashboardMain", () => {
 
     expect(container.querySelectorAll('[data-testid="ayra-world-banner"]')).toHaveLength(1);
     expect(screen.getByText("AYRA'S WORLD")).toBeTruthy();
-    expect(ayraBanner.querySelector(".aw-workspace")).toBeTruthy();
+    const workspace = ayraBanner.querySelector(".aw-workspace");
+    expect(workspace?.children).toHaveLength(1);
+    expect(workspace?.querySelector(".aw-browser-panel")).toBeTruthy();
+    expect(ayraBanner.querySelector(".aw-plan")?.parentElement?.classList.contains("aw-agents")).toBe(true);
+    expect(ayraBanner.querySelector(".aw-bubble")).toBeNull();
+    expect(ayraBanner.querySelector(".aw-browser-nav")).toBeNull();
     expect(screen.getByRole("button", { name: "Screenshot" })).toBeTruthy();
     expect(
       ayraBanner.compareDocumentPosition(dashboardBanner) & Node.DOCUMENT_POSITION_FOLLOWING,

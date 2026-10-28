@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import {
   ArrowLeft, ArrowRight, RotateCw, Sparkles, Mic, MicOff, Phone, Box, ChevronDown, Settings, Globe, Github, Plus,
-  ListChecks, Maximize2, X, Lock, Search, Star, Download, Share, MoreVertical, Send, Grid3x3,
+  ListChecks, Maximize2, Search, Download, Send, Grid3x3,
 } from "lucide-react";
 import { AYRA_LOOKS, LOOK_NAMES, LOOK_VIDEO, LOOK_SCENE, LOOK_SCENE_VIDEO, LOOK_THEME, type AyraLook, type CoreState } from "@/components/JarvisCore";
 import stage from "@/assets/ayra-world-stage.jpg";
@@ -97,6 +97,7 @@ export function AgentStage({ core, look, setLook, reply, muted, micNote, micStat
         </div>
       )}
       <div className="aw-stage-shade" />
+      <output className="sr-only" data-testid="agent-reply">{reply}</output>
       <div className="absolute left-5 top-4 flex items-center gap-3">
         <AyraMark className="h-11 w-11" />
         <div>
@@ -104,25 +105,24 @@ export function AgentStage({ core, look, setLook, reply, muted, micNote, micStat
           <div className="text-sm text-[color:var(--aw-soft)]">Talk, Give Commands, Watch, and Work Together</div>
         </div>
       </div>
-      <div className="aw-glass absolute left-4 top-[82px] flex items-center gap-4 px-5 py-2.5">
-        <span className="h-3 w-3 rounded-full bg-[color:var(--aw-green)] shadow-[0_0_10px_var(--aw-green)]" />
-        <div className="text-[15px] leading-snug"><div>AYRA is <span className="text-[color:var(--aw-green)]">online</span></div><div>Ready to help you</div></div>
-      </div>
-      <div className="aw-bubble">
-        {reply ? <p className="text-base leading-snug">{reply.replace(/\*\*|__/g, "")}</p> : <p className="text-xl leading-snug">Hi!<br />I'm <span className="text-[color:var(--aw-cyan)]">AYRA</span><br />How can I help you today?</p>}
-      </div>
-      <div className="aw-plan" aria-label="AYRA conversation status">
-        <strong className="text-[color:var(--aw-cyan)]">Conversation</strong>
-        {STEPS.map((step, index) => (
-          <div key={step} className={index <= stepFor[core] ? "text-[color:var(--aw-cyan)]" : ""}>{step}</div>
-        ))}
-      </div>
-      <div className="aw-agents" aria-label="AYRA looks">
-        <button onClick={() => setLook(null)} title="AYRA's World" className={!look ? "on" : ""}><img src={stage} alt="AYRA's World" /></button>
-        {looks.map((k) => (
-          <button key={k} onClick={() => setLook(k)} title={LOOK_NAMES[k]} className={look === k ? "on" : ""}><img src={LOOK_SCENE[k]} alt={LOOK_NAMES[k]} /></button>
-        ))}
-      </div>
+      <aside className="aw-agents" aria-label="AYRA sidebar">
+        <div className="aw-plan" aria-label="AYRA conversation status">
+          <strong>CONVERSATION</strong>
+          <div className="aw-plan-steps">
+            {STEPS.map((step, index) => (
+              <div key={step} className={`aw-plan-step${index <= stepFor[core] ? " is-active" : ""}`} aria-current={index === stepFor[core] ? "step" : undefined}>
+                <span className="aw-plan-dot" aria-hidden="true" />{step}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="aw-agent-looks" aria-label="AYRA looks">
+          <button onClick={() => setLook(null)} title="AYRA's World" className={!look ? "on" : ""}><img src={stage} alt="AYRA's World" /></button>
+          {looks.map((k) => (
+            <button key={k} onClick={() => setLook(k)} title={LOOK_NAMES[k]} className={look === k ? "on" : ""}><img src={LOOK_SCENE[k]} alt={LOOK_NAMES[k]} /></button>
+          ))}
+        </div>
+      </aside>
       {look && <div className="aw-name">{LOOK_NAMES[look]}</div>}
       {look && !LOOK_SCENE_VIDEO[look] && LOOK_VIDEO[look] && <button onClick={() => setMotion(!motion)} aria-pressed={motion} className="aw-motion">{motion ? "Show in scene" : "Play motion"}</button>}
       <div className="aw-stage-controls">
@@ -189,27 +189,17 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
     finally { setShotBusy(false); }
   };
   return (
-    <section className="aw-panel flex min-h-0 flex-col p-3">
-      <div className="aw-browser-header px-2 pb-3">
-        <div className="grid h-12 w-12 place-items-center rounded-full bg-[color:var(--aw-blue)]/20 ring-2 ring-[color:var(--aw-cyan)]"><RotateCw className="h-6 w-6 text-[color:var(--aw-cyan)]" /></div>
-        <div className="flex-1"><div className="aw-display text-xl font-bold">BROWSER</div><div className="text-xs text-[color:var(--aw-soft)]">Search and links open in a new tab; screenshots use the VPS capture service. Remote browser control is not connected.</div></div>
-        <div className="aw-browser-tabs flex flex-wrap items-center gap-1">
+    <section className="aw-panel aw-browser-panel flex min-h-0 flex-col">
+      <div className="aw-browser-header">
+        <div className="aw-browser-title">WORKSPACE</div>
+        <div className="aw-browser-tabs" role="group" aria-label="Workspace tools">
           {["Browser", "Automate", "Screenshot", "Download"].map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={tab === t ? "aw-tab-on" : ""}>{t}</button>
+            <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)} className={tab === t ? "aw-tab-on" : ""}>{t}</button>
           ))}
         </div>
-        <button aria-label="Expand" onClick={() => open("https://www.google.com")} className="ml-2 rounded-md border border-[color:var(--aw-line)] p-2"><Maximize2 className="h-5 w-5" /></button>
+        <button aria-label="Open Google in a new tab" onClick={() => open("https://www.google.com")} className="aw-browser-open"><Maximize2 className="h-4 w-4" /></button>
       </div>
       <div className="aw-chrome flex min-h-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 px-2 pt-2">
-          <div className="flex w-52 items-center gap-2 rounded-t-lg bg-[color:var(--aw-chrome-2)] px-3 py-2 text-sm"><span className="font-bold text-[color:var(--g-blue)]">G</span>Google<X className="ml-auto h-4 w-4" /></div>
-          <Plus className="h-5 w-5" /><div className="ml-auto flex gap-4 pr-2 text-[color:var(--aw-muted)]">—<span>▢</span><X className="h-4 w-4" /></div>
-        </div>
-        <div className="aw-browser-nav bg-[color:var(--aw-chrome-2)]">
-          <ArrowLeft className="h-5 w-5" /><ArrowRight className="h-5 w-5 opacity-50" /><RotateCw className="h-5 w-5" />
-          <div className="aw-browser-url rounded-full bg-[color:var(--aw-chrome)]"><Lock className="h-4 w-4 shrink-0" /><span className="truncate">https://www.google.com</span><Star className="ml-auto h-5 w-5 shrink-0" /></div>
-          <Download className="h-5 w-5" /><Share className="h-5 w-5" /><MoreVertical className="h-5 w-5" />
-        </div>
         {tab === "Browser" ? (
           <div className="aw-google flex-1 overflow-auto">
             <div className="flex items-center justify-end gap-4 p-3 text-xs">
@@ -259,31 +249,6 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
             <button onClick={() => reply && save(new Blob([reply], { type: "text/plain;charset=utf-8" }), "ayra-reply.txt")} disabled={!reply} className="flex items-center gap-2 self-start rounded bg-[color:var(--g-btn)] px-4 py-2 disabled:opacity-50"><Download className="h-4 w-4" />AYRA's last answer {reply ? "" : "— give AYRA a command first"}</button>
           </div>
         )}
-      </div>
-    </section>
-  );
-}
-
-export function ActivityPanel({ core, status }: { core: CoreState; status: string }) {
-  const step = stepFor[core];
-  return (
-    <section className="aw-panel grid gap-3 p-3">
-      <div className="grid grid-cols-[1.25fr_1fr] gap-3">
-        <div>
-          <div className="aw-display mb-2 flex items-center gap-3 px-2 text-lg font-bold"><RotateCw className="h-6 w-6 text-[color:var(--aw-cyan)]" />AYRA ACTIVITY</div>
-          <div className="aw-glass flex items-center gap-4 px-6 py-3 text-xl font-semibold text-[color:var(--aw-cyan)]"><Send className="h-6 w-6" /><span className="truncate">{status}</span></div>
-        </div>
-        <div className="aw-glass flex gap-3 p-4">
-          <Lock className="h-7 w-7 shrink-0 text-[color:var(--aw-green)]" />
-          <div className="text-sm"><div>Access: <span className="text-[color:var(--aw-green)]">Connected accounts only</span></div><div className="mt-2 text-xs text-[color:var(--aw-soft)]">If login is required, AYRA will open the login page for you.</div></div>
-        </div>
-      </div>
-      <div className="aw-glass grid grid-cols-4 gap-2 px-4 py-6">
-        {STEPS.map((s, i) => (
-          <div key={s} className="flex items-start gap-3 text-sm">
-            <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 ${i + 1 <= step ? "aw-step-on" : "border-[color:var(--aw-soft)]"}`}>{i + 1}</span>{s}
-          </div>
-        ))}
       </div>
     </section>
   );

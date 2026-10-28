@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityPanel, AgentStage, BrowserPanel, TopBar } from "@/components/ai-ceo/AyraWorld";
+import { AgentStage, BrowserPanel, TopBar } from "@/components/ai-ceo/AyraWorld";
 import type { CoreState } from "@/components/JarvisCore";
 import { streamChat, type ChatTurn } from "@/components/vala-ai/chat-stream";
 import { useSpeech } from "@/lib/use-speech";
@@ -92,12 +92,6 @@ export function AyraWorldBanner() {
   useEffect(() => () => controller.current?.abort(), []);
 
   const busy = core === "thinking" || core === "executing" || core === "speaking";
-  const status = busy
-    ? "AYRA is responding..."
-    : core === "error"
-      ? "Request failed"
-      : "Ready for your command";
-
   return (
     <div className="ayra-world" data-testid="ayra-world-banner">
       <TopBar
@@ -153,7 +147,6 @@ export function AyraWorldBanner() {
         />
         <div className="aw-workspace">
           <BrowserPanel onRun={(command) => void run(command)} reply={reply} busy={busy} />
-          <ActivityPanel core={speech.listening ? "listening" : core} status={status} />
         </div>
       </main>
       <AyraLocalBridgePanel />
