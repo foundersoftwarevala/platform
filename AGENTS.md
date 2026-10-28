@@ -139,6 +139,37 @@ disabled. The clean committed release was built and smoke-tested before swap;
 PM2 `softwarevala-staging` was online afterward, and the live homepage returned
 HTTP 200. The unrelated pre-existing worktree edits were not included.
 
+### AYRA banner and agent capability audit (2026-10-28)
+
+Release `c679987e` makes the AYRA desktop composition 40/60 using a 2:3 grid
+ratio that excludes the inter-column gap, stacks the sections below 1100px, and
+adds mobile-specific toolbar, workspace, controls, and portrait-strip sizing.
+The agent-side accent follows the selected AYRA look's existing
+`LOOK_THEME`; the workspace remains Software Vala cyan/blue. The portrait strip
+is a lookbook of AYRA outfits, not a selector for separate AI agents. Photos
+and videos fill the portrait frame to avoid letterbox gaps. AI CEO deployment
+and compliance accents were aligned with primary/accent brand tokens.
+
+Read-only VPS `sv_platform` inspection found 141 active `ai_agents`; every row
+has an empty `tools` array. The separate `ai_agent_runs` table recorded 3,072
+runs in the preceding 24 hours (2,947 COMPLETED, 125 FAILED), including the
+Demo Health, Demo Sync, Demo Scanner, and Social Media Monitoring workers.
+Those worker records show real runs, but do not define safe per-agent tool
+permissions or execution contracts. Do not imply that all 141 agents are
+human-like LLM chat agents or can take arbitrary actions. The broader request
+to implement individual actions for all agents remains unimplemented pending
+reviewed tool/permission contracts. AYRA chat uses the existing Vala AI stream;
+the banner's browser panel opens links in a new tab and states that remote
+browser control is not connected. No database rows were changed for this UI
+release.
+
+Validation for `c679987e`: full production build and `npx tsc --noEmit -p .`
+passed; 9 focused AYRA/dashboard UI tests passed, including selected-look
+accent behavior; scoped ESLint passed with the existing Prettier rule disabled.
+The guarded staged deployment passed homepage smoke, PM2 is online, local and
+public routes returned HTTP 200, and the AI CEO stylesheet returned HTTP 200
+with `text/css` MIME. Unrelated existing worktree changes were excluded.
+
 ### Applying a migration to the cloud project
 
 1. Read the whole file and check its dependencies exist on the cloud project.
