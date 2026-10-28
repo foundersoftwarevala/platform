@@ -181,6 +181,16 @@ from commit `f93702dc`; its pre-swap homepage smoke returned HTTP 200, PM2 is
 online, local homepage/AI CEO and public HTTPS return HTTP 200, and the live
 AI CEO stylesheet contains the 2:3 grid tracks and brand-token declarations.
 
+Follow-up release `89c6fc3e` gives the desktop agent and workspace panels one
+shared row height, removes workspace panel shadow/backdrop blur, and standardizes
+the browser header, tabs, URL bar, and search sizing with mobile wrapping. The
+responsive stacked layout retains independent panel heights. Production build,
+full TypeScript check, and seven focused UI tests passed; the guarded staged
+release returned HTTP 200 before and after swap, PM2 is online, and the public
+AI CEO stylesheet contains the new rules. The unauthenticated browser route
+remained at its workspace-access check, so authenticated visual acceptance was
+not claimed. Existing unrelated worktree changes were excluded.
+
 ### Applying a migration to the cloud project
 
 1. Read the whole file and check its dependencies exist on the cloud project.
