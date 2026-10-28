@@ -191,7 +191,7 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
   return (
     <section className="aw-panel aw-browser-panel flex min-h-0 flex-col">
       <div className="aw-browser-header">
-        <div className="aw-browser-title">WORKSPACE</div>
+        <div className="aw-browser-title"><strong>WORKSPACE</strong><span>Connected accounts only · login pages open separately.</span></div>
         <div className="aw-browser-tabs" role="group" aria-label="Workspace tools">
           {["Browser", "Automate", "Screenshot", "Download"].map((t) => (
             <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)} className={tab === t ? "aw-tab-on" : ""}>{t}</button>

@@ -159,7 +159,8 @@
 
 .aw-browser-panel { height: 100%; min-height: 0; padding: 0; }
 .aw-browser-header { display: grid; grid-template-columns: auto minmax(0, 1fr) 2.25rem; align-items: center; gap: .75rem; padding: .65rem .85rem; border-bottom: 1px solid color-mix(in oklab, var(--aw-brand-glow) 34%, transparent); background: var(--aw-panel); }
-.aw-browser-title { color: var(--aw-soft); font-family: "Orbitron", "Rajdhani", sans-serif; font-size: .75rem; font-weight: 700; letter-spacing: .12em; }
+.aw-browser-title { display: flex; flex-direction: column; gap: .12rem; color: var(--aw-soft); font-family: "Orbitron", "Rajdhani", sans-serif; font-size: .75rem; font-weight: 700; letter-spacing: .12em; }
+.aw-browser-title span { color: var(--aw-muted); font-family: "Rajdhani", "Exo 2", system-ui, sans-serif; font-size: .65rem; font-weight: 500; letter-spacing: 0; white-space: nowrap; }
 .aw-browser-tabs { display: flex; min-width: 0; flex-wrap: wrap; justify-content: center; gap: .2rem; padding: .2rem; border: 1px solid color-mix(in oklab, var(--aw-brand-glow) 32%, transparent); border-radius: .65rem; background: color-mix(in oklab, var(--aw-brand-primary) 8%, transparent); }
 .aw-browser-tabs button { min-height: 2rem; padding: .35rem .7rem; border-radius: .45rem; color: var(--aw-soft); font-size: .8rem; line-height: 1.1rem; white-space: nowrap; }
 .aw-browser-tabs button:hover { background: color-mix(in oklab, var(--aw-brand-glow) 12%, transparent); color: #fff; }
