@@ -190,12 +190,12 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
   };
   return (
     <section className="aw-panel flex min-h-0 flex-col p-3">
-      <div className="aw-browser-header flex items-center gap-4 px-2 pb-3">
+      <div className="aw-browser-header px-2 pb-3">
         <div className="grid h-12 w-12 place-items-center rounded-full bg-[color:var(--aw-blue)]/20 ring-2 ring-[color:var(--aw-cyan)]"><RotateCw className="h-6 w-6 text-[color:var(--aw-cyan)]" /></div>
         <div className="flex-1"><div className="aw-display text-xl font-bold">BROWSER</div><div className="text-xs text-[color:var(--aw-soft)]">Search and links open in a new tab; screenshots use the VPS capture service. Remote browser control is not connected.</div></div>
         <div className="aw-browser-tabs flex flex-wrap items-center gap-1">
           {["Browser", "Automate", "Screenshot", "Download"].map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-2 text-[15px] ${tab === t ? "aw-tab-on" : ""}`}>{t}</button>
+            <button key={t} onClick={() => setTab(t)} className={tab === t ? "aw-tab-on" : ""}>{t}</button>
           ))}
         </div>
         <button aria-label="Expand" onClick={() => open("https://www.google.com")} className="ml-2 rounded-md border border-[color:var(--aw-line)] p-2"><Maximize2 className="h-5 w-5" /></button>
@@ -205,9 +205,9 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
           <div className="flex w-52 items-center gap-2 rounded-t-lg bg-[color:var(--aw-chrome-2)] px-3 py-2 text-sm"><span className="font-bold text-[color:var(--g-blue)]">G</span>Google<X className="ml-auto h-4 w-4" /></div>
           <Plus className="h-5 w-5" /><div className="ml-auto flex gap-4 pr-2 text-[color:var(--aw-muted)]">—<span>▢</span><X className="h-4 w-4" /></div>
         </div>
-        <div className="flex items-center gap-4 bg-[color:var(--aw-chrome-2)] px-3 py-2">
+        <div className="aw-browser-nav bg-[color:var(--aw-chrome-2)]">
           <ArrowLeft className="h-5 w-5" /><ArrowRight className="h-5 w-5 opacity-50" /><RotateCw className="h-5 w-5" />
-          <div className="flex flex-1 items-center gap-2 rounded-full bg-[color:var(--aw-chrome)] px-4 py-1.5 text-[15px]"><Lock className="h-4 w-4" />https://www.google.com<Star className="ml-auto h-5 w-5" /></div>
+          <div className="aw-browser-url rounded-full bg-[color:var(--aw-chrome)]"><Lock className="h-4 w-4 shrink-0" /><span className="truncate">https://www.google.com</span><Star className="ml-auto h-5 w-5 shrink-0" /></div>
           <Download className="h-5 w-5" /><Share className="h-5 w-5" /><MoreVertical className="h-5 w-5" />
         </div>
         {tab === "Browser" ? (
@@ -220,7 +220,7 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
             <div className="mt-4 text-center text-7xl font-medium tracking-tight" aria-label="Google">
               <span className="text-[color:var(--g-blue)]">G</span><span className="text-[color:var(--g-red)]">o</span><span className="text-[color:var(--g-yellow)]">o</span><span className="text-[color:var(--g-blue)]">g</span><span className="text-[color:var(--g-green)]">l</span><span className="text-[color:var(--g-red)]">e</span>
             </div>
-            <div className="mx-auto mt-6 flex w-[66%] items-center gap-3 rounded-full border border-[color:var(--g-line)] px-4 py-2.5">
+            <div className="aw-google-search rounded-full border border-[color:var(--g-line)]">
               <Search className="h-5 w-5" /><input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()} aria-label="Search Google" className="flex-1 bg-transparent outline-none" />
             </div>
             <div className="mt-6 flex justify-center gap-3 text-sm">
