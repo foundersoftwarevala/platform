@@ -48,13 +48,42 @@
 @keyframes aw-pop { from { opacity: 0; transform: translateY(-4px); } }
 .aw-menu button { text-align: left; padding: .6rem .85rem; border-radius: 8px; font-size: 15px; font-weight: 500; }
 .aw-menu button:hover { background: oklch(0.82 0.15 210 / .16); }
-.aw-main { flex: 1 1 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); grid-template-rows: minmax(0, 1fr); align-items: stretch; gap: 0.75rem; padding: 0 .6rem .6rem; min-height: 0; min-width: 0; }
-.aw-workspace { display: block; align-self: stretch; height: 100%; min-width: 0; min-height: 0; margin: 0; padding: 0; }
+.aw-main { flex: 1 1 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); grid-template-rows: minmax(0, 1fr) auto; align-items: stretch; gap: 0.75rem; padding: 0 .6rem .6rem; min-height: 0; min-width: 0; }
+.aw-workspace { display: block; grid-column: 2; grid-row: 1; align-self: stretch; height: 100%; min-width: 0; min-height: 0; margin: 0; padding: 0; }
 .aw-workspace .aw-panel { border-color: color-mix(in oklab, var(--aw-brand-glow) 40%, transparent); background: var(--aw-panel); backdrop-filter: none; box-shadow: none; }
 .aw-panel { position: relative; border-radius: 16px; border: 1px solid color-mix(in oklab, var(--aw-brand-glow) 34%, transparent); background: color-mix(in oklab, var(--aw-brand-primary) 8%, var(--card));
   backdrop-filter: blur(10px); overflow: hidden;
   box-shadow: inset 0 0 44px color-mix(in oklab, var(--aw-brand-glow) 9%, transparent), 0 18px 44px -18px oklch(0 0 0 / .6); }
-.aw-stage { height: 100%; min-height: 0; min-width: 0; border-color: color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 42%, var(--aw-brand-glow)); background: radial-gradient(ellipse at 72% 38%, color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 16%, transparent), transparent 58%), var(--aw-panel); box-shadow: inset 0 0 44px color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 12%, transparent), 0 18px 44px -18px oklch(0 0 0 / .6); }
+.aw-stage { position: relative; grid-column: 1; grid-row: 1; height: 100%; min-height: 0; min-width: 0; border-color: color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 42%, var(--aw-brand-glow)); background: radial-gradient(ellipse at 72% 38%, color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 16%, transparent), transparent 58%), var(--aw-panel); box-shadow: inset 0 0 44px color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 12%, transparent), 0 18px 44px -18px oklch(0 0 0 / .6); }
+.aw-stage-info { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: minmax(220px, .9fr) minmax(220px, .8fr) minmax(0, 2fr); align-items: center; gap: .75rem; min-width: 0; padding: .65rem .8rem; border: 1px solid color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 34%, var(--aw-brand-glow)); border-radius: 14px; background: linear-gradient(135deg, oklch(0.2 0.055 255 / .98), oklch(0.15 0.045 255 / .98)); color: #fff; }
+.aw-agent-overview { display: grid; min-width: 0; gap: .45rem; }
+.aw-agent-title { display: flex; align-items: center; gap: .55rem; min-width: 0; color: #fff; }
+.aw-agent-title strong { display: block; color: #fff; font-family: "Orbitron", "Rajdhani", sans-serif; font-size: .9rem; letter-spacing: .06em; }
+.aw-agent-title span { display: block; margin-top: .12rem; color: oklch(0.94 0.015 230); font-size: .78rem; line-height: 1.15; }
+.aw-agent-status { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 1.5rem; color: #fff; font-size: .88rem; font-weight: 600; }
+.aw-agent-look-name { color: var(--aw-agent-accent, var(--aw-cyan)); font-size: .84rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.aw-stage-info .aw-plan { min-width: 0; padding: .55rem .65rem; border: 1px solid color-mix(in oklab, var(--aw-brand-glow) 42%, transparent); border-radius: 10px; background: rgb(0 0 0 / .58); color: #fff; }
+.aw-stage-info .aw-plan strong { color: var(--aw-agent-accent, var(--aw-cyan)); font-size: .75rem; letter-spacing: .1em; }
+.aw-stage-info .aw-plan-steps { display: flex; flex-wrap: wrap; gap: .3rem .65rem; margin-top: .4rem; }
+.aw-stage-info .aw-plan-step { display: flex; align-items: center; gap: .35rem; color: oklch(0.96 0.01 230); font-size: .83rem; line-height: 1.2rem; }
+.aw-stage-info .aw-plan-step.is-active { color: var(--aw-agent-accent, var(--aw-cyan)); font-weight: 700; }
+.aw-stage-info .aw-plan-dot { width: .45rem; height: .45rem; flex: none; border: 1px solid oklch(0.82 0.03 230); border-radius: 50%; }
+.aw-stage-info .aw-plan-step.is-active .aw-plan-dot { border-color: var(--aw-agent-accent, var(--aw-cyan)); background: var(--aw-agent-accent, var(--aw-cyan)); box-shadow: 0 0 8px var(--aw-agent-accent, var(--aw-cyan)); }
+.aw-agent-tools { display: grid; gap: .45rem; min-width: 0; }
+.aw-agent-looks { display: flex; min-width: 0; gap: .4rem; overflow-x: auto; scrollbar-width: thin; padding: .15rem; }
+.aw-agent-looks button { width: 36px; height: 36px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; border: 2px solid color-mix(in oklab, var(--aw-brand-glow) 50%, transparent); }
+.aw-agent-looks button img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+.aw-agent-looks button.on { border-color: var(--aw-agent-accent, var(--aw-cyan)); box-shadow: 0 0 8px color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 45%, transparent); }
+.aw-agent-shortcuts { display: flex; min-width: 0; gap: .35rem; overflow-x: auto; scrollbar-width: thin; padding: .15rem .1rem .25rem; }
+.aw-agent-shortcuts .aw-chip { flex: 0 0 auto; height: 34px; gap: .4rem; padding: 0 .65rem; border-color: color-mix(in oklab, var(--aw-brand-glow) 45%, transparent); background: oklch(0.25 0.055 255); color: #fff; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.aw-agent-shortcuts .aw-chip:hover { border-color: var(--aw-agent-accent, var(--aw-cyan)); color: #fff; }
+.aw-stage .aw-stage-controls { position: absolute; z-index: 3; bottom: 1.15rem; left: 50%; display: flex; align-items: center; gap: .85rem; transform: translateX(-50%); }
+.aw-stage .aw-round { width: 52px; height: 52px; border: 2px solid color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 68%, white); box-shadow: 0 5px 16px oklch(0 0 0 / .55); }
+.aw-stage .aw-talk { width: 60px; height: 60px; }
+.aw-stage .aw-talk.on { background: var(--aw-agent-accent, var(--aw-cyan)); color: var(--aw-bg); }
+.aw-stage .aw-mute.on { background: var(--aw-agent-accent, var(--aw-cyan)); color: var(--aw-bg); }
+.aw-stage .aw-end { color: #fff; }
+.aw-agent-overview .aw-motion { position: static; justify-self: start; padding: .3rem .7rem; border-color: color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 58%, transparent); background: oklch(0.25 0.055 255); color: #fff; font-size: .78rem; }
 .aw-stage-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
 .aw-look { position: absolute; inset: 0; overflow: hidden; background: var(--aw-bg); }
 .aw-look > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 18%; -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent); mask-image: linear-gradient(to bottom, black 70%, transparent); }
@@ -62,7 +91,7 @@
 @keyframes aw-alive { 0%,100% { transform: scale(1.02) translateY(0) rotate(0deg); } 50% { transform: scale(1.035) translateY(-4px) rotate(.25deg); } }
 @media (prefers-reduced-motion: reduce) { .aw-look-live, .aw-menu { animation: none; } }
 .aw-look > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 18%; -webkit-mask-image: linear-gradient(to bottom, black 68%, transparent); mask-image: linear-gradient(to bottom, black 68%, transparent); }
-.aw-motion { position: absolute; right: 14px; top: 82px; z-index: 5; border: 1px solid var(--aw-line); background: oklch(0.2 0.05 255 / .85); backdrop-filter: blur(8px); color: var(--aw-text); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600; }
+.aw-motion { border: 1px solid var(--aw-line); border-radius: 999px; padding: 6px 14px; font-weight: 600; }
 .aw-motion:hover { border-color: oklch(0.82 0.15 210 / .6); box-shadow: 0 0 12px oklch(0.82 0.15 210 / .3); }
 .aw-stage-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, oklch(0.15 0.04 255 / .55), transparent 18%, transparent 70%, oklch(0.15 0.04 255 / .7)); }
 .aw-glass { border-radius: 12px; border: 1px solid oklch(0.55 0.12 230 / .45); background: oklch(0.22 0.05 255 / .6); backdrop-filter: blur(12px); box-shadow: 0 8px 20px -10px oklch(0 0 0 / .55); }
@@ -75,13 +104,6 @@
 .aw-plan-step.is-active { color: var(--aw-cyan); }
 .aw-plan-dot { width: .45rem; height: .45rem; flex: none; border: 1px solid var(--aw-soft); border-radius: 50%; }
 .aw-plan-step.is-active .aw-plan-dot { border-color: var(--aw-cyan); background: var(--aw-cyan); box-shadow: 0 0 8px var(--aw-cyan); }
-.aw-agents { position: absolute; z-index: 4; left: 14px; top: 220px; bottom: 205px; display: flex; width: 174px; flex-direction: column; gap: .55rem; overflow: hidden; padding: 2px; }
-.aw-agent-looks { display: flex; min-height: 0; flex-direction: column; gap: 8px; overflow-y: auto; scrollbar-width: none; padding: 2px; }
-.aw-agent-looks button { width: 44px; height: 44px; flex: none; border-radius: 50%; overflow: hidden; border: 2px solid oklch(0.55 0.12 230 / .5); transition: transform .2s, border-color .2s, box-shadow .25s; }
-.aw-agent-looks button img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
-.aw-agent-looks button:hover { border-color: oklch(0.82 0.15 210 / .7); transform: scale(1.08); }
-.aw-agent-looks button.on { border-color: var(--aw-agent-accent, var(--aw-cyan)); box-shadow: 0 0 12px var(--aw-agent-accent, var(--aw-cyan)), 0 0 3px var(--aw-agent-accent, var(--aw-cyan)); transform: scale(1.08); }
-.aw-name { position: absolute; left: 50%; top: 70px; translate: -50% 0; padding: 4px 15px; border-radius: 999px; border: 1px solid color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 72%, transparent); background: oklch(0.2 0.05 255 / .88); backdrop-filter: blur(8px); font-size: 12px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--aw-agent-accent, var(--aw-cyan)); box-shadow: 0 0 12px color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 30%, transparent); }
 .aw-round { display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; transition: transform .2s, box-shadow .25s; }
 .aw-round:hover { transform: scale(1.06); }
 .aw-round:active { transform: scale(.98); }
@@ -91,7 +113,6 @@
 .aw-mute { background: linear-gradient(180deg, oklch(0.36 0.03 255), oklch(0.28 0.03 255)); color: var(--aw-text); box-shadow: inset 0 1px 0 oklch(1 0 0 / .12), 0 6px 14px -6px oklch(0 0 0 / .5); }
 .aw-mute.on { background: var(--aw-cyan); color: var(--aw-bg); box-shadow: 0 0 18px oklch(0.82 0.15 210 / .5); }
 .aw-end { background: linear-gradient(180deg, oklch(0.66 0.22 25), oklch(0.55 0.2 25)); color: var(--aw-text); box-shadow: 0 0 18px oklch(0.62 0.22 25 / .6), inset 0 1px 0 oklch(1 0 0 / .15); }
-.aw-stage span { text-shadow: 0 1px 4px oklch(0 0 0 / .6); }
 .aw-wave { display: flex; align-items: center; gap: 3px; height: 34px; }
 .aw-wave span { width: 3px; border-radius: 3px; background: linear-gradient(180deg, var(--aw-cyan), oklch(0.6 0.2 250)); box-shadow: 0 0 6px var(--aw-cyan); transform: scaleY(.25); transition: transform .3s; }
 .aw-wave.live span { animation: listen-bar .9s ease-in-out infinite; }
@@ -105,9 +126,10 @@
 .aw-foot { padding: .6rem; text-align: center; font-size: 15px; color: var(--aw-soft); }
 @media (max-width: 1100px) {
   .ayra-world { height: auto; min-height: 100svh; }
-  .aw-main { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
-  .aw-stage { height: auto; min-height: clamp(760px, calc(100svh - 12rem), 920px); }
-  .aw-workspace { height: auto; min-height: 420px; }
+  .aw-main { flex: none; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; }
+  .aw-stage { grid-column: 1; grid-row: 1; height: auto; min-height: clamp(620px, calc(100svh - 12rem), 820px); }
+  .aw-stage-info { grid-column: 1; grid-row: 2; grid-template-columns: minmax(200px, .8fr) minmax(220px, .8fr) minmax(0, 2fr); }
+  .aw-workspace { grid-column: 1; grid-row: 3; height: auto; min-height: 420px; }
   .aw-browser-panel { height: min(65svh, 720px); min-height: 420px; }
   .aw-top { grid-template-columns: minmax(0, 1fr) auto auto; gap: .5rem; min-height: 0; padding: .5rem; }
   .aw-brand { grid-column: 1; grid-row: 1; }
@@ -118,15 +140,7 @@
   .aw-top > .aw-pill { grid-column: 3; grid-row: 3; justify-self: end; }
 }
 .aw-chip { font-size: 14px; padding: 0 .9rem; gap: .55rem; white-space: nowrap; }
-.aw-agents { top: 220px; bottom: 205px; }
-@media (max-width: 640px) {
-  .aw-chips { left: 12px !important; right: 12px !important; flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
-  .aw-stage .aw-chip { flex: none; }
-  .aw-motion { top: auto !important; bottom: 330px; right: 10px; }
-}
 .aw-mic-warn { color: var(--aw-red); max-width: 260px; display: inline-block; line-height: 1.3; }
-.aw-stage-controls { position: absolute; bottom: 172px; left: 50%; display: flex; gap: 1.5rem; transform: translateX(-48%); }
-.aw-stage-status { position: absolute; bottom: 110px; left: 230px; display: flex; align-items: center; gap: .75rem; color: var(--aw-soft); font-size: .875rem; }
 @media (max-width: 640px) {
   .ayra-world { height: auto; min-height: 100svh; }
   .aw-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; min-height: 0; border-top: 1px solid var(--aw-line); }
@@ -143,30 +157,17 @@
   .aw-top > .aw-pill { grid-column: 2; grid-row: 3; justify-self: end; }
   .aw-top-user { grid-column: 1 / -1; grid-row: 4; justify-content: flex-end; padding-right: 0; }
   .aw-top-user img { width: 2.5rem; height: 2.5rem; }
-  .aw-main { grid-template-rows: auto auto; gap: .6rem; padding: .5rem .5rem 0; }
-  .aw-stage { min-height: 760px; }
-  .aw-stage > .absolute.left-5 { left: 12px; gap: .5rem; }
-  .aw-stage > .absolute.left-5 svg { width: 2rem; height: 2rem; }
-  .aw-stage > .absolute.left-5 .aw-display { font-size: 1rem; }
-  .aw-stage > .absolute.left-5 .text-sm { font-size: .7rem; }
-  .aw-agents { top: 340px; bottom: 250px; left: 10px; right: 10px; width: auto; gap: .35rem; }
-  .aw-plan { padding: .35rem .5rem; }
-  .aw-plan strong { font-size: .6rem; }
-  .aw-plan-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .1rem; }
-  .aw-plan-step { justify-content: center; gap: .2rem; font-size: .62rem; line-height: .8rem; }
-  .aw-plan-dot { width: .35rem; height: .35rem; }
-  .aw-agent-looks { flex-direction: row; align-items: flex-start; gap: .5rem; overflow-x: auto; overflow-y: hidden; }
-  .aw-agent-looks button { width: 40px; height: 40px; }
-  .aw-name { top: 70px; max-width: calc(100% - 32px); white-space: nowrap; letter-spacing: .1em; }
-  .aw-stage-controls { bottom: 146px; left: 50%; gap: 1rem; transform: translateX(-50%); }
-  .aw-round { width: 54px; height: 54px; }
-  .aw-talk { width: 62px; height: 62px; }
-  .aw-stage-controls svg { width: 1.35rem; height: 1.35rem; }
-  .aw-stage-status { bottom: 92px; left: 14px; right: 14px; justify-content: center; }
-  .aw-wave { display: none; }
-  .aw-chips { left: 10px !important; right: 10px !important; bottom: 6px !important; flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
-  .aw-stage .aw-chip { flex: none; }
-  .aw-motion { top: auto !important; bottom: 230px; right: 10px; }
+  .aw-main { grid-template-rows: auto auto auto; gap: .6rem; padding: .5rem .5rem 0; }
+  .aw-stage { min-height: 620px; }
+  .aw-stage-info { grid-template-columns: minmax(0, 1fr); gap: .55rem; padding: .65rem; }
+  .aw-stage-info .aw-plan-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .2rem; }
+  .aw-stage-info .aw-plan-step { justify-content: center; gap: .25rem; font-size: .75rem; }
+  .aw-agent-tools { gap: .4rem; }
+  .aw-agent-looks button { width: 38px; height: 38px; }
+  .aw-stage .aw-stage-controls { bottom: 1rem; gap: .7rem; }
+  .aw-stage .aw-round { width: 46px; height: 46px; }
+  .aw-stage .aw-talk { width: 54px; height: 54px; }
+  .aw-stage .aw-round svg { width: 1.25rem; height: 1.25rem; }
   .aw-workspace { height: auto; min-height: 360px; }
   .aw-browser-panel { height: min(65svh, 720px); min-height: 360px; }
 }

@@ -73,9 +73,30 @@ export function TopBar({ cmd, setCmd, onRun, listening, onMic, onTools, onSettin
   );
 }
 
-export function AgentStage({ core, look, setLook, reply, muted, micNote, micState, setMuted, onTalk, onEnd, onShortcut }: {
-  core: CoreState; look: AyraLook | null; setLook: (l: AyraLook | null) => void; reply: string;
-  muted: boolean; micNote?: string; micState?: string; setMuted: (m: boolean) => void; onTalk: () => void; onEnd: () => void; onShortcut: (cmd: string, url?: string) => void;
+export function AgentStage({
+  core,
+  look,
+  setLook,
+  reply,
+  muted,
+  micNote,
+  micState,
+  setMuted,
+  onTalk,
+  onEnd,
+  onShortcut,
+}: {
+  core: CoreState;
+  look: AyraLook | null;
+  setLook: (l: AyraLook | null) => void;
+  reply: string;
+  muted: boolean;
+  micNote?: string;
+  micState?: string;
+  setMuted: (m: boolean) => void;
+  onTalk: () => void;
+  onEnd: () => void;
+  onShortcut: (cmd: string, url?: string) => void;
 }) {
   const listening = core === "listening";
   const looks = Object.keys(AYRA_LOOKS) as AyraLook[];
@@ -85,63 +106,181 @@ export function AgentStage({ core, look, setLook, reply, muted, micNote, micStat
     "--aw-agent-accent": `oklch(0.78 ${accent.c ?? 0.18} ${accent.primary})`,
   } as CSSProperties;
   return (
-    <section className="aw-panel aw-stage" style={stageStyle} data-agent-look={look ?? "default"}>
-      <img src={stage} alt="AYRA in her world" className="aw-stage-bg" />
-      {look && (
-        <div className="aw-look" key={look} data-motion={motion && !!LOOK_VIDEO[look] ? "on" : "off"}>
-          {LOOK_SCENE_VIDEO[look]
-            ? <video className="aw-scene-video" src={LOOK_SCENE_VIDEO[look]} poster={LOOK_SCENE[look]} autoPlay muted loop playsInline aria-label={`${LOOK_NAMES[look]} moving`} />
-            : motion && LOOK_VIDEO[look]
-            ? <video src={LOOK_VIDEO[look]} poster={AYRA_LOOKS[look]} autoPlay muted loop playsInline aria-label={`${LOOK_NAMES[look]} moving`} />
-            : <img src={LOOK_SCENE[look]} alt={LOOK_NAMES[look]} className="aw-look-live" />}
+    <>
+      <section className="aw-panel aw-stage" style={stageStyle} data-agent-look={look ?? "default"}>
+        <img src={stage} alt="AYRA in her world" className="aw-stage-bg" />
+        {look && (
+          <div
+            className="aw-look"
+            key={look}
+            data-motion={motion && !!LOOK_VIDEO[look] ? "on" : "off"}
+          >
+            {LOOK_SCENE_VIDEO[look] ? (
+              <video
+                className="aw-scene-video"
+                src={LOOK_SCENE_VIDEO[look]}
+                poster={LOOK_SCENE[look]}
+                autoPlay
+                muted
+                loop
+                playsInline
+                aria-label={`${LOOK_NAMES[look]} moving`}
+              />
+            ) : motion && LOOK_VIDEO[look] ? (
+              <video
+                src={LOOK_VIDEO[look]}
+                poster={AYRA_LOOKS[look]}
+                autoPlay
+                muted
+                loop
+                playsInline
+                aria-label={`${LOOK_NAMES[look]} moving`}
+              />
+            ) : (
+              <img src={LOOK_SCENE[look]} alt={LOOK_NAMES[look]} className="aw-look-live" />
+            )}
+          </div>
+        )}
+        <div className="aw-stage-shade" />
+        <output className="sr-only" data-testid="agent-reply">
+          {reply}
+        </output>
+        <div className="aw-stage-controls" aria-label="AYRA call controls">
+          <button
+            aria-label="Talk"
+            onClick={onTalk}
+            className={`aw-round aw-talk ${listening ? "on" : ""}`}
+          >
+            <Mic className="h-6 w-6" />
+          </button>
+          <button
+            aria-label="Mute"
+            aria-pressed={muted}
+            onClick={() => setMuted(!muted)}
+            className={`aw-round aw-mute ${muted ? "on" : ""}`}
+          >
+            <MicOff className="h-5 w-5" />
+          </button>
+          <button aria-label="End" onClick={onEnd} className="aw-round aw-end">
+            <Phone className="h-6 w-6 rotate-[135deg]" />
+          </button>
         </div>
-      )}
-      <div className="aw-stage-shade" />
-      <output className="sr-only" data-testid="agent-reply">{reply}</output>
-      <div className="absolute left-5 top-4 flex items-center gap-3">
-        <AyraMark className="h-11 w-11" />
-        <div>
-          <div className="aw-display text-xl font-bold tracking-wide">AYRA'S WORLD</div>
-          <div className="text-sm text-[color:var(--aw-soft)]">Talk, Give Commands, Watch, and Work Together</div>
+      </section>
+      <section
+        className="aw-stage-info"
+        style={stageStyle}
+        aria-label="AYRA information and actions"
+      >
+        <div className="aw-agent-overview">
+          <div className="aw-agent-title">
+            <AyraMark className="h-9 w-9" />
+            <div>
+              <strong>AYRA'S WORLD</strong>
+              <span>Talk, give commands, watch, and work together</span>
+            </div>
+          </div>
+          <div className="aw-agent-status">
+            <span
+              role="status"
+              aria-live="polite"
+              className={
+                micState === "blocked" || micState === "unsupported" || micState === "no-device"
+                  ? "aw-mic-warn"
+                  : ""
+              }
+            >
+              {micNote || (core === "idle" ? "Standing by" : "Working...")}
+            </span>
+            <div
+              className={`aw-wave ${listening || core === "speaking" ? "live" : ""}`}
+              aria-hidden="true"
+            >
+              {Array.from({ length: 18 }, (_, i) => (
+                <span
+                  key={i}
+                  style={{
+                    animationDelay: `${(i % 9) * 0.08}s`,
+                    height: `${20 + ((i * 37) % 80)}%`,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="aw-agent-look-name">{look ? LOOK_NAMES[look] : "AYRA"}</div>
+          {look && !LOOK_SCENE_VIDEO[look] && LOOK_VIDEO[look] && (
+            <button onClick={() => setMotion(!motion)} aria-pressed={motion} className="aw-motion">
+              {motion ? "Show in scene" : "Play motion"}
+            </button>
+          )}
         </div>
-      </div>
-      <aside className="aw-agents" aria-label="AYRA sidebar">
         <div className="aw-plan" aria-label="AYRA conversation status">
           <strong>CONVERSATION</strong>
           <div className="aw-plan-steps">
             {STEPS.map((step, index) => (
-              <div key={step} className={`aw-plan-step${index <= stepFor[core] ? " is-active" : ""}`} aria-current={index === stepFor[core] ? "step" : undefined}>
-                <span className="aw-plan-dot" aria-hidden="true" />{step}
+              <div
+                key={step}
+                className={`aw-plan-step${index <= stepFor[core] ? " is-active" : ""}`}
+                aria-current={index === stepFor[core] ? "step" : undefined}
+              >
+                <span className="aw-plan-dot" aria-hidden="true" />
+                {step}
               </div>
             ))}
           </div>
         </div>
-        <div className="aw-agent-looks" aria-label="AYRA looks">
-          <button onClick={() => setLook(null)} title="AYRA's World" className={!look ? "on" : ""}><img src={stage} alt="AYRA's World" /></button>
-          {looks.map((k) => (
-            <button key={k} onClick={() => setLook(k)} title={LOOK_NAMES[k]} className={look === k ? "on" : ""}><img src={LOOK_SCENE[k]} alt={LOOK_NAMES[k]} /></button>
-          ))}
+        <div className="aw-agent-tools">
+          <div className="aw-agent-looks" aria-label="AYRA looks">
+            <button
+              onClick={() => setLook(null)}
+              title="AYRA's World"
+              className={!look ? "on" : ""}
+            >
+              <img src={stage} alt="AYRA's World" />
+            </button>
+            {looks.map((k) => (
+              <button
+                key={k}
+                onClick={() => setLook(k)}
+                title={LOOK_NAMES[k]}
+                className={look === k ? "on" : ""}
+              >
+                <img src={LOOK_SCENE[k]} alt={LOOK_NAMES[k]} />
+              </button>
+            ))}
+          </div>
+          <div className="aw-agent-shortcuts" aria-label="AYRA shortcuts">
+            <button
+              className="aw-chip"
+              onClick={() => onShortcut("Check my Facebook", "https://www.facebook.com")}
+            >
+              <Globe className="h-4 w-4" />
+              Check my Facebook
+            </button>
+            <button
+              className="aw-chip"
+              onClick={() =>
+                onShortcut("Open GitHub and show my repositories", "https://github.com")
+              }
+            >
+              <Github className="h-4 w-4" />
+              Open GitHub and show my repositories
+            </button>
+            <button className="aw-chip" onClick={() => onShortcut("Create a new project")}>
+              <Plus className="h-4 w-4" />
+              Create a new project
+            </button>
+            <button className="aw-chip" onClick={() => onShortcut("Open Software Vala dashboard")}>
+              <span className="font-black text-[color:var(--aw-blue)]">S</span>Open Software Vala
+              dashboard
+            </button>
+            <button className="aw-chip" onClick={() => onShortcut("Show today's tasks")}>
+              <ListChecks className="h-4 w-4" />
+              Show today's tasks
+            </button>
+          </div>
         </div>
-      </aside>
-      {look && <div className="aw-name">{LOOK_NAMES[look]}</div>}
-      {look && !LOOK_SCENE_VIDEO[look] && LOOK_VIDEO[look] && <button onClick={() => setMotion(!motion)} aria-pressed={motion} className="aw-motion">{motion ? "Show in scene" : "Play motion"}</button>}
-      <div className="aw-stage-controls">
-        <div className="flex flex-col items-center gap-2"><button aria-label="Talk" onClick={onTalk} className={`aw-round aw-talk ${listening ? "on" : ""}`}><Mic className="h-8 w-8" /></button><span>Talk</span></div>
-        <div className="flex flex-col items-center gap-2"><button aria-label="Mute" aria-pressed={muted} onClick={() => setMuted(!muted)} className={`aw-round aw-mute ${muted ? "on" : ""}`}><MicOff className="h-7 w-7" /></button><span>Mute</span></div>
-        <div className="flex flex-col items-center gap-2"><button aria-label="End" onClick={onEnd} className="aw-round aw-end"><Phone className="h-8 w-8 rotate-[135deg]" /></button><span>End</span></div>
-      </div>
-      <div className="aw-stage-status">
-        <span role="status" aria-live="polite" className={micState === "blocked" || micState === "unsupported" || micState === "no-device" ? "aw-mic-warn" : ""}>{micNote || (core === "idle" ? "Standing by" : "Working...")}</span>
-        <div className={`aw-wave ${listening || core === "speaking" ? "live" : ""}`}>{Array.from({ length: 30 }, (_, i) => <span key={i} style={{ animationDelay: `${(i % 10) * 0.08}s`, height: `${20 + ((i * 37) % 80)}%` }} />)}</div>
-      </div>
-      <div className="aw-chips absolute bottom-4 left-11 right-3 flex flex-wrap gap-x-2.5 gap-y-2.5">
-        <button className="aw-chip" onClick={() => onShortcut("Check my Facebook", "https://www.facebook.com")}><Globe className="h-5 w-5" />Check my Facebook</button>
-        <button className="aw-chip" onClick={() => onShortcut("Open GitHub and show my repositories", "https://github.com")}><Github className="h-5 w-5" />Open GitHub and show my repositories</button>
-        <button className="aw-chip" onClick={() => onShortcut("Create a new project")}><Plus className="h-5 w-5" />Create a new project</button>
-        <button className="aw-chip" onClick={() => onShortcut("Open Software Vala dashboard")}><span className="font-black text-[color:var(--aw-blue)]">S</span>Open Software Vala dashboard</button>
-        <button className="aw-chip" onClick={() => onShortcut("Show today's tasks")}><ListChecks className="h-5 w-5" />Show today's tasks</button>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }
 
