@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -7,8 +8,11 @@ import {
   decideFounderApproval,
   loadApprovalSuggestions,
   loadFounderGovernance,
+  finalizeFounderSecurityRisks,
+  scoreFounderSecurityRisks,
 } from "@/lib/founder/decision.functions";
 import type { ApprovalSuggestion } from "@/lib/founder/decision.types";
+import type { SecurityAssessmentProgress } from "@/lib/founder/insights.server";
 import type {
   ComplianceItemView,
   GovernanceView,
@@ -36,10 +40,16 @@ const EMPTY: GovernanceView = {
   criticalRisks: 0,
   sources: {},
   degraded: [],
+  assessment: null,
+  securityAlerts: 0,
 };
 
 export function useFounderGovernance() {
   const fetchGovernance = useServerFn(loadFounderGovernance);
+  const scoreRisks = useServerFn(scoreFounderSecurityRisks);
+  const finalizeRisks = useServerFn(finalizeFounderSecurityRisks);
+  const [analysisProgress, setAnalysisProgress] = useState<SecurityAssessmentProgress | null>(null);
+  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ["founder", "governance"],
@@ -47,6 +57,28 @@ export function useFounderGovernance() {
     staleTime: 30_000,
   });
 
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      let batchIndex = 0;
+      while (true) {
+        const progress = await scoreRisks({ data: { batchIndex } });
+        setAnalysisProgress(progress);
+        if (progress.complete) return;
+        if (progress.readyToFinalize) {
+          await finalizeRisks();
+          return;
+        }
+        if (progress.nextBatch <= batchIndex) {
+          throw new Error("Risk scoring did not advance; retry the assessment.");
+        }
+        batchIndex = progress.nextBatch;
+      }
+    },
+    onSuccess: () => {
+      setAnalysisProgress(null);
+      return queryClient.invalidateQueries({ queryKey: ["founder", "governance"] });
+    },
+  });
   const data = (query.data as GovernanceView | undefined) ?? EMPTY;
 
   return {
@@ -54,6 +86,10 @@ export function useFounderGovernance() {
     isLoading: query.isLoading,
     failed: query.isError,
     refetch: query.refetch,
+    analyzeRisks: analyzeMutation.mutate,
+    isAnalyzing: analyzeMutation.isPending,
+    analysisError: analyzeMutation.error,
+    analysisProgress,
   };
 }
 

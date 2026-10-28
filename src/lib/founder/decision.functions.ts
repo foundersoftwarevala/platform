@@ -297,8 +297,69 @@ export const expireFounderApprovals = createServerFn({ method: "POST" }).handler
  */
 export const loadFounderGovernance = createServerFn({ method: "GET" }).handler(
   async (): Promise<GovernanceView> => {
-    await requireRead();
+    const { requireFounderInsightReader } = await import("./insights-auth.server");
+    await requireFounderInsightReader();
     const { loadGovernance } = await import("./governance.server");
     return loadGovernance();
   },
 );
+
+export const loadFounderForecast = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireFounderInsightReader } = await import("./insights-auth.server");
+  await requireFounderInsightReader();
+  const { loadCurrentForecast } = await import("./insights.server");
+  return loadCurrentForecast();
+});
+
+export const refreshFounderForecast = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireFounderInsightReader } = await import("./insights-auth.server");
+  const caller = await requireFounderInsightReader();
+  const { refreshCurrentForecast } = await import("./insights.server");
+  return refreshCurrentForecast(caller.id);
+});
+
+export const scoreFounderSecurityRisks = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({ batchIndex: z.number().int().min(0).max(100) })
+      .strict()
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { requireFounderInsightReader } = await import("./insights-auth.server");
+    const caller = await requireFounderInsightReader();
+    const { scoreOpenSecurityAlertBatch } = await import("./insights.server");
+    return scoreOpenSecurityAlertBatch(caller.id, data.batchIndex);
+  });
+
+export const finalizeFounderSecurityRisks = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireFounderInsightReader } = await import("./insights-auth.server");
+  const caller = await requireFounderInsightReader();
+  const { finalizeSecurityAssessment } = await import("./insights.server");
+  return finalizeSecurityAssessment(caller.id);
+});
+
+export const loadPromiseRiskPredictions = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireFounderInsightReader } = await import("./insights-auth.server");
+  await requireFounderInsightReader();
+  const { listPromiseRiskPredictions } = await import("./insights.server");
+  return listPromiseRiskPredictions();
+});
+
+export const assessPromiseRisk = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        promiseId: z.string().uuid(),
+        title: z.string().min(3).max(200),
+        description: z.string().max(800).nullable(),
+        deadline: z.string().min(10).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { requireSignedInFounderInsightCaller } = await import("./insights-auth.server");
+    const caller = await requireSignedInFounderInsightCaller();
+    const { assessPromiseOnVps } = await import("./insights.server");
+    return assessPromiseOnVps({ ...data, requestedBy: caller.id });
+  });

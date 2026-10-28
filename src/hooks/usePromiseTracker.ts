@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { assessPromiseRisk } from "@/lib/founder/decision.functions";
 import { errorMessage, reportHealth } from "@/lib/promise-tracker/monitoring";
 import type { Tables } from "@/integrations/supabase/types";
 import type {
@@ -397,6 +399,7 @@ async function resolveIdentity(nameOrEmail: string): Promise<string | null> {
 }
 
 export function useCreatePromise() {
+  const assessRisk = useServerFn(assessPromiseRisk);
   return useTrackerMutation(async (input: CreatePromiseInput) => {
     const code = await nextPromiseCode();
 
@@ -454,6 +457,28 @@ export function useCreatePromise() {
       newValue: status,
     });
 
+    let riskNote = "";
+    if (created?.id) {
+      try {
+        const assessment = await assessRisk({
+          data: {
+            promiseId: created.id,
+            title: input.title,
+            description: input.description || null,
+            deadline: input.deadline,
+          },
+        });
+        if (assessment.flagged && assessment.prediction) {
+          riskNote = " · Local AI flagged a delivery risk; see Predictive Insights";
+        }
+      } catch (error) {
+        console.error("[promise-tracker] promise saved but VPS risk assessment failed:", error);
+        riskNote = " · Promise saved, but its local AI risk assessment could not be completed";
+      }
+    } else {
+      riskNote = " · Promise saved, but no ID was returned for risk assessment";
+    }
+
     return {
       message:
         status === "pending_approval"
@@ -463,8 +488,8 @@ export function useCreatePromise() {
             : "Promise saved as draft",
       description:
         status === "pending_approval"
-          ? `${code} · waiting on an authorised approval`
-          : `${code} · ${input.title}`,
+          ? `${code} · waiting on an authorised approval${riskNote}`
+          : `${code} · ${input.title}${riskNote}`,
     };
   }, "create_promise");
 }
