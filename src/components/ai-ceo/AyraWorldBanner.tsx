@@ -12,6 +12,7 @@ export function AyraWorldBanner() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [cmd, setCmd] = useState("");
   const [reply, setReply] = useState("");
+  const [memoryStatus, setMemoryStatus] = useState("not_configured");
   const [core, setCore] = useState<CoreState>("idle");
   const [muted, setMuted] = useState(false);
   const [look, setLook] = useState<Parameters<typeof AgentStage>[0]["look"]>(null);
@@ -38,6 +39,7 @@ export function AyraWorldBanner() {
       const result = await streamChat(nextMessages, {
         signal: request.signal,
         onDelta: setReply,
+        onMemoryStatus: setMemoryStatus,
       });
       if (request.signal.aborted) return;
       if (!result.trim()) throw new Error("AYRA returned an empty response. Please try again.");
@@ -150,7 +152,17 @@ export function AyraWorldBanner() {
           role="AYRA"
           inputRef={inputRef}
         />
-        <footer className="aw-foot">Powered by Software Vala™</footer>
+        <footer className="aw-foot">
+          <span>Powered by Software Vala™</span>
+          <span className="ml-auto" role="status" aria-live="polite">
+            Private memory:{" "}
+            {memoryStatus === "ready"
+              ? "Ready"
+              : memoryStatus === "unavailable"
+                ? "Unavailable"
+                : "Not configured"}
+          </span>
+        </footer>
         <AyraCommandCenter open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </div>
       <AyraLocalBridgePanel />

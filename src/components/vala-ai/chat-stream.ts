@@ -24,7 +24,13 @@ export type ChatTurn = { role: "user" | "assistant"; content: string };
 /** The text carried by one SSE `data:` payload, or "" when it carries none. */
 export function deltaFromEvent(payload: unknown): string {
   if (!payload || typeof payload !== "object") return "";
-  const event = payload as Record<string, any>;
+  const event = payload as {
+    type?: string;
+    error?: { message?: unknown };
+    choices?: Array<{ delta?: { content?: unknown } }>;
+    delta?: { type?: string; text?: unknown };
+    content_block?: { type?: string; text?: unknown };
+  };
   if (event.type === "error") {
     throw new ChatRequestError(
       String(event.error?.message ?? "The AI provider reported an error."),
@@ -44,7 +50,11 @@ export function deltaFromEvent(payload: unknown): string {
 
 export async function streamChat(
   messages: ChatTurn[],
-  options: { signal?: AbortSignal; onDelta?: (full: string) => void } = {},
+  options: {
+    signal?: AbortSignal;
+    onDelta?: (full: string) => void;
+    onMemoryStatus?: (status: string) => void;
+  } = {},
 ): Promise<string> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -56,6 +66,7 @@ export async function streamChat(
     signal: options.signal,
     body: JSON.stringify({ messages }),
   });
+  options.onMemoryStatus?.(res.headers.get("x-ayra-memory-status") ?? "unavailable");
   if (!res.ok || !res.body) {
     const detail = (await res.text().catch(() => "")).slice(0, 300);
     throw new ChatRequestError(detail || `The AI request failed (HTTP ${res.status}).`, res.status);

@@ -207,6 +207,32 @@ the AI CEO route remained behind its workspace access check. The access-notice
 preservation is in follow-up `010bfdd2`; unrelated worktree changes were kept
 out of both releases.
 
+### AYRA vault, improvement review, and private memory (2026-10-28)
+
+The VPS-only migration `20261108T222000_ayra_vault_memory_policy.sql` has
+been applied to `sv_platform` and revalidated inside a rolled-back transaction.
+PostgreSQL pgvector 0.8.7 is active; the five AYRA tables exist, all 141
+`ai_agents` rows carry the exact respect rule, and a database trigger preserves
+it on future prompt edits. The Supabase cloud project was not accessed.
+
+The current branch code adds an AES-256-GCM credential vault, local
+Ollama `/api/chat` streaming, explicit private-fact commands, user-scoped
+top-five pgvector recall, management UI for facts, and verified-outcome prompt
+proposals that require an executive review and reject stale prompt hashes.
+No external provider connectivity is inferred from a stored credential.
+Production has not received this code. `qwen2.5:3b` is the installed local chat
+model; no 1536-dimensional local embedding model is installed or configured.
+Until one is available, memory is explicitly `not_configured` and is not sent
+to an external provider. Do not claim long-term recall is live.
+
+Do not create a second unbounded task queue or rotate provider accounts to evade
+rate limits. The existing `fa_jobs` infrastructure remains; no reviewed
+per-agent execution contract authorizes unattended arbitrary actions, prompt
+rewrites, or GitHub pushes. Improvement prompts are proposal-only until an
+authorized human approves them. Workspace URLs are attempted in an iframe, but
+Google/Gmail and other providers may block framing; the UI offers an explicit
+external-open fallback rather than bypassing provider policy.
+
 ### Applying a migration to the cloud project
 
 1. Read the whole file and check its dependencies exist on the cloud project.

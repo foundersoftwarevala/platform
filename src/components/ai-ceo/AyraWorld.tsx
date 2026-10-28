@@ -305,7 +305,14 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
   const [shot, setShot] = useState<{ url: string; blob: Blob; name: string } | null>(null);
   const [shotBusy, setShotBusy] = useState(false);
   const [shotErr, setShotErr] = useState("");
-  const open = (u: string) => window.open(u, "_blank", "noopener");
+  const [embeddedUrl, setEmbeddedUrl] = useState<string | null>(null);
+  const open = (u: string) => {
+    const parsed = new URL(u, window.location.href);
+    if ((parsed.protocol !== "https:" && parsed.protocol !== "http:") || parsed.username || parsed.password) return;
+    setEmbeddedUrl(parsed.toString());
+    setTab("Browser");
+  };
+  const openSeparately = (u: string) => window.open(u, "_blank", "noopener,noreferrer");
   const search = (lucky = false) => q.trim() && open(`https://www.google.com/search?q=${encodeURIComponent(q.trim())}${lucky ? "&btnI=1" : ""}`);
   const automate = () => {
     const t = task.trim();
@@ -330,16 +337,34 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
   return (
     <section className="aw-panel aw-browser-panel flex min-h-0 flex-col">
       <div className="aw-browser-header">
-        <div className="aw-browser-title"><strong>WORKSPACE</strong><span>Connected accounts only · login pages open separately.</span></div>
+        <div className="aw-browser-title"><strong>WORKSPACE</strong><span>External pages open here when their framing policy allows.</span></div>
         <div className="aw-browser-tabs" role="group" aria-label="Workspace tools">
           {["Browser", "Automate", "Screenshot", "Download"].map((t) => (
             <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)} className={tab === t ? "aw-tab-on" : ""}>{t}</button>
           ))}
         </div>
-        <button aria-label="Open Google in a new tab" onClick={() => open("https://www.google.com")} className="aw-browser-open"><Maximize2 className="h-4 w-4" /></button>
+        <button aria-label="Open current page separately" onClick={() => openSeparately(embeddedUrl ?? "https://www.google.com")} className="aw-browser-open"><Maximize2 className="h-4 w-4" /></button>
       </div>
       <div className="aw-chrome flex min-h-0 flex-1 flex-col">
         {tab === "Browser" ? (
+          embeddedUrl ? (
+            <div className="flex min-h-0 flex-1 flex-col bg-[color:var(--g-white)] text-[color:var(--g-ink)]">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[color:var(--g-line)] bg-[color:var(--g-btn)] px-3 py-2 text-xs">
+                <div className="min-w-0">
+                  <div className="font-semibold">In-panel page</div>
+                  <div className="max-w-[50vw] truncate opacity-75">{embeddedUrl}</div>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button type="button" onClick={() => setEmbeddedUrl(null)} className="rounded border border-[color:var(--g-line)] px-2 py-1">Back</button>
+                  <button type="button" onClick={() => openSeparately(embeddedUrl)} className="rounded border border-[color:var(--g-line)] px-2 py-1">Open separately</button>
+                </div>
+              </div>
+              <div className="border-b border-[color:var(--g-line)] px-3 py-2 text-xs" role="note">
+                Some providers, including Google sign-in and Gmail, block iframe embedding. If the page stays blank, use “Open separately”; the site cannot override its framing policy.
+              </div>
+              <iframe title={`External page ${new URL(embeddedUrl).hostname}`} src={embeddedUrl} referrerPolicy="strict-origin-when-cross-origin" className="min-h-0 flex-1 border-0" />
+            </div>
+          ) : (
           <div className="aw-google flex-1 overflow-auto">
             <div className="flex items-center justify-end gap-4 p-3 text-xs">
               <button onClick={() => open("https://mail.google.com")}>Gmail</button><button onClick={() => open("https://images.google.com")}>Images</button>
@@ -363,9 +388,10 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
               <button onClick={() => open("https://www.google.com")} className="flex w-20 flex-col items-center gap-2"><span className="grid h-12 w-12 place-items-center rounded-full bg-[color:var(--g-btn)]"><Plus className="h-5 w-5" /></span>Add shortcut</button>
             </div>
           </div>
+          )
         ) : tab === "Automate" ? (
           <div className="aw-google flex flex-1 flex-col gap-3 overflow-auto p-4 text-sm">
-            <div className="font-semibold">Ask AYRA about a task. Mentioned websites open in a separate tab; AYRA does not interact with those pages.</div>
+            <div className="font-semibold">Ask AYRA about a task. Mentioned websites open in this panel when allowed; framing restrictions may require opening them separately. AYRA does not interact with those pages.</div>
             <textarea value={task} onChange={(e) => setTask(e.target.value)} rows={2} aria-label="Automation task" placeholder="e.g. Open github.com and tell me how to create a new repository"
               className="rounded-lg border border-[color:var(--g-line)] bg-transparent p-2 outline-none" />
             <button onClick={automate} disabled={!task.trim() || busy} className="self-start rounded bg-[color:var(--g-blue)] px-5 py-2 text-[color:var(--g-white)] disabled:opacity-50">Run with AYRA</button>
