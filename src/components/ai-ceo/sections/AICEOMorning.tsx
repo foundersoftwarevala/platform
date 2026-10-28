@@ -1,3 +1,5 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -5,12 +7,13 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock,
+  RefreshCw,
   ShieldAlert,
   Sunrise,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
-  DegradedNotice,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -22,57 +25,77 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useFounderDay, type PlanItem } from "@/hooks/useFounderDay";
+import { loadAyraMorningBrief, runAyraMorningBrief } from "@/lib/ai-ceo/ceo.functions";
+import type { AyraMorningDashboard, MorningBriefCounts } from "@/lib/ai-ceo/types";
 import { useTranslation } from "@/lib/i18n/use-translation";
 
-/**
- * Morning AI: the day, in the order it should be worked.
- *
- * Everything on this screen was computed by arithmetic that can be argued
- * with. Each item carries the sentence that put it where it is, and each
- * suggested agent carries the reason it is eligible — because the one thing
- * an operator must be able to do with the day's order is disagree with it.
- *
- * Nothing here assigns or completes work. The agent shown is a suggestion,
- * and completed and verified are counted separately, because an agent
- * finishing a task is not the same as the outcome being verified.
- */
+const METRIC_CARDS: Array<[keyof MorningBriefCounts, string, typeof ClipboardList, string]> = [
+  ["agentRuns", "Agent runs", ClipboardList, "text-primary-glow"],
+  ["waitingDecisions", "Waiting approvals", Clock, "text-accent-amber"],
+  ["failedAgentRuns", "Failed runs", AlertTriangle, "text-destructive"],
+  ["unverifiedAgentRuns", "Awaiting verification", ShieldAlert, "text-accent-amber"],
+  ["openTickets", "Open support tickets", Bot, "text-primary-glow"],
+  ["overdueTasks", "Overdue tasks", Clock, "text-destructive"],
+];
 
-const severityStyle = (severity: string): string => {
-  switch (severity) {
-    case "CRITICAL":
+const priorityClass = (priority: string) => {
+  switch (priority.toLowerCase()) {
+    case "critical":
       return "bg-destructive/20 text-destructive border-destructive/30";
-    case "HIGH":
+    case "high":
       return "bg-accent-amber/20 text-accent-amber border-accent-amber/30";
-    case "MEDIUM":
+    case "medium":
       return "bg-primary/20 text-primary-glow border-primary/30";
     default:
-      return "bg-accent-emerald/20 text-accent-emerald border-accent-emerald/30";
+      return "bg-muted/40 text-muted-foreground border-border";
   }
 };
 
-const stateStyle = (state: string): string => {
-  switch (state) {
-    case "WAITING_APPROVAL":
-      return "bg-accent-amber/20 text-accent-amber";
-    case "EXECUTING":
-    case "ASSIGNED":
-      return "bg-primary/20 text-primary-glow";
-    case "COMPLETED":
-      return "bg-accent-emerald/20 text-accent-emerald";
-    case "FAILED":
+const statusClass = (status: string) => {
+  switch (status.toLowerCase()) {
+    case "blocked":
+    case "failed":
       return "bg-destructive/20 text-destructive";
+    case "in_progress":
+    case "claimed":
+    case "assigned":
+      return "bg-primary/20 text-primary-glow";
+    case "completed":
+    case "approved":
+      return "bg-accent-emerald/20 text-accent-emerald";
     default:
-      return "bg-muted/20 text-muted-foreground";
+      return "bg-muted/40 text-muted-foreground";
   }
 };
 
 const AICEOMorning = () => {
   const { t } = useTranslation();
-  const { day, isLoading, failed, denied, refetch, runCycle, isRunning, closeCycle, isClosing } =
-    useFounderDay();
+  const queryClient = useQueryClient();
+  const load = useServerFn(loadAyraMorningBrief);
+  const run = useServerFn(runAyraMorningBrief);
+  const queryKey = ["ai-ceo", "morning-brief"] as const;
+  const query = useQuery<AyraMorningDashboard>({
+    queryKey,
+    queryFn: () => load(),
+    staleTime: 30_000,
+  });
+  const generate = useMutation({
+    mutationFn: () => run(),
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKey, result);
+      toast.success("Morning brief generated from VPS operational data.");
+    },
+    onError: (error: unknown) => {
+      toast.error("Morning brief was not saved", {
+        description:
+          error instanceof Error ? error.message : "VPS Postgres did not return a brief.",
+      });
+    },
+  });
 
-  if (isLoading) {
+  const reason = query.error instanceof Error ? query.error.message : "";
+  const denied = /permission|authentication|authorization|forbidden/i.test(reason);
+  if (query.isLoading) {
     return (
       <PageShell>
         <PageBanner icon={Sunrise} title={t("ceo.morning_title")} />
@@ -80,7 +103,6 @@ const AICEOMorning = () => {
       </PageShell>
     );
   }
-
   if (denied) {
     return (
       <PageShell>
@@ -93,221 +115,175 @@ const AICEOMorning = () => {
       </PageShell>
     );
   }
-
-  if (failed) {
+  if (query.isError) {
     return (
       <PageShell>
         <PageBanner icon={Sunrise} title={t("ceo.morning_title")} />
         <ErrorState
           title={t("ceo.morning_failed")}
-          description={t("ceo.morning_failed_body")}
-          onRetry={() => void refetch()}
+          description={reason || t("ceo.morning_failed_body")}
+          onRetry={() => void query.refetch()}
         />
       </PageShell>
     );
   }
 
-  const hasCycle = Boolean(day?.cycleId);
+  if (!query.data) {
+    return (
+      <PageShell>
+        <PageBanner icon={Sunrise} title={t("ceo.morning_title")} />
+        <ErrorState
+          title={t("ceo.morning_failed")}
+          description="VPS Postgres returned no dashboard response."
+          onRetry={() => void query.refetch()}
+        />
+      </PageShell>
+    );
+  }
 
+  const dashboard = query.data;
+  const brief = dashboard.brief;
+  const counts = brief?.sourceCounts;
   return (
     <PageShell>
       <PageBanner
         icon={Sunrise}
         title={t("ceo.morning_title")}
-        subtitle={t("ceo.morning_subtitle")}
-        status={hasCycle ? `${day?.cycleDate} · ${day?.state}` : t("ceo.morning_not_run")}
+        subtitle="VPS-backed overnight operations brief. This report is computed from stored data, not generated by an external model."
+        status={
+          brief
+            ? `${t("ceo.morning_title")} · ${new Date(brief.generatedAt).toLocaleString()}`
+            : t("ceo.morning_not_run")
+        }
         actions={
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => void runCycle()} disabled={isRunning}>
-              <ClipboardList className="w-4 h-4 mr-1" />
-              {isRunning ? t("ceo.morning_running") : t("ceo.morning_run")}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void query.refetch()}
+              disabled={query.isFetching}
+            >
+              <RefreshCw className={`mr-1 h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} />
+              Refresh
             </Button>
-            {hasCycle && day?.state !== "CLOSED" && (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => void closeCycle(day!.cycleId!)}
-                disabled={isClosing}
-              >
-                {isClosing ? t("ceo.morning_closing") : t("ceo.morning_close")}
-              </Button>
-            )}
+            <Button size="sm" onClick={() => generate.mutate()} disabled={generate.isPending}>
+              <ClipboardList className="mr-1 h-4 w-4" />
+              {generate.isPending ? t("ceo.morning_running") : t("ceo.morning_run")}
+            </Button>
           </div>
         }
       />
 
-      {(day?.degraded.length ?? 0) > 0 && <DegradedNotice sources={day!.degraded} />}
-
-      {!hasCycle ? (
+      {!brief ? (
         <>
           <EmptyState
             icon={Sunrise}
             title={t("ceo.morning_empty_title")}
-            description={t("ceo.morning_empty_body")}
+            description="No brief has been saved yet. Run the day to persist a 12-hour VPS operations summary."
           />
-          {/*
-            Where this screen looked. Without it, a day with no cycle is
-            indistinguishable from a screen that never looked anywhere —
-            which is exactly how the AI CEO probe found it.
-          */}
-          <SourceNote source="founder_daily_cycles" count={0} />
+          <SourceNote source="ai_morning_briefs" count={0} />
         </>
       ) : (
         <>
-          {/* The day, counted in SQL. Completed and verified stay apart. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-6">
-            {[
-              {
-                label: t("ceo.morning_planned"),
-                value: day!.plannedItems,
-                icon: ClipboardList,
-                color: "text-primary-glow",
-              },
-              {
-                label: t("ceo.morning_waiting"),
-                value: day!.waitingApproval,
-                icon: Clock,
-                color: "text-accent-amber",
-              },
-              {
-                label: t("ceo.morning_escalations"),
-                value: day!.escalations,
-                icon: AlertTriangle,
-                color: "text-destructive",
-              },
-              {
-                label: t("ceo.morning_completed"),
-                value: day!.completed,
-                icon: CheckCircle2,
-                color: "text-accent-emerald",
-              },
-              {
-                label: t("ceo.morning_verified"),
-                value: day!.verified,
-                icon: CheckCircle2,
-                color: "text-accent-emerald",
-              },
-              {
-                label: t("ceo.morning_failed_count"),
-                value: day!.failed,
-                icon: ShieldAlert,
-                color: "text-destructive",
-              },
-            ].map((tile) => (
-              <Card key={tile.label} className="card3d premium-halo enter-soft rounded-2xl">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <tile.icon className={`w-5 h-5 ${tile.color}`} />
+            {METRIC_CARDS.map(([key, label, Icon, color]) => (
+              <Card key={key} className="card3d premium-halo enter-soft rounded-2xl">
+                <CardContent className="flex items-center gap-3 p-4">
+                  <Icon className={`h-5 w-5 ${color}`} />
                   <div>
-                    <p className="text-xl font-bold text-foreground">{tile.value}</p>
-                    <p className="text-xs text-muted-foreground">{tile.label}</p>
+                    <p className="text-xl font-bold text-foreground">{counts?.[key] ?? 0}</p>
+                    <p className="text-xs text-muted-foreground">{label}</p>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-          {/* The brief. */}
           <Card className="card3d premium-halo hover-lift shimmer-sweep enter-soft rounded-2xl">
             <CardHeader className="pb-3">
-              <CardTitle className="text-foreground flex items-center gap-2">
-                <Sunrise className="w-5 h-5 text-accent-amber" />
+              <CardTitle className="flex items-center gap-2 text-foreground">
+                <Sunrise className="h-5 w-5 text-accent-amber" />
                 {t("ceo.morning_brief")}
               </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {new Date(brief.windowStart).toLocaleString(undefined, { timeZone: "UTC" })} –{" "}
+                {new Date(brief.windowEnd).toLocaleString(undefined, { timeZone: "UTC" })} · UTC
+                window
+              </p>
             </CardHeader>
             <CardContent>
-              {day!.briefFindings.length === 0 ? (
-                <EmptyState
-                  icon={CheckCircle2}
-                  title={t("ceo.morning_brief_empty_title")}
-                  description={t("ceo.morning_brief_empty_body")}
-                />
-              ) : (
-                <ul className="space-y-2">
-                  {day!.briefFindings.map((finding, i) => (
-                    <li key={i} className="text-sm text-foreground">
-                      {finding}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {day!.briefLimitations.length > 0 && (
-                <div className="mt-4 p-3 rounded-lg bg-accent-amber/5 border border-accent-amber/20">
-                  {day!.briefLimitations.map((limit, i) => (
-                    <p key={i} className="text-xs text-accent-amber/90">
-                      {limit}
-                    </p>
-                  ))}
-                </div>
-              )}
+              <p className="whitespace-pre-line text-sm leading-6 text-foreground">
+                {brief.summary}
+              </p>
+              <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+                Sources: {brief.sources.join(", ")}
+              </p>
+              <SourceNote source="ai_morning_briefs" count={1} />
             </CardContent>
           </Card>
 
-          {/* The work plan. */}
           <Card className="card3d premium-halo hover-lift shimmer-sweep enter-soft rounded-2xl">
             <CardHeader className="pb-3">
-              <CardTitle className="text-foreground flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-primary-glow" />
-                {t("ceo.morning_plan")}
+              <CardTitle className="flex items-center gap-2 text-foreground">
+                <ClipboardList className="h-5 w-5 text-primary-glow" />
+                Current VPS tasks
               </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Live task rows, shown separately from the saved overnight brief. AYRA does not
+                assign or complete work here.
+              </p>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[460px]">
-                {day!.items.length === 0 ? (
+                {dashboard.currentTasks.length === 0 ? (
                   <EmptyState
                     icon={CheckCircle2}
-                    title={t("ceo.morning_plan_empty_title")}
-                    description={t("ceo.morning_plan_empty_body")}
+                    title="No open tasks in VPS Postgres"
+                    description="There are no current task rows requiring action."
                   />
                 ) : (
                   <div className="space-y-3">
-                    {day!.items.map((item: PlanItem, i: number) => (
+                    {dashboard.currentTasks.map((task, index) => (
                       <motion.div
-                        key={item.id}
+                        key={task.id}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: Math.min(i, 12) * 0.03 }}
-                        className="p-4 rounded-xl bg-surface border border-border"
+                        transition={{ delay: Math.min(index, 12) * 0.03 }}
+                        className="rounded-xl border border-border bg-surface p-4"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="text-sm text-foreground">
-                              <span className="text-muted-foreground tabular-nums mr-2">
-                                {item.position}.
+                              <span className="mr-2 text-muted-foreground tabular-nums">
+                                {index + 1}.
                               </span>
-                              {item.title}
+                              {task.title}
                             </p>
-                            {/* The sentence that put it here. */}
                             <p className="mt-1 text-xs text-muted-foreground">
-                              {item.priorityReason}
+                              {task.module || "Unassigned module"}
+                              {task.deadline
+                                ? ` · Due ${new Date(task.deadline).toLocaleString()}`
+                                : " · No deadline recorded"}
                             </p>
                           </div>
                           <div className="flex shrink-0 gap-2">
-                            <Badge className={severityStyle(item.severity)}>{item.severity}</Badge>
-                            <Badge className={stateStyle(item.state)}>
-                              {item.state.replace(/_/g, " ").toLowerCase()}
+                            <Badge className={priorityClass(task.priority)}>{task.priority}</Badge>
+                            <Badge className={statusClass(task.status)}>
+                              {task.status.replace(/_/g, " ")}
                             </Badge>
                           </div>
                         </div>
-
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                          <Bot className="w-3 h-3" />
-                          {item.suggestedAgentName ? (
-                            <span>{item.allocationReason}</span>
-                          ) : (
-                            <span>{item.allocationReason ?? t("ceo.morning_no_agent")}</span>
-                          )}
-                          {item.verification !== "UNVERIFIED" && (
-                            <Badge className="bg-accent-emerald/20 text-accent-emerald">
-                              {item.verification.toLowerCase()}
-                            </Badge>
-                          )}
-                        </div>
+                        {task.severity && task.severity !== task.priority && (
+                          <p className="mt-2 text-[11px] text-muted-foreground">
+                            Recorded severity: {task.severity}
+                          </p>
+                        )}
                       </motion.div>
                     ))}
                   </div>
                 )}
               </ScrollArea>
-              <SourceNote source="founder_work_plan_items" count={day!.plannedItems} />
+              <SourceNote source="tm_tasks" count={dashboard.currentTasks.length} />
             </CardContent>
           </Card>
         </>

@@ -103,7 +103,7 @@ describe("AI CEO VPS-backed signals", () => {
     ]);
     expect(events[1]?.action).toBe("8x ayra inspection");
     expect(state.calls.filter((call) => call.statement.includes("public.audit_logs"))[0]?.parameters[0]).toEqual(
-      new Date("2026-10-27T12:00:00.000Z"),
+      new Date("2026-10-26T12:00:00.000Z"),
     );
   });
 

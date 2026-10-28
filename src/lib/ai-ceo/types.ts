@@ -12,13 +12,7 @@ import type { DomainHealth } from "@/lib/founder/state.types";
  * dashboards use.
  */
 
-export type SuggestionType =
-  | "growth"
-  | "risk"
-  | "cost"
-  | "efficiency"
-  | "product"
-  | "compliance";
+export type SuggestionType = "growth" | "risk" | "cost" | "efficiency" | "product" | "compliance";
 
 export type ImpactLevel = "high" | "medium" | "low";
 
@@ -95,6 +89,46 @@ export interface AIDecisionRecord {
 }
 
 /** Everything the dashboard needs, resolved on the server in one call. */
+export interface MorningBriefCounts {
+  agentRuns: number;
+  failedAgentRuns: number;
+  unverifiedAgentRuns: number;
+  auditEvents: number;
+  newLeads: number;
+  newOrders: number;
+  newTickets: number;
+  openTickets: number;
+  breachedTickets: number;
+  overdueTasks: number;
+  waitingDecisions: number;
+}
+
+export interface MorningBrief {
+  id: string;
+  windowStart: string;
+  windowEnd: string;
+  generatedAt: string;
+  summary: string;
+  sourceCounts: MorningBriefCounts;
+  sources: string[];
+}
+
+export interface MorningBriefTask {
+  id: string;
+  title: string;
+  module: string | null;
+  status: string;
+  priority: string;
+  severity: string;
+  deadline: string | null;
+}
+
+export interface AyraMorningDashboard {
+  brief: MorningBrief | null;
+  /** Current open tasks read live from VPS; these are not part of the saved brief. */
+  currentTasks: MorningBriefTask[];
+}
+
 export interface CEOState {
   /** True once the store has been read; the module has no offline mode. */
   persisted: boolean;

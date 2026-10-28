@@ -242,6 +242,7 @@ export function SectionRow({
 export function PillButton({
   children,
   variant = "ghost",
+  type = "button",
   onClick,
   disabled = false,
   title,
@@ -250,6 +251,7 @@ export function PillButton({
 }: {
   children: ReactNode;
   variant?: "primary" | "ghost" | "premium";
+  type?: "button" | "submit";
   onClick?: () => void;
   /** Optional, so every existing caller keeps working unchanged. */
   disabled?: boolean;
@@ -289,7 +291,7 @@ export function PillButton({
   const unwired = !onClick;
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       disabled={disabled || unwired}
       title={title ?? (unwired ? t("manager.module.action_not_connected") : undefined)}

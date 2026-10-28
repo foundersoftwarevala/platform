@@ -5,6 +5,7 @@ import { streamChat, type ChatTurn } from "@/components/vala-ai/chat-stream";
 import { useSpeech } from "@/lib/use-speech";
 import { useSpeechSynthesis } from "@/lib/use-speech-synthesis";
 import { AyraCommandCenter } from "@/components/ai-ceo/AyraCommandCenter";
+import { AyraLocalBridgePanel } from "@/components/ai-ceo/AyraLocalBridgePanel";
 import "./ayra-world.css";
 
 export function AyraWorldBanner() {
@@ -155,6 +156,7 @@ export function AyraWorldBanner() {
           <ActivityPanel core={speech.listening ? "listening" : core} status={status} />
         </div>
       </main>
+      <AyraLocalBridgePanel />
       <footer className="aw-foot">Powered by Software Vala™</footer>
       <AyraCommandCenter open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>

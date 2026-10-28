@@ -214,6 +214,7 @@ export type MarketplaceManagerFunction =
   | "sf_publish"
   | "sf_rollback"
   | "sf_versions"
+  | "sf_footer_column_create"
   | "sf_footer_link_save"
   | "sf_footer_link_remove"
   | "sf_footer_links_reorder"
@@ -405,7 +406,7 @@ const MANAGER_VPS_FUNCTIONS: ReadonlySet<string> = new Set<MarketplaceManagerFun
   "mm_reseller_payout_create", "mm_reseller_payout_status",
   "mm_reseller_attention", "mm_notification_channels",
   "sf_config_draft", "sf_validate", "sf_publish",
-  "sf_rollback", "sf_versions", "sf_footer_link_save", "sf_footer_link_remove",
+  "sf_rollback", "sf_versions", "sf_footer_column_create", "sf_footer_link_save", "sf_footer_link_remove",
   "sf_footer_links_reorder", "sf_social_save", "sf_trust_save",
   "sf_footer_settings_save", "sf_floating_save", "sf_floating_create",
   "mm_filters", "mm_filter_set", "mm_license_overview",

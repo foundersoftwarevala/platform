@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AyraWorldBanner } from "./AyraWorldBanner";
 
@@ -120,9 +121,18 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+function renderBanner() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AyraWorldBanner />
+    </QueryClientProvider>,
+  );
+}
+
 describe("AYRA voice chat flow", () => {
   it("sends a recognized transcript to the existing chat backend and speaks the completed reply once", async () => {
-    render(<AyraWorldBanner />);
+    renderBanner();
 
     act(() => mocks.onFinal("Find my latest tasks"));
     await waitFor(() => expect(mocks.speak).toHaveBeenCalledOnce());
@@ -141,7 +151,7 @@ describe("AYRA voice chat flow", () => {
   });
 
   it("opens the Command Center from the existing gear/settings action", () => {
-    render(<AyraWorldBanner />);
+    renderBanner();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Ayra Command Center settings" }));
 
@@ -149,7 +159,7 @@ describe("AYRA voice chat flow", () => {
   });
 
   it("Mute stops recognition and speech output, and End stops audio and resets the conversation", async () => {
-    render(<AyraWorldBanner />);
+    renderBanner();
     act(() => mocks.onFinal("Tell me a short update"));
     await waitFor(() => expect(mocks.speak).toHaveBeenCalledOnce());
 
@@ -176,7 +186,7 @@ describe("AYRA voice chat flow", () => {
           resolveResponse = resolve;
         }),
     );
-    render(<AyraWorldBanner />);
+    renderBanner();
     act(() => mocks.onFinal("Give me an update"));
     fireEvent.click(screen.getByRole("button", { name: "Mute" }));
     await act(async () => resolveResponse("A muted response."));
@@ -198,7 +208,7 @@ describe("AYRA voice chat flow", () => {
         });
       },
     );
-    render(<AyraWorldBanner />);
+    renderBanner();
     act(() => mocks.onFinal("Start a long request"));
     await waitFor(() => expect(requestSignal).toBeDefined());
 

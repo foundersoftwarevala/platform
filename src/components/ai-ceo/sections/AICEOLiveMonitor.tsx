@@ -105,7 +105,7 @@ const AICEOLiveMonitor = () => {
       <PageBanner
         icon={Activity}
         title="Live Action Monitor"
-        subtitle="Orders, audit entries, support tickets and leads across the platform, newest first."
+        subtitle="Orders, grouped audit entries, agent runs, support tickets and leads from the last 48 hours, newest first."
         status={
           lastRefresh
             ? `${activityEvents.length} events · read ${lastRefresh.toLocaleTimeString()}`
@@ -151,6 +151,7 @@ const AICEOLiveMonitor = () => {
                   size="sm"
                   variant="ghost"
                   onClick={() => setFilter(f.value)}
+                  aria-pressed={filter === f.value}
                   className={`h-7 px-3 text-xs ${
                     filter === f.value
                       ? "bg-primary/20 text-primary-glow"

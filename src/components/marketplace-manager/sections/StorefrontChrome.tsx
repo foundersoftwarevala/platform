@@ -10,7 +10,7 @@ import { Card, EmptyHint, PageHeader, PillButton, StatCard } from "../ui";
 import {
   getChromeDraft, validateChrome, publishChrome, rollbackChrome, listChromeVersions,
   saveFooterLink, removeFooterLink, reorderFooterLinks,
-  saveSocial, saveTrustItem, saveFooterSettings, saveFloatingElement, createFloatingElement,
+  saveSocial, saveTrustItem, saveFooterSettings, saveFloatingElement, createFloatingElement, createFooterColumn,
 } from "@/lib/storefront/chrome.functions";
 
 /**
@@ -550,10 +550,16 @@ type FooterColumnRow = {
 export function FooterSection() {
   const { draft, check, versions, refresh, onError, publish, rollback } = useChrome("footer");
   const [adding, setAdding] = useState<string | null>(null);
+  const [addingColumn, setAddingColumn] = useState(false);
 
   const linkSave = useMutation({
     mutationFn: (patch: Record<string, unknown>) => saveFooterLink({ data: { patch } }),
     onSuccess: () => { refresh(); toast.success("Saved"); setAdding(null); },
+    onError,
+  });
+  const columnCreate = useMutation({
+    mutationFn: (input: { key: string; heading: string }) => createFooterColumn({ data: input }),
+    onSuccess: () => { refresh(); toast.success("Footer column created"); setAddingColumn(false); },
     onError,
   });
   const linkRemove = useMutation({
@@ -616,13 +622,22 @@ export function FooterSection() {
         title="Storefront Footer"
         description="Columns, links, newsletter, social handles, payment & trust strip — visible on every public page."
         actions={
-          <PillButton
-            variant="primary"
-            disabled={publish.isPending || errors > 0}
-            onClick={() => publish.mutate("Footer updated")}
-          >
-            {publish.isPending ? "Publishing…" : errors > 0 ? "Fix errors to publish" : "Publish Footer"}
-          </PillButton>
+          <div className="flex flex-wrap gap-2">
+            <PillButton
+              variant="ghost"
+              disabled={columnCreate.isPending || columns.length >= 20}
+              onClick={() => setAddingColumn(true)}
+            >
+              Add Column
+            </PillButton>
+            <PillButton
+              variant="primary"
+              disabled={publish.isPending || errors > 0}
+              onClick={() => publish.mutate("Footer updated")}
+            >
+              {publish.isPending ? "Publishing…" : errors > 0 ? "Fix errors to publish" : "Publish Footer"}
+            </PillButton>
+          </div>
         }
       />
 
@@ -645,6 +660,15 @@ export function FooterSection() {
       <ValidationPanel check={check.data as never} />
 
       {draft.isLoading && <EmptyHint text="Reading the footer…" />}
+
+      {addingColumn && (
+        <AddFooterColumnForm
+          busy={columnCreate.isPending}
+          error={columnCreate.error instanceof Error ? columnCreate.error.message : null}
+          onCancel={() => { columnCreate.reset(); setAddingColumn(false); }}
+          onSubmit={(input) => columnCreate.mutate(input)}
+        />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <Card>
@@ -810,6 +834,50 @@ export function FooterSection() {
         />
       )}
     </div>
+  );
+}
+
+function AddFooterColumnForm({
+  busy, error, onCancel, onSubmit,
+}: {
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSubmit: (input: { key: string; heading: string }) => void;
+}) {
+  const [key, setKey] = useState("");
+  const [heading, setHeading] = useState("");
+
+  return (
+    <Card className="mb-4">
+      <form
+        className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit({ key: key.trim(), heading: heading.trim() });
+        }}
+      >
+        <label className="grid gap-1 text-xs">
+          Column key
+          <input required pattern="[a-z0-9][a-z0-9_-]{0,39}" maxLength={40} value={key}
+            onChange={(event) => setKey(event.target.value)} placeholder="company-links"
+            className="rounded border border-border bg-background px-2 py-1.5" />
+        </label>
+        <label className="grid gap-1 text-xs">
+          Heading
+          <input required maxLength={80} value={heading}
+            onChange={(event) => setHeading(event.target.value)} placeholder="Company"
+            className="rounded border border-border bg-background px-2 py-1.5" />
+        </label>
+        <div className="flex gap-2">
+          <PillButton type="submit" variant="primary" disabled={busy || !key.trim() || !heading.trim()}>
+            {busy ? "Creating…" : "Create Column"}
+          </PillButton>
+          <PillButton type="button" variant="ghost" onClick={onCancel}>Cancel</PillButton>
+        </div>
+        {error && <p role="alert" className="text-xs text-destructive sm:col-span-3">{error}</p>}
+      </form>
+    </Card>
   );
 }
 

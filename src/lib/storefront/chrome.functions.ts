@@ -302,6 +302,23 @@ export const listChromeVersions = createServerFn({ method: "GET" })
 
 /* ----------------------------------------------------------- footer writes */
 
+export const createFooterColumn = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      key: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,39}$/),
+      heading: z.string().trim().min(1).max(80),
+    }).parse(input),
+  )
+  .handler(async ({ data }) =>
+    settle(
+      await callAsUser<Outcome>("sf_footer_column_create", {
+        p_key: data.key,
+        p_heading: data.heading,
+      }),
+      "Footer column created",
+    ),
+  );
+
 export const saveFooterLink = createServerFn({ method: "POST" })
   .inputValidator((i: unknown) =>
     z.object({ patch: z.record(z.string(), z.unknown()) }).parse(i),

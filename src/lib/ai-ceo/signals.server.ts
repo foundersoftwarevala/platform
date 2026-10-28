@@ -261,7 +261,7 @@ export async function computeObservations(degraded: Degraded): Promise<AIObserva
 
 export async function computeActivity(degraded: Degraded): Promise<ActivityEvent[]> {
   const out: ActivityEvent[] = [];
-  const since24h = new Date(Date.now() - DAY);
+  const since48h = new Date(Date.now() - 2 * DAY);
 
   await safe("marketplace_orders.feed", degraded, async () => {
     const data = await rows<{
@@ -269,7 +269,7 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
     }>(
       `select id, total, currency, status, created_at from public.marketplace_orders
        where created_at >= $1::timestamptz order by created_at desc limit 8`,
-      [since24h],
+      [since48h],
     );
     for (const r of data) {
       out.push({ id: `ord-${r.id}`, type: "revenue", actor: "Marketplace", action: `Order ${r.status}`,
@@ -291,7 +291,7 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
        from public.audit_logs where occurred_at >= $1::timestamptz
        group by coalesce(actor, 'System'), lower(regexp_replace(action, '[._]+', ' ', 'g')), entity_type
        order by max(occurred_at) desc limit 8`,
-      [since24h],
+      [since48h],
     );
     for (const r of data) {
       const action = number(r.event_count) > 1 ? `${number(r.event_count)}x ${r.action}` : r.action;
@@ -315,7 +315,7 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
       `select id, coalesce(reference, id::text) as reference, subject, priority, status, sla_breached, customer_name, created_at
        from public.support_tickets where created_at >= $1::timestamptz
        order by created_at desc limit 6`,
-      [since24h],
+      [since48h],
     );
     for (const r of data) {
       out.push({ id: `tkt-${r.id}`, type: "risk", actor: r.customer_name ?? "Customer",
@@ -333,7 +333,7 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
       `select id, name, company, status::text as status, source::text as source, created_at
        from public.leads where created_at >= $1::timestamptz
        order by created_at desc limit 6`,
-      [since24h],
+      [since48h],
     );
     for (const r of data) {
       out.push({ id: `led-${r.id}`, type: "revenue", actor: (r.source ?? "lead").replace(/_/g, " "),
@@ -354,7 +354,7 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
        from public.ai_agent_runs r join public.ai_agents a on a.id = r.agent_id
        where r.started_at >= $1::timestamptz and r.started_at <= statement_timestamp()
        group by a.id, a.name, r.action, r.state order by max(r.started_at) desc limit 40`,
-      [since24h],
+      [since48h],
     );
     for (const r of data) {
       const state = r.state.toUpperCase();
