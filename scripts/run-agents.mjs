@@ -14,7 +14,40 @@ export const TASK_CONTRACTS = Object.freeze({
     "Read active server_instances. Treat missing last_health_check or a check older than 15 minutes as stale CPU/RAM telemetry. Create a deduplicated CRITICAL founder_attention alert for each stale instance. Do not change server configuration or metrics.",
   "finance-intelligence":
     "Read marketplace_orders with status=paid for the current VPS database day, excluding soft-deleted orders. Calculate exact totals grouped by currency (never add different currencies together) and record counts and totals in ai_agent_runs. Do not modify orders or financial records.",
+  "mon-homepage":
+    "Fetch only the Software Vala homepage over HTTPS with a bounded SSRF-guarded GET; report HTTP status, timing, and whether the Software Vala page marker is present in ai_agent_runs. Do not change homepage content.",
+  "mon-vendor":
+    "Read-only aggregate public.marketplace_vendors visibility/verification totals and public.marketplace_sellers status totals; record counts in ai_agent_runs. Do not edit vendor/seller records or contact vendors.",
+  "mon-security":
+    "Read-only aggregate public.security_findings by severity and result and public.security_events count for the last 24 hours; record aggregate counts in ai_agent_runs. Do not inspect evidence/payloads or modify security records.",
+  "mon-order":
+    "Read-only aggregate public.marketplace_orders by status for the last 24 hours, excluding soft-deleted orders; record counts in ai_agent_runs. Do not change orders or notify buyers.",
+  "mon-payment":
+    "Read-only aggregate public.marketplace_payment_events by provider, event_type, and signature_verified for the last 24 hours; record counts only in ai_agent_runs. Never read payment payloads or change payment state.",
+  "mon-website":
+    "Fetch only fixed public routes /marketplace and /sitemap.xml from https://softwarevala.net using bounded SSRF-guarded GETs; record HTTP status and timings in ai_agent_runs. Do not crawl arbitrary links or modify site content.",
+  "mon-api":
+    "Read-only summarize public.api_request_logs for the prior 15 minutes using total, 5xx count, and aggregate latency; record stats in ai_agent_runs. Do not read IP addresses or user-agent values.",
+  "mon-database":
+    "Read-only record current VPS database size and same-database connection count; record stats in ai_agent_runs. Do not read SQL text or query other databases.",
+  "mon-error":
+    "Read-only summarize public.error_events from the prior 24 hours by severity and resolved flag; record counts only in ai_agent_runs. Do not read error messages/stacks or alter events.",
+  "mon-alerts":
+    "Read-only summarize public.founder_attention open, acknowledged, and in-progress items by severity; record counts in ai_agent_runs. Do not create, dismiss, acknowledge, or modify alerts.",
 });
+
+export const BATCH_TWO_AGENT_KEYS = Object.freeze([
+  "mon-homepage",
+  "mon-vendor",
+  "mon-security",
+  "mon-order",
+  "mon-payment",
+  "mon-website",
+  "mon-api",
+  "mon-database",
+  "mon-error",
+  "mon-alerts",
+]);
 
 const AGENTS = [
   { key: "demo-scanner", permission: "CREATE", action: "check_demo_urls", run: runDemoScanner },
@@ -41,6 +74,56 @@ const AGENTS = [
     permission: "ANALYZE",
     action: "summarize_paid_orders",
     run: runFinanceSummary,
+  },
+  { key: "mon-homepage", permission: "ANALYZE", action: "check_homepage", run: runHomepageMonitor },
+  {
+    key: "mon-vendor",
+    permission: "ANALYZE",
+    action: "summarize_vendor_health",
+    run: runVendorMonitor,
+  },
+  {
+    key: "mon-security",
+    permission: "ANALYZE",
+    action: "summarize_security_findings",
+    run: runSecurityMonitor,
+  },
+  {
+    key: "mon-order",
+    permission: "ANALYZE",
+    action: "summarize_order_status",
+    run: runOrderMonitor,
+  },
+  {
+    key: "mon-payment",
+    permission: "ANALYZE",
+    action: "summarize_payment_events",
+    run: runPaymentMonitor,
+  },
+  {
+    key: "mon-website",
+    permission: "ANALYZE",
+    action: "check_public_routes",
+    run: runWebsiteMonitor,
+  },
+  { key: "mon-api", permission: "ANALYZE", action: "summarize_api_health", run: runApiMonitor },
+  {
+    key: "mon-database",
+    permission: "ANALYZE",
+    action: "summarize_database_health",
+    run: runDatabaseMonitor,
+  },
+  {
+    key: "mon-error",
+    permission: "ANALYZE",
+    action: "summarize_error_events",
+    run: runErrorMonitor,
+  },
+  {
+    key: "mon-alerts",
+    permission: "ANALYZE",
+    action: "summarize_open_alerts",
+    run: runAlertsMonitor,
   },
 ];
 
@@ -346,6 +429,149 @@ async function runFinanceSummary(db) {
      order by currency
   `;
   return { database_day: day.database_day, currencies: totals };
+}
+
+async function runHomepageMonitor() {
+  const started = Date.now();
+  try {
+    const page = await safeFetch("https://softwarevala.net/", {
+      maxBytes: 1_500_000,
+      timeoutMs: 8_000,
+      maxRedirects: 2,
+    });
+    return {
+      route: "/",
+      status: page.status,
+      elapsed_ms: Date.now() - started,
+      has_site_marker: page.body.includes("Software Vala"),
+    };
+  } catch (cause) {
+    return {
+      route: "/",
+      status: null,
+      elapsed_ms: Date.now() - started,
+      error: String(cause instanceof Error ? cause.message : cause).slice(0, 250),
+    };
+  }
+}
+
+async function runVendorMonitor(db) {
+  const [vendors] = await db`
+    select count(*)::int as total,
+           count(*) filter (where visible)::int as visible,
+           count(*) filter (where verified)::int as verified
+      from public.marketplace_vendors
+  `;
+  const sellers = await db`
+    select status::text, count(*)::int as count
+      from public.marketplace_sellers
+     group by status::text order by status::text
+  `;
+  return { vendors, sellers };
+}
+
+async function runSecurityMonitor(db) {
+  const findings = await db`
+    select severity::text, result::text, count(*)::int as count
+      from public.security_findings
+     where created_at >= now() - interval '24 hours'
+     group by severity::text, result::text
+     order by severity::text, result::text
+  `;
+  const [events] = await db`
+    select count(*)::int as count
+      from public.security_events
+     where created_at >= now() - interval '24 hours'
+  `;
+  return { findings, security_events_24h: events.count };
+}
+
+async function runOrderMonitor(db) {
+  const statuses = await db`
+    select status::text, count(*)::int as count
+      from public.marketplace_orders
+     where created_at >= now() - interval '24 hours'
+       and coalesce(soft_delete_flag, false) = false
+     group by status::text order by status::text
+  `;
+  return { orders_24h_by_status: statuses };
+}
+
+async function runPaymentMonitor(db) {
+  const events = await db`
+    select provider, event_type, signature_verified, count(*)::int as count
+      from public.marketplace_payment_events
+     where created_at >= now() - interval '24 hours'
+     group by provider, event_type, signature_verified
+     order by provider, event_type, signature_verified
+  `;
+  return { payment_events_24h: events };
+}
+
+async function runWebsiteMonitor() {
+  const paths = ["/marketplace", "/sitemap.xml"];
+  const results = [];
+  for (const path of paths) {
+    const started = Date.now();
+    try {
+      const page = await safeFetch(`https://softwarevala.net${path}`, {
+        maxBytes: 1_500_000,
+        timeoutMs: 8_000,
+        maxRedirects: 2,
+      });
+      results.push({ path, status: page.status, elapsed_ms: Date.now() - started });
+    } catch (cause) {
+      results.push({
+        path,
+        status: null,
+        elapsed_ms: Date.now() - started,
+        error: String(cause instanceof Error ? cause.message : cause).slice(0, 250),
+      });
+    }
+  }
+  return { routes: results };
+}
+
+async function runApiMonitor(db) {
+  const [summary] = await db`
+    select count(*)::int as requests,
+           count(*) filter (where status_code >= 500)::int as errors_5xx,
+           coalesce(round(avg(latency_ms))::int, 0) as average_latency_ms,
+           coalesce(max(latency_ms), 0)::int as max_latency_ms
+      from public.api_request_logs
+     where occurred_at >= now() - interval '15 minutes'
+  `;
+  return summary;
+}
+
+async function runDatabaseMonitor(db) {
+  const [summary] = await db`
+    select pg_database_size(current_database())::text as size_bytes,
+           (select count(*)::int from pg_stat_activity where datname = current_database()) as connections
+  `;
+  return summary;
+}
+
+async function runErrorMonitor(db) {
+  const events = await db`
+    select severity::text, resolved, count(*)::int as count
+      from public.error_events
+     where created_at >= now() - interval '24 hours'
+     group by severity::text, resolved
+     order by severity::text, resolved
+  `;
+  return { error_events_24h: events };
+}
+
+async function runAlertsMonitor(db) {
+  const alerts = await db`
+    select severity::text, status::text, count(*)::int as count
+      from public.founder_attention
+     where status in ('NEW','ACKNOWLEDGED','IN_PROGRESS')
+     group by severity::text, status::text
+     order by severity::text, status::text
+  `;
+  return { open_alerts: alerts };
 }
 
 async function executeAgent(db, agent, definition) {

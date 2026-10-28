@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertVpsDatabaseUrl,
   BATCH_DELAY_MS,
+  BATCH_TWO_AGENT_KEYS,
   normalizeDraft,
   runBatch,
   TASK_CONTRACTS,
@@ -21,14 +22,44 @@ describe("VPS agent contract runner", () => {
     expect(() => assertVpsDatabaseUrl("https://example.test/sv_platform")).toThrow(/VPS-only/);
   });
 
-  it("limits the batch to the five explicit contracts and spaces runs by five seconds", () => {
+  it("limits execution to the 15 reviewed contracts and spaces runs by five seconds", () => {
     expect(Object.keys(TASK_CONTRACTS)).toEqual([
       "demo-scanner",
       "sales-lead-followup",
       "support-reply-drafter",
       "mon-availability",
       "finance-intelligence",
+      "mon-homepage",
+      "mon-vendor",
+      "mon-security",
+      "mon-order",
+      "mon-payment",
+      "mon-website",
+      "mon-api",
+      "mon-database",
+      "mon-error",
+      "mon-alerts",
     ]);
+    expect(BATCH_TWO_AGENT_KEYS).toEqual([
+      "mon-homepage",
+      "mon-vendor",
+      "mon-security",
+      "mon-order",
+      "mon-payment",
+      "mon-website",
+      "mon-api",
+      "mon-database",
+      "mon-error",
+      "mon-alerts",
+    ]);
+    expect(
+      BATCH_TWO_AGENT_KEYS.every(
+        (key) =>
+          TASK_CONTRACTS[key]?.startsWith("Read-only") ||
+          key === "mon-homepage" ||
+          key === "mon-website",
+      ),
+    ).toBe(true);
     expect(BATCH_DELAY_MS).toBe(5_000);
   });
 

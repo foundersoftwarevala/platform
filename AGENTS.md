@@ -189,9 +189,20 @@ three lead drafts and one support draft; five active demo URLs were verified
 HTTP 200 (one oversized body was safely retried with a larger bounded limit).
 The single active server instance had fresh CPU/RAM telemetry, so no alert was
 created; there were no paid orders on the VPS database day, and that zero was
-recorded. The migration was applied to VPS `sv_platform` only. This pilot does
+recorded. The migration was applied to VPS `sv_platform` only. The first pilot did
 not activate the other 137 agents, assign existing `fa_jobs`, or change the
 `ai_agents.tools` or `model_id` fields.
+
+The follow-up VPS-only monitoring batch adds exact, bounded contracts for
+`mon-homepage`, `mon-vendor`, `mon-security`, `mon-order`, `mon-payment`,
+`mon-website`, `mon-api`, `mon-database`, `mon-error`, and `mon-alerts`.
+`scripts/run-agents.mjs` supports these fixed keys in addition to the first
+five. The new monitors read aggregate counts or fixed public routes only; they
+do not change catalog, vendor, security, payment, order, website, error, or
+alert state. Each run is governed and recorded in `ai_agent_runs` with the
+`ANALYZE` permission. This brings the active contract pilot to 15 agents; the
+remaining 127 roster entries stay unactivated. The VPS migration is
+`20261108T226000_agent_monitoring_batch_two.sql`; do not apply it to Supabase.
 
 AYRA chat uses the existing Vala AI stream;
 the banner's browser panel opens links in a new tab and states that remote
