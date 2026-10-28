@@ -183,8 +183,8 @@ const AICEODashboardMain = () => {
               label: "Deployments",
               unit: "/week",
               icon: Server,
-              color: "text-accent-pink",
-              bg: "bg-accent-pink/10",
+              color: "text-primary-glow",
+              bg: "bg-primary/10",
             },
             {
               key: "errorVelocity" as const,

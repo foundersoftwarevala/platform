@@ -117,7 +117,7 @@ export function AyraWorldBanner() {
             window.location.assign("/ai-ceo/agents");
           } else if (tool === "lookbook") {
             setLook(null);
-            setReply("Choose an agent portrait from the strip on the left to view that look.");
+            setReply("Choose an AYRA look from the strip on the left to preview it.");
           }
         }}
         onSettings={() => setSettingsOpen(true)}
@@ -151,7 +151,7 @@ export function AyraWorldBanner() {
             void run(command);
           }}
         />
-        <div className="grid min-h-0 grid-rows-[1fr_auto] gap-3">
+        <div className="aw-workspace">
           <BrowserPanel onRun={(command) => void run(command)} reply={reply} busy={busy} />
           <ActivityPanel core={speech.listening ? "listening" : core} status={status} />
         </div>

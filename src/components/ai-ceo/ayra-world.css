@@ -1,8 +1,8 @@
 /* ===== AYRA's World layout (clone of owner's reference design) ===== */
 .ayra-world {
-  --aw-bg: oklch(0.17 0.04 255); --aw-panel: oklch(0.21 0.05 255 / 0.8); --aw-line: oklch(0.55 0.12 230 / 0.4);
-  --aw-cyan: oklch(0.82 0.15 210); --aw-blue: oklch(0.6 0.2 250); --aw-green: oklch(0.82 0.22 145); --aw-red: oklch(0.62 0.22 25);
-  --aw-text: oklch(0.97 0.01 240); --aw-soft: oklch(0.82 0.03 240); --aw-muted: oklch(0.7 0.04 240);
+  --aw-bg: oklch(0.16 0.05 255); --aw-panel: oklch(0.21 0.055 255 / 0.88); --aw-line: color-mix(in oklab, var(--primary-glow) 42%, transparent);
+  --aw-cyan: var(--accent); --aw-blue: var(--primary-glow); --aw-green: oklch(0.82 0.22 145); --aw-red: oklch(0.62 0.22 25);
+  --aw-text: var(--sidebar-foreground); --aw-soft: color-mix(in oklab, var(--sidebar-foreground) 76%, var(--primary-glow)); --aw-muted: color-mix(in oklab, var(--sidebar-foreground) 56%, var(--primary-glow));
   --aw-chrome: oklch(0.25 0.03 255); --aw-chrome-2: oklch(0.3 0.03 255);
   --g-blue: oklch(0.6 0.2 260); --g-red: oklch(0.6 0.22 28); --g-yellow: oklch(0.82 0.17 85); --g-green: oklch(0.62 0.17 150);
   --g-white: oklch(1 0 0); --g-line: oklch(0.85 0.01 260); --g-btn: oklch(0.96 0.005 260); --g-text: oklch(0.3 0.01 260);
@@ -47,33 +47,35 @@
 @keyframes aw-pop { from { opacity: 0; transform: translateY(-4px); } }
 .aw-menu button { text-align: left; padding: .6rem .85rem; border-radius: 8px; font-size: 15px; font-weight: 500; }
 .aw-menu button:hover { background: oklch(0.82 0.15 210 / .16); }
-.aw-main { flex: 1; display: grid; grid-template-columns: 49.5fr 50.5fr; gap: .75rem; padding: .6rem .6rem 0; min-height: 0; }
+.aw-main { flex: 1; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: .75rem; padding: .6rem .6rem 0; min-height: 0; min-width: 0; }
+.aw-workspace { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: .75rem; min-width: 0; min-height: 0; }
+.aw-workspace .aw-panel { border-color: color-mix(in oklab, var(--aw-cyan) 38%, transparent); box-shadow: inset 0 0 40px color-mix(in oklab, var(--aw-blue) 10%, transparent), 0 18px 44px -18px oklch(0 0 0 / .55); }
 .aw-panel { position: relative; border-radius: 16px; border: 1px solid oklch(0.55 0.12 230 / .35); background: var(--aw-panel);
   backdrop-filter: blur(10px); overflow: hidden;
   box-shadow: inset 0 0 44px oklch(0.6 0.2 250 / .1), 0 18px 44px -18px oklch(0 0 0 / .6); }
-.aw-stage { min-height: 840px; }
+.aw-stage { min-height: clamp(760px, calc(100svh - 12rem), 920px); min-width: 0; border-color: color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 42%, transparent); background: radial-gradient(ellipse at 72% 38%, color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 16%, transparent), transparent 58%), var(--aw-panel); box-shadow: inset 0 0 44px color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 12%, transparent), 0 18px 44px -18px oklch(0 0 0 / .6); }
 .aw-stage-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
 .aw-look { position: absolute; inset: 0; overflow: hidden; background: var(--aw-bg); }
 .aw-look > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 18%; -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent); mask-image: linear-gradient(to bottom, black 70%, transparent); }
 .aw-look-live { animation: aw-alive 7s ease-in-out infinite; transform-origin: 50% 70%; }
 @keyframes aw-alive { 0%,100% { transform: scale(1.02) translateY(0) rotate(0deg); } 50% { transform: scale(1.035) translateY(-4px) rotate(.25deg); } }
 @media (prefers-reduced-motion: reduce) { .aw-look-live, .aw-menu { animation: none; } }
-.aw-look > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; -webkit-mask-image: radial-gradient(ellipse 34% 60% at 50% 50%, black 65%, transparent 100%); mask-image: radial-gradient(ellipse 34% 60% at 50% 50%, black 65%, transparent 100%); }
+.aw-look > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 18%; -webkit-mask-image: linear-gradient(to bottom, black 68%, transparent); mask-image: linear-gradient(to bottom, black 68%, transparent); }
 .aw-motion { position: absolute; right: 14px; top: 82px; z-index: 5; border: 1px solid var(--aw-line); background: oklch(0.2 0.05 255 / .85); backdrop-filter: blur(8px); color: var(--aw-text); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600; }
 .aw-motion:hover { border-color: oklch(0.82 0.15 210 / .6); box-shadow: 0 0 12px oklch(0.82 0.15 210 / .3); }
 .aw-stage-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, oklch(0.15 0.04 255 / .55), transparent 18%, transparent 70%, oklch(0.15 0.04 255 / .7)); }
 .aw-glass { border-radius: 12px; border: 1px solid oklch(0.55 0.12 230 / .45); background: oklch(0.22 0.05 255 / .6); backdrop-filter: blur(12px); box-shadow: 0 8px 20px -10px oklch(0 0 0 / .55); }
-.aw-bubble { position: absolute; left: 36px; top: 196px; width: 186px; padding: 1rem 1.2rem; border-radius: 16px; border: 1.5px solid var(--aw-cyan);
-  background: oklch(0.2 0.05 255 / .8); backdrop-filter: blur(10px); box-shadow: 0 0 18px oklch(0.82 0.15 210 / .35), 0 12px 28px -12px oklch(0 0 0 / .6); max-height: 260px; overflow: auto; }
-.aw-bubble::after { content: ""; position: absolute; right: 18px; bottom: -10px; width: 16px; height: 16px; background: inherit; border-right: 1.5px solid var(--aw-cyan); border-bottom: 1.5px solid var(--aw-cyan); transform: rotate(45deg); }
+.aw-bubble { position: absolute; left: 36px; top: 196px; width: min(186px, calc(100% - 72px)); padding: 1rem 1.2rem; border-radius: 16px; border: 1.5px solid var(--aw-agent-accent, var(--aw-cyan));
+  background: oklch(0.2 0.05 255 / .88); backdrop-filter: blur(10px); box-shadow: 0 0 18px color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 38%, transparent), 0 12px 28px -12px oklch(0 0 0 / .6); max-height: 260px; overflow: auto; }
+.aw-bubble::after { content: ""; position: absolute; right: 18px; bottom: -10px; width: 16px; height: 16px; background: inherit; border-right: 1.5px solid var(--aw-agent-accent, var(--aw-cyan)); border-bottom: 1.5px solid var(--aw-agent-accent, var(--aw-cyan)); transform: rotate(45deg); }
 .aw-plan { position: absolute; right: 8px; top: 118px; display: grid; gap: 2px; padding: .6rem 1rem; border: 1px solid oklch(0.55 0.12 230 / .45); border-radius: 10px;
   background: oklch(0.2 0.05 255 / .55); backdrop-filter: blur(10px); font-size: 19px; color: oklch(0.75 0.08 230); }
 .aw-agents { position: absolute; left: 14px; top: 470px; bottom: 210px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; scrollbar-width: none; padding: 2px; }
 .aw-agents button { width: 44px; height: 44px; flex: none; border-radius: 50%; overflow: hidden; border: 2px solid oklch(0.55 0.12 230 / .5); transition: transform .2s, border-color .2s, box-shadow .25s; }
 .aw-agents button img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
 .aw-agents button:hover { border-color: oklch(0.82 0.15 210 / .7); transform: scale(1.08); }
-.aw-agents button.on { border-color: var(--aw-cyan); box-shadow: 0 0 12px var(--aw-cyan), 0 0 3px var(--aw-cyan); transform: scale(1.08); }
-.aw-name { position: absolute; left: 50%; top: 70px; translate: -50% 0; padding: 4px 15px; border-radius: 999px; border: 1px solid oklch(0.82 0.15 210 / .7); background: oklch(0.2 0.05 255 / .8); backdrop-filter: blur(8px); font-size: 12px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--aw-cyan); box-shadow: 0 0 12px oklch(0.82 0.15 210 / .25); }
+.aw-agents button.on { border-color: var(--aw-agent-accent, var(--aw-cyan)); box-shadow: 0 0 12px var(--aw-agent-accent, var(--aw-cyan)), 0 0 3px var(--aw-agent-accent, var(--aw-cyan)); transform: scale(1.08); }
+.aw-name { position: absolute; left: 50%; top: 70px; translate: -50% 0; padding: 4px 15px; border-radius: 999px; border: 1px solid color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 72%, transparent); background: oklch(0.2 0.05 255 / .88); backdrop-filter: blur(8px); font-size: 12px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--aw-agent-accent, var(--aw-cyan)); box-shadow: 0 0 12px color-mix(in oklab, var(--aw-agent-accent, var(--aw-cyan)) 30%, transparent); }
 .aw-round { display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; transition: transform .2s, box-shadow .25s; }
 .aw-round:hover { transform: scale(1.06); }
 .aw-round:active { transform: scale(.98); }
@@ -94,8 +96,8 @@
 .aw-chrome { border-radius: 10px; background: var(--aw-chrome); overflow: hidden; box-shadow: 0 12px 28px -14px oklch(0 0 0 / .6); }
 .aw-google { background: var(--g-white); color: var(--g-text); border-radius: 0 0 10px 10px; }
 .aw-step-on { border-color: var(--aw-cyan); background: var(--aw-blue); box-shadow: 0 0 12px var(--aw-cyan); }
-.aw-foot { padding: .6rem; text-align: center; font-size: 15px; }
-@media (max-width: 1100px) { .aw-main { grid-template-columns: 1fr; } .aw-top { flex-wrap: wrap; height: auto; padding: .5rem; } }
+.aw-foot { padding: .6rem; text-align: center; font-size: 15px; color: var(--aw-soft); }
+@media (max-width: 1100px) { .aw-main { grid-template-columns: minmax(0, 1fr); } .aw-workspace { grid-template-rows: minmax(420px, 1fr) auto; } .aw-top { flex-wrap: wrap; height: auto; padding: .5rem; } }
 .aw-chip { font-size: 14px; padding: 0 .9rem; gap: .55rem; white-space: nowrap; }
 .aw-agents { top: 455px; bottom: 230px; }
 @media (max-width: 640px) {
@@ -104,4 +106,51 @@
   .aw-motion { top: auto !important; bottom: 330px; right: 10px; }
 }
 .aw-mic-warn { color: var(--aw-red); max-width: 260px; display: inline-block; line-height: 1.3; }
+.aw-stage-controls { position: absolute; bottom: 172px; left: 50%; display: flex; gap: 1.5rem; transform: translateX(-48%); }
+.aw-stage-status { position: absolute; bottom: 110px; left: 230px; display: flex; align-items: center; gap: .75rem; color: var(--aw-soft); font-size: .875rem; }
+@media (max-width: 640px) {
+  .aw-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
+  .aw-brand { min-width: 0; padding-left: 0; }
+  .aw-brand svg { width: 2.5rem; height: 2.5rem; }
+  .aw-brand .aw-display { font-size: 1.5rem; }
+  .aw-brand .text-base { font-size: .75rem; }
+  .aw-nav-controls { gap: .15rem; padding: 0 .25rem; border-left: 0; }
+  .aw-nav-controls .nav-btn { padding: .3rem; }
+  .aw-nav-controls .nav-btn svg { width: 1.15rem; height: 1.15rem; }
+  .aw-cmd { grid-column: 1 / -1; width: 100%; gap: .55rem; padding: 0 .7rem; }
+  .aw-top-tools { min-width: 0; }
+  .aw-top-tools .aw-pill { max-width: 100%; padding: 0 .55rem; font-size: .75rem; }
+  .aw-top-user { grid-column: 1 / -1; justify-content: flex-end; padding-right: 0; }
+  .aw-top-user img { width: 2.5rem; height: 2.5rem; }
+  .aw-main { gap: .6rem; padding: .5rem .5rem 0; }
+  .aw-stage { min-height: 760px; }
+  .aw-stage > .absolute.left-5 { left: 12px; gap: .5rem; }
+  .aw-stage > .absolute.left-5 svg { width: 2rem; height: 2rem; }
+  .aw-stage > .absolute.left-5 .aw-display { font-size: 1rem; }
+  .aw-stage > .absolute.left-5 .text-sm { font-size: .7rem; }
+  .aw-stage > .aw-glass { left: 10px; top: 66px; padding: .4rem .65rem; gap: .5rem; }
+  .aw-stage > .aw-glass .text-\[15px\] { font-size: .75rem; }
+  .aw-bubble { left: 12px; top: 156px; width: calc(100% - 24px); max-height: 168px; padding: .7rem .85rem; }
+  .aw-plan { top: 340px; right: 10px; left: 68px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .25rem; padding: .45rem; font-size: .7rem; text-align: center; }
+  .aw-plan strong { grid-column: 1 / -1; }
+  .aw-agents { top: 395px; bottom: 250px; left: 10px; right: 10px; flex-direction: row; align-items: flex-start; gap: .5rem; overflow-x: auto; overflow-y: hidden; }
+  .aw-agents button { width: 40px; height: 40px; }
+  .aw-name { top: 70px; max-width: calc(100% - 32px); white-space: nowrap; letter-spacing: .1em; }
+  .aw-stage-controls { bottom: 146px; left: 50%; gap: 1rem; transform: translateX(-50%); }
+  .aw-round { width: 54px; height: 54px; }
+  .aw-talk { width: 62px; height: 62px; }
+  .aw-stage-controls svg { width: 1.35rem; height: 1.35rem; }
+  .aw-stage-status { bottom: 92px; left: 14px; right: 14px; justify-content: center; }
+  .aw-wave { display: none; }
+  .aw-chips { left: 10px !important; right: 10px !important; bottom: 6px !important; flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
+  .aw-stage .aw-chip { flex: none; }
+  .aw-motion { top: auto !important; bottom: 230px; right: 10px; }
+  .aw-workspace { grid-template-rows: minmax(360px, 65svh) auto; }
+  .aw-browser-header { flex-wrap: wrap; gap: .45rem; }
+  .aw-browser-header > .flex-1 { flex-basis: calc(100% - 4rem); }
+  .aw-browser-tabs { flex: 1 1 auto; justify-content: flex-start; }
+  .aw-browser-tabs button { padding: .4rem .55rem; font-size: .75rem; }
+  .aw-workspace > .aw-panel:last-child { grid-template-columns: 1fr; }
+  .aw-workspace > .aw-panel:last-child > div:first-child { grid-template-columns: 1fr; }
+}
 .aw-look > video.aw-scene-video { object-fit: cover; object-position: center 18%; -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent); mask-image: linear-gradient(to bottom, black 70%, transparent); }

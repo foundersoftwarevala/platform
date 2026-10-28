@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import {
   ArrowLeft, ArrowRight, RotateCw, Sparkles, Mic, MicOff, Phone, Box, ChevronDown, Settings, Globe, Github, Plus,
   ListChecks, Maximize2, X, Lock, Search, Star, Download, Share, MoreVertical, Send, Grid3x3,
 } from "lucide-react";
-import { AYRA_LOOKS, LOOK_NAMES, LOOK_VIDEO, LOOK_SCENE, LOOK_SCENE_VIDEO, type AyraLook, type CoreState } from "@/components/JarvisCore";
+import { AYRA_LOOKS, LOOK_NAMES, LOOK_VIDEO, LOOK_SCENE, LOOK_SCENE_VIDEO, LOOK_THEME, type AyraLook, type CoreState } from "@/components/JarvisCore";
 import stage from "@/assets/ayra-world-stage.jpg";
 import { accessHeaders } from "@/lib/access-client";
 
@@ -32,14 +32,14 @@ export function TopBar({ cmd, setCmd, onRun, listening, onMic, onTools, onSettin
   const [tools, setTools] = useState(false);
   return (
     <header className="aw-top">
-      <div className="flex items-center gap-3 pl-4">
+      <div className="aw-brand flex items-center gap-3 pl-4">
         <AyraMark className="h-14 w-14" />
         <div className="leading-none">
           <div className="aw-display text-4xl font-bold tracking-wide">AYRA</div>
           <div className="mt-1 text-base tracking-wide text-[color:var(--aw-cyan)]">by Software Vala™</div>
         </div>
       </div>
-      <div className="flex items-center gap-2 border-l border-[color:var(--aw-line)] px-4">
+      <div className="aw-nav-controls flex items-center gap-2 border-l border-[color:var(--aw-line)] px-4">
         <button aria-label="Back" onClick={() => history.back()} className="nav-btn"><ArrowLeft className="h-6 w-6" /></button>
         <button aria-label="Forward" onClick={() => history.forward()} className="nav-btn"><ArrowRight className="h-6 w-6" /></button>
         <button aria-label="Reload" onClick={() => location.reload()} className="nav-btn"><RotateCw className="h-6 w-6" /></button>
@@ -51,7 +51,7 @@ export function TopBar({ cmd, setCmd, onRun, listening, onMic, onTools, onSettin
         {cmd ? <button aria-label="Send command" onClick={onRun}><Send className="h-5 w-5 text-[color:var(--aw-cyan)]" /></button>
           : <button aria-label="Talk to AYRA" aria-pressed={listening} onClick={onMic}><Mic className={`h-6 w-6 text-[color:var(--aw-cyan)] ${listening ? "animate-pulse" : ""}`} /></button>}
       </div>
-      <div className="relative">
+      <div className="aw-top-tools relative">
         <button className="aw-pill" onClick={() => setTools((t) => !t)} aria-expanded={tools}>
           <Box className="h-5 w-5 text-[color:var(--aw-cyan)]" /> Tools &amp; Access <ChevronDown className="h-4 w-4" />
         </button>
@@ -64,7 +64,7 @@ export function TopBar({ cmd, setCmd, onRun, listening, onMic, onTools, onSettin
         )}
       </div>
       <button aria-label="Open Ayra Command Center settings" onClick={onSettings} className="aw-pill !px-3"><Settings className="h-6 w-6" /></button>
-      <div className="flex items-center gap-3 pr-4">
+      <div className="aw-top-user flex items-center gap-3 pr-4">
         <img src={AYRA_LOOKS.default} alt="" className="h-14 w-14 rounded-full border-2 border-[color:var(--aw-cyan)] object-cover object-top" />
         <span className="text-lg">{role}</span>
         <ChevronDown className="h-4 w-4" />
@@ -80,8 +80,12 @@ export function AgentStage({ core, look, setLook, reply, muted, micNote, micStat
   const listening = core === "listening";
   const looks = Object.keys(AYRA_LOOKS) as AyraLook[];
   const [motion, setMotion] = useState(false);
+  const accent = LOOK_THEME[look ?? "default"];
+  const stageStyle = {
+    "--aw-agent-accent": `oklch(0.78 ${accent.c ?? 0.18} ${accent.primary})`,
+  } as CSSProperties;
   return (
-    <section className="aw-panel aw-stage">
+    <section className="aw-panel aw-stage" style={stageStyle} data-agent-look={look ?? "default"}>
       <img src={stage} alt="AYRA in her world" className="aw-stage-bg" />
       {look && (
         <div className="aw-look" key={look} data-motion={motion && !!LOOK_VIDEO[look] ? "on" : "off"}>
@@ -113,7 +117,7 @@ export function AgentStage({ core, look, setLook, reply, muted, micNote, micStat
           <div key={step} className={index <= stepFor[core] ? "text-[color:var(--aw-cyan)]" : ""}>{step}</div>
         ))}
       </div>
-      <div className="aw-agents" aria-label="All agents">
+      <div className="aw-agents" aria-label="AYRA looks">
         <button onClick={() => setLook(null)} title="AYRA's World" className={!look ? "on" : ""}><img src={stage} alt="AYRA's World" /></button>
         {looks.map((k) => (
           <button key={k} onClick={() => setLook(k)} title={LOOK_NAMES[k]} className={look === k ? "on" : ""}><img src={LOOK_SCENE[k]} alt={LOOK_NAMES[k]} /></button>
@@ -121,12 +125,12 @@ export function AgentStage({ core, look, setLook, reply, muted, micNote, micStat
       </div>
       {look && <div className="aw-name">{LOOK_NAMES[look]}</div>}
       {look && !LOOK_SCENE_VIDEO[look] && LOOK_VIDEO[look] && <button onClick={() => setMotion(!motion)} aria-pressed={motion} className="aw-motion">{motion ? "Show in scene" : "Play motion"}</button>}
-      <div className="absolute bottom-[172px] left-1/2 flex -translate-x-[48%] gap-6">
+      <div className="aw-stage-controls">
         <div className="flex flex-col items-center gap-2"><button aria-label="Talk" onClick={onTalk} className={`aw-round aw-talk ${listening ? "on" : ""}`}><Mic className="h-8 w-8" /></button><span>Talk</span></div>
         <div className="flex flex-col items-center gap-2"><button aria-label="Mute" aria-pressed={muted} onClick={() => setMuted(!muted)} className={`aw-round aw-mute ${muted ? "on" : ""}`}><MicOff className="h-7 w-7" /></button><span>Mute</span></div>
         <div className="flex flex-col items-center gap-2"><button aria-label="End" onClick={onEnd} className="aw-round aw-end"><Phone className="h-8 w-8 rotate-[135deg]" /></button><span>End</span></div>
       </div>
-      <div className="absolute bottom-[110px] left-[230px] flex items-center gap-3 text-sm text-[color:var(--aw-soft)]">
+      <div className="aw-stage-status">
         <span role="status" aria-live="polite" className={micState === "blocked" || micState === "unsupported" || micState === "no-device" ? "aw-mic-warn" : ""}>{micNote || (core === "idle" ? "Standing by" : "Working...")}</span>
         <div className={`aw-wave ${listening || core === "speaking" ? "live" : ""}`}>{Array.from({ length: 30 }, (_, i) => <span key={i} style={{ animationDelay: `${(i % 10) * 0.08}s`, height: `${20 + ((i * 37) % 80)}%` }} />)}</div>
       </div>
@@ -186,12 +190,14 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
   };
   return (
     <section className="aw-panel flex min-h-0 flex-col p-3">
-      <div className="flex items-center gap-4 px-2 pb-3">
+      <div className="aw-browser-header flex items-center gap-4 px-2 pb-3">
         <div className="grid h-12 w-12 place-items-center rounded-full bg-[color:var(--aw-blue)]/20 ring-2 ring-[color:var(--aw-cyan)]"><RotateCw className="h-6 w-6 text-[color:var(--aw-cyan)]" /></div>
         <div className="flex-1"><div className="aw-display text-xl font-bold">BROWSER</div><div className="text-xs text-[color:var(--aw-soft)]">Search and links open in a new tab; screenshots use the VPS capture service. Remote browser control is not connected.</div></div>
-        {["Browser", "Automate", "Screenshot", "Download"].map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-2 text-[15px] ${tab === t ? "aw-tab-on" : ""}`}>{t}</button>
-        ))}
+        <div className="aw-browser-tabs flex flex-wrap items-center gap-1">
+          {["Browser", "Automate", "Screenshot", "Download"].map((t) => (
+            <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-2 text-[15px] ${tab === t ? "aw-tab-on" : ""}`}>{t}</button>
+          ))}
+        </div>
         <button aria-label="Expand" onClick={() => open("https://www.google.com")} className="ml-2 rounded-md border border-[color:var(--aw-line)] p-2"><Maximize2 className="h-5 w-5" /></button>
       </div>
       <div className="aw-chrome flex min-h-0 flex-1 flex-col">
