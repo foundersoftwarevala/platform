@@ -15,6 +15,7 @@ import {
 import {
   DegradedNotice,
   EmptyState,
+  ErrorState,
   LoadingState,
   PageBanner,
   PageShell,
@@ -54,8 +55,10 @@ const getRiskStyle = (impact: CEOSuggestion["impact"]) => {
 
 /** The engine's own steer, read from the confidence it recorded. */
 const recommendationFor = (suggestion: CEOSuggestion) => {
-  if (suggestion.confidence >= 90) return { label: "approve", style: "bg-accent-emerald/20 text-accent-emerald" };
-  if (suggestion.confidence >= 80) return { label: "review", style: "bg-accent-amber/20 text-accent-amber" };
+  if (suggestion.confidence >= 90)
+    return { label: "approve", style: "bg-accent-emerald/20 text-accent-emerald" };
+  if (suggestion.confidence >= 80)
+    return { label: "review", style: "bg-accent-amber/20 text-accent-amber" };
   return { label: "scrutinise", style: "bg-destructive/20 text-destructive" };
 };
 
@@ -65,10 +68,19 @@ const AICEOApprovals = () => {
 
   const [queue, setQueue] = useState<CEOSuggestion[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const rows = await getBossSuggestions();
-    setQueue(rows);
+    setQueueError(null);
+    try {
+      const rows = await getBossSuggestions();
+      setQueue(rows);
+    } catch (error) {
+      setQueue(null);
+      setQueueError(
+        error instanceof Error ? error.message : "The approval queue could not be read.",
+      );
+    }
   }, [getBossSuggestions]);
 
   useEffect(() => {
@@ -82,13 +94,17 @@ const AICEOApprovals = () => {
     setBusyId(null);
   };
 
-  const isLoading = queue === null;
-  const rows = queue ?? [];
+  const isLoading = queue === null && queueError === null;
+  const rows = useMemo(() => queue ?? [], [queue]);
 
   const stats = useMemo(
     () => [
-      { label: "Awaiting decision", count: rows.length, icon: Clock },
-      { label: "High impact", count: rows.filter((s) => s.impact === "high").length, icon: AlertTriangle },
+      { label: "Awaiting decision", count: queue === null ? "—" : rows.length, icon: Clock },
+      {
+        label: "High impact",
+        count: queue === null ? "—" : rows.filter((s) => s.impact === "high").length,
+        icon: AlertTriangle,
+      },
       {
         label: "Approved",
         count: suggestions.filter((s) => s.status === "approved").length,
@@ -100,7 +116,7 @@ const AICEOApprovals = () => {
         icon: ThumbsDown,
       },
     ],
-    [rows, suggestions],
+    [queue, rows, suggestions],
   );
 
   return (
@@ -109,7 +125,15 @@ const AICEOApprovals = () => {
         icon={CheckSquare}
         title="Approvals"
         subtitle="Suggestions the AI CEO has forwarded for a decision. Approving or rejecting here writes the decision to the database."
-        status={rows.length ? `${rows.length} awaiting a decision` : "Queue is clear"}
+        status={
+          queueError
+            ? "Queue unavailable"
+            : isLoading
+              ? "Loading approval queue"
+              : rows.length
+                ? `${rows.length} awaiting a decision`
+                : "Queue is clear"
+        }
         actions={
           <Button size="sm" variant="secondary" onClick={() => void load()} className="gap-2">
             <RefreshCw className="h-4 w-4" /> Reload queue
@@ -143,7 +167,13 @@ const AICEOApprovals = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {!isLoading && !rows.length ? (
+          {queueError ? (
+            <ErrorState
+              title="Approval queue unavailable"
+              description={`The VPS approval queue could not be read: ${queueError}`}
+              onRetry={() => void load()}
+            />
+          ) : !isLoading && !rows.length ? (
             <EmptyState
               icon={CheckSquare}
               title="Nothing waiting for you"
@@ -204,7 +234,9 @@ const AICEOApprovals = () => {
                         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
                           <span className="mr-auto text-xs text-muted-foreground">
                             Raised {new Date(suggestion.createdAt).toLocaleDateString()} ·{" "}
-                            {suggestion.source === "seed" ? "shipped with the module" : suggestion.source}
+                            {suggestion.source === "seed"
+                              ? "shipped with the module"
+                              : suggestion.source}
                           </span>
                           <Button
                             size="sm"
