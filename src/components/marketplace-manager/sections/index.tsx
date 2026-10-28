@@ -632,7 +632,7 @@ export function SettingsSection() {
       <PageHeader
         eyebrow="Settings"
         title="Module Settings"
-        description="No Operations settings are available here because no settings registry is connected to this module."
+        description="Existing non-reserved settings are read from VPS Postgres and saved through the live table above. Console-owned settings remain managed in their dedicated tools."
       />
       <EmptyHint text="Only values backed by the settings table can be managed here." />
     </div>
