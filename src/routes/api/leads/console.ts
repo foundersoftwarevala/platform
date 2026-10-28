@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireInternalOperator } from "@/lib/auth/internal-guard";
+import { readAllLeadConsoleRows } from "@/lib/lead-manager/console-read.server";
 import { validZone, zonedBoundaries } from "@/lib/server/zoned-day";
 
 /**
@@ -61,7 +62,11 @@ async function countOf(path: string, failed?: string[]): Promise<number | null> 
       return null;
     }
     const total = Number((response.headers.get("content-range") ?? "").split("/")[1]);
-    return Number.isFinite(total) ? total : null;
+    if (!Number.isSafeInteger(total)) {
+      failed?.push(path.split("?")[0]);
+      return null;
+    }
+    return total;
   } catch {
     failed?.push(path.split("?")[0]);
     return null;
@@ -101,19 +106,19 @@ export const Route = createFileRoute("/api/leads/console")({
         const timeZone = validZone(params.get("tz"));
         const { startOfDay, startOfMonth } = boundaries(timeZone);
 
-        // One read of the columns that matter, rather than a count per tab.
-        // 129 leads today and a few thousand at the catalogue's size; this
-        // stays a single indexed scan and everything below is computed from it.
+        // Read every lead in stable, exact-count pages so product/source
+        // breakdowns do not silently stop at a server or query limit.
         const failed: string[] = [];
-        const leads = await read(
-          "leads?select=id,name,company,email,phone,status,source,sub_source,cta_action," +
-            "product_id,category,country,ai_score,intent_score,is_duplicate,assigned_agent_id," +
-            "next_follow_up,last_contact_at,created_at,closed_at,lost_reason" +
-            "&order=created_at.desc&limit=5000",
-          failed,
-        );
-        // Without the leads there is nothing to show, and zeros would be a lie.
-        if (failed.length) {
+        let leads: Row[];
+        try {
+          leads = await readAllLeadConsoleRows(
+            url(),
+            admin(),
+            "leads?select=id,status,source,cta_action,product_id,ai_score,is_duplicate," +
+              "assigned_agent_id,next_follow_up,created_at,closed_at",
+          );
+        } catch (error) {
+          console.error("[leads] complete console read failed", error);
           // i18n-ignore: an API error message; this API answers in English.
           return Response.json({ error: "The leads could not be read." }, { status: 502 });
         }
@@ -169,6 +174,7 @@ export const Route = createFileRoute("/api/leads/console")({
         const names = topIds.length
           ? await read(
               `marketplace_products?select=id,name,slug&id=in.(${topIds.map(([id]) => id).join(",")})`,
+              failed,
             )
           : [];
         const nameOf = new Map(names.map((p) => [String(p.id), String(p.name ?? "")]));

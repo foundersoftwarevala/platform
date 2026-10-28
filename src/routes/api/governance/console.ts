@@ -36,13 +36,14 @@ function admin() {
 type Row = Record<string, unknown>;
 
 async function read(path: string): Promise<Row[]> {
-  try {
-    const response = await fetch(`${url()}/rest/v1/${path}`, { headers: admin() });
-    if (!response.ok) return [];
-    return (await response.json()) as Row[];
-  } catch {
-    return [];
+  const response = await fetch(`${url()}/rest/v1/${path}`, { headers: admin() });
+  if (!response.ok) throw new Error(`Governance read failed (${response.status}).`);
+  const rows: unknown = await response.json();
+  if (!Array.isArray(rows)) throw new Error("Governance read returned an invalid response.");
+  if (rows.some((row) => row === null || typeof row !== "object" || Array.isArray(row))) {
+    throw new Error("Governance read returned an invalid row.");
   }
+  return rows as Row[];
 }
 
 /**
@@ -52,7 +53,9 @@ async function read(path: string): Promise<Row[]> {
  */
 async function exists(table: string): Promise<"yes" | "no" | "unknown"> {
   try {
-    const response = await fetch(`${url()}/rest/v1/${table}?select=*&limit=1`, { headers: admin() });
+    const response = await fetch(`${url()}/rest/v1/${table}?select=*&limit=1`, {
+      headers: admin(),
+    });
     if (response.ok) return "yes";
     return response.status === 404 ? "no" : "unknown";
   } catch {
@@ -71,17 +74,17 @@ function capability(has: "yes" | "no" | "unknown", table: string, yes: string, n
 }
 
 /** A count made by the database over the whole table, or null. */
-async function countOf(path: string): Promise<number | null> {
-  try {
-    const response = await fetch(`${url()}/rest/v1/${path}&limit=1`, {
-      headers: { ...admin(), Prefer: "count=exact" },
-    });
-    if (!response.ok) return null;
-    const total = Number((response.headers.get("content-range") ?? "").split("/")[1]);
-    return Number.isFinite(total) ? total : null;
-  } catch {
-    return null;
-  }
+async function countOf(path: string): Promise<number> {
+  const response = await fetch(`${url()}/rest/v1/${path}&limit=1`, {
+    headers: { ...admin(), Prefer: "count=exact", Range: "0-0" },
+  });
+  if (!response.ok) throw new Error(`Governance count failed (${response.status}).`);
+  const range = response.headers.get("content-range") ?? "";
+  const match = range.match(/\/(\d+)$/);
+  if (!match) throw new Error("Governance count did not include an exact total.");
+  const total = Number(match[1]);
+  if (!Number.isSafeInteger(total)) throw new Error("Governance count was invalid.");
+  return total;
 }
 
 /**
@@ -89,7 +92,8 @@ async function countOf(path: string): Promise<number | null> {
  * slide being taken out of the archive, which is not a rollback.
  */
 const ROLLBACK = /rollback|revert|layout[ ._]restore/i;
-const ROLLBACK_FILTER = "or=(action.ilike.*rollback*,action.ilike.*revert*,action.ilike.*layout*restore*)";
+const ROLLBACK_FILTER =
+  "or=(action.ilike.*rollback*,action.ilike.*revert*,action.ilike.*layout*restore*)";
 
 export const Route = createFileRoute("/api/governance/console")({
   server: {
@@ -107,8 +111,17 @@ export const Route = createFileRoute("/api/governance/console")({
         const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
         const nowIso = new Date().toISOString();
 
-        const [events, versions, scheduledPublish, scheduledUnpublish, hasBackups, hasSchedules, hasApprovals, hasBulk] =
-          await Promise.all([
+        try {
+          const [
+            events,
+            versions,
+            scheduledPublish,
+            scheduledUnpublish,
+            hasBackups,
+            hasSchedules,
+            hasApprovals,
+            hasBulk,
+          ] = await Promise.all([
             read(
               "marketplace_audit_logs?select=id,action,entity_type,entity_id,actor,actor_role,actor_id," +
                 "reason,module,request_id,created_at,before_state,after_state&order=created_at.desc&limit=500",
@@ -116,128 +129,157 @@ export const Route = createFileRoute("/api/governance/console")({
             read("marketplace_product_versions?select=*&order=created_at.desc&limit=50"),
             // Only what is still to come, and only products still in the
             // catalogue: a publish date last month is history, not a schedule.
-            read(`marketplace_products?select=id,name,slug,publish_at,visible&publish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null&order=publish_at.asc&limit=100`),
-            read(`marketplace_products?select=id,name,slug,unpublish_at,visible&unpublish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null&order=unpublish_at.asc&limit=100`),
+            read(
+              `marketplace_products?select=id,name,slug,publish_at,visible&publish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null&order=publish_at.asc&limit=100`,
+            ),
+            read(
+              `marketplace_products?select=id,name,slug,unpublish_at,visible&unpublish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null&order=unpublish_at.asc&limit=100`,
+            ),
             exists("marketplace_backups"),
             exists("marketplace_schedules"),
             exists("marketplace_approvals"),
             exists("marketplace_bulk_operations"),
           ]);
 
-        // Counted by the database over the whole trail. These were counted
-        // from the newest 500 rows, so a busy week stopped at 500 and an old
-        // rollback dropped out of "Rollbacks".
-        const [todayCount, weekCount, rollbackCount, scheduledPublishCount, scheduledUnpublishCount] =
-          await Promise.all([
-            countOf(`marketplace_audit_logs?select=id&created_at=gte.${encodeURIComponent(startOfDay)}`),
-            countOf(`marketplace_audit_logs?select=id&created_at=gte.${encodeURIComponent(weekAgo)}`),
+          // Counted by the database over the whole trail. These were counted
+          // from the newest 500 rows, so a busy week stopped at 500 and an old
+          // rollback dropped out of "Rollbacks".
+          const [
+            todayCount,
+            weekCount,
+            rollbackCount,
+            scheduledPublishCount,
+            scheduledUnpublishCount,
+          ] = await Promise.all([
+            countOf(
+              `marketplace_audit_logs?select=id&created_at=gte.${encodeURIComponent(startOfDay)}`,
+            ),
+            countOf(
+              `marketplace_audit_logs?select=id&created_at=gte.${encodeURIComponent(weekAgo)}`,
+            ),
             countOf(`marketplace_audit_logs?select=id&${ROLLBACK_FILTER}`),
-            countOf(`marketplace_products?select=id&publish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null`),
-            countOf(`marketplace_products?select=id&unpublish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null`),
+            countOf(
+              `marketplace_products?select=id&publish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null`,
+            ),
+            countOf(
+              `marketplace_products?select=id&unpublish_at=gt.${encodeURIComponent(nowIso)}&deleted_at=is.null`,
+            ),
           ]);
-        const today = events.filter((e) => String(e.created_at ?? "") >= startOfDay);
-        const week = events.filter((e) => String(e.created_at ?? "") >= weekAgo);
-        const rollbacks = events.filter((e) => ROLLBACK.test(String(e.action ?? "")));
 
-        const byAction: Record<string, number> = {};
-        const byModule: Record<string, number> = {};
-        const byActor: Record<string, number> = {};
-        for (const e of events) {
-          const a = String(e.action ?? "unknown");
-          byAction[a] = (byAction[a] ?? 0) + 1;
-          const m = String(e.module ?? "unknown");
-          byModule[m] = (byModule[m] ?? 0) + 1;
-          const r = String(e.actor_role ?? "unknown");
-          byActor[r] = (byActor[r] ?? 0) + 1;
+          const byAction: Record<string, number> = {};
+          const byModule: Record<string, number> = {};
+          const byActor: Record<string, number> = {};
+          for (const e of events) {
+            const a = String(e.action ?? "unknown");
+            byAction[a] = (byAction[a] ?? 0) + 1;
+            const m = String(e.module ?? "unknown");
+            byModule[m] = (byModule[m] ?? 0) + 1;
+            const r = String(e.actor_role ?? "unknown");
+            byActor[r] = (byActor[r] ?? 0) + 1;
+          }
+
+          return Response.json({
+            ok: true,
+            timezone: timeZone,
+            metrics: {
+              events_today: todayCount,
+              events_7d: weekCount,
+              events_held: events.length,
+              // Counted from the audit trail itself: an action naming a rollback,
+              // restore or revert. Zero means none was ever recorded.
+              rollbacks: rollbackCount,
+              versions: versions.length,
+              scheduled: scheduledPublishCount + scheduledUnpublishCount,
+            },
+            activity: events.slice(0, 60).map((e) => ({
+              id: e.id,
+              action: e.action,
+              entity_type: e.entity_type,
+              entity_id: e.entity_id,
+              actor: e.actor ?? (e.actor_id ? "account" : "system"),
+              actor_role: e.actor_role ?? "system",
+              reason: e.reason,
+              module: e.module,
+              correlation_id: e.request_id,
+              created_at: e.created_at,
+              has_before: e.before_state !== null && e.before_state !== undefined,
+              has_after: e.after_state !== null && e.after_state !== undefined,
+            })),
+            breakdown: { by_action: byAction, by_module: byModule, by_actor_role: byActor },
+            versions: versions.map((v) => ({ ...v })),
+            schedules: [
+              ...scheduledPublish.map((p) => ({
+                product_id: p.id,
+                name: p.name,
+                slug: p.slug,
+                action: "publish",
+                at: p.publish_at,
+                currently_visible: p.visible,
+              })),
+              ...scheduledUnpublish.map((p) => ({
+                product_id: p.id,
+                name: p.name,
+                slug: p.slug,
+                action: "unpublish",
+                at: p.unpublish_at,
+                currently_visible: p.visible,
+              })),
+            ],
+            // What this module does not have, named rather than implied.
+            capabilities: {
+              audit_log: {
+                state: "CONNECTED",
+                detail:
+                  "marketplace_audit_logs, written by the mm_audit function every manager operation calls.",
+              },
+              immutability: {
+                state: "CONNECTED",
+                detail:
+                  "No signed-in role can change or remove an audit row - verified by attempting an update and a delete with the anon key and finding the row unchanged and the count identical. The service role bypasses row level security, as it does on every table.",
+              },
+              scheduling: {
+                state: "PARTIALLY_CONNECTED",
+                detail:
+                  "Products carry publish_at and unpublish_at and the catalogue reader honours them, so a schedule takes effect. There is no scheduler table, no job runner and no execution record, so a failed schedule cannot be reported as failed.",
+              },
+              versions: {
+                state: versions.length ? "CONNECTED" : "PARTIALLY_CONNECTED",
+                detail: versions.length
+                  ? `${versions.length} version record(s) held.`
+                  : "marketplace_product_versions exists and is empty. No product change has ever written a version, so there is nothing to diff or roll back to.",
+              },
+              backups: capability(
+                hasBackups,
+                "marketplace_backups",
+                "A backup table exists.",
+                "There is no backup system. marketplace_backups does not exist, nothing has ever taken a backup, and no restore is possible. This is reported rather than shown as a number because a backup count is what somebody relies on the day they need a restore.",
+              ),
+              approvals: capability(
+                hasApprovals,
+                "marketplace_approvals",
+                "An approvals table exists.",
+                "marketplace_approvals does not exist. Author submissions have their own approval workflow with a real state machine; this module has none of its own.",
+              ),
+              bulk_operations: capability(
+                hasBulk,
+                "marketplace_bulk_operations",
+                "A bulk operations table exists.",
+                "marketplace_bulk_operations does not exist, so a bulk run has no operation id to group its audit rows under.",
+              ),
+              schedule_table: {
+                state:
+                  hasSchedules === "unknown"
+                    ? "UNKNOWN"
+                    : hasSchedules === "yes"
+                      ? "PRESENT"
+                      : "ABSENT",
+              },
+            },
+          });
+        } catch (error) {
+          console.error("[governance] console read failed", error);
+          return Response.json({ error: "Could not read governance history." }, { status: 502 });
         }
-
-        return Response.json({
-          ok: true,
-          timezone: timeZone,
-          metrics: {
-            events_today: todayCount ?? today.length,
-            events_7d: weekCount ?? week.length,
-            events_held: events.length,
-            // Counted from the audit trail itself: an action naming a rollback,
-            // restore or revert. Zero means none was ever recorded.
-            rollbacks: rollbackCount ?? rollbacks.length,
-            versions: versions.length,
-            scheduled:
-              scheduledPublishCount !== null && scheduledUnpublishCount !== null
-                ? scheduledPublishCount + scheduledUnpublishCount
-                : scheduledPublish.length + scheduledUnpublish.length,
-          },
-          activity: events.slice(0, 60).map((e) => ({
-            id: e.id,
-            action: e.action,
-            entity_type: e.entity_type,
-            entity_id: e.entity_id,
-            actor: e.actor ?? (e.actor_id ? "account" : "system"),
-            actor_role: e.actor_role ?? "system",
-            reason: e.reason,
-            module: e.module,
-            correlation_id: e.request_id,
-            created_at: e.created_at,
-            has_before: e.before_state !== null && e.before_state !== undefined,
-            has_after: e.after_state !== null && e.after_state !== undefined,
-          })),
-          breakdown: { by_action: byAction, by_module: byModule, by_actor_role: byActor },
-          versions: versions.map((v) => ({ ...v })),
-          schedules: [
-            ...scheduledPublish.map((p) => ({
-              product_id: p.id, name: p.name, slug: p.slug,
-              action: "publish", at: p.publish_at, currently_visible: p.visible,
-            })),
-            ...scheduledUnpublish.map((p) => ({
-              product_id: p.id, name: p.name, slug: p.slug,
-              action: "unpublish", at: p.unpublish_at, currently_visible: p.visible,
-            })),
-          ],
-          // What this module does not have, named rather than implied.
-          capabilities: {
-            audit_log: {
-              state: "CONNECTED",
-              detail: "marketplace_audit_logs, written by the mm_audit function every manager operation calls.",
-            },
-            immutability: {
-              state: "CONNECTED",
-              detail:
-                "No signed-in role can change or remove an audit row - verified by attempting an update and a delete with the anon key and finding the row unchanged and the count identical. The service role bypasses row level security, as it does on every table.",
-            },
-            scheduling: {
-              state: "PARTIALLY_CONNECTED",
-              detail:
-                "Products carry publish_at and unpublish_at and the catalogue reader honours them, so a schedule takes effect. There is no scheduler table, no job runner and no execution record, so a failed schedule cannot be reported as failed.",
-            },
-            versions: {
-              state: versions.length ? "CONNECTED" : "PARTIALLY_CONNECTED",
-              detail: versions.length
-                ? `${versions.length} version record(s) held.`
-                : "marketplace_product_versions exists and is empty. No product change has ever written a version, so there is nothing to diff or roll back to.",
-            },
-            backups: capability(
-              hasBackups,
-              "marketplace_backups",
-              "A backup table exists.",
-              "There is no backup system. marketplace_backups does not exist, nothing has ever taken a backup, and no restore is possible. This is reported rather than shown as a number because a backup count is what somebody relies on the day they need a restore.",
-            ),
-            approvals: capability(
-              hasApprovals,
-              "marketplace_approvals",
-              "An approvals table exists.",
-              "marketplace_approvals does not exist. Author submissions have their own approval workflow with a real state machine; this module has none of its own.",
-            ),
-            bulk_operations: capability(
-              hasBulk,
-              "marketplace_bulk_operations",
-              "A bulk operations table exists.",
-              "marketplace_bulk_operations does not exist, so a bulk run has no operation id to group its audit rows under.",
-            ),
-            schedule_table: {
-              state: hasSchedules === "unknown" ? "UNKNOWN" : hasSchedules === "yes" ? "PRESENT" : "ABSENT",
-            },
-          },
-        });
       },
     },
   },

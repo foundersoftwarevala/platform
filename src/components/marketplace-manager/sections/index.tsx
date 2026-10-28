@@ -16,6 +16,7 @@ import { authHeaders } from "@/lib/auth/operator-fetch";
 import { useResource } from "@/lib/manager/use-resource";
 import { marketplaceRevenueSeries } from "@/lib/marketplace-manager/homepage-rows.functions";
 import { marketplaceTrendingSearches } from "@/lib/marketplace-manager/trending.functions";
+import { listRecommendationEngines } from "@/lib/marketplace-manager/rows.functions";
 import { getStorefrontChrome } from "@/lib/storefront/chrome.functions";
 // ---------- HERO BANNER MANAGER ----------
 // Real, DB-backed implementation lives in ./HeroSlidesManager.tsx
@@ -322,14 +323,75 @@ export function SearchSection() {
 
 // ---------- AI RECOMMENDATION ----------
 export function AiSection() {
+  const engines = useQuery({
+    queryKey: ["marketplace-manager", "recommendation-engines"],
+    queryFn: () => listRecommendationEngines(),
+    staleTime: 60_000,
+  });
+  const items = engines.data?.engines ?? [];
+
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
         eyebrow="AI Recommendation Manager"
         title="Recommendation Engines"
-        description="Recommendation controls are unavailable because no persisted manager configuration is connected."
+        description="Recommendation engine readiness is calculated from current VPS product and event data."
       />
-      <EmptyHint text="No recommendation settings are stored for this manager yet." />
+      {engines.isLoading && <EmptyHint text="Reading recommendation engines…" />}
+      {engines.isError && (
+        <Card className="mb-3">
+          <p className="text-sm text-destructive">Recommendation engines could not be loaded.</p>
+          <PillButton
+            variant="ghost"
+            onClick={() => void engines.refetch()}
+            disabled={engines.isFetching}
+          >
+            {engines.isFetching ? "Retrying…" : "Try again"}
+          </PillButton>
+        </Card>
+      )}
+      {!engines.isLoading && !engines.isError && items.length === 0 && (
+        <EmptyHint text="No recommendation engines are configured." />
+      )}
+      <div className="space-y-2">
+        {items.map((engine) => (
+          <Card key={engine.key}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold">{engine.title}</h2>
+                {engine.description && (
+                  <p className="mt-1 text-xs text-muted-foreground">{engine.description}</p>
+                )}
+              </div>
+              <span
+                className={`rounded-full px-2 py-1 text-[10px] font-bold ${
+                  !engine.enabled
+                    ? "bg-muted text-muted-foreground"
+                    : engine.can_run
+                      ? "bg-emerald-500/10 text-emerald-600"
+                      : "bg-warning/10 text-warning"
+                }`}
+              >
+                {!engine.enabled ? "OFF" : engine.can_run ? "READY" : "BLOCKED"}
+              </span>
+            </div>
+            {engine.needs && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Needs: {engine.needs}
+                {engine.have ? ` · Available: ${engine.have}` : ""}
+              </p>
+            )}
+            {!engine.can_run && engine.blocked_reason && (
+              <p className="mt-1 text-[11px] text-muted-foreground">{engine.blocked_reason}</p>
+            )}
+            {engine.note_is_stale && (
+              <p className="mt-1 text-[11px] text-warning">
+                The recorded blocker differs from the current data check.
+              </p>
+            )}
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
@@ -458,10 +520,7 @@ export {
 } from "./ExtraSections";
 
 // ---------- STICKY ----------
-export {
-  StickySection,
-  FooterSection as StorefrontFooterSection,
-} from "./StorefrontChrome";
+export { StickySection, FooterSection as StorefrontFooterSection } from "./StorefrontChrome";
 
 // ---------- ANALYTICS ----------
 export function AnalyticsSection() {
@@ -573,7 +632,7 @@ export function SettingsSection() {
       <PageHeader
         eyebrow="Settings"
         title="Module Settings"
-        description="Values are read from the persisted settings table above."
+        description="No Operations settings are available here because no settings registry is connected to this module."
       />
       <EmptyHint text="Only values backed by the settings table can be managed here." />
     </div>
