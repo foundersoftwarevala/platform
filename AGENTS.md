@@ -176,8 +176,10 @@ The workspace panels now explicitly use the Software Vala `--primary` and
 `--primary-glow` for their cyan/blue tint, borders and glow; only the agent
 stage/bubble/name use the selected-look accent. The browser header tabs wrap on
 narrow screens. Build, full TypeScript check, the same 9 focused UI tests and
-scoped ESLint passed after this correction. The guarded deployment remains to
-be recorded after the release is live.
+scoped ESLint passed after this correction. The guarded release was deployed
+from commit `f93702dc`; its pre-swap homepage smoke returned HTTP 200, PM2 is
+online, local homepage/AI CEO and public HTTPS return HTTP 200, and the live
+AI CEO stylesheet contains the 2:3 grid tracks and brand-token declarations.
 
 ### Applying a migration to the cloud project
 
