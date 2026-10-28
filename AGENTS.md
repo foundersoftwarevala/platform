@@ -170,6 +170,15 @@ The guarded staged deployment passed homepage smoke, PM2 is online, local and
 public routes returned HTTP 200, and the AI CEO stylesheet returned HTTP 200
 with `text/css` MIME. Unrelated existing worktree changes were excluded.
 
+Follow-up `20261028` preserves the exact 2:3 grid tracks with a `0.75rem` gap
+and avoids overriding the inherited brand `--primary` token inside the banner.
+The workspace panels now explicitly use the Software Vala `--primary` and
+`--primary-glow` for their cyan/blue tint, borders and glow; only the agent
+stage/bubble/name use the selected-look accent. The browser header tabs wrap on
+narrow screens. Build, full TypeScript check, the same 9 focused UI tests and
+scoped ESLint passed after this correction. The guarded deployment remains to
+be recorded after the release is live.
+
 ### Applying a migration to the cloud project
 
 1. Read the whole file and check its dependencies exist on the cloud project.
