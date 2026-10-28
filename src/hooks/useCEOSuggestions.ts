@@ -8,6 +8,7 @@ import {
   loadBossQueue,
   loadCeoState,
   refreshSignals,
+  reviewAIDecision,
   sendSuggestionToBoss,
 } from "@/lib/ai-ceo/ceo.functions";
 import type {
@@ -64,6 +65,7 @@ export function useCEOSuggestions() {
   const doRefresh = useServerFn(refreshSignals);
   const doSend = useServerFn(sendSuggestionToBoss);
   const doDecide = useServerFn(decideSuggestion);
+  const doReviewDecision = useServerFn(reviewAIDecision);
 
   const state = useQuery({
     queryKey: ["ai-ceo", "state"],
@@ -116,9 +118,17 @@ export function useCEOSuggestions() {
       doDecide({ data: input }),
     onSuccess: (result, input) => {
       if (result.ok) {
-        toast.success(`Suggestion ${input.decision}`, {
-          description: "The decision is recorded and the AI CEO queue is updated.",
-        });
+        toast.success(
+          input.decision === "approved"
+            ? "Approved — manual action required"
+            : "Suggestion rejected",
+          {
+            description:
+              input.decision === "approved"
+                ? `The assigned manager and executives were notified (${result.notified ?? 0}).`
+                : "The decision is recorded and the AI CEO queue is updated.",
+          },
+        );
         void invalidate();
       } else {
         toast.error("Decision not saved", {
@@ -128,6 +138,28 @@ export function useCEOSuggestions() {
     },
     onError: (error: unknown) => {
       toast.error("Decision not saved", {
+        description: error instanceof Error ? error.message : "The server refused the request.",
+      });
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: (input: {
+      id: string;
+      status: "accepted" | "deferred" | "overridden" | "escalated";
+    }) => doReviewDecision({ data: input }),
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast.success("Decision review saved");
+        void invalidate();
+      } else {
+        toast.error("Decision review not saved", {
+          description: result.error ?? "The write was refused.",
+        });
+      }
+    },
+    onError: (error: unknown) => {
+      toast.error("Decision review not saved", {
         description: error instanceof Error ? error.message : "The server refused the request.",
       });
     },
@@ -169,6 +201,14 @@ export function useCEOSuggestions() {
     [sendMutation],
   );
 
+  const reviewDecision = useCallback(
+    async (id: string, status: "accepted" | "deferred" | "overridden" | "escalated") => {
+      const result = await reviewMutation.mutateAsync({ id, status }).catch(() => null);
+      return Boolean(result?.ok);
+    },
+    [reviewMutation],
+  );
+
   const acknowledgeSuggestion = useCallback(
     async (id: string, decision: "approved" | "rejected") => {
       const result = await decideMutation.mutateAsync({ id, decision }).catch(() => null);
@@ -185,6 +225,7 @@ export function useCEOSuggestions() {
     activityEvents,
     companyHealth,
     decisions,
+    decisionCounts: data?.decisionCounts ?? null,
     /** Live sources that did not answer on this load. */
     degraded: data?.degraded ?? [],
     isLoading: state.isLoading,
@@ -201,6 +242,8 @@ export function useCEOSuggestions() {
     getBossSuggestions,
     acknowledgeSuggestion,
     isDeciding: decideMutation.isPending,
+    reviewDecision,
+    isReviewingDecision: reviewMutation.isPending,
     getObservationsByCategory,
     getEventsByType,
   };

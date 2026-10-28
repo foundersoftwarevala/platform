@@ -42,6 +42,18 @@ import { GovernedApprovals } from "./GovernedApprovals";
  * hid it.
  */
 
+const relativeTime = (value: string): string => {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "time unavailable";
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+};
+
 const getRiskStyle = (impact: CEOSuggestion["impact"]) => {
   switch (impact) {
     case "high":
@@ -55,6 +67,8 @@ const getRiskStyle = (impact: CEOSuggestion["impact"]) => {
 
 /** The engine's own steer, read from the confidence it recorded. */
 const recommendationFor = (suggestion: CEOSuggestion) => {
+  if (suggestion.confidence === null)
+    return { label: "manual review", style: "bg-accent-amber/20 text-accent-amber" };
   if (suggestion.confidence >= 90)
     return { label: "approve", style: "bg-accent-emerald/20 text-accent-emerald" };
   if (suggestion.confidence >= 80)
@@ -106,8 +120,8 @@ const AICEOApprovals = () => {
         icon: AlertTriangle,
       },
       {
-        label: "Approved",
-        count: suggestions.filter((s) => s.status === "approved").length,
+        label: "Manual action required",
+        count: suggestions.filter((s) => s.status === "manual_action_required").length,
         icon: ThumbsUp,
       },
       {
@@ -124,7 +138,7 @@ const AICEOApprovals = () => {
       <PageBanner
         icon={CheckSquare}
         title="Approvals"
-        subtitle="Suggestions the AI CEO has forwarded for a decision. Approving or rejecting here writes the decision to the database."
+        subtitle="Live incident reviews and forwarded suggestions. Automated actions run only where a verified executor exists; otherwise approval is routed for manual work."
         status={
           queueError
             ? "Queue unavailable"
@@ -221,9 +235,11 @@ const AICEOApprovals = () => {
                         <div className="flex flex-wrap items-center gap-3">
                           <span className="text-sm text-muted-foreground">Confidence:</span>
                           <div className="flex min-w-[160px] flex-1 items-center gap-2">
-                            <Progress value={suggestion.confidence} className="h-2 flex-1" />
+                            <Progress value={suggestion.confidence ?? 0} className="h-2 flex-1" />
                             <span className="text-sm font-medium text-primary-glow">
-                              {suggestion.confidence}%
+                              {suggestion.confidence === null
+                                ? "Not scored"
+                                : `${suggestion.confidence}%`}
                             </span>
                           </div>
                           <Badge className={`${recommendation.style} uppercase`}>
@@ -233,7 +249,7 @@ const AICEOApprovals = () => {
 
                         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
                           <span className="mr-auto text-xs text-muted-foreground">
-                            Raised {new Date(suggestion.createdAt).toLocaleDateString()} ·{" "}
+                            Raised {relativeTime(suggestion.createdAt)} ·{" "}
                             {suggestion.source === "seed"
                               ? "shipped with the module"
                               : suggestion.source}
@@ -273,9 +289,9 @@ const AICEOApprovals = () => {
         <div className="flex items-center gap-3">
           <Eye className="h-5 w-5 shrink-0 text-accent-emerald" aria-hidden="true" />
           <p className="text-sm text-accent-emerald/80">
-            <strong>Approval Notice:</strong> a decision made here is written to the database and
-            recorded against the suggestion. It records the decision — it does not itself carry out
-            whatever the suggestion proposes.
+            <strong>Approval Notice:</strong> approval records a manual-action requirement and
+            notifies the relevant manager and executives. The platform does not claim to execute an
+            action unless a verified executor is available.
           </p>
         </div>
       </div>

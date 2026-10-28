@@ -21,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCEOSuggestions } from "@/hooks/useCEOSuggestions";
 
@@ -91,34 +92,36 @@ const OUTCOME_LABEL: Record<string, string> = {
 };
 
 const AICEODecisionEngine = () => {
-  const { decisions, isLoading, degraded, lastRefresh } = useCEOSuggestions();
+  const {
+    decisions,
+    decisionCounts,
+    isLoading,
+    degraded,
+    lastRefresh,
+    reviewDecision,
+    isReviewingDecision,
+  } = useCEOSuggestions();
 
   const rows = useMemo(
     () =>
       decisions.map((d) => ({
         ...d,
-        verdict: outcomeToDecision(d.outcome),
+        verdict: outcomeToDecision(d.status),
       })),
     [decisions],
   );
 
-  /** Counted from the rows on screen, not typed in. */
-  const stats = useMemo(() => {
-    const tally = rows.reduce<Record<string, number>>((acc, r) => {
-      acc[r.verdict] = (acc[r.verdict] ?? 0) + 1;
-      return acc;
-    }, {});
-    return [
-      { label: "Accepted", key: "approve", icon: CheckCircle, color: "text-accent-emerald" },
-      { label: "Deferred", key: "delay", icon: Clock, color: "text-accent-amber" },
-      { label: "Overridden", key: "reject", icon: XCircle, color: "text-destructive" },
-      { label: "Escalated", key: "escalate", icon: Send, color: "text-accent-pink" },
-    ].map((s) => ({ ...s, count: tally[s.key] ?? 0 }));
-  }, [rows]);
+  const stats = [
+    { label: "Accepted", count: decisionCounts?.accepted, icon: CheckCircle, color: "text-accent-emerald" },
+    { label: "Deferred", count: decisionCounts?.deferred, icon: Clock, color: "text-accent-amber" },
+    { label: "Overridden", count: decisionCounts?.overridden, icon: XCircle, color: "text-destructive" },
+    { label: "Escalated", count: decisionCounts?.escalated, icon: Send, color: "text-accent-pink" },
+  ];
 
-  const averageConfidence = rows.length
-    ? Math.round(rows.reduce((sum, r) => sum + r.confidence, 0) / rows.length)
-    : 0;
+  const scoredRows = rows.filter((row) => row.confidence !== null);
+  const averageConfidence = scoredRows.length
+    ? Math.round(scoredRows.reduce((sum, row) => sum + (row.confidence ?? 0), 0) / scoredRows.length)
+    : null;
 
   return (
     <PageShell>
@@ -128,7 +131,7 @@ const AICEODecisionEngine = () => {
         subtitle="Every decision the platform's AI agents have recorded, with the confidence they scored and what a human did about it."
         status={
           rows.length
-            ? `${rows.length} recorded decisions · ${averageConfidence}% average confidence`
+            ? `${rows.length} recorded decisions${averageConfidence === null ? "" : ` · ${averageConfidence}% average confidence`}`
             : "No decisions recorded yet"
         }
       />
@@ -144,7 +147,7 @@ const AICEODecisionEngine = () => {
             <CardContent className="flex items-center gap-3 p-4">
               <stat.icon className={`h-5 w-5 ${stat.color}`} aria-hidden="true" />
               <div>
-                <p className="text-lg font-bold text-foreground">{stat.count}</p>
+                <p className="text-lg font-bold text-foreground">{stat.count ?? "—"}</p>
                 <p className="text-xs text-muted-foreground">{stat.label}</p>
               </div>
             </CardContent>
@@ -207,12 +210,16 @@ const AICEODecisionEngine = () => {
                       <div className="space-y-3">
                         <div className="flex items-center gap-4">
                           <span className="text-sm text-muted-foreground">AI Confidence:</span>
-                          <div className="flex flex-1 items-center gap-2">
-                            <Progress value={decision.confidence} className="h-2 flex-1" />
-                            <span className={`text-sm font-medium ${colors.text}`}>
-                              {decision.confidence.toFixed(1)}%
-                            </span>
-                          </div>
+                          {decision.confidence === null ? (
+                            <span className="text-sm text-muted-foreground">Not model-scored</span>
+                          ) : (
+                            <div className="flex flex-1 items-center gap-2">
+                              <Progress value={decision.confidence} className="h-2 flex-1" />
+                              <span className={`text-sm font-medium ${colors.text}`}>
+                                {decision.confidence.toFixed(1)}%
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {(decision.inputSummary || decision.outputSummary) && (
@@ -229,6 +236,23 @@ const AICEODecisionEngine = () => {
                               </p>
                             )}
                           </div>
+                        )}
+
+                        {decision.status === "deferred" && (
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" disabled={isReviewingDecision} onClick={() => void reviewDecision(decision.id, "accepted")}>
+                              Accept
+                            </Button>
+                            <Button size="sm" variant="outline" disabled={isReviewingDecision} onClick={() => void reviewDecision(decision.id, "overridden")}>
+                              Override
+                            </Button>
+                            <Button size="sm" variant="outline" disabled={isReviewingDecision} onClick={() => void reviewDecision(decision.id, "escalated")}>
+                              Escalate
+                            </Button>
+                          </div>
+                        )}
+                        {decision.humanAction && (
+                          <p className="text-xs text-muted-foreground">Human review: {decision.humanAction}</p>
                         )}
 
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -253,9 +277,9 @@ const AICEODecisionEngine = () => {
         <div className="flex items-center gap-3">
           <Brain className="h-5 w-5 shrink-0 text-accent-pink" aria-hidden="true" />
           <p className="text-sm text-accent-pink/80">
-            <strong>Decision Engine Notice:</strong> This is the recorded history of decisions the
-            platform's AI agents have already taken, read from ai_decision_logs. It is read-only —
-            nothing on this screen executes or reverses a decision.
+            <strong>Decision Engine Notice:</strong> These records and review actions are stored in
+            VPS PostgreSQL. Review changes status and records the executive actor; operational work
+            is not executed by this history screen.
           </p>
         </div>
       </div>

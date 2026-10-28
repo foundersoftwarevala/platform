@@ -57,6 +57,7 @@ export const loadCeoState = createServerFn({ method: "GET" }).handler(
       activityEvents,
       companyHealth,
       decisions,
+      decisionCounts,
     ] = await Promise.all([
       readSuggestions(),
       readLastRefresh(),
@@ -65,6 +66,7 @@ export const loadCeoState = createServerFn({ method: "GET" }).handler(
       signals.computeActivity(degraded),
       signals.computeDomainHealth(degraded),
       signals.loadDecisions(degraded),
+      signals.loadDecisionCounts(degraded),
     ]);
 
     return {
@@ -77,6 +79,7 @@ export const loadCeoState = createServerFn({ method: "GET" }).handler(
       activityEvents,
       companyHealth,
       decisions,
+      decisionCounts,
       degraded,
     };
   },
@@ -141,43 +144,58 @@ export const sendSuggestionToBoss = createServerFn({ method: "POST" })
 export const loadBossQueue = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ suggestions: CEOSuggestion[] }> => {
     await requireVpsExecutive();
-    const { readBossQueue } = await import("./store.server");
-    const rows = await readBossQueue();
+    const { readBossQueue, readLiveBossSuggestions } = await import("./store.server");
+    const [stored, live] = await Promise.all([readBossQueue(), readLiveBossSuggestions()]);
     return {
-      suggestions: rows
-        .filter((s) => s.status === "pending")
-        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+      suggestions: [...stored.filter((s) => s.status === "pending"), ...live]
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)),
     };
   },
 );
 
-/** Approve or reject a queued suggestion. Recorded in both places. */
+/** Approvals without a verified executor are explicitly queued for manual action. */
 export const decideSuggestion = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z
-      .object({
-        id: z.string().min(1).max(120),
-        decision: z.enum(["approved", "rejected"]),
-      })
-      .parse(input),
+    z.object({ id: z.string().min(1).max(120), decision: z.enum(["approved", "rejected"]) }).parse(input),
+  )
+  .handler(async ({ data }): Promise<{ ok: boolean; status?: CEOSuggestion["status"]; notified?: number; error?: string }> => {
+    const actorId = await requireVpsExecutive();
+    const store = await import("./store.server");
+    try {
+      if (data.id.startsWith("incident:")) {
+        return await store.decideLiveIncident(data.id.slice("incident:".length), data.decision, actorId);
+      }
+      return await store.decideBossSuggestion(data.id, data.decision, actorId);
+    } catch (error) {
+      console.error("[ai-ceo] approval decision failed:", error);
+      return { ok: false, error: "The decision and notification could not be saved" };
+    }
+  });
+
+export const reviewAIDecision = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      id: z.string().uuid(),
+      status: z.enum(["accepted", "deferred", "overridden", "escalated"]),
+    }).parse(input),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
-    await requireVpsExecutive();
-    const store = await import("./store.server");
-
-    const queue = await store.readBossQueue();
-    const next = queue.map((s) => (s.id === data.id ? { ...s, status: data.decision } : s));
-    const inQueue = queue.some((s) => s.id === data.id);
-
-    const [queueWritten, { ok: statusWritten }] = await Promise.all([
-      inQueue ? store.writeBossQueue(next) : Promise.resolve(true),
-      store.setSuggestionStatus(data.id, data.decision),
-    ]);
-
-    if (!queueWritten || !statusWritten) {
-      return { ok: false, error: "The decision could not be saved" };
+    const actorId = await requireVpsExecutive();
+    try {
+      const updated = await withVpsPublicDatabase(async (tx) => tx<{ id: string }[]>`
+        update public.ai_decision_logs
+           set status = ${data.status},
+               outcome = ${data.status},
+               human_action = ${data.status},
+               human_action_by = ${actorId}::uuid
+         where id = ${data.id}::uuid
+         returning id
+      `);
+      return updated.length ? { ok: true } : { ok: false, error: "Decision not found" };
+    } catch (error) {
+      console.error("[ai-ceo] decision review failed:", error);
+      return { ok: false, error: "Could not save the decision review" };
     }
-    return { ok: true };
   });
 
 /**

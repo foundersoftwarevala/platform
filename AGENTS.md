@@ -102,6 +102,36 @@ project was not touched. Verified pre-migration definitions and rollback
 scripts are under `/root/sv-seo-backup/phase3-audit-gate-20261028T0134Z/`
 and `/root/sv-seo-backup/phase3-audit-service-role-20261028T0134Z/`.
 
+### AI CEO healing, decisions and approvals (2026-10-28)
+
+The VPS `sv_platform` database has migrations
+`20261108T215000_ai_decision_healing_audit.sql` and
+`20261108T220000_ai_decision_pgrst_reload.sql` applied. They were verified on
+the VPS only; the Supabase cloud project was not accessed or changed. Decision
+status/human-action fields and append-only audit triggers cover Founder
+decisions, AI decision reviews, healing detections/state transitions and
+recovery attempts. The service-role-only task-rebalance RPC is not executable
+by `anon` or `authenticated`.
+
+The existing root cron `/usr/local/bin/sv-self-healing.sh` runs every five
+minutes and was verified executing successfully; the scheduler was not
+blocked. Recovery currently supports policy-limited retry for eligible
+idempotent dead-letter jobs, resume for eligible paused/blocked tasks, and
+candidate-ranked rebalance. `reroute` and `fallback_route` remain disabled
+until an approved destination map exists. Do not claim recovery succeeded
+without its post-action verification; no production incident was executed as
+a test.
+
+AI CEO approvals archive the legacy suggestions and Boss queue under
+`ai_ceo.legacy_archive.20261108` in VPS `system_settings`; originals remain in
+the archive and active legacy arrays were cleared. New live incident reviews
+are limited to eligible high/critical incidents from the prior 48 hours. An
+approval without a verified executor is recorded as `manual_action_required`,
+audited and notified to the relevant managers/executives; it is not reported
+as an executed operation. At the 2026-10-28 verification there were no eligible
+active incidents, so the live incident review path could not be exercised with
+real incident data.
+
 ### Applying a migration to the cloud project
 
 1. Read the whole file and check its dependencies exist on the cloud project.

@@ -16,7 +16,8 @@ export type SuggestionType = "growth" | "risk" | "cost" | "efficiency" | "produc
 
 export type ImpactLevel = "high" | "medium" | "low";
 
-export type SuggestionStatus = "pending" | "approved" | "rejected" | "reviewed";
+export type SuggestionStatus =
+  "pending" | "approved" | "rejected" | "reviewed" | "manual_action_required";
 
 export interface CEOSuggestion {
   id: string;
@@ -24,7 +25,7 @@ export interface CEOSuggestion {
   title: string;
   description: string;
   /** 0–100. */
-  confidence: number;
+  confidence: number | null;
   impact: ImpactLevel;
   impactArea: string;
   status: SuggestionStatus;
@@ -78,14 +79,24 @@ export interface AIDecisionRecord {
   id: string;
   occurredAt: string;
   decision: string;
-  confidence: number;
+  confidence: number | null;
   inputSummary: string | null;
   outputSummary: string | null;
   outcome: string;
+  status: "accepted" | "deferred" | "overridden" | "escalated";
+  decisionType: string | null;
+  humanAction: string | null;
   tokens: number;
   costUsd: number;
   agentName: string | null;
   modelName: string | null;
+}
+
+export interface AIDecisionCounts {
+  accepted: number;
+  deferred: number;
+  overridden: number;
+  escalated: number;
 }
 
 /** Everything the dashboard needs, resolved on the server in one call. */
@@ -140,6 +151,7 @@ export interface CEOState {
   activityEvents: ActivityEvent[];
   companyHealth: DomainHealth[];
   decisions: AIDecisionRecord[];
+  decisionCounts: AIDecisionCounts | null;
   /** Set when a source could not be read, so the UI can say so honestly. */
   degraded: string[];
 }

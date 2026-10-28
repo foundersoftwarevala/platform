@@ -3,6 +3,7 @@ import { DOMAINS, type DomainHealth } from "@/lib/founder/state.types";
 import type {
   ActivityEvent,
   AIDecisionRecord,
+  AIDecisionCounts,
   AIObservation,
   EcosystemMetrics,
   MetricSources,
@@ -454,12 +455,13 @@ export async function loadDecisions(degraded: Degraded): Promise<AIDecisionRecor
     const data = await rows<{
       id: string; occurred_at: string; decision: string; confidence: number | string;
       input_summary: string | null; output_summary: string | null; outcome: string;
+      status: AIDecisionRecord["status"]; decision_type: string | null; human_action: string | null;
       tokens: number | null; cost_usd: number | string | null;
       agent_name: string | null; model_name: string | null;
     }>(
       `select d.id, d.occurred_at, d.decision, d.confidence, d.input_summary,
-              d.output_summary, d.outcome, d.tokens, d.cost_usd,
-              a.name as agent_name, m.name as model_name
+              d.output_summary, d.outcome, d.status, d.decision_type, d.human_action,
+              d.tokens, d.cost_usd, a.name as agent_name, m.name as model_name
        from public.ai_decision_logs d
        left join public.ai_agents a on a.id = d.agent_id
        left join public.ai_models m on m.id = d.model_id
@@ -469,14 +471,43 @@ export async function loadDecisions(degraded: Degraded): Promise<AIDecisionRecor
       id: r.id,
       occurredAt: r.occurred_at,
       decision: r.decision,
-      confidence: number(r.confidence),
+      confidence:
+        r.decision_type === "live_incident_review" || r.decision_type?.startsWith("self_healing.")
+          ? null
+          : number(r.confidence),
       inputSummary: r.input_summary,
       outputSummary: r.output_summary,
       outcome: r.outcome,
+      status: r.status,
+      decisionType: r.decision_type,
+      humanAction: r.human_action,
       tokens: number(r.tokens),
       costUsd: number(r.cost_usd),
       agentName: r.agent_name,
       modelName: r.model_name,
     }));
   }, []);
+}
+
+export async function loadDecisionCounts(degraded: Degraded): Promise<AIDecisionCounts | null> {
+  return safe("ai_decision_logs.counts", degraded, async () => {
+    const [row] = await rows<{
+      accepted: number | string;
+      deferred: number | string;
+      overridden: number | string;
+      escalated: number | string;
+    }>(
+      `select count(*) filter (where status = 'accepted')::int as accepted,
+              count(*) filter (where status = 'deferred')::int as deferred,
+              count(*) filter (where status = 'overridden')::int as overridden,
+              count(*) filter (where status = 'escalated')::int as escalated
+       from public.ai_decision_logs`,
+    );
+    return {
+      accepted: number(row?.accepted),
+      deferred: number(row?.deferred),
+      overridden: number(row?.overridden),
+      escalated: number(row?.escalated),
+    };
+  }, null);
 }

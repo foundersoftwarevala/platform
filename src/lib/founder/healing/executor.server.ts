@@ -170,74 +170,218 @@ export function chooseAction(claim: ClaimedIncident, alreadyTried: string[]): st
  * recovery that claims to have worked is the worst possible outcome here,
  * because it closes the incident and the fault stays.
  */
+type ActionReceipt = {
+  result: ExecutionOutcome["result"];
+  outcome?: string;
+  error?: string;
+  scopeRows?: number;
+  scopeDescription?: string;
+  previousState?: Row;
+  reversible?: boolean;
+  verificationRef?: string;
+};
+
 async function performAction(
   action: string,
   incident: Row,
-): Promise<{ result: ExecutionOutcome["result"]; outcome?: string; error?: string }> {
+  attemptNumber: number,
+): Promise<ActionReceipt> {
   const entityType = incident.entity_type ? String(incident.entity_type) : null;
   const entityId = incident.entity_id ? String(incident.entity_id) : null;
 
   switch (action) {
     case "backoff": {
-      // A real action with a real effect: the incident is not retried until
-      // the delay has passed, which is what backoff means here.
       const delaySeconds = Math.min(300, 30 * Math.max(1, Number(incident.attempts ?? 1)));
       await patch("founder_incidents", `id=eq.${String(incident.id)}`, {
         next_attempt_at: new Date(Date.now() + delaySeconds * 1000).toISOString(),
       });
-      return { result: "SUCCEEDED", outcome: `next attempt deferred by ${delaySeconds}s` };
+      return {
+        result: "SUCCEEDED",
+        outcome: `next attempt deferred by ${delaySeconds}s`,
+        scopeRows: 1,
+        scopeDescription: "one self-healing incident retry schedule",
+        previousState: { next_attempt_at: incident.next_attempt_at ?? null },
+        reversible: true,
+      };
     }
 
     case "reassign": {
-      // Reassignment is only meaningful for work that has an owner. It goes
-      // through the ordinary task path, so the task engine's own transition
-      // guard and audit apply.
       if (entityType !== "tm_tasks" || !entityId) {
         return {
           result: "INCONCLUSIVE",
-          error: "reassignment applies to a task, and this incident names none",
+          error: "reassignment requires an incident linked to a task",
         };
       }
-      const task = await rows(`tm_tasks?select=id,status,assigned_to&id=eq.${entityId}&limit=1`);
-      if (!task[0]) {
+      const [task] = await rows(`tm_tasks?select=id,status,assigned_to&id=eq.${entityId}&limit=1`);
+      if (!task)
         return {
           result: "INCONCLUSIVE",
           error: "the task named by this incident no longer exists",
         };
-      }
+      if (task.assigned_to === null)
+        return { result: "INCONCLUSIVE", error: "the task is already unassigned" };
       await patch("tm_tasks", `id=eq.${entityId}`, { assigned_to: null });
-      return { result: "SUCCEEDED", outcome: "the task was released for reassignment" };
+      return {
+        result: "SUCCEEDED",
+        outcome: "the task was released for reassignment",
+        scopeRows: 1,
+        scopeDescription: "one task assignment",
+        previousState: { status: task.status, assigned_to: task.assigned_to },
+        reversible: true,
+      };
     }
 
     case "reduce_concurrency": {
-      // Real and reversible: the agent that is struggling takes less at once.
       if (entityType !== "ai_agents" || !entityId) {
         return {
           result: "INCONCLUSIVE",
-          error: "reducing concurrency applies to an agent, and this incident names none",
+          error: "reducing concurrency requires an incident linked to an agent",
         };
       }
-      const agent = await rows(`ai_agents?select=id,max_concurrent&id=eq.${entityId}&limit=1`);
-      const current = Number(agent[0]?.max_concurrent ?? 1);
-      if (current <= 1) {
+      const [agent] = await rows(`ai_agents?select=id,max_concurrent&id=eq.${entityId}&limit=1`);
+      if (!agent)
+        return {
+          result: "INCONCLUSIVE",
+          error: "the agent named by this incident no longer exists",
+        };
+      const current = Number(agent.max_concurrent ?? 1);
+      if (current <= 1)
         return { result: "INCONCLUSIVE", error: "the agent is already at the minimum of one" };
-      }
       const reduced = Math.max(1, Math.floor(current / 2));
       await patch("ai_agents", `id=eq.${entityId}`, { max_concurrent: reduced });
-      return { result: "SUCCEEDED", outcome: `concurrency reduced from ${current} to ${reduced}` };
+      return {
+        result: "SUCCEEDED",
+        outcome: `concurrency reduced from ${current} to ${reduced}`,
+        scopeRows: 1,
+        scopeDescription: "one agent concurrency limit",
+        previousState: { max_concurrent: current },
+        reversible: true,
+      };
     }
 
-    case "retry":
+    case "retry": {
+      if (entityType !== "fa_jobs" || !entityId) {
+        return {
+          result: "INCONCLUSIVE",
+          error: "retry requires an incident linked to a failed Founder AI job",
+        };
+      }
+      const [job] = await rows(
+        `fa_jobs?select=id,job_type,payload,reference,priority,max_attempts,status,last_error_class,idempotency_key,correlation_id&id=eq.${entityId}&limit=1`,
+      );
+      if (!job)
+        return { result: "INCONCLUSIVE", error: "the job named by this incident no longer exists" };
+      const retryable = ["transient", "rate_limit", "timeout"].includes(
+        String(job.last_error_class ?? ""),
+      );
+      if (job.status !== "dead_letter" || !retryable) {
+        return {
+          result: "INCONCLUSIVE",
+          error:
+            "only dead-letter jobs with transient, rate-limit, or timeout errors may be retried",
+        };
+      }
+      if (typeof job.idempotency_key !== "string" || !job.idempotency_key) {
+        return { result: "INCONCLUSIVE", error: "the failed job has no idempotency key" };
+      }
+      const retried = await rpc("fa_enqueue", {
+        p_job_type: String(job.job_type),
+        p_payload: job.payload ?? {},
+        p_reference: job.reference ?? String(job.id),
+        p_priority: Number(job.priority ?? 100),
+        p_max_attempts: Number(job.max_attempts ?? 5),
+        p_run_after: new Date().toISOString(),
+        p_idempotency_key: `${job.idempotency_key}:healing:${incident.id}:${attemptNumber}`,
+        p_correlation_id: job.correlation_id ?? null,
+      });
+      const accepted = retried[0];
+      if (accepted?.ok !== true || !accepted.job_id) {
+        return {
+          result: "FAILED",
+          error: `the Founder AI queue rejected the retry: ${String(accepted?.reason ?? "unknown reason")}`,
+        };
+      }
+      return {
+        result: "SUCCEEDED",
+        outcome:
+          accepted.duplicate === true
+            ? "an equivalent retry was already queued"
+            : "a retry job was queued",
+        scopeRows: 1,
+        scopeDescription: "one retry job for a dead-lettered Founder AI task",
+        previousState: {
+          job_id: job.id,
+          status: job.status,
+          last_error_class: job.last_error_class,
+        },
+        reversible: false,
+        verificationRef: String(accepted.job_id),
+      };
+    }
+
+    case "resume": {
+      if (entityType !== "tm_tasks" || !entityId) {
+        return { result: "INCONCLUSIVE", error: "resume requires an incident linked to a task" };
+      }
+      const [task] = await rows(`tm_tasks?select=id,status&id=eq.${entityId}&limit=1`);
+      if (!task)
+        return {
+          result: "INCONCLUSIVE",
+          error: "the task named by this incident no longer exists",
+        };
+      if (task.status !== "on_hold" && task.status !== "blocked") {
+        return {
+          result: "INCONCLUSIVE",
+          error: `task status ${String(task.status)} is not resumable`,
+        };
+      }
+      await patch("tm_tasks", `id=eq.${entityId}`, { status: "in_progress" });
+      return {
+        result: "SUCCEEDED",
+        outcome: `task resumed from ${String(task.status)}`,
+        scopeRows: 1,
+        scopeDescription: "one paused task status",
+        previousState: { status: task.status },
+        reversible: false,
+      };
+    }
+
+    case "rebalance": {
+      if (entityType !== "tm_tasks" || !entityId) {
+        return { result: "INCONCLUSIVE", error: "rebalance requires an incident linked to a task" };
+      }
+      const [task] = await rows(
+        `tm_tasks?select=id,status,assigned_role&id=eq.${entityId}&limit=1`,
+      );
+      if (!task)
+        return {
+          result: "INCONCLUSIVE",
+          error: "the task named by this incident no longer exists",
+        };
+      const routed = await rpc("founder_healing_rebalance_task", { p_task_id: entityId });
+      const result = routed[0];
+      if (result?.ok !== true || typeof result.role !== "string") {
+        return {
+          result: "INCONCLUSIVE",
+          error: `task rebalance was not performed: ${String(result?.reason ?? "unknown reason")}`,
+        };
+      }
+      return {
+        result: "SUCCEEDED",
+        outcome: `task routed to ${result.role} (${String(result.load_percent)}% load)`,
+        scopeRows: 1,
+        scopeDescription: "one eligible task role assignment",
+        previousState: { status: task.status, assigned_role: task.assigned_role ?? null },
+        reversible: true,
+        verificationRef: result.role,
+      };
+    }
+
     case "reroute":
     case "fallback_route":
-    case "rebalance":
-    case "resume":
-      // These need the system that owns the failing operation to re-run it.
-      // Nothing here can do that on its own, and saying so leaves the
-      // incident open, which is the honest outcome.
       return {
         result: "INCONCLUSIVE",
-        error: `${action} requires the owning system to re-run the operation; no such caller is wired yet`,
+        error: `${action} remains disabled because no approved traffic or provider target mapping exists`,
       };
 
     default:
@@ -245,43 +389,33 @@ async function performAction(
   }
 }
 
-/**
- * Check whether the action actually fixed anything.
- *
- * This is separate from whether the action succeeded, and that separation is
- * the entire point of the engine. Where the platform cannot check, this
- * returns unverified with the reason — which keeps the incident open.
- */
 async function verify(
   action: string,
   incident: Row,
+  receipt: ActionReceipt,
 ): Promise<{ verified: boolean; detail: string }> {
   const entityType = incident.entity_type ? String(incident.entity_type) : null;
   const entityId = incident.entity_id ? String(incident.entity_id) : null;
 
   if (action === "reduce_concurrency" && entityType === "ai_agents" && entityId) {
-    const agent = await rows(
-      `ai_agents?select=max_concurrent,blocked_reason&id=eq.${entityId}&limit=1`,
-    );
-    const row = agent[0];
-    if (!row) return { verified: false, detail: "the agent could not be read back" };
+    const [agent] = await rows(`ai_agents?select=max_concurrent&id=eq.${entityId}&limit=1`);
+    if (!agent) return { verified: false, detail: "the agent could not be read back" };
     const open = await rows(
       `ai_agent_runs?select=id&agent_id=eq.${entityId}&state=in.(RUNNING,WAITING)&limit=50`,
-    ).catch(() => [] as Row[]);
-    const within = open.length <= Number(row.max_concurrent ?? 1);
+    );
+    const within = open.length <= Number(agent.max_concurrent ?? 1);
     return {
       verified: within,
       detail: within
-        ? `${open.length} run(s) in flight against a ceiling of ${row.max_concurrent}`
-        : `${open.length} run(s) still exceed the reduced ceiling of ${row.max_concurrent}`,
+        ? `${open.length} run(s) in flight against a ceiling of ${agent.max_concurrent}`
+        : `${open.length} run(s) still exceed the reduced ceiling of ${agent.max_concurrent}`,
     };
   }
 
   if (action === "reassign" && entityType === "tm_tasks" && entityId) {
-    const task = await rows(`tm_tasks?select=assigned_to,status&id=eq.${entityId}&limit=1`);
-    const row = task[0];
-    if (!row) return { verified: false, detail: "the task could not be read back" };
-    const released = row.assigned_to === null;
+    const [task] = await rows(`tm_tasks?select=assigned_to&id=eq.${entityId}&limit=1`);
+    if (!task) return { verified: false, detail: "the task could not be read back" };
+    const released = task.assigned_to === null;
     return {
       verified: released,
       detail: released
@@ -290,9 +424,41 @@ async function verify(
     };
   }
 
+  if (action === "retry" && receipt.verificationRef) {
+    const [job] = await rows(`fa_jobs?select=id,status&id=eq.${receipt.verificationRef}&limit=1`);
+    const queued =
+      job && ["queued", "running", "retrying", "completed"].includes(String(job.status));
+    return {
+      verified: Boolean(queued),
+      detail: queued
+        ? `retry job is ${String(job.status)}`
+        : "the retry job is not present in the queue",
+    };
+  }
+
+  if (action === "resume" && entityType === "tm_tasks" && entityId) {
+    const [task] = await rows(`tm_tasks?select=status&id=eq.${entityId}&limit=1`);
+    const resumed = task?.status === "in_progress";
+    return {
+      verified: Boolean(resumed),
+      detail: resumed
+        ? "the task is in progress"
+        : `the task is ${String(task?.status ?? "unavailable")}`,
+    };
+  }
+
+  if (action === "rebalance" && entityType === "tm_tasks" && entityId && receipt.verificationRef) {
+    const [task] = await rows(`tm_tasks?select=assigned_role&id=eq.${entityId}&limit=1`);
+    const routed = task?.assigned_role === receipt.verificationRef;
+    return {
+      verified: Boolean(routed),
+      detail: routed
+        ? `the task is routed to ${receipt.verificationRef}`
+        : "the new task route was not retained",
+    };
+  }
+
   if (action === "backoff") {
-    // Deferring a retry is not a repair. It buys time, and calling it a
-    // verified recovery would resolve an incident that is still broken.
     return {
       verified: false,
       detail: "backoff defers the next attempt; it does not establish that the fault is gone",
@@ -327,7 +493,7 @@ export async function executeOne(worker: string): Promise<ExecutionOutcome | nul
 
   const priorAttempts = await rows(
     `founder_recovery_attempts?select=action,attempt_number&incident_id=eq.${claim.incidentId}`,
-  ).catch(() => [] as Row[]);
+  );
   const tried = priorAttempts.map((a) => String(a.action));
   const attemptNumber = priorAttempts.length + 1;
 
@@ -372,17 +538,40 @@ export async function executeOne(worker: string): Promise<ExecutionOutcome | nul
   // acting again when it restarts: the insert is refused rather than repeated.
   const idempotencyKey = `${claim.incidentId}:${action}:${attemptNumber}`;
 
-  // Typed explicitly so the catch branch has the same shape as the success
-  // one; otherwise the union loses `outcome` and the failure path silently
-  // becomes the only thing the compiler knows about.
-  type ActionResult = {
-    result: ExecutionOutcome["result"];
-    outcome?: string;
-    error?: string;
-  };
+  const decisionSourceKey = `self_healing:${claim.incidentId}:${action}:${attemptNumber}`;
+  const existingDecision = await rows(
+    `ai_decision_logs?select=id&source_key=eq.${encodeURIComponent(decisionSourceKey)}&limit=1`,
+  );
+  if (existingDecision[0]) {
+    await patch("founder_incidents", `id=eq.${claim.incidentId}`, {
+      state: "RETRY_PENDING",
+      locked_by: null,
+      locked_at: null,
+    });
+    return {
+      acted: false,
+      action,
+      result: "ABANDONED",
+      verified: false,
+      incidentState: "RETRY_PENDING",
+      reason:
+        "a matching decision record exists without a recorded recovery attempt; manual review is required",
+    };
+  }
 
-  const performed: ActionResult = await performAction(action, incident).catch(
-    (error): ActionResult => ({
+  await insert("ai_decision_logs", {
+    decision: `Self-healing ${action}: ${String(incident.title ?? claim.incidentId)}`,
+    confidence: 0,
+    input_summary: `incident=${claim.incidentId}; failure_class=${claim.failureClass}; attempt=${attemptNumber}`,
+    output_summary: `Policy-authorized ${action} action is being evaluated; confidence is not model-generated.`,
+    outcome: "deferred",
+    decision_type: `self_healing.${action}`,
+    status: "deferred",
+    source_key: decisionSourceKey,
+  });
+
+  const performed: ActionReceipt = await performAction(action, incident, attemptNumber).catch(
+    (error): ActionReceipt => ({
       result: "FAILED",
       error: error instanceof Error ? error.message.slice(0, 300) : String(error),
     }),
@@ -390,9 +579,9 @@ export async function executeOne(worker: string): Promise<ExecutionOutcome | nul
 
   const checked =
     performed.result === "SUCCEEDED"
-      ? await verify(action, incident).catch(() => ({
+      ? await verify(action, incident, performed).catch((error) => ({
           verified: false,
-          detail: "the verification check itself failed",
+          detail: `verification failed: ${error instanceof Error ? error.message.slice(0, 200) : String(error)}`,
         }))
       : { verified: false, detail: "the action did not succeed, so nothing was verified" };
 
@@ -408,10 +597,14 @@ export async function executeOne(worker: string): Promise<ExecutionOutcome | nul
       idempotency_key: idempotencyKey,
       executed_by: worker,
       verified: checked.verified,
-      verification_method: checked.verified ? claim.verificationMethod : null,
-      verification_detail: checked.verified ? checked.detail : null,
+      verification_method: performed.result === "SUCCEEDED" ? claim.verificationMethod : null,
+      verification_detail: checked.detail,
       verified_at: checked.verified ? new Date().toISOString() : null,
       finished_at: new Date().toISOString(),
+      scope_rows: performed.scopeRows ?? 0,
+      scope_description: performed.scopeDescription ?? null,
+      previous_state: performed.previousState ?? null,
+      reversible: performed.reversible ?? null,
     });
   } catch (error) {
     // A refused insert is the guard doing its job — a duplicate, a forbidden
@@ -430,6 +623,21 @@ export async function executeOne(worker: string): Promise<ExecutionOutcome | nul
       reason: error instanceof Error ? error.message.slice(0, 200) : String(error),
     };
   }
+
+  const decisionStatus =
+    performed.result === "FAILED" ? "escalated" : checked.verified ? "accepted" : "deferred";
+  const decisionSummary = [
+    `Action result: ${performed.result}.`,
+    performed.outcome ?? performed.error ?? "No outcome detail was returned.",
+    checked.detail,
+  ]
+    .join(" ")
+    .slice(0, 2000);
+  await patch("ai_decision_logs", `source_key=eq.${encodeURIComponent(decisionSourceKey)}`, {
+    status: decisionStatus,
+    outcome: decisionStatus,
+    output_summary: decisionSummary,
+  });
 
   const attemptRows = await rows(
     `founder_recovery_attempts?select=id&idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&limit=1`,

@@ -39,10 +39,8 @@ import { useTranslation } from "@/lib/i18n/use-translation";
  * and unverified attempts are drawn differently everywhere they appear,
  * since the whole engine exists to keep those apart.
  *
- * The scheduler row says BLOCKED and stays saying it. The engine can decide
- * and verify recoveries, but nothing runs them on a schedule yet, and a
- * dashboard that showed the engine as healthy while nothing was scheduled
- * would be the most expensive lie here.
+ * The scheduler is installed on the VPS and the worker has recent successful
+ * runs. Traffic rerouting remains unavailable until an approved target map exists.
  */
 
 /** Status of each part of the engine, as evidence supports — not as hoped. */
@@ -60,12 +58,12 @@ const ENGINE_PARTS: {
   { key: "ceo.heal_part_override", status: "VERIFIED" },
   { key: "ceo.heal_part_audit", status: "VERIFIED" },
   { key: "ceo.heal_part_actions", status: "PARTIAL" },
-  { key: "ceo.heal_part_scheduler", status: "BLOCKED" },
+  { key: "ceo.heal_part_scheduler", status: "VERIFIED" },
 ];
 
-/** The three that genuinely act, and the five that do not exist yet. */
-const REAL_ACTIONS = ["reduce_concurrency", "reassign", "backoff"];
-const UNAVAILABLE_ACTIONS = ["retry", "reroute", "fallback_route", "rebalance", "resume"];
+/** Actions with bounded implementations; routing still needs an approved target map. */
+const REAL_ACTIONS = ["reduce_concurrency", "reassign", "backoff", "retry", "rebalance", "resume"];
+const UNAVAILABLE_ACTIONS = ["reroute", "fallback_route"];
 
 const statusStyle = (status: string): string => {
   switch (status) {
@@ -271,7 +269,7 @@ const AICEOHealing = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* What is proven and what is not. The scheduler stays BLOCKED. */}
+        {/* What is verified on the VPS and what remains unavailable. */}
         <Card className="card3d premium-halo hover-lift shimmer-sweep enter-soft rounded-2xl">
           <CardHeader className="pb-3">
             <CardTitle className="text-foreground flex items-center gap-2">
@@ -291,7 +289,7 @@ const AICEOHealing = () => {
                 </div>
               ))}
             </div>
-            {/* Named as a status, never as a credential or a path. */}
+            {/* The scheduler's verified state is based on the installed VPS cron and worker runs. */}
             <p className="mt-3 text-[11px] text-muted-foreground">{t("ceo.heal_scheduler_note")}</p>
           </CardContent>
         </Card>
