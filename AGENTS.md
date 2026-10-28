@@ -191,6 +191,22 @@ AI CEO stylesheet contains the new rules. The unauthenticated browser route
 remained at its workspace-access check, so authenticated visual acceptance was
 not claimed. Existing unrelated worktree changes were excluded.
 
+Follow-up release `109a2eb0` sets a fixed desktop grid row and top alignment;
+the workspace and browser panel fill that row so the browser panel matches the
+agent image height. The separate activity card and face-covering reply/status
+overlays were removed; conversation steps now render as a high-contrast sidebar
+indicator above the AYRA look strip. The browser has one compact integrated
+toolbar with functional Browser, Automate, Screenshot and Download controls;
+decorative browser chrome controls were removed. The connected-account notice
+remains in the toolbar. Build and full TypeScript check passed, 7 focused tests
+passed, and scoped lint passed with the existing Prettier rule disabled. The
+guarded staged deploy passed its homepage smoke and live checks; PM2 is online,
+local/public routes return HTTP 200, and live AI CEO CSS/JS assets contain the
+new layout and UI. Authenticated screenshot acceptance was unavailable because
+the AI CEO route remained behind its workspace access check. The access-notice
+preservation is in follow-up `010bfdd2`; unrelated worktree changes were kept
+out of both releases.
+
 ### Applying a migration to the cloud project
 
 1. Read the whole file and check its dependencies exist on the cloud project.
