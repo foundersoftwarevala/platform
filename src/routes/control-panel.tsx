@@ -55,7 +55,12 @@ import { ExecutiveRotator } from "@/components/command-center/ExecutiveRotator";
 
 import { KPIGrid, KPIBox } from "@/components/boss/KPIGrid";
 import { supabase } from "@/integrations/supabase/client";
-import { cockpitTiles, relative, type Tile } from "@/lib/control-panel/cockpit";
+import {
+  cockpitLoadLabel,
+  cockpitTiles,
+  relative,
+  type Tile,
+} from "@/lib/control-panel/cockpit";
 import { useCockpitFigures } from "@/lib/control-panel/use-cockpit";
 import { ValaAiAgent } from "@/components/vala-ai/ValaAiAgent";
 
@@ -147,7 +152,7 @@ const KPI_BOXES: Kpi[] = [
   { id: "wallet", label: "Wallet Balance", icon: Wallet, source: "Finance" },
   { id: "inflow", label: "Monthly Inflow", icon: TrendingUp, source: "Finance" },
   { id: "outflow", label: "Monthly Outflow", icon: TrendingDown, source: "Finance" },
-  { id: "net-profit", label: "Net Profit", icon: PiggyBank, source: "Finance" },
+  { id: "net-profit", label: "Net Cash Movement (MTD)", icon: PiggyBank, source: "Finance" },
   // ALERTS
   { id: "alerts", label: "Alert Summary", icon: AlertTriangle, source: "Alerts" },
 ];
@@ -184,6 +189,13 @@ function Index() {
   const cockpit = useCockpitFigures();
   const tiles: Record<string, Tile> | null = cockpit.data ? cockpitTiles(cockpit.data) : null;
   const updated = cockpit.data ? relative(cockpit.data.computed_at) : null;
+  const cockpitLabel = cockpitLoadLabel({
+    isError: cockpit.isError,
+    isLoading: cockpit.isLoading,
+    isFetching: cockpit.isFetching,
+    hasData: Boolean(cockpit.data),
+  });
+  const cockpitLive = cockpitLabel === "LIVE";
 
   return (
     <TooltipProvider>
@@ -352,9 +364,21 @@ function Index() {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground/70">
                 Master KPI Grid — 2 × 20 (40 Cards)
               </h2>
-              <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                LIVE
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                  cockpit.isError
+                    ? "border-red-500/25 bg-red-500/10 text-red-300"
+                    : cockpitLive
+                      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-400"
+                      : "border-amber-500/25 bg-amber-500/10 text-amber-300"
+                }`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    cockpitLive ? "animate-pulse bg-emerald-400" : "bg-current"
+                  }`}
+                />
+                {cockpitLabel}
               </span>
             </div>
             {cockpit.isError && (

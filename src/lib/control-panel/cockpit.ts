@@ -25,6 +25,18 @@ export const COCKPIT_ROLES = [
   "owner",
 ] as const;
 
+export function cockpitLoadLabel(state: {
+  isError: boolean;
+  isLoading: boolean;
+  isFetching: boolean;
+  hasData: boolean;
+}): "LIVE" | "LOADING" | "UPDATING" | "UNAVAILABLE" {
+  if (state.isError) return "UNAVAILABLE";
+  if (state.isLoading) return "LOADING";
+  if (state.isFetching) return "UPDATING";
+  return state.hasData ? "LIVE" : "UNAVAILABLE";
+}
+
 type Money = Record<string, number>;
 
 export type CockpitFigures = {

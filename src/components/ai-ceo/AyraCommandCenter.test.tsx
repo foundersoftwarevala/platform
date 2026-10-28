@@ -6,41 +6,19 @@ import { AyraCommandCenter } from "./AyraCommandCenter";
 afterEach(() => cleanup());
 
 describe("AYRA Command Center", () => {
-  it("requires the demo PIN and keeps local grants when the drawer is reopened", () => {
-    const onClose = vi.fn();
-    const { rerender } = render(<AyraCommandCenter open onClose={onClose} />);
+  it("explains that Control Panel roles govern access and exposes no local grant controls", () => {
+    render(<AyraCommandCenter open onClose={vi.fn()} />);
 
     expect(screen.getByRole("dialog", { name: "AYRA COMMAND CENTER" })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Command Center PIN"), {
-      target: { value: "0000" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
-    expect(screen.getByRole("alert").textContent).toBe("Incorrect demo PIN.");
-    expect(screen.queryByRole("switch")).toBeNull();
-
-    fireEvent.change(screen.getByLabelText("Command Center PIN"), {
-      target: { value: "1234" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
-
-    const codingGrant = screen.getAllByRole("switch", {
-      name: "Franchise: Allow System Coding (VS Code)",
-    })[0];
-    if (!codingGrant) throw new Error("Franchise coding grant switch was not rendered.");
-    fireEvent.click(codingGrant);
-    expect(codingGrant.getAttribute("data-state")).toBe("checked");
-
-    rerender(<AyraCommandCenter open={false} onClose={onClose} />);
-    rerender(<AyraCommandCenter open onClose={onClose} />);
-
     expect(
-      screen
-        .getAllByRole("switch", { name: "Franchise: Allow System Coding (VS Code)" })[0]
-        .getAttribute("data-state"),
-    ).toBe("checked");
-    expect(
-      screen.getByText(/do not change VPS permissions or grant access to tools/i),
+      screen.getByText(
+        /Actual access is governed by the signed-in account's Control Panel roles and server-side authorization/i,
+      ),
     ).toBeTruthy();
+    expect(screen.getByText(/cannot assign roles or grant permissions/i)).toBeTruthy();
+    expect(screen.queryByLabelText("Command Center PIN")).toBeNull();
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Select role" })).toBeNull();
   });
 
   it("closes from the close button and Escape key", () => {

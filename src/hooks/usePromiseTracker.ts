@@ -883,15 +883,23 @@ export function useDismissInsight() {
   );
 }
 
+export function countOverduePromises(
+  promises: readonly { status: string; deadline: string }[],
+  nowMs: number,
+): number {
+  return promises.filter(
+    (promise) => promise.status !== "fulfilled" && new Date(promise.deadline).getTime() < nowMs,
+  ).length;
+}
+
 export function useTrackerMetrics() {
   const { data: promises = [], isLoading } = usePromises();
+  const now = useTicker(30_000);
 
   const metrics = useMemo(() => {
-    const now = Date.now();
+    const nowMs = now.getTime();
     const byStatus = (status: string) => promises.filter((p) => p.status === status);
-    const overdue = promises.filter(
-      (p) => !["fulfilled"].includes(p.status) && new Date(p.deadline).getTime() < now,
-    );
+    const overdue = countOverduePromises(promises, nowMs);
     const fulfilled = byStatus("fulfilled");
     const onTime = fulfilled.filter(
       (p) => p.fulfilled_at && new Date(p.fulfilled_at) <= new Date(p.deadline),
@@ -904,12 +912,12 @@ export function useTrackerMetrics() {
       broken: byStatus("broken").length,
       fulfilled: fulfilled.length,
       escalated: promises.filter((p) => p.escalation_level > 0 && p.status !== "fulfilled").length,
-      overdue: overdue.length,
+      overdue,
       totalFines: promises.reduce((sum, p) => sum + Number(p.fine_amount), 0),
       totalTips: promises.reduce((sum, p) => sum + Number(p.tip_amount), 0),
       onTimeRate: fulfilled.length ? Math.round((onTime.length / fulfilled.length) * 100) : 0,
     };
-  }, [promises]);
+  }, [promises, now]);
 
   return { metrics, promises, isLoading };
 }

@@ -156,7 +156,11 @@ const TERMINAL: TMTaskStatus[] = ["completed", "cancelled", "approved", "closed"
 /**
  * Derives live SLA state from the task's real timestamps. No mock values.
  */
-export function computeSLA(task: Pick<TMTask, "status" | "created_at" | "promised_at" | "deadline" | "completed_at" | "sla_hours">, warningPercent = 75): SLAInfo {
+export function computeSLAAt(
+  task: Pick<TMTask, "status" | "created_at" | "promised_at" | "deadline" | "completed_at" | "sla_hours">,
+  warningPercent: number,
+  nowMs: number,
+): SLAInfo {
   const target = task.deadline ?? task.promised_at;
   if (!target) {
     return {
@@ -170,7 +174,9 @@ export function computeSLA(task: Pick<TMTask, "status" | "created_at" | "promise
 
   const start = new Date(task.created_at).getTime();
   const end = new Date(target).getTime();
-  const now = TERMINAL.includes(task.status) && task.completed_at ? new Date(task.completed_at).getTime() : Date.now();
+  const now = TERMINAL.includes(task.status) && task.completed_at
+    ? new Date(task.completed_at).getTime()
+    : nowMs;
   const window = Math.max(end - start, 60_000);
   const percent = Math.round(((now - start) / window) * 100);
   const minutesRemaining = Math.round((end - now) / 60000);
@@ -213,6 +219,13 @@ export function computeSLA(task: Pick<TMTask, "status" | "created_at" | "promise
     label: `${formatMinutes(minutesRemaining)} left`,
     className: "text-success",
   };
+}
+
+export function computeSLA(
+  task: Pick<TMTask, "status" | "created_at" | "promised_at" | "deadline" | "completed_at" | "sla_hours">,
+  warningPercent = 75,
+): SLAInfo {
+  return computeSLAAt(task, warningPercent, Date.now());
 }
 
 export function isOverdue(task: Pick<TMTask, "status" | "created_at" | "promised_at" | "deadline" | "completed_at" | "sla_hours">): boolean {

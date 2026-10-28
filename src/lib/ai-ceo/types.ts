@@ -71,6 +71,8 @@ export interface ActivityEvent {
   actor: string;
   action: string;
   target: string;
+  /** Original timestamp, retained for sorting across sources. */
+  occurredAt: string;
   timestamp: string;
   impact: "positive" | "negative" | "neutral";
 }

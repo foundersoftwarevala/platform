@@ -334,6 +334,7 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
         actor: "Marketplace",
         action: `Order ${r.status}`,
         target: `${r.currency ?? "USD"} ${Number(r.total).toLocaleString()}`,
+        occurredAt: r.created_at,
         timestamp: relativeTime(r.created_at),
         impact: r.status === "paid" ? "positive" : r.status === "refunded" ? "negative" : "neutral",
       });
@@ -361,6 +362,7 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
         actor: r.actor,
         action: r.action.replace(/[._]/g, " "),
         target: r.entity_id ?? r.entity_type,
+        occurredAt: r.occurred_at,
         timestamp: relativeTime(r.occurred_at),
         impact: r.severity === "critical" ? "negative" : "neutral",
       });
@@ -386,6 +388,7 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
         actor: r.customer_name,
         action: `${r.reference} ${r.status.replace(/_/g, " ")}`,
         target: r.subject,
+        occurredAt: r.created_at,
         timestamp: relativeTime(r.created_at),
         impact: r.sla_breached || r.priority === "critical"
           ? "negative"
@@ -415,6 +418,7 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
         actor: String(r.source).replace(/_/g, " "),
         action: `Lead ${String(r.status).replace(/_/g, " ")}`,
         target: r.company ?? r.name,
+        occurredAt: r.created_at,
         timestamp: relativeTime(r.created_at),
         impact: /won|qualified|converted/i.test(r.status)
           ? "positive"
@@ -426,8 +430,34 @@ export async function computeActivity(degraded: Degraded): Promise<ActivityEvent
     return null;
   }, null);
 
+  await safe("ai_agent_runs.feed", degraded, async () => {
+    const { data, error } = await supabaseAdmin.rpc("ai_agent_activity_24h" as never);
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as {
+      agent_id: string;
+      agent_name: string;
+      action: string;
+      state: string;
+      run_count: number | string;
+      latest_started_at: string;
+    }[]) {
+      const state = row.state.toUpperCase();
+      out.push({
+        id: `agent-run-${row.agent_id}-${row.action}-${state}`,
+        type: "operations",
+        actor: row.agent_name,
+        action: row.action,
+        target: `${state} · ${Number(row.run_count)} runs`,
+        occurredAt: row.latest_started_at,
+        timestamp: relativeTime(row.latest_started_at),
+        impact: state === "FAILED" ? "negative" : state === "COMPLETED" ? "positive" : "neutral",
+      });
+    }
+    return null;
+  }, null);
+
   // Newest first across every source, by the recorded time rather than by table.
-  return out.slice(0, 40);
+  return out.sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt)).slice(0, 40);
 }
 
 export async function loadDecisions(degraded: Degraded): Promise<AIDecisionRecord[]> {

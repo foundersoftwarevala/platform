@@ -233,6 +233,16 @@ describe("the same problem does not fill the queue", () => {
     expect(lookup?.path).toContain("status=in.(NEW,ACKNOWLEDGED,IN_PROGRESS)");
   });
 
+  it("includes entity type when correlating an open item", async () => {
+    openAttention = [];
+    const out = await route({ severity: "HIGH", entityType: "payment_gateway" });
+    expect(out.accepted).toBe(true);
+    if (!out.accepted) return;
+    expect(out.correlated).toBe(false);
+    const lookup = calls.find((c) => c.path.startsWith("founder_attention?select=id"));
+    expect(lookup?.path).toContain("entity_type=eq.payment_gateway");
+  });
+
   it("treats the same signal arriving twice as one signal", async () => {
     duplicateEvent = true;
     const out = await route({ severity: "CRITICAL" });

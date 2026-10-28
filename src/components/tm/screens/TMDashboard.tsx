@@ -17,7 +17,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { computeSLA, relativeTime, titleCase } from "@/lib/tm/format";
+import { computeSLAAt, relativeTime, titleCase } from "@/lib/tm/format";
 import {
   useActivity,
   useApprovals,
@@ -42,14 +42,17 @@ export function TMDashboard({ onNavigate }: { onNavigate: (screen: TMScreen) => 
   const { data: notifications } = useNotifications();
   const { data: settings } = useSettings();
   const acknowledge = useAcknowledgeBuzzer();
-  useNow(30_000);
+  const nowMs = useNow(30_000);
 
   const warn = settings?.sla_warning_percent ?? 75;
 
   const stats = useMemo(() => {
     const list = tasks ?? [];
     const active = list.filter((t) => TM_ACTIVE_STATUSES.includes(t.status));
-    const sla = list.map((t) => ({ task: t, sla: computeSLA(t, warn) }));
+    const sla = list.map((t) => ({
+      task: t,
+      sla: computeSLAAt(t, warn, nowMs),
+    }));
     return {
       active: active.length,
       overdue: sla.filter((s) => s.sla.state === "breached").length,
@@ -67,7 +70,7 @@ export function TMDashboard({ onNavigate }: { onNavigate: (screen: TMScreen) => 
       breaches: sla.filter((s) => s.sla.state === "breached").map((s) => s.task),
       unread: (notifications ?? []).filter((n) => !n.read).length,
     };
-  }, [tasks, approvals, escalations, dependencies, notifications, warn]);
+  }, [tasks, approvals, escalations, dependencies, notifications, warn, nowMs]);
 
   const flow = useMemo(() => {
     const counts = new Map<string, number>();

@@ -174,6 +174,9 @@ async function findOpenItem(signal: IncomingSignal, route: SignalRoute): Promise
   parts.push(
     signal.entityId ? `entity_id=eq.${encodeURIComponent(signal.entityId)}` : "entity_id=is.null",
   );
+  parts.push(
+    signal.entityType ? `entity_type=eq.${encodeURIComponent(signal.entityType)}` : "entity_type=is.null",
+  );
 
   try {
     const found = await rows("founder_attention", parts.join("&"));
