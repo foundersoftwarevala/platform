@@ -121,10 +121,11 @@ describe("marketplace category row reads", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ rows: [], total: 0 });
-    expect(mocks.requireInternalOperator).toHaveBeenCalledWith(
-      expect.any(Request),
-      expect.objectContaining({ allowedRoles: ["boss", "admin", "super_admin", "owner"] }),
+    const readGate = mocks.requireInternalOperator.mock.calls[0]?.[1];
+    expect(readGate?.allowedRoles).toEqual(
+      expect.arrayContaining(["boss", "admin", "super_admin", "owner"]),
     );
+    expect(readGate?.allowedRoles).not.toContain("developer");
   });
 
   it.each([
@@ -150,10 +151,11 @@ describe("marketplace category row reads", () => {
 
       expect(response.status).toBe(403);
       expect(fetchMock).not.toHaveBeenCalled();
-      expect(mocks.requireInternalOperator).toHaveBeenCalledWith(
-        expect.any(Request),
-        expect.objectContaining({ allowedRoles: ["boss", "admin", "super_admin", "owner"] }),
+      const writeGate = mocks.requireInternalOperator.mock.calls[0]?.[1];
+      expect(writeGate?.allowedRoles).toEqual(
+        expect.arrayContaining(["boss", "admin", "super_admin", "owner"]),
       );
+      expect(writeGate?.allowedRoles).not.toContain("developer");
     },
   );
 });
