@@ -167,10 +167,33 @@ Ollama has `qwen2.5:3b`, but the VPS `ai_models` registry lists a different
 Qwen 2.5 7B entry; none of the 141 rows is mapped to a model. No `task_queue`
 table exists; the existing `fa_jobs` queue is already owned by named workers
 and contains queued, completed, and dead-lettered operational work. Do not
-assign those jobs to generic agents or mark these agents AVAILABLE without
+assign those jobs to generic agents or activate the remaining agents without
 reviewed per-agent model, capability, task-source and tool contracts. The
 broader request to implement individual actions for all agents remains
-unimplemented pending reviewed tool/permission contracts. AYRA chat uses the existing Vala AI stream;
+unimplemented pending reviewed tool/permission contracts.
+
+The owner-approved VPS-only five-agent pilot adds `ai_agents.task_contract` and
+activates only `demo-scanner`, `sales-lead-followup`, `support-reply-drafter`,
+`mon-availability`, and `finance-intelligence`. The support reply drafter is a
+new, separately permissioned registry row; `mon-support` remains monitoring-only.
+`scripts/run-agents.mjs` accepts only these exact contracts, uses the local
+`qwen2.5:3b` Ollama model for sales/support drafts, runs deterministic checks
+for HTTP status, telemetry freshness and revenue totals, and records governed
+runs through `fa_agent_run_open/close`. It is serialized, waits five seconds
+between agents, and is scheduled every fifteen minutes by the root cron entry
+in `deploy/production/system/cron-sv-agent-contract-pilot`. Sales and support
+outputs are `PENDING` rows in VPS `ai_agent_drafts`, behind RLS and service-role
+access; they are not inserted into `messages`, whose trigger would announce a
+live chat post. No customer message is sent. The initial manual run created
+three lead drafts and one support draft; five active demo URLs were verified
+HTTP 200 (one oversized body was safely retried with a larger bounded limit).
+The single active server instance had fresh CPU/RAM telemetry, so no alert was
+created; there were no paid orders on the VPS database day, and that zero was
+recorded. The migration was applied to VPS `sv_platform` only. This pilot does
+not activate the other 137 agents, assign existing `fa_jobs`, or change the
+`ai_agents.tools` or `model_id` fields.
+
+AYRA chat uses the existing Vala AI stream;
 the banner's browser panel opens links in a new tab and states that remote
 browser control is not connected. No database rows were changed for this UI
 release.

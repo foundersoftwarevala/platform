@@ -1,0 +1,2 @@
+# Five contract-bound agents; protected by the runner's database advisory lock.
+*/15 * * * * /var/www/softwarevala/scripts/ops/run-agent-contract-pilot.sh
