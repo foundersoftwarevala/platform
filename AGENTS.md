@@ -156,9 +156,21 @@ runs in the preceding 24 hours (2,947 COMPLETED, 125 FAILED), including the
 Demo Health, Demo Sync, Demo Scanner, and Social Media Monitoring workers.
 Those worker records show real runs, but do not define safe per-agent tool
 permissions or execution contracts. Do not imply that all 141 agents are
-human-like LLM chat agents or can take arbitrary actions. The broader request
-to implement individual actions for all agents remains unimplemented pending
-reviewed tool/permission contracts. AYRA chat uses the existing Vala AI stream;
+human-like LLM chat agents or can take arbitrary actions. A read-only follow-up
+on 2026-10-28 found 141 active-status records all still at lifecycle CONFIGURED,
+with empty `tools`, null `model_id`, and stale `runs_30d = 0`. The canonical
+`ai_agent_runs` table instead held 86,810 total runs, 86,264 in the preceding
+30 days, and 3,072 in the preceding 24 hours; four existing workers account
+for current runs. The Agents directory now derives its 30-day count from
+`ai_agent_runs` on VPS `sv_platform`, not the stale denormalized counter. Local
+Ollama has `qwen2.5:3b`, but the VPS `ai_models` registry lists a different
+Qwen 2.5 7B entry; none of the 141 rows is mapped to a model. No `task_queue`
+table exists; the existing `fa_jobs` queue is already owned by named workers
+and contains queued, completed, and dead-lettered operational work. Do not
+assign those jobs to generic agents or mark these agents AVAILABLE without
+reviewed per-agent model, capability, task-source and tool contracts. The
+broader request to implement individual actions for all agents remains
+unimplemented pending reviewed tool/permission contracts. AYRA chat uses the existing Vala AI stream;
 the banner's browser panel opens links in a new tab and states that remote
 browser control is not connected. No database rows were changed for this UI
 release.

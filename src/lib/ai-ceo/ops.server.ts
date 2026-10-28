@@ -1,4 +1,5 @@
 import type { Degraded } from "./signals.server";
+import { withVpsPublicDatabase } from "@/lib/marketplace-manager/vps-rpc.server";
 import type {
   CEOAgent,
   CEOAutomation,
@@ -137,22 +138,47 @@ export async function loadAgents(degraded: Degraded): Promise<CEOAgent[]> {
     "ai_agents",
     degraded,
     async () => {
-      const data = await rows(
-        "ai_agents",
-        "id,name,purpose,model_id,status,tools,runs_30d,success_rate,max_tokens,created_at",
-        "created_at.desc",
+      const data = await withVpsPublicDatabase(
+        (tx) => tx<
+          {
+            id: string;
+            name: string;
+            purpose: string | null;
+            model_id: string | null;
+            status: string | null;
+            tools: unknown;
+            runs_30d: number | string;
+            success_rate: number | string | null;
+            max_tokens: number | null;
+            created_at: string;
+          }[]
+        >`
+        select a.id::text, a.name, a.purpose, a.model_id::text, a.status,
+               a.tools, coalesce(r.runs_30d, 0)::int as runs_30d,
+               a.success_rate, a.max_tokens, a.created_at::text
+          from public.ai_agents a
+          left join (
+            select agent_id, count(*)::int as runs_30d
+              from public.ai_agent_runs
+             where started_at >= statement_timestamp() - interval '30 days'
+               and started_at <= statement_timestamp()
+             group by agent_id
+          ) r on r.agent_id = a.id
+         order by a.created_at desc
+         limit ${LIST_LIMIT}
+      `,
       );
       return data.map((row) => ({
-        id: String(row.id),
-        name: str(row, "name") ?? String(row.id),
-        purpose: str(row, "purpose"),
-        status: str(row, "status") ?? "unknown",
-        modelId: str(row, "model_id"),
+        id: row.id,
+        name: row.name || row.id,
+        purpose: row.purpose,
+        status: row.status ?? "unknown",
+        modelId: row.model_id,
         runs30d: num(row, "runs_30d"),
         successRate: num(row, "success_rate"),
         tools: Array.isArray(row.tools) ? row.tools.map(String) : [],
         maxTokens: num(row, "max_tokens"),
-        createdAt: str(row, "created_at"),
+        createdAt: row.created_at,
       }));
     },
     [],
