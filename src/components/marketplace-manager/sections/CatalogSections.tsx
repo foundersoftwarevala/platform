@@ -28,7 +28,6 @@ import {
   ShieldCheck,
   Server,
   Plug,
-  Bookmark,
   CheckCircle2,
   Plus,
 } from "lucide-react";
@@ -830,7 +829,9 @@ export function AiProvidersSection() {
         <div className="flex items-start gap-3">
           <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
           <div>
-            <h2 className="text-sm font-bold text-foreground">Credentials are managed separately</h2>
+            <h2 className="text-sm font-bold text-foreground">
+              Credentials are managed separately
+            </h2>
             <p className="mt-1 text-xs text-muted-foreground">
               This view does not collect or display secret values. Use AI API Manager to store
               provider credentials securely and configure the services that use them.
@@ -1061,42 +1062,20 @@ export function IntegrationsSection() {
 
 export function ExtraSection() {
   return (
-    <ModulePage
-      eyebrow="Extra Capabilities"
-      title="Extra"
-      description="Follows, comparisons, roadmap, notes, trash, multi-* controls and insights."
-      Icon={Bookmark}
-      tabs={["Follows", "Insights", "Multi-*", "Notes", "Trash"]}
-      stats={[
-        { label: "Follows" },
-        { label: "Compared", tone: "premium" },
-        { label: "Trashed", tone: "warning" },
-        { label: "Restored", tone: "success" },
-      ]}
-      features={[
-        { label: "Recently Viewed" },
-        { label: "Saved Searches" },
-        { label: "Price Alerts" },
-        { label: "Follow Product" },
-        { label: "Follow Vendor" },
-        { label: "Follow Author" },
-        { label: "Product Comparison" },
-        { label: "Roadmap" },
-        { label: "Idea Board" },
-        { label: "Internal Notes" },
-        { label: "Founder Notes" },
-        { label: "Activity Timeline" },
-        { label: "Trash Bin" },
-        { label: "Archive" },
-        { label: "Multi Language" },
-        { label: "Multi Currency" },
-        { label: "Multi Country" },
-        { label: "Multi Branch" },
-        { label: "Multi Vendor" },
-        { label: "Multi Author" },
-        { label: "Marketplace Statistics" },
-        { label: "Business Insights" },
-      ]}
-    />
+    <div className="px-4 py-8 md:px-8">
+      <PageHeader
+        eyebrow="Extra Capabilities"
+        title="Extra"
+        description="No Extra registry or persistence table is configured on the VPS."
+        actions={
+          <PillButton variant="primary" disabled title="No Extra registry exists to save changes.">
+            New
+          </PillButton>
+        }
+      />
+      <Card>
+        <EmptyHint text="This module has no VPS-backed records, so it does not display sample counts or pretend capabilities are active. Manage supported features in their connected modules." />
+      </Card>
+    </div>
   );
 }

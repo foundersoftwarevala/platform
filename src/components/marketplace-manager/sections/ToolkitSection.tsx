@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { PageHeader, Card, PillButton } from "../ui";
 import {
   ACTIONS,
@@ -20,7 +19,6 @@ const NO_THEME_STORE =
 
 // Showcase + spec page that every module follows.
 export function ToolkitSection() {
-  const [selected, setSelected] = useState(3);
   const allActions = Object.keys(ACTIONS) as ActionId[];
 
   return (
@@ -28,7 +26,7 @@ export function ToolkitSection() {
       <PageHeader
         eyebrow="Enterprise Action Kit · Locked Contract"
         title="Marketplace Action Toolkit"
-        description="One contract for buttons, table toolbars, bulk actions, detail rails and color management — applied consistently across every Marketplace module."
+        description="Reference-only control inventory. Live data changes happen in Actions and the connected module pages; previews here never create or modify records."
         actions={
           <PillButton variant="primary" disabled title={NO_THEME_STORE}>
             Apply Across Modules
@@ -55,12 +53,9 @@ export function ToolkitSection() {
         <SectionTitle
           index="02"
           title="Table Toolbar"
-          hint="Top of every list module — Search · Filter · Sort · Columns · Refresh · Import · Export · Add · Settings."
+          hint="Live rows and their controls are available in the corresponding module, not in this reference page."
         />
-        <TableToolbar title="Products" count={0} extraActions={["publish", "feature"]} />
-        <div className="rounded-xl border border-dashed border-border bg-background/30 p-6 text-center text-xs text-muted-foreground">
-          List rows render below — connect live data source.
-        </div>
+        <TableToolbar title="Component preview" extraActions={["publish", "feature"]} />
       </Card>
 
       {/* 3. Bulk action bar */}
@@ -68,25 +63,12 @@ export function ToolkitSection() {
         <SectionTitle
           index="03"
           title="Bulk Actions"
-          hint="Appears when ≥1 row is selected. Sticky under the top bar."
+          hint="Bulk actions become available only after selecting real rows in a connected module."
         />
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {[0, 1, 5, 12, 48].map((n) => (
-            <button
-              key={n}
-              onClick={() => setSelected(n)}
-              className={`rounded-lg border px-3 py-1 text-[11px] font-semibold ${selected === n ? "border-accent/50 bg-accent/10 text-foreground" : "border-border bg-white/[0.04] text-muted-foreground hover:text-foreground"}`}
-            >
-              Select {n}
-            </button>
-          ))}
-        </div>
-        <BulkActionBar selectedCount={selected} onClear={() => setSelected(0)} />
-        {selected === 0 && (
-          <div className="rounded-xl border border-dashed border-border bg-background/30 p-4 text-center text-[11px] text-muted-foreground">
-            Bulk bar hidden — select rows to reveal.
-          </div>
-        )}
+        <BulkActionBar selectedCount={0} />
+        <p className="text-xs text-muted-foreground">
+          No live records are selected on this reference page.
+        </p>
       </Card>
 
       {/* 4. Row actions */}
@@ -94,24 +76,9 @@ export function ToolkitSection() {
         <SectionTitle
           index="04"
           title="Row Actions"
-          hint="Compact icon cluster used in every list row."
+          hint="Preview only. Row actions are enabled only when a real row and handler are supplied."
         />
-        <div className="space-y-2">
-          {["Pending Banner", "Approved Vendor", "Draft Offer", "Live Wall"].map((label) => (
-            <div
-              key={label}
-              className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-2.5"
-            >
-              <div className="flex items-center gap-3">
-                <span className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/30 to-accent/30" />
-                <div className="text-sm font-semibold">{label}</div>
-              </div>
-              <RowActions
-                ids={["view", "edit", "approve", "reject", "duplicate", "archive", "delete"]}
-              />
-            </div>
-          ))}
-        </div>
+        <RowActions ids={["view", "edit", "approve", "reject", "duplicate", "archive", "delete"]} />
       </Card>
 
       {/* 5. Detail page action rail */}
@@ -122,9 +89,9 @@ export function ToolkitSection() {
           hint="Applies on product / vendor / order detail pages."
         />
         <DetailActionRail />
-        <div className="rounded-xl border border-dashed border-border bg-background/30 p-6 text-center text-xs text-muted-foreground">
-          Detail content below — gallery, demo, docs, reviews, license, audit logs.
-        </div>
+        <p className="text-xs text-muted-foreground">
+          The rail receives real record actions on product, vendor, and order detail pages.
+        </p>
       </Card>
 
       {/* 6. Color management */}
