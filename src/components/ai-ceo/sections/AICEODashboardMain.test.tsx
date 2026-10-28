@@ -61,6 +61,14 @@ describe("AICEODashboardMain", () => {
 
     expect(container.querySelectorAll('[data-testid="ayra-world-banner"]')).toHaveLength(1);
     expect(screen.getByText("AYRA'S WORLD")).toBeTruthy();
+    const mainView = ayraBanner.querySelector(".aw-main");
+    const bottomControls = ayraBanner.querySelector(".aw-top");
+    expect(mainView).toBeTruthy();
+    expect(bottomControls).toBeTruthy();
+    expect(
+      mainView!.compareDocumentPosition(bottomControls!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Command AYRA" })).toBeTruthy();
     const workspace = ayraBanner.querySelector(".aw-workspace");
     expect(workspace?.children).toHaveLength(1);
     expect(workspace?.querySelector(".aw-browser-panel")).toBeTruthy();

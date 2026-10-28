@@ -93,65 +93,67 @@ export function AyraWorldBanner() {
 
   const busy = core === "thinking" || core === "executing" || core === "speaking";
   return (
-    <div className="ayra-world" data-testid="ayra-world-banner">
-      <TopBar
-        cmd={cmd}
-        setCmd={setCmd}
-        onRun={() => void run()}
-        listening={speech.listening}
-        onMic={toggleTalk}
-        onTools={(tool) => {
-          if (tool === "settings" || tool === "roles") {
-            setSettingsOpen(true);
-          } else if (tool === "security") {
-            window.location.assign("/ai-ceo/security");
-          } else if (tool === "chat") {
-            inputRef.current?.focus();
-          } else if (tool === "ops") {
-            window.location.assign("/ai-ceo/agents");
-          } else if (tool === "lookbook") {
-            setLook(null);
-            setReply("Choose an AYRA look from the strip on the left to preview it.");
-          }
-        }}
-        onSettings={() => setSettingsOpen(true)}
-        role="AYRA"
-        inputRef={inputRef}
-      />
-      <main className="aw-main">
-        <AgentStage
-          core={speech.listening ? "listening" : voice.speaking ? "speaking" : core}
-          look={look}
-          setLook={setLook}
-          reply={reply}
-          muted={muted}
-          micNote={muted ? "Microphone muted" : speech.error || voice.error || undefined}
-          micState={muted ? "muted" : speech.status}
-          setMuted={updateMuted}
-          onTalk={toggleTalk}
-          onEnd={() => {
-            controller.current?.abort();
-            speech.stop();
-            voice.stop();
-            mutedRef.current = false;
-            setMuted(false);
-            setCmd("");
-            setReply("");
-            setMessages([]);
-            setCore("idle");
+    <>
+      <div className="ayra-world" data-testid="ayra-world-banner">
+        <main className="aw-main">
+          <AgentStage
+            core={speech.listening ? "listening" : voice.speaking ? "speaking" : core}
+            look={look}
+            setLook={setLook}
+            reply={reply}
+            muted={muted}
+            micNote={muted ? "Microphone muted" : speech.error || voice.error || undefined}
+            micState={muted ? "muted" : speech.status}
+            setMuted={updateMuted}
+            onTalk={toggleTalk}
+            onEnd={() => {
+              controller.current?.abort();
+              speech.stop();
+              voice.stop();
+              mutedRef.current = false;
+              setMuted(false);
+              setCmd("");
+              setReply("");
+              setMessages([]);
+              setCore("idle");
+            }}
+            onShortcut={(command, url) => {
+              if (url) window.open(url, "_blank", "noopener");
+              void run(command);
+            }}
+          />
+          <div className="aw-workspace">
+            <BrowserPanel onRun={(command) => void run(command)} reply={reply} busy={busy} />
+          </div>
+        </main>
+        <TopBar
+          cmd={cmd}
+          setCmd={setCmd}
+          onRun={() => void run()}
+          listening={speech.listening}
+          onMic={toggleTalk}
+          onTools={(tool) => {
+            if (tool === "settings" || tool === "roles") {
+              setSettingsOpen(true);
+            } else if (tool === "security") {
+              window.location.assign("/ai-ceo/security");
+            } else if (tool === "chat") {
+              inputRef.current?.focus();
+            } else if (tool === "ops") {
+              window.location.assign("/ai-ceo/agents");
+            } else if (tool === "lookbook") {
+              setLook(null);
+              setReply("Choose an AYRA look from the strip on the left to preview it.");
+            }
           }}
-          onShortcut={(command, url) => {
-            if (url) window.open(url, "_blank", "noopener");
-            void run(command);
-          }}
+          onSettings={() => setSettingsOpen(true)}
+          role="AYRA"
+          inputRef={inputRef}
         />
-        <div className="aw-workspace">
-          <BrowserPanel onRun={(command) => void run(command)} reply={reply} busy={busy} />
-        </div>
-      </main>
+        <footer className="aw-foot">Powered by Software Vala™</footer>
+        <AyraCommandCenter open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </div>
       <AyraLocalBridgePanel />
-      <footer className="aw-foot">Powered by Software Vala™</footer>
-      <AyraCommandCenter open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-    </div>
+    </>
   );
 }
