@@ -4,16 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -21,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
-import { smQuery, smMutate } from '@/lib/sm-data';
+import { smQuery } from '@/lib/sm-data';
 import { PageHeader } from '../layout/PageShell';
 
 type ServiceRow = Database['public']['Tables']['server_services']['Row'] & {
@@ -43,8 +33,6 @@ const SMServices = () => {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [restartTarget, setRestartTarget] = useState<ServiceRow | null>(null);
-  const [restarting, setRestarting] = useState(false);
   const [healthTarget, setHealthTarget] = useState<ServiceRow | null>(null);
 
   const loadServices = useCallback(async () => {
@@ -68,40 +56,6 @@ const SMServices = () => {
     void loadServices();
   }, [loadServices]);
 
-  const handleRestart = async () => {
-    if (!restartTarget) return;
-    setRestarting(true);
-    try {
-      const ok = await smMutate(
-        `Restart ${restartTarget.service_name}`,
-        async () => {
-          const { error: updateError } = await supabase
-            .from('server_services')
-            .update({ status: 'running', updated_at: new Date().toISOString() })
-            .eq('id', restartTarget.id);
-          if (updateError) return { data: null, error: updateError };
-
-          const { error: logError } = await supabase.from('server_audit_logs').insert({
-            action: `Restarted service "${restartTarget.service_name}"`,
-            actor: 'admin',
-            result: 'success',
-            risk_level: 'low',
-            server_id: restartTarget.server_id,
-            details: `Service ${restartTarget.service_name} restarted on ${restartTarget.server_instances?.server_name ?? 'unknown server'}`,
-          });
-          return { data: null, error: logError };
-        },
-        `${restartTarget.service_name} restarted successfully`,
-      );
-      if (ok) {
-        setRestartTarget(null);
-        await loadServices();
-      }
-    } finally {
-      setRestarting(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {loadError && (
@@ -112,6 +66,10 @@ const SMServices = () => {
           </Button>
         </div>
       )}
+
+      <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+        Service status is read-only. No verified host agent is connected to execute restart commands.
+      </p>
 
       <PageHeader
         title="Services"
@@ -170,10 +128,11 @@ const SMServices = () => {
                       variant="outline"
                       size="sm"
                       className="text-xs"
-                      onClick={() => setRestartTarget(service)}
+                      disabled
+                      title="No verified host agent is connected to execute this action."
                     >
                       <RefreshCw className="w-3 h-3 mr-1" />
-                      Restart
+                      Restart unavailable
                     </Button>
                     <Button
                       variant="ghost"
@@ -191,31 +150,6 @@ const SMServices = () => {
           </tbody>
         </table>
       </div>
-
-      <p className="text-xs text-muted-foreground">⚠️ Restart actions require approval</p>
-
-      <AlertDialog open={!!restartTarget} onOpenChange={(open) => !open && setRestartTarget(null)}>
-        <AlertDialogContent className="bg-card border-border text-foreground">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-foreground">Restart {restartTarget?.service_name}?</AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground">
-              This will set the service status back to "running" and log the action to the audit trail.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={restarting}
-              onClick={(e) => {
-                e.preventDefault();
-                void handleRestart();
-              }}
-            >
-              {restarting ? 'Restarting…' : 'Confirm Restart'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <Dialog open={!!healthTarget} onOpenChange={(open) => !open && setHealthTarget(null)}>
         <DialogContent className="bg-card border-border text-foreground">

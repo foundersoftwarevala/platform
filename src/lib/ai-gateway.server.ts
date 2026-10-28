@@ -192,15 +192,29 @@ async function buildTarget(
     .eq("is_default", true)
     .maybeSingle();
 
-  const { data: keyRows } = await db
+  const serviceKeyResult = await db
     .from("api_keys")
     .select("secret_encrypted, status, environment")
     .eq("service_id", row["id"] as string)
     .eq("status", "active")
     .eq("environment", "production")
     .limit(1);
+  if (serviceKeyResult.error) throw new Error(serviceKeyResult.error.message);
+  let keyRows = serviceKeyResult.data ?? [];
+  if (keyRows.length === 0 && row["provider_id"]) {
+    const providerKeyResult = await db
+      .from("api_keys")
+      .select("secret_encrypted, status, environment")
+      .eq("provider_id", row["provider_id"] as string)
+      .is("service_id", null)
+      .eq("status", "active")
+      .eq("environment", "production")
+      .limit(1);
+    if (providerKeyResult.error) throw new Error(providerKeyResult.error.message);
+    keyRows = providerKeyResult.data ?? [];
+  }
 
-  const stored = (keyRows?.[0] as { secret_encrypted?: string } | undefined)?.secret_encrypted;
+  const stored = (keyRows[0] as { secret_encrypted?: string } | undefined)?.secret_encrypted;
   const credential = isEncryptedAiCredential(stored) ? decryptAiCredential(stored) : null;
 
   if (!credential) {

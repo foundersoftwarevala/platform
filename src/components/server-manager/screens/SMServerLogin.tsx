@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Terminal, Key, Server, Shield, Clock, RefreshCw,
-  CheckCircle, XCircle, Loader2, LogIn,
+  CheckCircle, XCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database as DB } from '@/integrations/supabase/types';
-import { smQuery, smMutate } from '@/lib/sm-data';
+import { smQuery } from '@/lib/sm-data';
 import { PageHeader } from '../layout/PageShell';
 
 type SSHKeyRow = DB['public']['Tables']['server_ssh_keys']['Row'];
@@ -37,7 +37,6 @@ const SMServerLogin = () => {
   const [history, setHistory] = useState<LoginRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState(false);
   const [serverId, setServerId] = useState('');
   const [keyId, setKeyId] = useState('');
   const [username, setUsername] = useState('root');
@@ -91,63 +90,22 @@ const SMServerLogin = () => {
   );
   const selectedKey = useMemo(() => keys.find((k) => k.id === keyId) ?? null, [keys, keyId]);
 
+  const shellQuote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
+  const keyFile = (selectedKey?.key_name ?? 'id_ed25519')
+    .replace(/[^a-zA-Z0-9_.-]/g, '_')
+    .toLowerCase();
+  const host = selectedServer?.ip_address ?? selectedServer?.hostname ?? 'host';
   const sshCommand = selectedServer
-    ? `ssh -i ~/.ssh/${(selectedKey?.key_name ?? 'id_ed25519').replace(/\s+/g, '_').toLowerCase()} -p ${selectedServer.ssh_port} ${username}@${selectedServer.ip_address ?? selectedServer.hostname ?? 'host'}`
+    ? `ssh -i "$HOME/.ssh/${keyFile}" -p ${Number(selectedServer.ssh_port)} ${shellQuote(username)} ${shellQuote(host)}`
     : '';
-
-  const handleConnect = async () => {
-    if (!selectedServer) return;
-    setConnecting(true);
-    const reachable = selectedServer.status === 'active';
+  const copySshCommand = async () => {
     try {
-      const ok = await smMutate(
-        'Record SSH session',
-        async () => {
-          const { error } = await supabase.from('server_login_history').insert({
-            server_id: selectedServer.id,
-            server_label: selectedServer.server_name,
-            username,
-            method: selectedKey ? 'ssh-key' : 'password',
-            ip_address: selectedServer.ip_address,
-            status: reachable ? 'success' : 'failed',
-            session_duration_minutes: reachable ? 0 : null,
-            logged_at: new Date().toISOString(),
-          });
-          if (error) return { data: null, error };
-
-          const { error: auditError } = await supabase.from('server_audit_logs').insert({
-            action: `SSH session ${reachable ? 'opened' : 'attempt failed'} on ${selectedServer.server_name}`,
-            actor: username,
-            result: reachable ? 'success' : 'failure',
-            risk_level: 'medium',
-            server_id: selectedServer.id,
-            ip_address: selectedServer.ip_address,
-            details: sshCommand,
-          });
-          return { data: null, error: auditError };
-        },
-      );
-      if (ok) {
-        if (reachable) {
-          toast.success(`Session recorded for ${selectedServer.server_name}`);
-        } else {
-          toast.error(`${selectedServer.server_name} is ${selectedServer.status} — connection refused`);
-        }
-        await load();
-        setTab('history');
-      }
-    } finally {
-      setConnecting(false);
+      await navigator.clipboard.writeText(sshCommand);
+      toast.success('SSH command copied. Run it in your trusted terminal to connect.');
+    } catch (error) {
+      console.error('[server-manager] Could not copy SSH command', error);
+      toast.error('Could not copy SSH command. Check clipboard permissions.');
     }
-  };
-
-  const toggleKey = async (key: SSHKeyRow) => {
-    const ok = await smMutate(
-      'Update SSH key',
-      () => supabase.from('server_ssh_keys').update({ is_active: !key.is_active }).eq('id', key.id),
-      `${key.key_name} ${key.is_active ? 'revoked' : 'activated'}`,
-    );
-    if (ok) await load();
   };
 
   return (
@@ -174,7 +132,7 @@ const SMServerLogin = () => {
 
       <div className="flex gap-2">
         {([
-          { id: 'connect', label: 'Connect', icon: LogIn },
+          { id: 'connect', label: 'SSH Command', icon: Terminal },
           { id: 'keys', label: 'SSH Keys', icon: Key },
           { id: 'history', label: 'Login History', icon: Clock },
         ] as const).map((t) => (
@@ -239,17 +197,17 @@ const SMServerLogin = () => {
                 />
               </div>
               <Button
-                onClick={() => void handleConnect()}
-                disabled={connecting || !selectedServer || !username.trim()}
+                onClick={() => void copySshCommand()}
+                disabled={!selectedServer || !username.trim()}
                 className="w-full bg-primary hover:bg-primary/90"
               >
-                {connecting ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Terminal className="w-4 h-4 mr-2" />
-                )}
-                Open SSH Session
+                <Terminal className="w-4 h-4 mr-2" />
+                Copy SSH Command
               </Button>
+              <p className="text-xs text-muted-foreground">
+                This page does not open a remote session or verify SSH access. Run the copied command
+                yourself in a trusted terminal.
+              </p>
             </CardContent>
           </Card>
 
@@ -306,10 +264,7 @@ const SMServerLogin = () => {
                   <Button
                     variant="outline"
                     className="border-border text-muted-foreground"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(sshCommand);
-                      toast.success('Command copied');
-                    }}
+                    onClick={() => void copySshCommand()}
                   >
                     Copy command
                   </Button>
@@ -324,6 +279,9 @@ const SMServerLogin = () => {
 
       {tab === 'keys' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+          <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            These are registry records only. Key installation and revocation on hosts are not connected.
+          </p>
           {keys.length === 0 ? (
             <Card className="bento-card !p-0">
               <CardContent className="p-10 text-center text-muted-foreground">No SSH keys registered.</CardContent>
@@ -356,15 +314,16 @@ const SMServerLogin = () => {
                           : 'bg-surface text-muted-foreground'
                       }
                     >
-                      {k.is_active ? 'Active' : 'Revoked'}
+                      {k.is_active ? 'Registry active' : 'Registry inactive'}
                     </Badge>
                     <Button
                       size="sm"
                       variant="outline"
                       className="border-border text-muted-foreground"
-                      onClick={() => void toggleKey(k)}
+                      disabled
+                      title="Host-level key management is not connected."
                     >
-                      {k.is_active ? 'Revoke' : 'Activate'}
+                      Host action unavailable
                     </Button>
                   </div>
                 </CardContent>

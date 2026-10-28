@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { resolveAiCredential } from "@/lib/ai-credentials.server";
 
 function resolveSupabaseEnv() {
   const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
@@ -421,11 +422,13 @@ export async function executeAiRequest(data: AiRequest) {
     route: string;
     status: string;
     providerId: string | null;
+    approvalStatus: string | null;
+    credentialEnv: string | null;
   } | null = null;
   if (data.serviceId) {
     const { data: row } = await sb
       .from("api_services")
-      .select("id, name, provider_id, endpoint_url, status")
+      .select("id, name, provider_id, endpoint_url, status, approval_status, credential_env")
       .eq("id", data.serviceId)
       .maybeSingle();
     if (row)
@@ -436,6 +439,8 @@ export async function executeAiRequest(data: AiRequest) {
         route: row.endpoint_url,
         status: row.status,
         providerId: row.provider_id,
+        approvalStatus: row.approval_status,
+        credentialEnv: row.credential_env,
       };
     else {
       throw new Error("The selected AI service is not registered in AI API Manager.");
@@ -443,7 +448,7 @@ export async function executeAiRequest(data: AiRequest) {
   } else if (data.serviceName) {
     const { data: rows } = await sb
       .from("api_services")
-      .select("id, name, provider_id, endpoint_url, status")
+      .select("id, name, provider_id, endpoint_url, status, approval_status, credential_env")
       .ilike("name", `%${data.serviceName}%`)
       .order("updated_at", { ascending: false })
       .limit(1);
@@ -456,6 +461,8 @@ export async function executeAiRequest(data: AiRequest) {
         route: row.endpoint_url,
         status: row.status,
         providerId: row.provider_id,
+        approvalStatus: row.approval_status,
+        credentialEnv: row.credential_env,
       };
   } else {
     // Categories as the registry actually spells them. This asked for
@@ -465,9 +472,10 @@ export async function executeAiRequest(data: AiRequest) {
     // not name a service by hand was told no provider was configured.
     const { data: rows } = await sb
       .from("api_services")
-      .select("id, name, provider_id, endpoint_url, status")
+      .select("id, name, provider_id, endpoint_url, status, approval_status, credential_env")
       .eq("status", "active")
       .in("category", ["llm", "ai"])
+      .eq("approval_status", "approved")
       .order("updated_at", { ascending: false })
       .limit(1);
     const row = rows?.[0];
@@ -479,17 +487,19 @@ export async function executeAiRequest(data: AiRequest) {
         route: row.endpoint_url,
         status: row.status,
         providerId: row.provider_id,
+        approvalStatus: row.approval_status,
+        credentialEnv: row.credential_env,
       };
   }
 
-  if (!target || target.status !== "active")
-    throw new Error("No active AI provider is configured in AI API Manager.");
+  if (!target || target.status !== "active" || target.approvalStatus !== "approved")
+    throw new Error("No active, approved AI provider is configured in AI API Manager.");
   if (!target.route)
     throw new Error(`AI service ${target.name} has no execution endpoint configured.`);
 
   const { data: provider } = await sb
     .from("ai_providers")
-    .select("name, slug")
+    .select("name, slug, credential_env")
     .eq("id", target.providerId)
     .maybeSingle();
   const providerSlug = String(provider?.slug ?? provider?.name ?? target.name).toLowerCase();
@@ -500,24 +510,48 @@ export async function executeAiRequest(data: AiRequest) {
     .eq("status", "active")
     .eq("is_default", true)
     .maybeSingle();
-  const { data: keyRows } = await sb
+  const serviceKeyResult = await sb
     .from("api_keys")
     .select("secret_encrypted, status, environment")
     .eq("service_id", target.id)
     .eq("status", "active")
     .eq("environment", "production")
     .limit(1);
-  const envKey = providerSlug.includes("anthropic")
-    ? process.env.ANTHROPIC_API_KEY
-    : providerSlug.includes("google")
-      ? process.env.GOOGLE_API_KEY
-      : process.env.OPENAI_API_KEY;
+  if (serviceKeyResult.error) throw new Error(serviceKeyResult.error.message);
+  let keyRows = serviceKeyResult.data ?? [];
+  if (keyRows.length === 0 && target.providerId) {
+    const providerKeyResult = await sb
+      .from("api_keys")
+      .select("secret_encrypted, status, environment")
+      .eq("provider_id", target.providerId)
+      .is("service_id", null)
+      .eq("status", "active")
+      .eq("environment", "production")
+      .limit(1);
+    if (providerKeyResult.error) throw new Error(providerKeyResult.error.message);
+    keyRows = providerKeyResult.data ?? [];
+  }
+  const providerEnvironmentNames: Record<string, string> = {
+    anthropic: "ANTHROPIC_API_KEY",
+    google: "GOOGLE_API_KEY",
+    openai: "OPENAI_API_KEY",
+    groq: "GROQ_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY",
+    cohere: "COHERE_API_KEY",
+  };
+  const registeredEnvironmentName =
+    typeof target.credentialEnv === "string" && /^[A-Z][A-Z0-9_]{2,63}$/.test(target.credentialEnv)
+      ? target.credentialEnv
+      : typeof provider?.credential_env === "string" &&
+          /^[A-Z][A-Z0-9_]{2,63}$/.test(provider.credential_env)
+        ? provider.credential_env
+        : null;
+  const providerEnvironmentName = Object.entries(providerEnvironmentNames).find(([slug]) =>
+    providerSlug.includes(slug),
+  )?.[1];
+  const envKey = process.env[registeredEnvironmentName ?? providerEnvironmentName ?? ""];
   const storedKey = keyRows?.[0]?.secret_encrypted;
-  const credential =
-    envKey ||
-    (typeof storedKey === "string" && /^(sk-|key-|AIza|anthropic)/i.test(storedKey)
-      ? storedKey
-      : "");
+  const credential = resolveAiCredential(storedKey, envKey);
   if (!credential)
     throw new Error(
       `No real production credential is configured for ${target.name}. Add it in AI API Manager or server environment.`,

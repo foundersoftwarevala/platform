@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Rocket, CheckCircle2, Clock, XCircle, RefreshCw,
-  GitBranch, Server, Eye, RotateCcw, Loader2,
+  GitBranch, Server, Eye, Loader2,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { smQuery, smMutate } from '@/lib/sm-data';
+import { smQuery } from '@/lib/sm-data';
 import { PageHeader } from '../layout/PageShell';
 
 interface DeploymentRow {
@@ -51,7 +51,6 @@ const SMDeployments = () => {
   const [loading, setLoading] = useState(true);
   const [envFilter, setEnvFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [actingId, setActingId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -116,51 +115,6 @@ const SMDeployments = () => {
     return styles[status] ?? styles['pending']!;
   };
 
-  const handleRollback = async (d: DeploymentRow) => {
-    setActingId(d.id);
-    const ok = await smMutate(
-      'trigger rollback',
-      () =>
-        supabase.from('server_deployments').insert({
-          deployment_code: `DEP-${Date.now().toString(36).toUpperCase()}`,
-          deployment_name: `${d.deployment_name} (rollback)`,
-          branch: d.branch,
-          commit_sha: d.commit_sha,
-          environment: d.environment,
-          status: 'success',
-          progress: 100,
-          duration_seconds: 30,
-          server_id: d.server_id,
-          triggered_by: 'manual-rollback',
-        }),
-      `Rollback initiated for ${d.deployment_name}`,
-    );
-    setActingId(null);
-    if (ok) void loadData();
-  };
-
-  const handleRedeploy = async (d: DeploymentRow) => {
-    setActingId(d.id);
-    const ok = await smMutate(
-      'trigger redeploy',
-      () =>
-        supabase.from('server_deployments').insert({
-          deployment_code: `DEP-${Date.now().toString(36).toUpperCase()}`,
-          deployment_name: d.deployment_name,
-          branch: d.branch,
-          commit_sha: d.commit_sha,
-          environment: d.environment,
-          status: 'running',
-          progress: 0,
-          server_id: d.server_id,
-          triggered_by: 'manual-redeploy',
-        }),
-      `Redeploy triggered for ${d.deployment_name}`,
-    );
-    setActingId(null);
-    if (ok) void loadData();
-  };
-
   const filtered = useMemo(
     () =>
       deployments.filter(
@@ -187,7 +141,7 @@ const SMDeployments = () => {
     <div className="space-y-6">
       <PageHeader
         title="Deployments"
-        subtitle="Manage and monitor server deployments"
+        subtitle="Deployment history from registered VPS records"
         action={
           <Button variant="outline" onClick={() => void loadData()}>
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -204,6 +158,11 @@ const SMDeployments = () => {
           </Button>
         </div>
       )}
+
+      <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+        Deployment history is read-only here. This console has no verified deployment adapter;
+        use the approved release workflow to deploy or roll back.
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -308,28 +267,6 @@ const SMDeployments = () => {
                       <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => toast.info(deployment.commit_sha ? `Commit ${deployment.commit_sha}` : 'No commit info')}>
                         <Eye className="w-4 h-4" />
                       </Button>
-                      {deployment.status === 'success' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-accent-amber"
-                          disabled={actingId === deployment.id}
-                          onClick={() => void handleRollback(deployment)}
-                        >
-                          {actingId === deployment.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-                        </Button>
-                      )}
-                      {deployment.status === 'failed' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-primary"
-                          disabled={actingId === deployment.id}
-                          onClick={() => void handleRedeploy(deployment)}
-                        >
-                          {actingId === deployment.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </motion.div>

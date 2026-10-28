@@ -63,6 +63,13 @@ export function readStoredCredential(value: string): string {
   return Buffer.from(plaintext, "utf8").equals(decoded) ? plaintext : value;
 }
 
+export function resolveAiCredential(storedValue: unknown, environmentValue?: string): string {
+  const configured = environmentValue?.trim();
+  if (configured) return configured;
+  if (typeof storedValue !== "string" || !storedValue.trim()) return "";
+  return readStoredCredential(storedValue.trim()).trim();
+}
+
 export function credentialFingerprint(secret: string): string {
   return createHash("sha256").update(secret).digest("hex");
 }

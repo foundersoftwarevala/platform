@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEMO_OPERATOR_ROLES, DEMO_ROUTE_ROLES } from "./demo-roles";
 import { requireInternalOperator } from "./internal-guard";
 import { MARKETPLACE_MANAGER_API_ROLES } from "./marketplace-manager-roles";
+import { isPubliclyReachable } from "@/components/auth/RouteAccessGate";
 
 const OPERATOR_ROLES = new Set<string>(DEMO_OPERATOR_ROLES);
 
@@ -45,6 +46,14 @@ describe("demo publishing authority", () => {
     for (const role of DEMO_ROUTE_ROLES) {
       expect(OPERATOR_ROLES.has(role)).toBe(true);
     }
+  });
+});
+
+describe("Pro Manager route authority", () => {
+  it("keeps the operator-only console behind the central route gate", () => {
+    expect(isPubliclyReachable("/rd-manager/pro-manager")).toBe(false);
+    expect(isPubliclyReachable("/rd-manager/pro-manager/users")).toBe(false);
+    expect(isPubliclyReachable("/rd-manager")).toBe(true);
   });
 });
 

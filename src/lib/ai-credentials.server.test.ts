@@ -5,6 +5,7 @@ import {
   encryptAiCredential,
   isEncryptedAiCredential,
   readStoredCredential,
+  resolveAiCredential,
 } from "@/lib/ai-credentials.server";
 
 const testKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
@@ -42,6 +43,14 @@ describe("stored credential encryption", () => {
       "legacy-secret",
     );
     expect(readStoredCredential("provider-plain-secret")).toBe("provider-plain-secret");
+  });
+
+  it("resolves encrypted provider keys and provider-specific environment credentials", () => {
+    const encrypted = encryptAiCredential("gsk_provider-secret");
+
+    expect(resolveAiCredential(encrypted)).toBe("gsk_provider-secret");
+    expect(resolveAiCredential(encrypted, "groq-env-secret")).toBe("groq-env-secret");
+    expect(resolveAiCredential(null)).toBe("");
   });
 
   it("fails closed when no encryption key is configured", () => {
