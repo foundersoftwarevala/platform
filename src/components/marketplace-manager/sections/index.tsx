@@ -16,6 +16,7 @@ import { authHeaders } from "@/lib/auth/operator-fetch";
 import { useResource } from "@/lib/manager/use-resource";
 import { marketplaceRevenueSeries } from "@/lib/marketplace-manager/homepage-rows.functions";
 import { marketplaceTrendingSearches } from "@/lib/marketplace-manager/trending.functions";
+import { getStorefrontChrome } from "@/lib/storefront/chrome.functions";
 // ---------- HERO BANNER MANAGER ----------
 // Real, DB-backed implementation lives in ./HeroSlidesManager.tsx
 export { HeroBannerSection } from "./HeroSlidesManager";
@@ -169,22 +170,43 @@ export function PartnersSection() {
 
 // ---------- CONTACT ----------
 export function ContactSection() {
-  // "hello@softwarevala.com" was printed here and appears nowhere the
-  // storefront shows. These are the channels the storefront footer actually
-  // prints (SiteFooter); a phone line and an address are not published there.
+  const chrome = useQuery({
+    queryKey: ["marketplace", "storefront-chrome"],
+    queryFn: () => getStorefrontChrome(),
+    staleTime: 30_000,
+  });
+  const footer = chrome.data?.footer;
+  const links = [
+    ...(footer?.columns ?? []).flatMap((column) => column.links),
+    ...(footer?.socials ?? []).map((social) => ({
+      label: social.label,
+      href: social.href,
+      open_in_new: true,
+      audience: "all" as const,
+    })),
+  ];
+  const findContact = (pattern: RegExp) => {
+    const link = links.find((item) => pattern.test(`${item.label} ${item.href ?? ""}`));
+    if (!link?.href) return "Not published";
+    return link.href.replace(/^(mailto:|tel:)/i, "");
+  };
+  const contactValue = (pattern: RegExp) =>
+    chrome.isLoading ? "…" : chrome.isError ? "Unavailable" : findContact(pattern);
   const items = [
-    ["Email", Mail, "hellosoftwarevala@gmail.com"],
-    ["Phone", Phone, "—"],
-    ["WhatsApp", MessageCircle, "+91 83488 38383"],
-    ["Address", MapPin, "—"],
+    ["Email", Mail, contactValue(/email|mailto:/i)],
+    ["Phone", Phone, contactValue(/phone|tel:/i)],
+    ["WhatsApp", MessageCircle, contactValue(/whatsapp|wa\.me/i)],
+    ["Address", MapPin, contactValue(/address|maps\.google/i)],
   ] as const;
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
         eyebrow="Contact Manager"
         title="Storefront contact"
-        description="Channels surfaced in the footer and contact page."
+        description="Published channels from the VPS-backed storefront footer configuration."
       />
+      {chrome.isError && <EmptyHint text="Published contact channels could not be loaded." />}
+      {chrome.isLoading && <EmptyHint text="Reading published contact channels…" />}
       <div className="grid gap-3 md:grid-cols-2">
         {items.map(([l, I, v]) => (
           <Card key={l}>
@@ -198,13 +220,7 @@ export function ContactSection() {
                   <div className="text-sm font-bold">{v}</div>
                 </div>
               </div>
-              <PillButton
-                variant="ghost"
-                disabled
-                title="No table stores the storefront contact channels; they are written in the storefront footer itself."
-              >
-                Edit
-              </PillButton>
+              <span className="text-xs text-muted-foreground">Managed in Footer</span>
             </div>
           </Card>
         ))}

@@ -1,7 +1,11 @@
-import { callAsUser } from "@/lib/supabase-rpc.server";
+import {
+  callMarketplaceManagerFunctionFromRequest as callAsUser,
+  callVpsPublicFunction,
+} from "@/lib/marketplace-manager/vps-rpc.server";
 import type { Json, JsonObject } from "@/lib/json";
-import { requireJson } from "@/lib/json";
+import { requireJsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
+import { catalogueChanged, onCatalogueChange } from "@/lib/marketplace/catalogue-invalidation";
 
 import { z } from "zod";
 
@@ -129,105 +133,41 @@ export type StorefrontVideo = {
 // manager sees their own publish without waiting.
 const CACHE_MS = 30_000;
 let cached: { at: number; payload: StorefrontChrome } | null = null;
-
-function url() {
-  return process.env.SUPABASE_URL?.trim() ?? "";
-}
-
-function admin() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  return { apikey: key, Authorization: `Bearer ${key}` };
-}
+onCatalogueChange(() => {
+  cached = null;
+});
 
 /** The FAQ structured data, built from the same published rows. */
 async function liveFaqSchema(): Promise<Json> {
-  const base = url();
-  if (!base) return null;
-  try {
-    const res = await fetch(`${base}/rest/v1/rpc/sf_faq_schema`, {
-      method: "POST",
-      headers: { ...admin(), "Content-Type": "application/json" },
-      body: "{}",
-    });
-    if (!res.ok) return null;
-    return requireJson(await res.json(), "Storefront FAQ schema");
-  } catch (error) {
-    console.error("[storefront chrome] FAQ schema could not load", error);
-    return null;
-  }
+  return callVpsPublicFunction("sf_faq_schema");
 }
 
 /** Published FAQs. Empty on any failure, which leaves the section unrendered. */
 async function liveFaqs(): Promise<Json[]> {
-  const base = url();
-  if (!base) return [];
-  try {
-    const res = await fetch(`${base}/rest/v1/rpc/sf_faqs`, {
-      method: "POST",
-      headers: { ...admin(), "Content-Type": "application/json" },
-      body: "{}",
-    });
-    if (!res.ok) return [];
-    const data = (await res.json()) as unknown;
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
+  const data = await callVpsPublicFunction("sf_faqs");
+  if (!Array.isArray(data)) throw new Error("The published FAQ response is invalid.");
+  return data;
 }
 
 /** Published Vala TV videos. Empty on any failure. */
 async function liveVideos(): Promise<Json[]> {
-  const base = url();
-  if (!base) return [];
-  try {
-    const res = await fetch(`${base}/rest/v1/rpc/sf_vala_tv`, {
-      method: "POST",
-      headers: { ...admin(), "Content-Type": "application/json" },
-      body: "{}",
-    });
-    if (!res.ok) return [];
-    const data = (await res.json()) as unknown;
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
+  const data = await callVpsPublicFunction("sf_vala_tv");
+  if (!Array.isArray(data)) throw new Error("The published Vala TV response is invalid.");
+  return data;
 }
 
 /** Published, in-window, non-seed offers. Empty on any failure. */
 async function liveOffers(): Promise<Json[]> {
-  const base = url();
-  if (!base) return [];
-  try {
-    const res = await fetch(`${base}/rest/v1/rpc/sf_active_offers`, {
-      method: "POST",
-      headers: { ...admin(), "Content-Type": "application/json" },
-      body: "{}",
-    });
-    if (!res.ok) return [];
-    const data = (await res.json()) as unknown;
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
+  const data = await callVpsPublicFunction("sf_active_offers");
+  if (!Array.isArray(data)) throw new Error("The active offer response is invalid.");
+  return data;
 }
 
 async function liveConfig(kind: "footer" | "floating"): Promise<JsonObject> {
-  const base = url();
-  if (!base) return { published: false };
-  try {
-    const res = await fetch(`${base}/rest/v1/rpc/sf_config_live`, {
-      method: "POST",
-      headers: { ...admin(), "Content-Type": "application/json" },
-      body: JSON.stringify({ p_kind: kind }),
-    });
-    if (!res.ok) return { published: false };
-    const data = (await res.json()) as JsonObject;
-    return data && typeof data === "object" ? data : { published: false };
-  } catch {
-    // `published: false` is the storefront's instruction to fall back to what
-    // it ships with. It is never confused with "everything is switched off".
-    return { published: false };
-  }
+  return requireJsonObject(
+    await callVpsPublicFunction("sf_config_live", { p_kind: kind }),
+    "Published storefront chrome",
+  );
 }
 
 /**
@@ -249,6 +189,18 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
       liveFaqs(),
       liveFaqSchema(),
     ]);
+    for (const [name, result] of [
+      ["footer", footer],
+      ["floating elements", floating],
+      ["offers", offers],
+      ["Vala TV", videos],
+      ["FAQs", faqs],
+      ["FAQ schema", faqSchema],
+    ] as const) {
+      if (result.status === "rejected") {
+        console.error(`[storefront chrome] ${name} could not load`, result.reason);
+      }
+    }
 
     const payload: StorefrontChrome = {
       footer: (footer.status === "fulfilled"
@@ -273,10 +225,8 @@ export const getStorefrontChrome = createServerFn({ method: "GET" }).handler(
 /* ------------------------------------------------------------ manager side */
 
 /**
- * Calls made as the signed-in person, never with the service key.
- *
- * Using the service role here would make every caller an operator, which is
- * exactly the mistake that let mm_is_operator pass for everybody.
+ * The VPS service role runs these audited functions only after the caller's
+ * bearer identity and operator role have been verified in the same transaction.
  */
 
 type Outcome = { ok?: boolean; reason?: string; message?: string; version?: number; [k: string]: Json | undefined };
@@ -290,6 +240,7 @@ function settle(result: Outcome | null, whenOk: string) {
         : String(result?.message ?? result?.reason ?? "The change was refused."),
     );
   }
+  catalogueChanged();
   return { ...result, ok: true as const, message: whenOk };
 }
 

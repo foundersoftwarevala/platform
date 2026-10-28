@@ -3,69 +3,46 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Plus, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
 
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@/lib/serverFn";
 import { embedUrl } from "@/lib/site-content/videos";
+import {
+  archiveValaTvVideo,
+  createValaTvVideo,
+  getValaTvManager,
+  updateValaTvVideo,
+  type ValaTvCategory,
+  type ValaTvVideo as VideoRow,
+  type ValaTvVideoPatch,
+} from "@/lib/marketplace-manager/vala-tv.functions";
 
 import { Card, PageHeader, PillButton, StatCard, SubNav } from "../ui";
-
-/**
- * Vala TV Manager, over vala_tv_videos.
- *
- * The storefront's Vala TV section reads vala_tv_videos, but this editor kept
- * its own list in the browser: a video added, edited or taken off the air here
- * never reached the site, and the "Views" box let anyone type any number. It
- * now reads and writes the table itself - under its own policy, which admits
- * marketplace operators - and views are the ones recorded in vala_tv_views.
- */
-
-// The Vala TV tables are not in the generated types.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const from = (t: string) => (supabase as any).from(t);
-
-type Category = { id: string; name: string };
-type VideoRow = {
-  id: string; title: string; url: string | null; thumbnail_url: string | null; duration: string | null;
-  category_id: string | null; status: string; position: number;
-};
 
 const input =
   "w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm outline-none focus:border-accent/60";
 
 const KEY = ["mm", "vala-tv"];
 
-async function load() {
-  const [categories, videos, views] = await Promise.all([
-    from("vala_tv_categories").select("id,name").eq("archived", false).order("position"),
-    from("vala_tv_videos").select("id,title,url,thumbnail_url,duration,category_id,status,position").neq("status", "archived").order("position"),
-    from("vala_tv_views").select("video_id").limit(200000),
-  ]);
-  for (const r of [categories, videos, views]) if (r.error) throw new Error(r.error.message);
-  const counts = new Map<string, number>();
-  for (const v of (views.data ?? []) as { video_id: string }[]) counts.set(v.video_id, (counts.get(v.video_id) ?? 0) + 1);
-  return {
-    categories: (categories.data ?? []) as Category[],
-    videos: (videos.data ?? []) as VideoRow[],
-    views: counts,
-  };
-}
-
 export function ValaTvSection() {
   const client = useQueryClient();
-  const query = useQuery({ queryKey: KEY, queryFn: load });
+  const loadFn = useServerFn(getValaTvManager);
+  const createFn = useServerFn(createValaTvVideo);
+  const updateFn = useServerFn(updateValaTvVideo);
+  const archiveFn = useServerFn(archiveValaTvVideo);
+  const query = useQuery({ queryKey: KEY, queryFn: () => loadFn() });
   const [tab, setTab] = useState("All");
   const categories = useMemo(() => query.data?.categories ?? [], [query.data]);
   const rows = query.data?.videos ?? [];
   const nameOf = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
 
   const refresh = () => client.invalidateQueries({ queryKey: KEY });
-  const save = async (id: string, change: Record<string, unknown>, done?: string) => {
-    const { error } = await from("vala_tv_videos").update({ ...change, updated_at: new Date().toISOString() }).eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
+  const save = async (id: string, change: ValaTvVideoPatch, done?: string) => {
+    try {
+      await updateFn({ data: { id, patch: change } });
+      if (done) toast.success(done);
+      await refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The Vala TV video could not be saved.");
     }
-    if (done) toast.success(done);
-    await refresh();
   };
 
   const tabs = ["All", ...categories.map((c) => c.name)];
@@ -82,17 +59,13 @@ export function ValaTvSection() {
           <PillButton
             variant="primary"
             onClick={async () => {
-              const { data: auth } = await supabase.auth.getUser();
-              const { error } = await from("vala_tv_videos").insert({
-                title: "New video",
-                status: "draft",
-                source: "manual",
-                category_id: categories[0]?.id ?? null,
-                position: rows.length + 1,
-                created_by: auth.user?.id ?? null,
-              });
-              if (error) toast.error(error.message);
-              else await refresh();
+              try {
+                await createFn({ data: { categoryId: categories[0]?.id ?? null } });
+                await refresh();
+                toast.success("Draft video created.");
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "The Vala TV draft could not be created.");
+              }
             }}
           >
             <span className="inline-flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> Add Video</span>
@@ -124,16 +97,17 @@ export function ValaTvSection() {
           <VideoCard
             key={v.id}
             video={v}
-            views={query.data?.views.get(v.id) ?? 0}
+            views={query.data?.views[v.id] ?? 0}
             categories={categories}
             onSave={save}
             onDelete={async () => {
               if (!window.confirm(`Delete "${v.title}" from Vala TV?`)) return;
-              const { error } = await from("vala_tv_videos").delete().eq("id", v.id);
-              if (error) toast.error(error.message);
-              else {
+              try {
+                await archiveFn({ data: { id: v.id } });
                 toast.success("Video removed");
                 await refresh();
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "The Vala TV video could not be removed.");
               }
             }}
           />
@@ -148,8 +122,8 @@ function VideoCard({
 }: {
   video: VideoRow;
   views: number;
-  categories: Category[];
-  onSave: (id: string, change: Record<string, unknown>, done?: string) => Promise<void>;
+  categories: ValaTvCategory[];
+  onSave: (id: string, change: ValaTvVideoPatch, done?: string) => Promise<void>;
   onDelete: () => void;
 }) {
   // Typed into locally and saved when the field is left, so a video is not

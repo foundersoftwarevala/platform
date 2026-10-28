@@ -99,8 +99,8 @@ async function cachedOrNull<T>(
   }
 }
 
-/** Categories with a row configured in the manager. Empty on any failure. */
-async function configuredRows(): Promise<Set<string>> {
+/** Categories with a row configured in the manager. Null means the read failed. */
+async function configuredRows(): Promise<Set<string> | null> {
   const rows = await cachedOrNull(configuredCache, "configured", async () => {
     const response = await fetch(`${url()}/rest/v1/marketplace_row_config?select=category_id`, {
       headers: admin(),
@@ -109,7 +109,7 @@ async function configuredRows(): Promise<Set<string>> {
     const list = (await response.json()) as { category_id: string }[];
     return new Set(list.map((r) => String(r.category_id)));
   });
-  return rows ?? new Set();
+  return rows;
 }
 
 /**
@@ -174,7 +174,7 @@ async function configuredOrder(key: string): Promise<string[] | null> {
     // A product placed by hand and later unpublished is not shown.
     const demos = await activeDemoProducts();
     if (!demos) return null;
-    const ids = data.products.filter((x) => x.live !== false).map((x) => String(x.product_id));
+    const ids = data.products.filter((x) => x.live === true).map((x) => String(x.product_id));
     return demoFirst(ids, (id) => demos.has(id));
   });
 }
@@ -252,12 +252,10 @@ async function rowCards(
 ): Promise<{ cards: CatalogCard[]; total: number } | null> {
   if (configured) {
     const order = await configuredOrder(slug);
-    if (order && order.length) {
-      const cards = await cardsById(order.slice(offset, offset + limit));
-      // A configured row that resolves to nothing falls back to the
-      // catalogue rather than showing an empty shelf.
-      if (cards && (cards.length || offset > 0)) return { cards, total: order.length };
-    }
+    if (!order) return null;
+    const cards = await cardsById(order.slice(offset, offset + limit));
+    if (!cards) return null;
+    return { cards, total: order.length };
   }
   return categoryCards(categoryId, offset, limit);
 }
@@ -299,17 +297,17 @@ async function readCatalogRowsUncached(options: {
   const range = categoryResponse.headers.get("content-range") ?? "";
   const totalRows = Number(range.split("/")[1]) || categories.length;
 
-  const [curated, registry] = await Promise.all([configuredRows(), rowRegistry()]);
-  // Absent from the registry means unconfigured, which is live.
+  const [configured, registry] = await Promise.all([configuredRows(), rowRegistry()]);
+  if (!configured || !registry) return null;
   const byKey = new Map((registry ?? []).map((r) => [r.key, r]));
-  const isLive = (slug: string) => byKey.get(slug)?.live_now ?? true;
+  const isLive = (slug: string) => byKey.get(slug)?.live_now === true;
 
   const categoryRows = await Promise.all(
     categories
       .filter((c) => isLive(String(c.slug ?? "")))
       .map(async (c) => {
         const slug = String(c.slug ?? "");
-        const page = await rowCards(String(c.id), slug, curated.has(String(c.id)), 0, perRow);
+        const page = await rowCards(String(c.id), slug, configured.has(String(c.id)), 0, perRow);
         const cards = page?.cards ?? [];
         const total = page?.total ?? 0;
         return {
@@ -395,13 +393,17 @@ async function readCategoryRowUncached(
 } | null> {
   const categoryResponse = await fetch(
     `${url()}/rest/v1/marketplace_categories?select=id,name,slug` +
-      `&slug=eq.${encodeURIComponent(slug)}&limit=1`,
+      `&slug=eq.${encodeURIComponent(slug)}&is_hidden=eq.false&limit=1`,
     { headers: admin() },
   );
   if (!categoryResponse.ok) return null;
   const category = ((await categoryResponse.json()) as Row[])[0];
   if (!category) return null;
-  const configured = (await configuredRows()).has(String(category.id));
+  const [configuredRowsSet, registry] = await Promise.all([configuredRows(), rowRegistry()]);
+  if (!configuredRowsSet || !registry?.some((row) => row.key === slug && row.live_now === true)) {
+    return null;
+  }
+  const configured = configuredRowsSet.has(String(category.id));
   const page = await rowCards(String(category.id), slug, configured, offset, limit);
   if (!page) return null;
   return {
@@ -465,12 +467,14 @@ export async function readCountryRow(
 } | null> {
   const categoryResponse = await fetch(
     `${url()}/rest/v1/marketplace_categories?select=id,name,slug` +
-      `&slug=eq.${encodeURIComponent(slug)}&limit=1`,
+      `&slug=eq.${encodeURIComponent(slug)}&is_hidden=eq.false&limit=1`,
     { headers: admin() },
   );
   if (!categoryResponse.ok) return null;
   const category = ((await categoryResponse.json()) as Row[])[0];
   if (!category) return null;
+  const registry = await rowRegistry();
+  if (!registry?.some((row) => row.key === slug && row.live_now === true)) return null;
 
   const order = await categoryOrder(String(category.id));
   if (!order) return null;

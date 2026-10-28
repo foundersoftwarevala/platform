@@ -47,7 +47,7 @@ const SELECT =
   "price_label,price_period,description,tech_stack,features,modules,deployment," +
   "license,version,is_featured,is_trending,is_best_seller,is_new_release,category_id," +
   // What a product card also reads (format=cards).
-  "search_keywords,search_text,subcategory,product_demo_urls(url,status)";
+  "search_keywords,search_text,subcategory,product_demo_urls(url,status,detected_category_id)";
 
 /** Deterministic, so a page of 200 is the same 200 every time it is asked for. */
 const ORDER = "&order=is_featured.desc,sort_order.asc,id.asc";

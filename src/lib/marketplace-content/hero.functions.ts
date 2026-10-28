@@ -1,4 +1,5 @@
-import { supabase } from "@/integrations/supabase/client";
+import { createServerFn } from "@tanstack/react-start";
+import { withVpsPublicDatabase } from "@/lib/marketplace-manager/vps-rpc.server";
 
 export type HeroSlide = {
   id: string;
@@ -381,29 +382,29 @@ export const FALLBACK_HERO_SLIDES: HeroSlide[] = [
   },
 ];
 
-/** Public hero slides for the homepage carousel (falls back to defaults). */
-export async function listHeroSlidesPublic(): Promise<HeroSlide[]> {
+/** Public hero slides currently published for the homepage carousel. */
+export const listHeroSlidesPublic = createServerFn({ method: "GET" }).handler(
+  async (): Promise<HeroSlide[]> => {
   try {
-    const nowIso = new Date().toISOString();
-    const { data, error } = await (supabase as any)
-      .from("home_hero_slides")
-      .select("*")
-      // Only slides the manager has actually made visible.
-      .eq("visible", true)
-      .eq("banner_type", "marketplace_slider")
-      // And only inside their schedule. A null bound means "no bound", so a
-      // slide with neither dates set is simply always in window.
-      .or(`published_at.is.null,published_at.lte.${nowIso}`)
-      .or(`unpublish_at.is.null,unpublish_at.gt.${nowIso}`)
-      .order("position", { ascending: true });
-
-    if (error) return FALLBACK_HERO_SLIDES;
-    const rows = (data ?? []) as HeroSlide[];
-    // The fallback is a safety net for a failed or empty query, not a default.
-    // The hero is the first thing on a protected page and an empty carousel
-    // there is worse than a stale one.
-    return rows.length ? rows : FALLBACK_HERO_SLIDES;
-  } catch {
-    return FALLBACK_HERO_SLIDES;
+    const rows = await withVpsPublicDatabase((tx) =>
+      tx<HeroSlide[]>`
+        select id, slug, kicker, title, subtitle, cta_primary, cta_secondary,
+               cta_link, cta_secondary_link, gradient, icon_name, accent,
+               position, visible, published_at, unpublish_at, banner_type,
+               target_roles
+          from public.home_hero_slides
+         where visible is true
+           and banner_type = 'marketplace_slider'
+           and archived_at is null
+           and (published_at is null or published_at <= now())
+           and (unpublish_at is null or unpublish_at > now())
+         order by position asc, id
+      `,
+    );
+    return rows;
+  } catch (error) {
+    console.error("[homepage hero] VPS slides could not load", error);
+    return [];
   }
-}
+  },
+);

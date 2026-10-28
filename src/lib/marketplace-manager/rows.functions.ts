@@ -1,6 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import {
+  callMarketplaceManagerFunctionFromRequest,
+  withMarketplaceManagerDatabaseFromRequest,
+  type MarketplaceManagerFunction,
+} from "./vps-rpc.server";
 
 /**
  * Marketplace homepage rows — the real ones.
@@ -21,21 +25,8 @@ import { z } from "zod";
  * operator.
  */
 
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
+async function callAsUser<T>(fn: MarketplaceManagerFunction, args: Record<string, unknown>): Promise<T> {
+  return callMarketplaceManagerFunctionFromRequest<T>(fn, args);
 }
 
 type Outcome = { ok?: boolean; reason?: string; message?: string; [k: string]: unknown };
@@ -291,35 +282,62 @@ export const searchRowProducts = createServerFn({ method: "GET" })
       const { requireMarketplaceOperator } = await import("./mm-operator.server");
       await requireMarketplaceOperator("Searching unpublished products");
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    let q = supabaseAdmin
-      .from("marketplace_products")
-      .select(
-        "id,name,slug,thumbnail_url,category_id,subcategory,industry_label,visible,content_status,moderation_status,license,is_featured,is_trending,is_best_seller,is_new_release,seller_id",
-      )
-      .order("sort_order", { ascending: true })
-      .limit(data.limit ?? 24);
-
-    if (data.categoryId) q = q.eq("category_id", data.categoryId);
-    if (data.onlyPublished !== false) q = q.eq("visible", true).eq("content_status", "published");
-    // % and _ are wildcards to ilike; a search for "50%" means the characters.
-    if (data.query?.trim())
-      q = q.ilike("name", `%${data.query.trim().replace(/[\\%_]/g, "\\$&")}%`);
-    if (data.subcategory) q = q.eq("subcategory", data.subcategory);
-    if (data.industry) q = q.eq("industry_label", data.industry);
-    if (data.sellerId) q = q.eq("seller_id", data.sellerId);
-    if (data.featured) q = q.eq("is_featured", true);
-    if (data.trending) q = q.eq("is_trending", true);
-    if (data.bestSeller) q = q.eq("is_best_seller", true);
-    if (data.newRelease) q = q.eq("is_new_release", true);
-    // Legal status, section 6. `license` is what the catalogue actually records
-    // per product; legal_product_bindings is the Legal Manager link and is
-    // empty today, so filtering on it would return nothing and look broken.
-    if (data.license) q = q.eq("license", data.license);
-
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
-    return { ok: true as const, products: rows ?? [] };
+    return withMarketplaceManagerDatabaseFromRequest(async (tx) => {
+      const filters = ["deleted_at is null"];
+      const values: unknown[] = [];
+      const add = (column: string, value: unknown, cast: string) => {
+        values.push(value);
+        filters.push(`${column} = $${values.length}::${cast}`);
+      };
+      if (data.categoryId) add("category_id", data.categoryId, "uuid");
+      if (data.onlyPublished !== false) {
+        filters.push("visible is true", "content_status = 'published'");
+      }
+      if (data.query?.trim()) {
+        values.push(`%${data.query.trim().replace(/[\\%_]/g, "\\$&")}%`);
+        filters.push(`name ilike $${values.length} escape E'\\\\'`);
+      }
+      if (data.subcategory) add("subcategory", data.subcategory, "text");
+      if (data.industry) add("industry_label", data.industry, "text");
+      if (data.sellerId) add("seller_id", data.sellerId, "uuid");
+      if (data.featured) filters.push("is_featured is true");
+      if (data.trending) filters.push("is_trending is true");
+      if (data.bestSeller) filters.push("is_best_seller is true");
+      if (data.newRelease) filters.push("is_new_release is true");
+      if (data.license) add("license", data.license, "text");
+      values.push(data.limit ?? 24);
+      const rows = await tx.unsafe(
+        `select id, name, slug, thumbnail_url, category_id, subcategory,
+                industry_label, visible, content_status, moderation_status,
+                license, is_featured, is_trending, is_best_seller,
+                is_new_release, seller_id
+           from public.marketplace_products
+          where ${filters.join(" and ")}
+          order by sort_order asc
+          limit $${values.length}`,
+        values as never[],
+      );
+      const products = rows.map((row) => ({
+        id: String(row.id),
+        name: String(row.name ?? ""),
+        slug: String(row.slug ?? ""),
+        thumbnail_url: typeof row.thumbnail_url === "string" ? row.thumbnail_url : null,
+        category_id: typeof row.category_id === "string" ? row.category_id : null,
+        subcategory: typeof row.subcategory === "string" ? row.subcategory : null,
+        industry_label: typeof row.industry_label === "string" ? row.industry_label : null,
+        visible: row.visible === true,
+        content_status: typeof row.content_status === "string" ? row.content_status : null,
+        moderation_status:
+          typeof row.moderation_status === "string" ? row.moderation_status : null,
+        license: typeof row.license === "string" ? row.license : null,
+        is_featured: row.is_featured === true,
+        is_trending: row.is_trending === true,
+        is_best_seller: row.is_best_seller === true,
+        is_new_release: row.is_new_release === true,
+        seller_id: typeof row.seller_id === "string" ? row.seller_id : null,
+      }));
+      return { ok: true as const, products };
+    });
   });
 
 /* ------------------------------------------------------------------------ */
@@ -470,30 +488,24 @@ export const getRowAudit = createServerFn({ method: "GET" })
     // The trail carries operator e-mails and full before/after state, read with
     // the service role, so it is for operators only - the console's own
     // operators (mm_is_operator), not requireOperator's wider staff list.
-    const { requireMarketplaceOperator } = await import("./mm-operator.server");
-    await requireMarketplaceOperator("Reading the row history");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: row } = await supabaseAdmin
-      .from("marketplace_categories")
-      .select("id")
-      .eq("slug", data.key)
-      .maybeSingle();
-    const { data: cfg } = await supabaseAdmin
-      .from("marketplace_row_config")
-      .select("id")
-      .eq("key", data.key)
-      .maybeSingle();
-    const ids = [row?.id, cfg?.id].filter(Boolean) as string[];
-    if (!ids.length) return { ok: true as const, entries: [] };
-
-    const { data: entries, error } = await supabaseAdmin
-      .from("marketplace_audit_logs")
-      .select("action,actor,actor_role,before_state,after_state,reason,created_at")
-      .in("entity_id", ids)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error) throw new Error(error.message);
-    return { ok: true as const, entries: entries ?? [] };
+    return withMarketplaceManagerDatabaseFromRequest(async (tx) => {
+      const category = await tx<{ id: string }[]>`
+        select id from public.marketplace_categories where slug = ${data.key} limit 1
+      `;
+      const config = await tx<{ id: string }[]>`
+        select id from public.marketplace_row_config where key = ${data.key} limit 1
+      `;
+      const ids = [...category, ...config].map((row) => row.id);
+      if (!ids.length) return { ok: true as const, entries: [] };
+      const entries = await tx`
+        select action, actor, actor_role, before_state, after_state, reason, created_at
+          from public.marketplace_audit_logs
+         where entity_id = any(${ids}::uuid[])
+         order by created_at desc
+         limit 50
+      `;
+      return { ok: true as const, entries: [...entries] };
+    });
   });
 
 /* ------------------------------------------------------------------------ */
@@ -571,38 +583,63 @@ export const configureSection = createServerFn({ method: "POST" })
     // This writes with the service role, which bypasses every policy, so the
     // caller is checked here: an operator who may change the front page. It
     // used to accept any signed-in account, a customer included.
-    const { requireOperator } = await import("@/lib/auth/require-operator.server");
-    const operator = await requireOperator("Changing a homepage section");
-    if (!operator.roles.some((r) => SECTION_WRITERS.has(r))) {
-      throw new Error("Changing a homepage section needs marketplace operator rights.");
-    }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch = { ...data.patch, updated_at: new Date().toISOString() };
     if (!Object.keys(data.patch).length) {
       throw new Error("Nothing in that change is editable from here.");
     }
+    await withMarketplaceManagerDatabaseFromRequest(async (tx) => {
+      const [writer] = await tx<{ allowed: boolean }[]>`
+        select exists (
+          select 1 from public.user_roles
+           where user_id = auth.uid()
+             and role = any(${[...SECTION_WRITERS]}::text[])
+        ) as allowed
+      `;
+      if (!writer?.allowed) {
+        throw new Error("Changing a homepage section needs marketplace operator rights.");
+      }
+      const [current] = await tx<{ status: string }[]>`
+        select status
+          from public.marketplace_homepage_sections
+         where key = ${data.key}
+         for update
+      `;
+      if (!current) throw new Error("There is no homepage section with that key.");
+      if (current.status === "archived" && ("status" in data.patch || "enabled" in data.patch)) {
+        throw new Error(
+          "This section is archived. Restore it from Layout Order before publishing it.",
+        );
+      }
 
-    // An archived section is retired on purpose (archived_section_guard); it is
-    // not brought back by publishing it from here.
-    const { data: current, error: readError } = await supabaseAdmin
-      .from("marketplace_homepage_sections")
-      .select("status")
-      .eq("key", data.key)
-      .maybeSingle();
-    if (readError) throw new Error(readError.message);
-    if (!current) throw new Error("There is no homepage section with that key.");
-    const currentStatus = current.status;
-    if (currentStatus === "archived" && ("status" in patch || "enabled" in patch)) {
-      throw new Error(
-        "This section is archived. Restore it from Layout Order before publishing it.",
-      );
-    }
-
-    const { error } = await supabaseAdmin
-      .from("marketplace_homepage_sections")
-      .update(patch)
-      .eq("key", data.key);
-    if (error) throw new Error(error.message);
+      const columnTypes = {
+        status: "text",
+        enabled: "boolean",
+        sort_order: "integer",
+        visible_desktop: "boolean",
+        visible_mobile: "boolean",
+        starts_at: "timestamptz",
+        ends_at: "timestamptz",
+        title: "text",
+        subtitle: "text",
+        cta_label: "text",
+        cta_href: "text",
+      } as const;
+      const fields = Object.entries(data.patch);
+      const values: unknown[] = [];
+      const assignments = fields.map(([key, value]) => {
+        if (!(key in columnTypes)) throw new Error(`The ${key} field cannot be changed here.`);
+        values.push(value);
+        return `${key} = $${values.length}::${columnTypes[key as keyof typeof columnTypes]}`;
+      });
+      values.push(data.key);
+      const updated = await tx.unsafe(
+        `update public.marketplace_homepage_sections
+            set ${assignments.join(", ")}, updated_at = now()
+          where key = $${values.length}
+          returning key`,
+        values as never[],
+      ) as { key: string }[];
+      if (!updated[0]) throw new Error("The homepage section could not be updated.");
+    });
     const { catalogueChanged } = await import("@/lib/marketplace/catalogue-invalidation");
     catalogueChanged();
     return { ok: true as const, message: "Section updated" };

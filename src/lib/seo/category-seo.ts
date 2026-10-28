@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { withVpsPublicDatabase } from "@/lib/marketplace-manager/vps-rpc.server";
 
 /**
  * SEO for a marketplace category page.
@@ -36,61 +37,56 @@ function admin() {
 export const getCategorySeo = createServerFn({ method: "GET" })
   .validator((v) => z.object({ slug: z.string().min(1).max(120) }).parse(v ?? {}))
   .handler(async ({ data }): Promise<CategorySeo | null> => {
-    const url = process.env.SUPABASE_URL?.trim();
-    if (!url || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
-
     const hit = cache.get(data.slug);
     if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
 
     try {
-      const categoryResponse = await fetch(
-        `${url}/rest/v1/marketplace_categories?select=id,name,slug,seo` +
-          `&slug=eq.${encodeURIComponent(data.slug)}&limit=1`,
-        { headers: admin() },
-      );
-      const categories = categoryResponse.ok
-        ? ((await categoryResponse.json()) as Record<string, unknown>[])
-        : [];
-      const category = categories[0];
-      if (!category) {
+      const value = await withVpsPublicDatabase(async (tx) => {
+        const [category] = await tx<{
+          id: string;
+          name: string;
+          slug: string;
+          seo: { title?: unknown; description?: unknown } | null;
+        }[]>`
+          select id, name, slug, seo
+            from public.marketplace_categories
+           where slug = ${data.slug}
+           limit 1
+        `;
+        if (!category) return null;
+
+        const [count] = await tx<{ count: number }[]>`
+          select count(*)::integer as count
+            from public.marketplace_products
+           where visible is true
+             and category_id = ${category.id}::uuid
+        `;
+        const planned = await tx<{ keyword: string; country: string | null }[]>`
+          select keyword, country
+            from public.seo_keywords
+           where industry = ${category.name}
+             and status = 'planned'
+           limit 60
+        `;
+
+        const seo = category.seo ?? {};
+        return {
+          name: category.name,
+          slug: category.slug,
+          productCount: Number(count?.count ?? 0),
+          countries: planned.map((keyword) => keyword.country).filter((country): country is string => Boolean(country)),
+          keywords: planned.map((keyword) => keyword.keyword).filter(Boolean),
+          title: typeof seo.title === "string" && seo.title.trim() ? seo.title : undefined,
+          description:
+            typeof seo.description === "string" && seo.description.trim()
+              ? seo.description
+              : undefined,
+        } satisfies CategorySeo;
+      });
+      if (!value) {
         cache.set(data.slug, { at: Date.now(), value: null });
         return null;
       }
-
-      // How many products the row actually holds.
-      const countResponse = await fetch(
-        `${url}/rest/v1/marketplace_products?select=id&visible=eq.true` +
-          `&category_id=eq.${String(category.id)}&limit=1`,
-        { headers: { ...admin(), Prefer: "count=exact" } },
-      );
-      const range = countResponse.headers.get("content-range") ?? "";
-      const productCount = Number(range.split("/")[1]) || 0;
-
-      // The country plan, straight from the SEO manager's own table.
-      const keywordResponse = await fetch(
-        `${url}/rest/v1/seo_keywords?select=keyword,country` +
-          `&industry=eq.${encodeURIComponent(String(category.name))}` +
-          `&status=eq.planned&limit=60`,
-        { headers: admin() },
-      );
-      const planned = keywordResponse.ok
-        ? ((await keywordResponse.json()) as { keyword: string; country: string }[])
-        : [];
-
-      const seo = (category.seo ?? {}) as { title?: string; description?: string };
-      const value: CategorySeo = {
-        name: String(category.name),
-        slug: String(category.slug),
-        productCount,
-        countries: planned.map((k) => k.country).filter(Boolean),
-        keywords: planned.map((k) => k.keyword).filter(Boolean),
-        title: typeof seo.title === "string" && seo.title.trim() ? seo.title : undefined,
-        description:
-          typeof seo.description === "string" && seo.description.trim()
-            ? seo.description
-            : undefined,
-      };
-
       cache.set(data.slug, { at: Date.now(), value });
       if (cache.size > 200) cache.clear();
       return value;
@@ -122,45 +118,38 @@ function readCountry(keywords: string[]): string | undefined {
 export const getProductSeo = createServerFn({ method: "GET" })
   .validator((v) => z.object({ slug: z.string().min(1).max(200) }).parse(v ?? {}))
   .handler(async ({ data }): Promise<ProductSeo | null> => {
-    const url = process.env.SUPABASE_URL?.trim();
-    if (!url || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
-
     const hit = productCache.get(data.slug);
     if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
 
     try {
-      const response = await fetch(
-        `${url}/rest/v1/marketplace_products` +
-          `?select=name,description,deployment,search_keywords` +
-          // Only a product that is actually on sale has a public page. Without
-          // this an unreviewed draft, a rejected submission or a suspended
-          // product still rendered at its slug.
-          `&visible=is.true` +
-          // ...and the rest of the on-sale rule the page body applies
-          // (loadPublicProductBySlugFromSupabase). With visible alone, a
-          // product off sale got a full product head - title, canonical,
-          // structured data, indexable - over a "Product not found" body.
-          `&moderation_status=eq.approved` +
-          `&and=(or(content_status.is.null,content_status.eq.published),` +
-          `or(publish_at.is.null,publish_at.lte.${encodeURIComponent(new Date().toISOString())}),` +
-          `or(unpublish_at.is.null,unpublish_at.gt.${encodeURIComponent(new Date().toISOString())}))` +
-          `&slug=eq.${encodeURIComponent(data.slug)}&limit=1`,
-        { headers: admin() },
-      );
-      // A refused or failed read is not "no such product": it must not be
-      // cached as one, or answered as one (the route turns empty into a 404).
-      if (!response.ok) throw new Error(`product SEO read failed: HTTP ${response.status}`);
-      const rows = (await response.json()) as Record<string, unknown>[];
-      const row = rows[0];
+      const row = await withVpsPublicDatabase(async (tx) => {
+        const [product] = await tx<{
+          name: string;
+          description: string | null;
+          deployment: string | null;
+          search_keywords: string[] | null;
+        }[]>`
+          select name, description, deployment, search_keywords
+            from public.marketplace_products
+           where slug = ${data.slug}
+             and visible is true
+             and moderation_status = 'approved'
+             and (content_status is null or content_status = 'published')
+             and (publish_at is null or publish_at <= now())
+             and (unpublish_at is null or unpublish_at > now())
+           limit 1
+        `;
+        return product ?? null;
+      });
       if (!row?.name) {
         productCache.set(data.slug, { at: Date.now(), value: null });
         return null;
       }
-      const keywords = Array.isArray(row.search_keywords) ? (row.search_keywords as string[]) : [];
+      const keywords = row.search_keywords ?? [];
       const value: ProductSeo = {
-        name: String(row.name),
-        description: (row.description as string) ?? null,
-        deployment: (row.deployment as string) ?? null,
+        name: row.name,
+        description: row.description,
+        deployment: row.deployment,
         // The bookkeeping markers are for our tooling, not for a meta tag.
         // The markers are bookkeeping for our own tooling - which country a
         // product targets, which region and which city it was written for.

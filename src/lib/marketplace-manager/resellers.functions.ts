@@ -1,6 +1,9 @@
-import { callAsUser, createUserClient as userClient } from "@/lib/supabase-rpc.server";
 import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
+import {
+  callMarketplaceManagerFunctionFromRequest as callAsUser,
+  withMarketplaceManagerDatabaseFromRequest,
+} from "./vps-rpc.server";
 
 import { z } from "zod";
 
@@ -122,28 +125,27 @@ export const getResellerDetail = createServerFn({ method: "GET" })
     const ids = payouts.map((p) => String(p.id ?? "")).filter(Boolean);
     if (detail?.ok === false || !ids.length) return detail;
 
-    try {
-      const client = await userClient();
-      const since = new Date(Date.now() - 180 * 24 * 3600 * 1000).toISOString();
-      const { data: rows, error } = await client
-        .from("marketplace_audit_logs")
-        .select("action, created_at, actor_id, reason, before_state, after_state")
-        .eq("entity_type", "reseller_payout")
-        .in("entity_id", ids)
-        .gt("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error || !rows?.length) return detail;
-      const extra = rows.map((a) => ({
-        action: a.action, at: a.created_at, actor: a.actor_id,
-        reason: a.reason, before: a.before_state, after: a.after_state,
-      }));
-      const audit = [...((detail.audit as JsonObject[] | undefined) ?? []), ...extra]
-        .sort((x, y) => String(y.at ?? "").localeCompare(String(x.at ?? "")));
-      return { ...detail, audit };
-    } catch {
-      return detail;
-    }
+    const since = new Date(Date.now() - 180 * 24 * 3600 * 1000).toISOString();
+    const rows = await withMarketplaceManagerDatabaseFromRequest((tx) =>
+      tx<{ action: string; created_at: string; actor_id: string | null; reason: string | null;
+        before_state: JsonObject | null; after_state: JsonObject | null }[]>`
+        select action, created_at, actor_id, reason, before_state, after_state
+          from public.marketplace_audit_logs
+         where entity_type = 'reseller_payout'
+           and entity_id = any(${ids}::uuid[])
+           and created_at > ${since}::timestamptz
+         order by created_at desc
+         limit 200
+      `,
+    );
+    if (!rows.length) return detail;
+    const extra = rows.map((row) => ({
+      action: row.action, at: row.created_at, actor: row.actor_id,
+      reason: row.reason, before: row.before_state, after: row.after_state,
+    }));
+    const audit = [...((detail.audit as JsonObject[] | undefined) ?? []), ...extra]
+      .sort((x, y) => String(y.at ?? "").localeCompare(String(x.at ?? "")));
+    return { ...detail, audit };
   });
 
 /** Approve, pause, suspend, reject or reactivate. */

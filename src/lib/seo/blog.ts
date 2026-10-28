@@ -44,8 +44,6 @@ function admin() {
   return { apikey: key, Authorization: `Bearer ${key}` };
 }
 
-const FIELDS = "id,title,target_keyword,body,word_count,status,url,published_at,updated_at";
-
 /** "/blog/pos-software-guide" -> "pos-software-guide". */
 export function blogSlug(url: unknown): string {
   const path = String(url ?? "").trim();
@@ -73,20 +71,31 @@ function toPost(row: Row): BlogPost {
   };
 }
 
-async function read(query: string): Promise<Row[]> {
-  const response = await fetch(`${base()}/rest/v1/seo_content_items?${query}`, {
-    headers: admin(),
+async function read(options: { url?: string; limit?: number }): Promise<Row[]> {
+  return withVpsPublicDatabase((tx) => {
+    if (options.url) {
+      return tx<Row[]>`
+        select id, title, target_keyword, body, word_count, status, url, published_at, updated_at
+          from public.seo_content_items
+         where status = 'published'
+           and url = ${options.url}
+         limit 1
+      `;
+    }
+
+    return tx<Row[]>`
+      select id, title, target_keyword, body, word_count, status, url, published_at, updated_at
+        from public.seo_content_items
+       where status = 'published'
+       order by published_at desc
+       limit ${options.limit ?? 100}
+    `;
   });
-  if (!response.ok) throw new Error(`seo_content_items -> HTTP ${response.status}`);
-  return (await response.json()) as Row[];
 }
 
 /** Every post the site can actually show, newest first. */
 export async function readBlogIndex(limit = 100): Promise<BlogIndex> {
-  if (!base()) return { posts: [], withoutBody: 0 };
-  const rows = await read(
-    `select=${FIELDS}&status=eq.published&order=published_at.desc&limit=${limit}`,
-  );
+  const rows = await read({ limit });
   const publishable = rows.filter((row) => hasBody(row) && blogSlug(row.url));
   return {
     posts: publishable.map(toPost),
@@ -96,10 +105,8 @@ export async function readBlogIndex(limit = 100): Promise<BlogIndex> {
 
 /** One post, or null when it is not published, has no body, or does not exist. */
 export async function readBlogPost(slug: string): Promise<BlogPost | null> {
-  if (!base() || !slug) return null;
-  const rows = await read(
-    `select=${FIELDS}&status=eq.published&url=eq.${encodeURIComponent(`/blog/${slug}`)}&limit=1`,
-  );
+  if (!slug) return null;
+  const rows = await read({ url: `/blog/${slug}` });
   const row = rows[0];
   if (!row || !hasBody(row)) return null;
   return toPost(row);
@@ -147,3 +154,4 @@ export function blogExcerpt(body: string, length = 180): string {
   const stop = cut.lastIndexOf(" ");
   return `${stop > 60 ? cut.slice(0, stop) : cut}…`;
 }
+import { withVpsPublicDatabase } from "@/lib/marketplace-manager/vps-rpc.server";

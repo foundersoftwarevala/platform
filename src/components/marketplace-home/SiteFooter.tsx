@@ -2,7 +2,6 @@ import type { ReactElement } from "react";
 import { Facebook, Globe, Instagram, Linkedin, Twitter, Youtube } from "lucide-react";
 
 import { useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
-import { SITE_STATS } from "@/lib/site-content/constants";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { phrase, type HomeStats } from "@/lib/marketplace/home-stats";
 import type { FooterSnapshot } from "@/lib/storefront/chrome.functions";
@@ -15,90 +14,9 @@ import type { FooterSnapshot } from "@/lib/storefront/chrome.functions";
  * canonical footer configuration rather than a copy of the links kept here and
  * another kept in the manager.
  *
- * The arrays below are no longer the source of truth, but they are not
- * decoration either. They are what renders when the snapshot cannot be read, or
- * before anything has ever been published, and they are exactly what the site
- * shipped before the footer became editable. A footer is on every page; losing
- * it to a failed configuration lookup would be worse than showing a slightly
- * old one.
- *
- * The seeded snapshot is these links, link for link, so making the footer
- * database-driven changed nothing a visitor could see.
- *
- * Every link here points at a route that exists — the catalogue, the four
- * marketplace tools, Vala TV, the Academy, each partner application and
- * support. Nothing is listed that would open a page we do not have, and only
- * social profiles the business actually runs are shown. Legal pages (terms,
- * privacy, refunds) are deliberately absent rather than invented: they have to
- * be written and published in the Legal Manager before they can be linked, and
- * the manager will carry them the moment they are.
+ * Unpublished or unavailable footer configuration is never replaced with
+ * built-in links or profiles.
  */
-
-const COLUMNS: Array<{ heading: string; links: Array<{ label: string; href: string }> }> = [
-  {
-    heading: "Marketplace",
-    links: [
-      { label: "Browse all software", href: "/marketplace" },
-      { label: "AI Product Finder", href: "/ai/finder" },
-      { label: "Recommendations", href: "/ai/recommend" },
-      { label: "Compare products", href: "/ai/compare" },
-    ],
-  },
-  {
-    heading: "Learn",
-    links: [
-      { label: "Vala TV", href: "/vala-tv" },
-      { label: "Vala Academy", href: "/academy" },
-      // The FAQ section renders as id="faq", and it renders on /marketplace -
-      // not on /. "/#faq" therefore landed on a homepage with no such anchor
-      // and did nothing at all; checked against the served HTML, id="faq"
-      // appears once on /marketplace and zero times on /. The earlier fix took
-      // this from "/#faq-faq-1" to "/#faq" and stopped one step short.
-      { label: "Frequently asked questions", href: "/marketplace#faq" },
-    ],
-  },
-  {
-    heading: "Partners",
-    links: [
-      { label: "Become a reseller", href: "/apply/reseller" },
-      { label: "Become a vendor", href: "/apply/vendor" },
-      { label: "Franchise partner", href: "/apply/franchise" },
-      { label: "Publish as an author", href: "/apply/author" },
-      { label: "Affiliate programme", href: "/apply/affiliate" },
-      { label: "All partner programmes", href: "/apply" },
-    ],
-  },
-  {
-    heading: "Support",
-    links: [
-      // /support is the Support Operations Center, an operator console behind a
-      // role gate, so this link showed a customer "Access restricted" on the
-      // one page in the footer they were most likely to need. /contact is the
-      // customer's way in; it writes to the same support_tickets table that
-      // console reads, so nothing is duplicated and /support is unchanged.
-      { label: "Contact support", href: "/contact" },
-      { label: "Sales assistant", href: "/ai/assistant" },
-      { label: "Sign in", href: "/login" },
-      { label: "Your purchases", href: "/account/purchases" },
-      { label: "WhatsApp +91 83488 38383", href: "https://wa.me/918348838383" },
-      { label: "hellosoftwarevala@gmail.com", href: "mailto:hellosoftwarevala@gmail.com" },
-      // "Offline software — ErpVala" → https://erpvala.com was here and is
-      // gone. The domain does not resolve — curl answers "(6) Could not
-      // resolve host" over both http and https — and it was never anybody's
-      // decision: the row it mirrors has created_by null and a created_at
-      // identical to the rest of 20260907040000_storefront_chrome_seed.sql.
-      // A generator put a placeholder domain on every public page.
-    ],
-  },
-  {
-    heading: "Legal",
-    links: [
-      { label: "Privacy policy", href: "/legal/privacy-policy" },
-      { label: "Terms of service", href: "/legal/terms-of-service" },
-      { label: "Refund policy", href: "/legal/refund-policy" },
-    ],
-  },
-];
 
 /**
  * WhatsApp's glyph, because lucide-react does not carry it.
@@ -173,20 +91,11 @@ function brandOf(label: string): {
   };
 }
 
-/** Published company profiles. Only accounts the business actually runs. */
-const SOCIAL: { label: string; href: string; handle?: string | null }[] = [
-  { label: "Facebook", href: "https://facebook.com/share/1HpGSvExis" },
-  { label: "Instagram", href: "https://instagram.com/new_software_vala" },
-  { label: "WhatsApp", href: "https://wa.me/918348838383" },
-  { label: "YouTube", href: "https://youtube.com/@softwarevala" },
-];
-
 /**
  * The published footer, if the page was given one.
  *
- * This component is drawn on routes that do not carry the home loader, so the
- * match is requested without throwing and its absence simply means "use what
- * the file ships with".
+ * An absent or unpublished VPS snapshot renders no footer content. The public
+ * page must not substitute a built-in configuration for unpublished data.
  */
 function usePublishedFooter(): FooterSnapshot | null {
   const home = useHomeRouteMatch();
@@ -198,16 +107,14 @@ function usePublishedFooter(): FooterSnapshot | null {
 /**
  * The catalogue counts for the footer line, counted by the database.
  *
- * SITE_STATS stays as the fallback, so a footer drawn on a route without the
- * home loader - or one whose count failed - renders exactly what it rendered
- * before rather than a blank or a zero.
+ * If the VPS count is unavailable, do not report a stale hardcoded total.
  */
 function useFooterStats() {
   const home = useHomeRouteMatch();
   const stats = (home?.loaderData as { stats?: HomeStats | null } | undefined)?.stats;
   return {
-    solutions: stats ? phrase(stats.products) : SITE_STATS.solutions,
-    categories: stats ? String(stats.categories) : SITE_STATS.categories,
+    solutions: stats ? phrase(stats.products) : "—",
+    categories: stats ? String(stats.categories) : "—",
   };
 }
 
@@ -215,11 +122,10 @@ export const SiteFooter = () => {
   const { t } = useTranslation();
   const published = usePublishedFooter();
   const { solutions: liveSolutions, categories: liveCategories } = useFooterStats();
+  if (!published) return null;
 
-  // A published footer with no column at all would empty the page, so the
-  // built-in columns still stand behind it.
   const columns =
-    published?.columns?.length
+    published.columns?.length
       ? published.columns.map((c) => ({
           heading: c.heading,
           links: (c.links ?? [])
@@ -230,19 +136,16 @@ export const SiteFooter = () => {
               openInNew: Boolean(l.open_in_new),
             })),
         }))
-      : COLUMNS.map((c) => ({
-          heading: c.heading,
-          links: c.links.map((l) => ({ ...l, openInNew: false })),
-        }));
+      : [];
 
-  const socials = published?.socials?.length ? published.socials : SOCIAL;
-  const newsletter = published?.newsletter;
-  const trust = published?.trust ?? [];
+  const socials = published.socials ?? [];
+  const newsletter = published.newsletter;
+  const trust = published.trust ?? [];
 
   // Section 32. The footer may be switched off, but never on the page that
   // carries the company's contact and legal routes — so hiding it removes the
   // link columns and keeps the identity and contact block below.
-  const showColumns = published ? published.show_footer !== false : true;
+  const showColumns = published.show_footer !== false;
 
   return (
     <footer className="border-t border-cyan-500/20 bg-[#0a1628] px-4 py-10">

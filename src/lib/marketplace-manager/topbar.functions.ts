@@ -1,6 +1,9 @@
-import { callAsUser } from "@/lib/supabase-rpc.server";
 import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
+import {
+  callMarketplaceManagerFunctionFromRequest,
+  callVpsPublicFunction,
+} from "./vps-rpc.server";
 
 import { z } from "zod";
 
@@ -48,11 +51,7 @@ export type TopBarModule = {
 /** Every module in the bar, in the order the header renders them. */
 export const listTopBarModules = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ ok: true; modules: TopBarModule[] }> => {
-    const modules = await callAsUser<TopBarModule[]>(
-      "mm_topbar_modules",
-      {},
-      { allowAnonymous: true },
-    );
+    const modules = await callVpsPublicFunction<TopBarModule[]>("mm_topbar_modules");
     return { ok: true as const, modules: modules ?? [] };
   },
 );
@@ -92,13 +91,12 @@ export const configureTopBarModule = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) =>
     settle(
-      await callAsUser<Outcome>(
+      await callMarketplaceManagerFunctionFromRequest<Outcome>(
         "mm_topbar_configure",
         {
           p_key: data.key,
           p_patch: data.patch,
         },
-        { allowAnonymous: true },
       ),
       "Module updated",
     ),
@@ -136,13 +134,12 @@ export const setTopBarItems = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) =>
     settle(
-      await callAsUser<Outcome>(
+      await callMarketplaceManagerFunctionFromRequest<Outcome>(
         "mm_topbar_items_set",
         {
           p_key: data.key,
           p_items: data.items,
         },
-        { allowAnonymous: true },
       ),
       `Menu saved — ${data.items.length} item${data.items.length === 1 ? "" : "s"}`,
     ),
@@ -155,10 +152,9 @@ export const reorderTopBarModules = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) =>
     settle(
-      await callAsUser<Outcome>(
+      await callMarketplaceManagerFunctionFromRequest<Outcome>(
         "mm_topbar_reorder",
         { p_keys: data.keys },
-        { allowAnonymous: true },
       ),
       "Top bar reordered",
     ),

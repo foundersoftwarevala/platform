@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { callAsUser } from "@/lib/supabase-rpc.server";
+import { callMarketplaceManagerFunctionFromRequest as callAsUser } from "./vps-rpc.server";
 import type { Json } from "@/lib/json";
 
 const trendingResponse = z.object({

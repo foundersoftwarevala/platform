@@ -1,7 +1,11 @@
-// Data layer for the hero banner.
-// Single source of truth = public.home_hero_slides (same table the public homepage reads).
-// This module adapts that table to the richer shape used by the Hero Banner Manager UI.
-import { supabase } from "@/integrations/supabase/client";
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import {
+  callMarketplaceManagerFunctionFromRequest,
+  withMarketplaceManagerDatabaseFromRequest,
+  withVpsPublicDatabase,
+} from "@/lib/marketplace-manager/vps-rpc.server";
+import { catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
 import type { CentralBannerType } from "@/lib/central-banners";
 import * as Icons from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -69,8 +73,6 @@ export function iconFromName(name: string): LucideIcon {
   const map = Icons as unknown as Record<string, LucideIcon>;
   return map[name] ?? Icons.Sparkles;
 }
-
-const TABLE = "home_hero_slides";
 
 type DbRow = {
   id: string;
@@ -222,29 +224,75 @@ function toDb(patch: Partial<HeroSlideRow>): Record<string, unknown> {
   return out;
 }
 
-/** Public: slides shown on the homepage (RLS filters to live ones for anon). */
-export async function fetchPublicHeroSlides(): Promise<HeroSlideRow[]> {
-  const { data, error } = await supabase
-    .from(TABLE as never)
-    .select("*")
-    .eq("visible", true)
-    .eq("banner_type", "marketplace_slider")
-    .order("position", { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as unknown as DbRow[]).map(toRow).filter((s) => s.status !== "archived");
+const heroPatchSchema = z.object({
+  slug: z.string().max(120),
+  kicker: z.string().max(120),
+  headline: z.string().max(300),
+  sub: z.string().max(1000),
+  highlight: z.string().max(300),
+  cta_label: z.string().max(120),
+  cta_href: z.string().max(2048),
+  secondary_label: z.string().max(120).nullable(),
+  secondary_href: z.string().max(2048).nullable(),
+  icon: z.string().max(80),
+  bg_gradient: z.string().max(300),
+  accent_class: z.string().max(80),
+  status: z.enum(["draft", "published", "scheduled", "archived"]),
+  enabled: z.boolean(),
+  sort_order: z.number().int().min(0).max(10_000),
+  publish_at: z.string().datetime().nullable(),
+  unpublish_at: z.string().datetime().nullable(),
+  banner_type: z.enum([
+    "marketplace_slider",
+    "dashboard_welcome",
+    "festival_wish",
+    "officer_notice",
+  ]),
+  target_roles: z.array(z.string().max(80)).max(30).nullable(),
+}).partial();
+
+/** Public: only visible, currently scheduled marketplace slides from VPS. */
+const fetchPublicHeroSlidesFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<HeroSlideRow[]> =>
+    withVpsPublicDatabase(async (tx) => {
+      const rows = await tx<DbRow[]>`
+        select id, slug, kicker, title, subtitle, highlight, cta_primary,
+               cta_secondary, cta_link, cta_secondary_link, gradient, icon_name,
+               accent, position, visible, published_at, unpublish_at,
+               archived_at, created_at, updated_at, banner_type, target_roles
+          from public.home_hero_slides
+         where visible is true
+           and banner_type = 'marketplace_slider'
+           and archived_at is null
+           and (published_at is null or published_at <= now())
+           and (unpublish_at is null or unpublish_at > now())
+         order by position asc, id
+      `;
+      return rows.map(toRow);
+    }),
+);
+export function fetchPublicHeroSlides(): Promise<HeroSlideRow[]> {
+  return fetchPublicHeroSlidesFn();
 }
 
-/** Admin: every slide, any status. */
-export async function fetchAllHeroSlides(): Promise<HeroSlideRow[]> {
-  const { data, error } = await supabase
-    .from(TABLE as never)
-    .select("*")
-    .order("position", { ascending: true });
-  if (error) throw error;
-  return ((data ?? []) as unknown as DbRow[]).map(toRow);
+/** Admin: every slide, any status, read from the canonical VPS database. */
+const fetchAllHeroSlidesFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<HeroSlideRow[]> =>
+    withMarketplaceManagerDatabaseFromRequest(async (tx) => {
+      const rows = await tx<DbRow[]>`
+        select * from public.home_hero_slides order by position asc, id
+      `;
+      return rows.map(toRow);
+    }),
+);
+export function fetchAllHeroSlides(): Promise<HeroSlideRow[]> {
+  return fetchAllHeroSlidesFn();
 }
 
-export async function createHeroSlide(input: HeroSlideInsert): Promise<HeroSlideRow> {
+const createHeroSlideFn = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => heroPatchSchema.parse(input))
+  .handler(async ({ data }): Promise<HeroSlideRow> => {
+  const input = data;
   const payload = {
     slug: input.slug || `${slugify(input.headline ?? "")}-${Date.now().toString(36)}`,
     kicker: input.kicker ?? "",
@@ -270,33 +318,82 @@ export async function createHeroSlide(input: HeroSlideInsert): Promise<HeroSlide
     published_at: input.publish_at ?? null,
     unpublish_at: input.unpublish_at ?? null,
   };
-  const { data, error } = await supabase
-    .from(TABLE as never)
-    .insert(payload as never)
-    .select("*")
-    .single();
-  if (error) throw error;
-  return toRow(data as unknown as DbRow);
+  return withMarketplaceManagerDatabaseFromRequest(async (tx) => {
+    const [row] = await tx<DbRow[]>`
+      insert into public.home_hero_slides
+        (slug, kicker, title, subtitle, highlight, cta_primary, cta_secondary,
+         cta_link, cta_secondary_link, banner_type, target_roles, archived_at,
+         gradient, icon_name, accent, position, visible, published_at, unpublish_at)
+      values (
+        ${payload.slug}, ${payload.kicker}, ${payload.title}, ${payload.subtitle},
+        ${payload.highlight}, ${payload.cta_primary}, ${payload.cta_secondary},
+        ${payload.cta_link}, ${payload.cta_secondary_link},
+        ${payload.banner_type}, ${payload.target_roles},
+        ${payload.archived_at ?? null}, ${payload.gradient}, ${payload.icon_name},
+        ${payload.accent}, ${payload.position}, ${payload.visible},
+        ${payload.published_at}, ${payload.unpublish_at}
+      )
+      returning *
+    `;
+    if (!row) throw new Error("The new hero slide could not be read back from VPS Postgres.");
+    catalogueChanged();
+    return toRow(row);
+  });
+});
+export function createHeroSlide(input: HeroSlideInsert): Promise<HeroSlideRow> {
+return createHeroSlideFn({ data: input });
 }
 
-export async function updateHeroSlide(id: string, patch: HeroSlideUpdate): Promise<HeroSlideRow> {
-  const body = toDb(patch);
-  const { data, error } = await supabase
-    .from(TABLE as never)
-    .update(body as never)
-    .eq("id", id)
-    .select("*")
-    .single();
-  if (error) throw error;
-  return toRow(data as unknown as DbRow);
+const updateHeroSlideFn = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({ id: z.string().uuid(), patch: heroPatchSchema }).parse(input),
+  )
+  .handler(async ({ data }): Promise<HeroSlideRow> => {
+    const body = toDb(data.patch);
+    const columns = new Set([
+      "slug", "kicker", "title", "subtitle", "highlight", "cta_primary",
+      "cta_secondary", "cta_link", "cta_secondary_link", "icon_name", "gradient",
+      "accent", "position", "published_at", "unpublish_at", "visible",
+      "banner_type", "target_roles", "archived_at",
+    ]);
+    const entries = Object.entries(body);
+    if (!entries.length) throw new Error("Nothing in this hero slide change can be saved.");
+    for (const [key] of entries) {
+      if (!columns.has(key)) throw new Error(`The ${key} field cannot be changed here.`);
+    }
+    return withMarketplaceManagerDatabaseFromRequest(async (tx) => {
+      const values = entries.map(([, value]) => value);
+      const assignments = entries.map(([key], index) => `${key} = $${index + 1}`);
+      values.push(data.id);
+      const rows = await tx.unsafe(
+        `update public.home_hero_slides
+            set ${assignments.join(", ")}, updated_at = now()
+          where id = $${values.length}::uuid
+          returning *`,
+        values as never[],
+      ) as DbRow[];
+      if (!rows[0]) throw new Error("The hero slide does not exist.");
+      catalogueChanged();
+      return toRow(rows[0]);
+    });
+  });
+export function updateHeroSlide(
+  id: string,
+  patch: HeroSlideUpdate,
+): Promise<HeroSlideRow> {
+  return updateHeroSlideFn({ data: { id, patch } });
 }
 
-export async function deleteHeroSlide(id: string): Promise<void> {
-  const { error } = await supabase
-    .from(TABLE as never)
-    .delete()
-    .eq("id", id);
-  if (error) throw error;
+const deleteHeroSlideFn = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }): Promise<void> => {
+    await withMarketplaceManagerDatabaseFromRequest(async (tx) => {
+      await tx`delete from public.home_hero_slides where id = ${data.id}::uuid`;
+    });
+    catalogueChanged();
+  });
+export function deleteHeroSlide(id: string): Promise<void> {
+  return deleteHeroSlideFn({ data: { id } });
 }
 
 /**
@@ -309,15 +406,12 @@ export async function deleteHeroSlide(id: string): Promise<void> {
  * refuses a list containing an id that no longer exists, which is what a
  * stale browser tab would send.
  */
-export async function reorderHeroSlides(orderedIds: string[]): Promise<void> {
-  const { data, error } = await supabase.rpc(
-    "mm_hero_reorder" as never,
-    {
-      p_ids: orderedIds,
-    } as never,
-  );
-  if (error) throw error;
-  const answer = (data ?? {}) as { ok?: boolean; reason?: string };
+const reorderHeroSlidesFn = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => z.array(z.string().uuid()).min(1).max(200).parse(input))
+  .handler(async ({ data }): Promise<void> => {
+  const answer = await callMarketplaceManagerFunctionFromRequest<
+    { ok?: boolean; reason?: string }
+  >("mm_hero_reorder", { p_ids: data });
   if (answer.ok === false) {
     throw new Error(
       answer.reason === "unknown_slide_in_list"
@@ -327,6 +421,10 @@ export async function reorderHeroSlides(orderedIds: string[]): Promise<void> {
           : `Could not reorder the slides (${answer.reason ?? "unknown"}).`,
     );
   }
+  catalogueChanged();
+  });
+export function reorderHeroSlides(orderedIds: string[]): Promise<void> {
+  return reorderHeroSlidesFn({ data: orderedIds });
 }
 
 export function isSlideLive(s: HeroSlideRow, now = new Date()): boolean {

@@ -32,6 +32,7 @@ import {
   configureTopBarModule,
   type TopBarModule,
 } from "@/lib/marketplace-manager/topbar.functions";
+import { getNotificationChannelSnapshot } from "@/lib/storefront/notifications.functions";
 /**
  * A switch that only moves when something stores what it says. It used to
  * flip its own state, so a channel looked switched off when nothing changed.
@@ -594,38 +595,80 @@ export function UpcomingSection() {
 
 // ---------- NOTIFICATIONS MANAGER ----------
 export function NotificationsSection() {
-  const channels = [
-    ["In-App Bell", "Real-time updates inside the storefront"],
-    ["Email", "Order, license, demo and offer mailers"],
-    ["WhatsApp", "Cart, demo and license updates"],
-    ["SMS", "OTP and order alerts"],
-    ["Web Push", "Browser push for offers and launches"],
-    ["Telegram", "Channel broadcasts"],
-  ] as const;
   const { t } = useTranslation();
+  const channels = useQuery({
+    queryKey: ["marketplace", "notification-channels"],
+    queryFn: () => getNotificationChannelSnapshot(),
+    staleTime: 30_000,
+  });
+  const snapshot = channels.data;
+  const items = snapshot?.channels ?? [];
+
   return (
     <div className="px-4 py-8 md:px-8">
       <PageHeader
         eyebrow={t("storeadmin.extra.notifications_eyebrow")}
         title={t("storeadmin.extra.notifications_title")}
-        description={t("storeadmin.extra.notifications_description")}
+        description="Delivery status, volume and the provider configuration reported by VPS Postgres."
       />
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {channels.map(([n, d]) => (
-          <Card key={n}>
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="inline-flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-accent" />
-                  <span className="text-sm font-bold">{n}</span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{d}</p>
-              </div>
-              <Switch reason="No table stores which notification channels are enabled; the outgoing mail queue is in the live table above." />
+      {channels.isLoading ? (
+        <Card><EmptyHint text="Reading notification delivery status…" /></Card>
+      ) : channels.isError ? (
+        <Card>
+          <EmptyHint text="Notification channels could not be loaded." />
+          <button
+            type="button"
+            onClick={() => void channels.refetch()}
+            className="mt-2 text-xs font-semibold text-accent"
+          >
+            Retry
+          </button>
+        </Card>
+      ) : snapshot?.ok === false ? (
+        <Card><EmptyHint text={`Notification status is unavailable: ${snapshot.reason ?? "access denied"}.`} /></Card>
+      ) : (
+        <>
+          <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <Card>
+              <div className="text-xs text-muted-foreground">Templates</div>
+              <div className="text-lg font-bold">{snapshot?.templates ?? 0}</div>
+            </Card>
+            <Card>
+              <div className="text-xs text-muted-foreground">Rules</div>
+              <div className="text-lg font-bold">{snapshot?.rules ?? 0}</div>
+            </Card>
+          </div>
+          {items.length === 0 ? (
+            <Card><EmptyHint text="No notification channels are configured in the VPS registry." /></Card>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {items.map((channel) => (
+                <Card key={channel.channel}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="inline-flex items-center gap-2">
+                        <Bell className="h-4 w-4 text-accent" />
+                        <span className="text-sm font-bold">{channel.label}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{channel.note}</p>
+                    </div>
+                    <span className={channel.configured ? "text-xs text-success" : "text-xs text-warning"}>
+                      {channel.configured ? "Configured" : "Not configured"}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span>{channel.delivered.toLocaleString()} delivered</span>
+                    {channel.unread !== undefined && <span>{channel.unread.toLocaleString()} unread</span>}
+                    {channel.last_delivery && (
+                      <span>Last delivery {new Date(channel.last_delivery).toLocaleString()}</span>
+                    )}
+                  </div>
+                </Card>
+              ))}
             </div>
-          </Card>
-        ))}
-      </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

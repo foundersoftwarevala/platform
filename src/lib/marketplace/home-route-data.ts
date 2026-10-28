@@ -51,19 +51,16 @@ export async function loadHomeRouteData(): Promise<HomeRouteData> {
   ]);
   return {
     seed: seed.status === "fulfilled" ? seed.value : null,
-    // Null means "registry unreadable", which renders the built-in order —
-    // never an empty page.
-    layout: layout.status === "fulfilled" ? layout.value : null,
-    // Null means "nothing published or unreadable", which renders the footer
-    // this build ships with and no floating elements at all.
+    // An unreadable registry is empty so unverified sections fail closed.
+    layout: layout.status === "fulfilled" ? layout.value : [],
+    // Unpublished or unreadable chrome is not replaced with built-in content.
     chrome: chrome.status === "fulfilled" ? chrome.value : null,
     // Null renders every card field, which is what the card does without any
     // configuration at all.
     composition: composition.status === "fulfilled" ? composition.value : null,
     // Null means the carousel fetches them itself, as it did before.
     slides: slides.status === "fulfilled" ? slides.value : null,
-    // Null means the page quotes SITE_STATS exactly as it did before, so a
-    // failed count can never blank a number on the live homepage.
+    // An unavailable count is shown as unavailable rather than a stale total.
     stats: stats.status === "fulfilled" ? stats.value : null,
   };
 }

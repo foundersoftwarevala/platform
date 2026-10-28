@@ -1,6 +1,7 @@
-import { CARD_FIELDS, toCard, type CatalogCard } from "@/lib/marketplace/catalog-card";
+import { toCard, type CatalogCard } from "@/lib/marketplace/catalog-card";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { withVpsPublicDatabase } from "@/lib/marketplace-manager/vps-rpc.server";
 
 /**
  * The country pages.
@@ -64,19 +65,13 @@ export function countrySlug(country: string): string {
 /** Every country the catalogue is written for, with how much it holds. */
 export async function countryRows(): Promise<CountryRow[]> {
   if (countryCache && Date.now() - countryCache.at < CACHE_MS) return countryCache.rows;
-  if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("Country SEO database configuration is unavailable.");
-  }
   try {
-    const response = await fetch(`${url()}/rest/v1/rpc/marketplace_countries`, {
-      method: "POST",
-      headers: { ...admin(), "Content-Type": "application/json" },
-      body: "{}",
-    });
-    if (!response.ok) {
-      throw new Error(`Country list request failed with status ${response.status}.`);
-    }
-    const rows = (await response.json()) as CountryRow[];
+    const rows = await withVpsPublicDatabase((tx) =>
+      tx<CountryRow[]>`
+        select country, product_count::integer as product_count
+          from public.marketplace_countries()
+      `,
+    );
     countryCache = { at: Date.now(), rows };
     return rows;
   } catch (error) {
@@ -107,20 +102,20 @@ export const getCountrySeo = createServerFn({ method: "GET" })
 
     let categories: CountryCategory[];
     try {
-      const response = await fetch(`${url()}/rest/v1/rpc/marketplace_country_categories`, {
-        method: "POST",
-        headers: { ...admin(), "Content-Type": "application/json" },
-        body: JSON.stringify({ target: row.country }),
-      });
-      if (!response.ok) {
-        throw new Error(`Country categories request failed with status ${response.status}.`);
-      }
-      const rows = (await response.json()) as {
-        category_id: string;
-        category_name: string;
-        category_slug: string;
-        product_count: number;
-      }[];
+      const rows = await withVpsPublicDatabase((tx) =>
+        tx<{
+          category_id: string;
+          category_name: string;
+          category_slug: string;
+          product_count: number;
+        }[]>`
+          select category_id,
+                 category_name,
+                 category_slug,
+                 product_count::integer as product_count
+            from public.marketplace_country_categories(${row.country})
+        `,
+      );
       categories = rows.map((c) => ({
         id: c.category_id,
         name: c.category_name,
@@ -167,31 +162,64 @@ export const getCountryProducts = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<{ country: string; cards: CountryCard[]; total: number }> => {
     const row = await resolve(data.slug);
     if (!row) return { country: "", cards: [], total: 0 };
-    if (!url() || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Country product database configuration is unavailable.");
-    }
 
     const offset = data.offset ?? 0;
     const limit = data.limit ?? 24;
-    const marker = encodeURIComponent(`{"country:${row.country}"}`);
 
     try {
-      const response = await fetch(
-        `${url()}/rest/v1/marketplace_products?select=${CARD_FIELDS}` +
-          `&visible=eq.true&content_status=eq.published` +
-          `&search_keywords=cs.${marker}` +
-          `&order=sort_order.asc,name.asc&limit=${limit}&offset=${offset}`,
-        { headers: { ...admin(), Prefer: "count=exact" } },
-      );
-      if (!response.ok) {
-        throw new Error(`Country products request failed with status ${response.status}.`);
-      }
-      const rows = (await response.json()) as Record<string, unknown>[];
-      const range = response.headers.get("content-range") ?? "";
+      const { rows, total } = await withVpsPublicDatabase(async (tx) => {
+        const [count] = await tx<{ count: number }[]>`
+          select count(*)::integer as count
+            from public.marketplace_products
+           where visible is true
+             and content_status = 'published'
+             and search_keywords @> array[${`country:${row.country}`}]::text[]
+        `;
+        const products = await tx<Record<string, unknown>[]>`
+          select p.id,
+                 p.slug,
+                 p.name,
+                 p.icon,
+                 p.industry_label,
+                 p.price_label,
+                 p.price_period,
+                 p.rating,
+                 p.downloads_label,
+                 p.badge,
+                 p.is_featured,
+                 p.is_trending,
+                 p.is_best_seller,
+                 p.is_new_release,
+                 p.search_keywords,
+                 p.description,
+                 p.features,
+                 p.tech_stack,
+                 p.license,
+                 p.deployment,
+                 p.subcategory,
+                 p.category_id,
+                 coalesce((
+                   select jsonb_agg(jsonb_build_object(
+                     'url', d.url,
+                     'status', d.status,
+                     'detected_category_id', d.detected_category_id
+                   ))
+                     from public.product_demo_urls d
+                    where d.product_id = p.id
+                 ), '[]'::jsonb) as product_demo_urls
+            from public.marketplace_products p
+           where p.visible is true
+             and p.content_status = 'published'
+             and p.search_keywords @> array[${`country:${row.country}`}]::text[]
+           order by p.sort_order asc, p.name asc
+           limit ${limit} offset ${offset}
+        `;
+        return { rows: products, total: Number(count?.count ?? 0) };
+      });
       return {
         country: row.country,
         cards: rows.map(toCard),
-        total: Number(range.split("/")[1]) || rows.length,
+        total: total || rows.length,
       };
     } catch (error) {
       console.error("[country seo] products failed for", row.country, error);

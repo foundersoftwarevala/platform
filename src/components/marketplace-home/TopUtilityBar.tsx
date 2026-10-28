@@ -22,6 +22,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/serverFn";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  listSiteNotifications,
+  listUserNotifications,
+  markUserNotificationRead,
+} from "@/lib/storefront/notifications.functions";
+import { listTopBarModules } from "@/lib/marketplace-manager/topbar.functions";
 import { toast } from "sonner";
 import {
   Bell,
@@ -82,17 +88,7 @@ function PanelHead({ icon: Icon, title, note }: { icon: LucideIcon; title: strin
 /* 1. Apply Now                                                        */
 /* ------------------------------------------------------------------ */
 
-const APPLY_ROLES: { key: string; label: string; blurb: string }[] = [
-  { key: "vendor", label: "Become Vendor", blurb: "List your own software products" },
-  { key: "author", label: "Become Author", blurb: "Publish code, docs and templates" },
-  { key: "reseller", label: "Become Reseller", blurb: "Sell our catalog, keep the margin" },
-  { key: "affiliate", label: "Become Affiliate", blurb: "Earn per referred sale" },
-  { key: "franchise", label: "Become Franchise", blurb: "Run Software Vala in your city" },
-  { key: "influencer", label: "Become Influencer", blurb: "Collaborate on campaigns" },
-  { key: "employee", label: "Become Employee", blurb: "Full-time openings" },
-];
-
-function ApplyNow({ t, roles }: { t: (s: string) => string; roles?: BarItem[] }) {
+function ApplyNow({ t, roles }: { t: (s: string) => string; roles: BarItem[] }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={TRIGGER} aria-label={t("Apply Now")}>
@@ -105,7 +101,7 @@ function ApplyNow({ t, roles }: { t: (s: string) => string; roles?: BarItem[] })
           {t("Role applications")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-white/10" />
-        {(roles ?? APPLY_ROLES).map((r, i) => (
+        {roles.map((r, i) => (
           <DropdownMenuItem
             key={r.key}
             asChild
@@ -919,15 +915,7 @@ function Notifications({ t }: { t: (s: string) => string }) {
 
   const q = useQuery({
     queryKey: ["site_notifications"],
-    queryFn: async (): Promise<Notification[]> => {
-      const { data, error } = await supabase
-        .from("site_notifications")
-        .select("id,title,body,kind,link_url,published_at")
-        .eq("is_published", true)
-        .order("sort_order", { ascending: true });
-      if (error) return [];
-      return data ?? [];
-    },
+    queryFn: () => listSiteNotifications(),
     staleTime: 1000 * 60 * 5,
   });
 
@@ -939,6 +927,8 @@ function Notifications({ t }: { t: (s: string) => string }) {
   // with mm_notifications - on the very query the dashboard bell uses, so the
   // two bells share one cache and one unread count.
   const qc = useQueryClient();
+  const listMineFn = useServerFn(listUserNotifications);
+  const markMineFn = useServerFn(markUserNotificationRead);
   const [userId, setUserId] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -956,12 +946,11 @@ function Notifications({ t }: { t: (s: string) => string }) {
     queryKey: mineKey,
     enabled: Boolean(userId),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("mm_notifications" as never, { p_limit: 25 } as never);
-      if (error) throw new Error(error.message);
-      return data as unknown as {
-        unread?: number;
-        notifications?: { id: string; message: string; event: string | null; action_url: string | null; read: boolean | null; created_at: string }[];
-      };
+      const response = await listMineFn({ data: { limit: 25 } });
+      if (!response.ok) {
+        throw new Error(response.reason ?? "Your notifications could not be loaded.");
+      }
+      return response;
     },
     refetchInterval: 60_000,
   });
@@ -969,7 +958,10 @@ function Notifications({ t }: { t: (s: string) => string }) {
     const unreadMine = (mine.data?.notifications ?? []).filter((n) => !n.read);
     if (!unreadMine.length) return;
     for (const n of unreadMine) {
-      await supabase.rpc("mm_notification_read" as never, { p_id: n.id, p_dismiss: false } as never);
+      const response = await markMineFn({ data: { id: n.id, dismiss: false } });
+      if (!response.ok) {
+        throw new Error(response.reason ?? "A notification could not be marked as read.");
+      }
     }
     await qc.invalidateQueries({ queryKey: mineKey });
   };
@@ -996,7 +988,11 @@ function Notifications({ t }: { t: (s: string) => string }) {
   return (
     <Popover
       onOpenChange={(open) => {
-        if (open) void markMineRead();
+        if (open) {
+          void markMineRead().catch((error: unknown) => {
+            toast.error(error instanceof Error ? error.message : "Notifications could not be marked as read.");
+          });
+        }
         if (open && items.length) {
           const newest = items.reduce((a, b) => (a > b.published_at ? a : b.published_at), "");
           localStorage.setItem("sv_notif_seen", newest);
@@ -1019,6 +1015,7 @@ function Notifications({ t }: { t: (s: string) => string }) {
           <div className="p-2">
             {q.isLoading && <div className="p-3 text-[12px] text-white/50">Loading…</div>}
             {q.isError && <div className="p-3 text-[12px] text-rose-300">Could not load notifications.</div>}
+            {mine.isError && <div className="p-3 text-[12px] text-rose-300">Could not load your account notifications.</div>}
             {!q.isLoading && items.length === 0 && (
               <div className="p-3 text-[12px] text-white/50">No announcements right now.</div>
             )}
@@ -1148,22 +1145,7 @@ function LoginPill({ t }: { t: (s: string) => string }) {
 /* Bar                                                                 */
 /* ------------------------------------------------------------------ */
 
-/* Role dashboards — same names as the dashboard consoles they open. */
-const DASHBOARD_ROLES: { key: string; label: string; blurb: string }[] = [
-  { key: "author", label: "Author Dashboard", blurb: "Products, downloads & royalties" },
-  { key: "vendor", label: "Vendor Dashboard", blurb: "Catalog, orders & payouts" },
-  { key: "reseller", label: "Reseller Dashboard", blurb: "Clients, licenses & pricing" },
-  { key: "affiliate", label: "Affiliate Dashboard", blurb: "Links, clicks & commissions" },
-  { key: "influencer", label: "Influencer Dashboard", blurb: "Campaigns & creatives" },
-  { key: "franchise", label: "Franchise Dashboard", blurb: "Branches, leads & revenue" },
-  { key: "seo", label: "SEO Dashboard", blurb: "Rankings, audits & backlinks" },
-  { key: "admin", label: "Admin Dashboard", blurb: "Platform-wide control" },
-  { key: "developer", label: "Developer Dashboard", blurb: "Tasks, bugs & releases" },
-  { key: "dev-manager", label: "Developer Management", blurb: "Team, sprints & delivery" },
-  { key: "promise-tracker", label: "Promise Tracker", blurb: "Commitments & follow-through" },
-];
-
-function DashboardsMenu({ t, roles }: { t: (s: string) => string; roles?: BarItem[] }) {
+function DashboardsMenu({ t, roles }: { t: (s: string) => string; roles: BarItem[] }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={TRIGGER} aria-label={t("Dashboards")}>
@@ -1179,7 +1161,7 @@ function DashboardsMenu({ t, roles }: { t: (s: string) => string; roles?: BarIte
           {t("Role dashboards")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-white/10" />
-        {(roles ?? DASHBOARD_ROLES).map((r, i) => (
+        {roles.map((r, i) => (
           <DropdownMenuItem
             key={r.key}
             asChild
@@ -1240,6 +1222,7 @@ type BarItem = { key: string; label: string; blurb?: string };
 type TopBarModule = {
   module_key: string;
   status: string;
+  live: boolean;
   sort_order: number;
   desktop_enabled?: boolean;
   tablet_enabled?: boolean;
@@ -1255,14 +1238,12 @@ type TopBarModule = {
  * own config now, which arrives in the answer this component is already
  * waiting for — no second request, no second table.
  *
- * Anything that is not a well-formed list of items is ignored in favour of the
- * constant above it. The header has never been allowed to depend on this call
- * and still does not: a bad row degrades to the list that shipped, not to an
- * empty menu.
+ * Malformed or empty data yields an empty menu; it is never replaced with a
+ * built-in list that could contradict the manager's published configuration.
  */
-function itemsFor(module: TopBarModule | undefined, fallback: BarItem[]): BarItem[] {
+function itemsFor(module: TopBarModule | undefined): BarItem[] {
   const raw = module?.config && typeof module.config === "object" ? module.config.items : null;
-  if (!Array.isArray(raw) || raw.length === 0) return fallback;
+  if (!Array.isArray(raw)) return [];
   const clean = raw.filter(
     (i): i is BarItem =>
       Boolean(i) &&
@@ -1271,34 +1252,30 @@ function itemsFor(module: TopBarModule | undefined, fallback: BarItem[]): BarIte
       typeof (i as BarItem).label === "string" &&
       (i as BarItem).label.trim() !== "",
   );
-  return clean.length ? clean : fallback;
+  return clean;
 }
 
 /**
  * What Top Bar Manager says the header should show.
  *
- * Returns null until it knows, and null means "render everything" — the header
- * is never held back waiting for configuration, and never blanked by a failed
- * request. Read anonymously on purpose: the bar renders for signed-out
- * visitors, so the policy on marketplace_topbar_modules allows anon select.
+ * The server returns the public module projection, so only rows marked live
+ * are rendered. A failed or pending read does not expose unconfigured modules.
  */
 function useTopBarConfig(): TopBarModule[] | null {
   const [config, setConfig] = useState<TopBarModule[] | null>(null);
+  const listModulesFn = useServerFn(listTopBarModules);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const { supabase } = await import("@/integrations/supabase/client");
-        const { data, error } = await supabase.rpc("mm_topbar_modules");
-        if (cancelled || error || !Array.isArray(data) || data.length === 0) return;
-        setConfig(data as TopBarModule[]);
-      } catch {
-        /* keep the default order — the header must not depend on this call */
-      }
-    })();
+    void listModulesFn()
+      .then(({ modules }) => {
+        if (!cancelled) setConfig(modules);
+      })
+      .catch((error: unknown) => {
+        console.error("[top bar] VPS module registry could not load", error);
+      });
     return () => { cancelled = true; };
-  }, []);
+  }, [listModulesFn]);
 
   return config;
 }
@@ -1316,22 +1293,24 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
   }, [config]);
 
   const applyRoles = useMemo(
-    () => itemsFor(byKey.get("apply-now"), APPLY_ROLES),
+    () => itemsFor(byKey.get("apply-now")),
     [byKey],
   );
   const dashboardRoles = useMemo(
-    () => itemsFor(byKey.get("dashboards"), DASHBOARD_ROLES),
+    () => itemsFor(byKey.get("dashboards")),
     [byKey],
   );
 
   const items = useMemo(
     () => [
-      <ApplyNow key="apply" t={t} roles={applyRoles} />,
+      ...(applyRoles.length ? [<ApplyNow key="apply" t={t} roles={applyRoles} />] : []),
       <LanguagePicker key="lang" lang={lang} apply={apply} busy={busy} t={t} />,
       <CalendarTool key="cal" t={t} />,
       <CalculatorTool key="calc" t={t} />,
       <LoginPill key="login" t={t} />,
-      <DashboardsMenu key="dashboards" t={t} roles={dashboardRoles} />,
+      ...(dashboardRoles.length
+        ? [<DashboardsMenu key="dashboards" t={t} roles={dashboardRoles} />]
+        : []),
       <CurrencyPicker key="cur" t={t} />,
       <Notifications key="notif" t={t} />,
       <ChatAppButton key="chat" className={`${TRIGGER} relative`} iconClassName="h-3.5 w-3.5" label={t("Chat")} />,
@@ -1341,20 +1320,15 @@ export function TopUtilityBar({ favoritesCount = 0 }: { favoritesCount?: number 
     [lang, t, apply, busy, favoritesCount, applyRoles, dashboardRoles],
   );
 
-  // With no configuration loaded the header renders exactly as it always has.
-  // With configuration, a module that is not live is dropped and the rest
-  // follow the order the manager saved.
+  // Only modules explicitly published by the VPS registry are rendered.
   const visible = useMemo(() => {
-    if (!config) return items;
+    if (!config) return [];
     const state = new Map(config.map((m) => [m.module_key, m]));
     return items
       .filter((el) => {
         const key = MODULE_KEYS[String(el.key)];
-        // A module the registry has never heard of keeps rendering; the
-        // registry can hide what it knows, not suppress what it does not.
-        if (!key) return true;
-        const m = state.get(key);
-        return m ? m.status === "live" : true;
+        if (!key) return false;
+        return state.get(key)?.live === true;
       })
       .sort((a, b) => {
         const ak = MODULE_KEYS[String(a.key)];

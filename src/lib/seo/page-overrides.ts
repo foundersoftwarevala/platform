@@ -26,6 +26,7 @@
  */
 
 import { absoluteUrl } from "./site-url";
+import { withVpsPublicDatabase } from "@/lib/marketplace-manager/vps-rpc.server";
 
 export type SeoOverride = {
   title: string | null;
@@ -161,8 +162,6 @@ export async function resolveSeoOverride(
   tokens: Record<string, string | null | undefined> = {},
   productId?: string | null,
 ): Promise<SeoOverride | null> {
-  if (!supabaseUrl() || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
-
   const key = `${path}::${productId ?? ""}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < (hit.value ? CACHE_MS : MISS_CACHE_MS)) return hit.value;
@@ -171,17 +170,28 @@ export async function resolveSeoOverride(
 
   try {
     // ---- 1. a record written for this exact page ------------------------
-    const filter = productId
-      ? `or=(product_id.eq.${encodeURIComponent(productId)},url.eq.${encodeURIComponent(path)})`
-      : `url=eq.${encodeURIComponent(path)}`;
-    const pageResponse = await fetch(
-      `${supabaseUrl()}/rest/v1/seo_pages` +
-        `?select=url,meta_title,meta_description,h1,canonical_url,index_status,product_id` +
-        `&${filter}&limit=1`,
-      { headers: adminHeaders() },
-    );
-    const pages = pageResponse.ok ? ((await pageResponse.json()) as SeoPageRow[]) : [];
-    const record = pages[0];
+    const record = await withVpsPublicDatabase(async (tx) => {
+      if (productId) {
+        const [page] = await tx<SeoPageRow[]>`
+          select url, meta_title, meta_description, h1, canonical_url, index_status, product_id
+            from public.seo_pages
+           where product_id = ${productId}::uuid or url = ${path}
+           order by case when product_id = ${productId}::uuid then 0 else 1 end,
+                    updated_at desc nulls last
+           limit 1
+        `;
+        return page ?? null;
+      }
+
+      const [page] = await tx<SeoPageRow[]>`
+        select url, meta_title, meta_description, h1, canonical_url, index_status, product_id
+          from public.seo_pages
+         where url = ${path}
+         order by updated_at desc nulls last
+         limit 1
+      `;
+      return page ?? null;
+    });
 
     if (record) {
       const canonical = clean(record.canonical_url);
@@ -199,13 +209,15 @@ export async function resolveSeoOverride(
 
     // ---- 2. a template rule, for anything the record did not answer -----
     if (!result?.title || !result?.description) {
-      const ruleResponse = await fetch(
-        `${supabaseUrl()}/rest/v1/seo_meta_rules` +
-          `?select=name,url_pattern,title_template,description_template,priority,status` +
-          `&status=eq.active&order=priority.desc&limit=50`,
-        { headers: adminHeaders() },
+      const rules = await withVpsPublicDatabase((tx) =>
+        tx<MetaRuleRow[]>`
+          select name, url_pattern, title_template, description_template, priority, status
+            from public.seo_meta_rules
+           where status = 'active'
+           order by priority desc
+           limit 50
+        `,
       );
-      const rules = ruleResponse.ok ? ((await ruleResponse.json()) as MetaRuleRow[]) : [];
       const matching = rules
         .filter((r) => r.url_pattern && patternMatches(r.url_pattern, path))
         .sort(

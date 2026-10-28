@@ -11,6 +11,7 @@ import {
 } from "react";
 import { SiteFooter } from "@/components/marketplace-home/SiteFooter";
 import { FloatingElements } from "@/components/marketplace-home/FloatingElements";
+import { getHomeLayout } from "@/lib/marketplace/home-layout.functions";
 
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -130,12 +131,6 @@ import { useMatch } from "@tanstack/react-router";
 import { useHomeRouteData, useHomeRouteMatch } from "@/lib/marketplace/home-route-data";
 import { phrase as statPhrase, type HomeStats } from "@/lib/marketplace/home-stats";
 import CategoryRow from "@/components/marketplace-home/CategoryRow";
-import {
-  LIFETIME_DISCOUNT,
-  LIFETIME_MRP,
-  LIFETIME_PRICE,
-  SITE_STATS,
-} from "@/lib/site-content/constants";
 
 interface Demo {
   id: string;
@@ -147,13 +142,14 @@ interface Demo {
   description: string;
   url: string;
   icon: LucideIcon;
-  status: "ACTIVE" | "COMING_SOON";
+  status: "ACTIVE" | "COMING_SOON" | "LISTED";
   features: string[];
   frontend: string[];
   backend: string[];
   color: string;
   price: string;
   discountPrice: string;
+  period?: string | null;
 }
 
 const allDemos: Demo[] = [
@@ -3528,10 +3524,8 @@ function useShows(): (kind: keyof CardComposition, key: string) => boolean {
  * Marketplace Manager makes and this file carries out. Nothing below reads the
  * position of the JSX in this file to decide where a section goes.
  *
- * Every path through this code fails toward rendering. An unreadable registry,
- * an unknown key, a section the registry has never heard of - each of them ends
- * with the section on the page in its built-in position. The home page is a
- * protected route and a configuration lookup must never be able to empty it.
+ * The registry is authoritative: a missing, disabled, or unrecognized section
+ * is not rendered from a built-in fallback.
  * ------------------------------------------------------------------ */
 
 /**
@@ -3549,26 +3543,6 @@ type SectionLayout = {
   visibleDesktop: boolean;
 };
 
-/** Read the RPC's rows into the shape above, tolerating anything missing. */
-function toSectionLayout(raw: unknown): SectionLayout[] | null {
-  if (!Array.isArray(raw) || raw.length === 0) return null;
-  const rows: SectionLayout[] = [];
-  for (const item of raw as Record<string, unknown>[]) {
-    const key = typeof item.key === "string" ? item.key : "";
-    if (!key) continue;
-    rows.push({
-      key,
-      sortOrder: Number(item.sort_order ?? 0),
-      liveNow: item.live_now !== false,
-      visibleMobile: item.visible_mobile !== false,
-      visibleDesktop: item.visible_desktop !== false,
-    });
-  }
-  if (rows.length === 0) return null;
-  rows.sort((a, b) => a.sortOrder - b.sortOrder);
-  return rows;
-}
-
 /**
  * The layout the page should render with.
  *
@@ -3585,7 +3559,7 @@ function useHomeComposition(): CardComposition | null {
 function useHomeLayout(): SectionLayout[] | null {
   const homeMatch = useHomeRouteMatch();
   const fromServer =
-    (homeMatch?.loaderData as { layout?: SectionLayout[] | null } | undefined)?.layout ?? null;
+    (homeMatch?.loaderData as { layout?: SectionLayout[] } | undefined)?.layout ?? null;
 
   const [fromClient, setFromClient] = useState<SectionLayout[] | null>(null);
 
@@ -3594,16 +3568,10 @@ function useHomeLayout(): SectionLayout[] | null {
     let cancelled = false;
     void (async () => {
       try {
-        const { supabase } = await import("@/integrations/supabase/client");
-        // Through the function rather than the table: the table's public policy
-        // only exposes enabled rows, so a gate reading it directly could never
-        // see the disabled section it is supposed to hide.
-        const { data, error } = await supabase.rpc("mm_homepage_sections");
-        if (cancelled || error) return;
-        const parsed = toSectionLayout(data);
-        if (parsed) setFromClient(parsed);
-      } catch {
-        /* built-in order */
+        const layout = await getHomeLayout();
+        if (!cancelled) setFromClient(layout);
+      } catch (error) {
+        console.error("[homepage layout] Could not load the VPS layout registry", error);
       }
     })();
     return () => {
@@ -3628,29 +3596,22 @@ function deviceWrap(mobile: boolean, desktop: boolean, node: ReactNode): ReactNo
 }
 
 /**
- * Compose the page from the registry.
- *
- * `nodes` supplies both the sections this file knows how to draw and, by the
- * order its keys are written in, the fallback order used when the registry
- * cannot be read. The registry's own numbering was seeded from that same order,
- * so a section the registry has never heard of can be placed on the same scale
- * as the ones it has.
+ * Compose only sections named and enabled by the VPS registry.
  */
 function renderSections(
   layout: SectionLayout[] | null,
   nodes: Record<string, ReactNode>,
 ): ReactNode {
-  const byKey = new Map((layout ?? []).map((s) => [s.key, s]));
-
-  const items = Object.keys(nodes).map((key, index) => {
-    const reg = byKey.get(key);
+  const items = (layout ?? []).flatMap((reg, index) => {
+    const node = nodes[reg.key];
+    if (node === undefined) return [];
     return {
-      key,
-      order: reg ? reg.sortOrder : index + 1,
-      live: reg ? reg.liveNow : true,
-      mobile: reg ? reg.visibleMobile : true,
-      desktop: reg ? reg.visibleDesktop : true,
-      // Keeps the built-in order stable when two sections share a number.
+      key: reg.key,
+      node,
+      order: reg.sortOrder,
+      live: reg.liveNow,
+      mobile: reg.visibleMobile,
+      desktop: reg.visibleDesktop,
       tie: index,
     };
   });
@@ -3659,11 +3620,10 @@ function renderSections(
 
   return items
     .filter((s) => s.live)
-    .map((s) => <Fragment key={s.key}>{deviceWrap(s.mobile, s.desktop, nodes[s.key])}</Fragment>);
+    .map((s) => <Fragment key={s.key}>{deviceWrap(s.mobile, s.desktop, s.node)}</Fragment>);
 }
 
 const Index = () => {
-  const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const searchSessionId = useRef<string | null>(null);
   // Filtering three thousand cards on every keystroke made the box unusable
@@ -3700,32 +3660,15 @@ const Index = () => {
   const { favorites, toggle: toggleFavorite } = useFavorites();
   const layout = useHomeLayout();
   const composition = useHomeComposition();
-  // The catalogue counts, taken from the database in the route loader. The
-  // badge quoted SITE_STATS, a constant reading "12,000+" against 7,347 real
-  // published products; SITE_STATS stays as the fallback so a failed count
-  // renders what the page rendered before rather than a blank or a zero.
+  // Catalogue totals come from the VPS-backed route loader; unavailable totals
+  // stay unavailable rather than being replaced with stale hardcoded values.
   const stats = (useHomeRouteData() as { stats?: HomeStats | null } | undefined)?.stats;
-  const liveSolutions = stats ? statPhrase(stats.products) : SITE_STATS.solutions;
-  const liveCategories = stats ? String(stats.categories) : SITE_STATS.categories;
-
-  const filteredDemos = allDemos.filter((demo) => {
-    const matchesCategory = activeCategory === "All" || demo.masterCategory === activeCategory;
-    const matchesSearch =
-      demo.name.toLowerCase().includes(search.toLowerCase()) ||
-      demo.description.toLowerCase().includes(search.toLowerCase()) ||
-      demo.masterCategory.toLowerCase().includes(search.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const liveSolutions = stats ? statPhrase(stats.products) : "—";
+  const liveCategories = stats ? String(stats.categories) : "—";
 
   // Superseded by useFavorites(), which persists. Kept for reference.
   const toggleFavoriteInMemoryLegacy = (_id: string) => {};
   void toggleFavoriteInMemoryLegacy;
-
-  // Count demos per master category
-  const getCategoryCount = (category: string) => {
-    if (category === "All") return allDemos.length;
-    return allDemos.filter((d) => d.masterCategory === category).length;
-  };
 
   return (
     <CardCompositionProvider value={composition}>
@@ -3750,10 +3693,7 @@ const Index = () => {
         </header>
 
         {/* Every product card below reads the composition from here. */}
-        {/* The page is composed here, not laid out here. Which of these
-          sections appear, and in what order, comes from Layout Order in
-          the Marketplace Manager; the order the keys are written in below
-          is only the fallback used when the registry cannot be read. */}
+        {/* The registry controls which sections appear and their order. */}
         {renderSections(layout, {
           "utility-bar": (
             <SectionBoundary label="The utility bar" fallback={null}>
@@ -3810,54 +3750,14 @@ const Index = () => {
           "catalog-rows": (
             <section id={GRID_ANCHOR} className="scroll-mt-24 py-8 px-4">
               <div className="max-w-7xl mx-auto">
-                {/* Group by Master Category when "All" is selected */}
-                {activeCategory === "All" && !search ? (
-                  /* The real catalogue, paged from the database. */
-                  <CatalogRows favorites={favorites} onToggleFavorite={toggleFavorite} />
-                ) : activeCategory === "All" ? (
-                  masterCategories.slice(1).map((masterCat) => {
-                    const categoryDemos = filteredDemos.filter(
-                      (d) => d.masterCategory === masterCat,
-                    );
-                    if (categoryDemos.length === 0) return null;
-                    const rowDemos = search
-                      ? categoryDemos
-                      : (buildRow(masterCat, categoryDemos) as Demo[]);
-
-                    return (
-                      <CategoryRow key={masterCat} title={masterCat} count={rowDemos.length}>
-                        {rowDemos.map((demo, index) => (
-                          <div
-                            key={demo.id}
-                            className="w-[300px] flex-none snap-start sm:w-[330px]"
-                          >
-                            <DemoCard
-                              demo={demo}
-                              index={index}
-                              isFavorite={favorites.includes(demo.id)}
-                              onToggleFavorite={() => toggleFavorite(demo.id)}
-                            />
-                          </div>
-                        ))}
-                      </CategoryRow>
-                    );
-                  })
+                {search ? (
+                  <CatalogSearch
+                    query={search}
+                    favorites={favorites}
+                    onToggleFavorite={toggleFavorite}
+                  />
                 ) : (
-                  <CategoryRow title={activeCategory} count={filteredDemos.length}>
-                    {(search
-                      ? filteredDemos
-                      : (buildRow(activeCategory, filteredDemos) as Demo[])
-                    ).map((demo, index) => (
-                      <div key={demo.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
-                        <DemoCard
-                          demo={demo}
-                          index={index}
-                          isFavorite={favorites.includes(demo.id)}
-                          onToggleFavorite={() => toggleFavorite(demo.id)}
-                        />
-                      </div>
-                    ))}
-                  </CategoryRow>
+                  <CatalogRows favorites={favorites} onToggleFavorite={toggleFavorite} />
                 )}
               </div>
             </section>
@@ -4086,13 +3986,11 @@ export function toDemo(card: CatalogCard, index: number): Demo {
     frontend: card.tech ?? [],
     backend: [],
     color: CARD_COLORS[index % CARD_COLORS.length]!,
-    price: LIFETIME_PRICE,
-    discountPrice: LIFETIME_PRICE,
-    rating: card.rating,
-    license: card.license,
-    platform: card.platform,
+    price: card.price ?? "",
+    discountPrice: card.price ?? "",
+    period: card.period,
     hasDemo: card.hasDemo,
-  } as unknown as Demo;
+  };
 }
 
 function CatalogRowStrip({
@@ -4264,6 +4162,123 @@ function CuratedRow({
   );
 }
 
+function isCatalogCard(value: unknown): value is CatalogCard {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const card = value as Record<string, unknown>;
+  const nullableString = (field: unknown) => field === null || typeof field === "string";
+  return (
+    typeof card.id === "string" &&
+    typeof card.slug === "string" &&
+    typeof card.name === "string" &&
+    nullableString(card.icon) &&
+    nullableString(card.industry) &&
+    nullableString(card.price) &&
+    nullableString(card.period) &&
+    (card.rating === null || typeof card.rating === "number") &&
+    nullableString(card.downloads) &&
+    nullableString(card.badge) &&
+    typeof card.featured === "boolean" &&
+    typeof card.trending === "boolean" &&
+    typeof card.bestSeller === "boolean" &&
+    typeof card.newRelease === "boolean" &&
+    nullableString(card.country) &&
+    typeof card.href === "string" &&
+    nullableString(card.description) &&
+    Array.isArray(card.features) &&
+    card.features.every((feature) => typeof feature === "string") &&
+    Array.isArray(card.tech) &&
+    card.tech.every((technology) => typeof technology === "string") &&
+    nullableString(card.license) &&
+    nullableString(card.platform) &&
+    nullableString(card.subcategory) &&
+    typeof card.hasDemo === "boolean" &&
+    (card.slotUrl === undefined || typeof card.slotUrl === "string")
+  );
+}
+
+function CatalogSearch({
+  query,
+  favorites,
+  onToggleFavorite,
+}: {
+  query: string;
+  favorites: string[];
+  onToggleFavorite: (id: string) => void;
+}) {
+  const [cards, setCards] = useState<CatalogCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/marketplace/search?q=${encodeURIComponent(query)}&format=cards&limit=40`,
+          { signal: controller.signal },
+        );
+        const payload = (await response.json()) as { cards?: unknown; error?: unknown };
+        if (!response.ok) {
+          throw new Error(
+            typeof payload.error === "string" ? payload.error : "The catalogue search failed.",
+          );
+        }
+        if (!Array.isArray(payload.cards) || !payload.cards.every(isCatalogCard)) {
+          throw new Error("The catalogue search returned an invalid response.");
+        }
+        setCards(payload.cards);
+      } catch (problem) {
+        if (controller.signal.aborted) return;
+        console.error("[marketplace search] Could not load published products", problem);
+        setError(problem instanceof Error ? problem.message : "The catalogue search failed.");
+        setCards([]);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [query, attempt]);
+
+  if (loading) {
+    return <p role="status" className="py-12 text-center text-sm text-white/60">Searching published products…</p>;
+  }
+  if (error) {
+    return (
+      <div className="py-12 text-center">
+        <p role="alert" className="text-sm text-rose-300">{error}</p>
+        <button
+          type="button"
+          onClick={() => setAttempt((value) => value + 1)}
+          className="mt-4 rounded-lg border border-cyan-400/30 px-4 py-2 text-sm text-cyan-200 hover:bg-white/[0.06]"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (cards.length === 0) {
+    return <p className="py-12 text-center text-sm text-white/60">No published products match this search.</p>;
+  }
+
+  return (
+    <CategoryRow title={`Search results for “${query}”`} count={cards.length}>
+      {cards.map((card, index) => (
+        <div key={card.id} className="w-[300px] flex-none snap-start sm:w-[330px]">
+          <DemoCard
+            demo={toDemo(card, index)}
+            index={index}
+            isFavorite={favorites.includes(card.id)}
+            onToggleFavorite={() => onToggleFavorite(card.id)}
+          />
+        </div>
+      ))}
+    </CategoryRow>
+  );
+}
+
 function CatalogRows({
   favorites,
   onToggleFavorite,
@@ -4404,11 +4419,11 @@ export const DemoCard = memo(
     // The Action Layer's answer for this product. One shared fetch backs every
     // card on the page, so a grid of hundreds costs a single request.
     const { actions: layerActions } = useProductActions({
-      id: (demo as unknown as { id?: string }).id ?? null,
-      slug: (demo as unknown as { slug?: string }).slug ?? null,
-      demo_url: (demo as unknown as { url?: string }).url ?? null,
+      id: demo.id,
+      slug: demo.slug ?? null,
+      demo_url: demo.url,
       visible: true,
-      price_label: (demo as unknown as { discountPrice?: string }).discountPrice ?? null,
+      price_label: demo.discountPrice || null,
       content_status: null,
     });
     const allowed = (key: string) => {
@@ -4557,28 +4572,23 @@ export const DemoCard = memo(
                 </div>
               )}
 
-              {/* One fixed lifetime price across the marketplace. */}
-              {shows("metadata", "price") &&
-                (() => {
-                  return (
-                    <div className="mb-4">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-gray-500 line-through text-[13px]">
-                          {LIFETIME_MRP}
-                        </span>
-                        <span className="sv-price text-emerald-300 font-black text-[22px] tracking-[-0.02em]">
-                          {LIFETIME_PRICE}
-                        </span>
-                        <Badge className="bg-red-500/20 text-red-300 border-red-500/30 text-[10px] font-bold">
-                          {LIFETIME_DISCOUNT}
-                        </Badge>
-                      </div>
-                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-cyan-300/80">
-                        One-time payment · Lifetime access
-                      </p>
-                    </div>
-                  );
-                })()}
+              {shows("metadata", "price") && (demo.discountPrice || demo.price) && (
+                <div className="mb-4">
+                  <div className="flex items-baseline gap-2">
+                    {demo.price && demo.discountPrice && demo.price !== demo.discountPrice && (
+                      <span className="text-gray-500 line-through text-[13px]">{demo.price}</span>
+                    )}
+                    <span className="sv-price text-emerald-300 font-black text-[22px] tracking-[-0.02em]">
+                      {demo.discountPrice || demo.price}
+                    </span>
+                  </div>
+                  {demo.period && (
+                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-cyan-300/80">
+                      {demo.period}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Enhanced Actions
                 Two gates, deliberately. `shows()` is the card composition -

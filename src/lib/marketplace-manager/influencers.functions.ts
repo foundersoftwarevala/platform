@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { callMarketplaceManagerFunctionFromRequest } from "./vps-rpc.server";
 
 /**
  * Influencer Manager, over the influencer tables this project already has.
@@ -13,24 +13,6 @@ import { z } from "zod";
  * same table with influencer_profile_id set, so the machinery that is already
  * running picks it up without a line of new tracking code.
  */
-
-async function callAsUser<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Unauthorized: sign in required");
-
-  const { createClient } = await import("@supabase/supabase-js");
-  const base = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
-  const client = createClient(base, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(error.message);
-  return data as T;
-}
 
 export type InfluencerRow = {
   id: string;
@@ -79,7 +61,7 @@ export const getInfluencers = createServerFn({ method: "GET" })
     }).parse(i ?? {}),
   )
   .handler(async ({ data }): Promise<InfluencerOverview> =>
-    callAsUser("mm_influencers", { p_query: data }),
+    callMarketplaceManagerFunctionFromRequest("mm_influencers", { p_query: data }),
   );
 
 /**
@@ -99,7 +81,7 @@ export const createInfluencerCode = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{
     ok: boolean; reason?: string; message?: string;
     code?: string; share_url?: string;
-  }> => callAsUser("mm_influencer_code_create", {
+  }> => callMarketplaceManagerFunctionFromRequest("mm_influencer_code_create", {
     p_profile: data.profile,
     p_code: data.code && data.code.trim() !== "" ? data.code.trim() : null,
   }));
@@ -119,7 +101,7 @@ export const setInfluencerStatus = createServerFn({ method: "POST" })
     }).parse(i),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> =>
-    callAsUser("mm_influencer_status", {
+    callMarketplaceManagerFunctionFromRequest("mm_influencer_status", {
       p_profile: data.profile,
       p_to: data.status,
       p_reason: data.reason ?? null,

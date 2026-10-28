@@ -1,6 +1,6 @@
-import { callAsUser } from "@/lib/supabase-rpc.server";
 import type { Json } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
+import { callMarketplaceManagerFunctionFromRequest as callAsUser } from "./vps-rpc.server";
 
 import { z } from "zod";
 

@@ -1,6 +1,6 @@
-import { callAsUser } from "@/lib/supabase-rpc.server";
 import type { JsonObject } from "@/lib/json";
 import { createServerFn } from "@tanstack/react-start";
+import { callMarketplaceManagerFunctionFromRequest as callAsUser } from "@/lib/marketplace-manager/vps-rpc.server";
 
 /** Marketing counts, with seed and real kept apart, read as the operator. */
 
