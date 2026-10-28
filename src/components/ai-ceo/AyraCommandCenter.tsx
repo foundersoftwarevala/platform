@@ -26,6 +26,7 @@ import {
 import {
   loadAyraCompanyProfile,
   saveAyraCompanyProfile,
+  issueAyraAutofillExtensionToken,
 } from "@/lib/ai-ceo/ayra-autofill.functions";
 import type { AyraCompanyProfile } from "@/lib/ai-ceo/ayra-autofill.server";
 import {
@@ -108,6 +109,8 @@ export function AyraCommandCenter({ open, onClose }: Props) {
     website: "",
   });
   const [selectedTab, setSelectedTab] = useState<Tab>("System Control");
+  const [extensionToken, setExtensionToken] = useState<string | null>(null);
+  const [extensionTokenExpiry, setExtensionTokenExpiry] = useState<string | null>(null);
 
   const grants = useQuery({
     queryKey: ["ayra", "grants"],
@@ -138,6 +141,17 @@ export function AyraCommandCenter({ open, onClose }: Props) {
     queryFn: () => loadAyraCompanyProfile(),
     enabled: open && selectedTab === "Company Profile",
     staleTime: 0,
+  });
+  const createExtensionToken = useMutation({
+    mutationFn: () => issueAyraAutofillExtensionToken(),
+    onSuccess: ({ token, expiresAt }) => {
+      setExtensionToken(token);
+      setExtensionTokenExpiry(expiresAt);
+      toast.success("One-time extension token created. Copy it into the Chrome extension now.");
+    },
+    onError: (error: unknown) => toast.error("Could not connect the extension", {
+      description: error instanceof Error ? error.message : "The VPS connection could not be created.",
+    }),
   });
   const persistCompanyProfile = useMutation({
     mutationFn: (profile: AyraCompanyProfile) => saveAyraCompanyProfile({ data: profile }),
@@ -477,6 +491,7 @@ export function AyraCommandCenter({ open, onClose }: Props) {
               </button>
             </div>
           ) : (
+            <>
             <form
               className="space-y-3"
               aria-label="Software Vala company profile"
@@ -486,8 +501,7 @@ export function AyraCommandCenter({ open, onClose }: Props) {
               }}
             >
               <p className="rounded-md border border-[color:var(--aw-line)] bg-white/[0.04] p-3 text-xs text-[color:var(--aw-soft)]">
-                These details are stored on VPS Postgres and are sent only to this application when
-                you explicitly click Auto-Fill on a same-origin form. AYRA never submits the form.
+                These verified company details are stored on VPS Postgres. The Chrome extension sends matched values only after you click Fill on the active page. AYRA never submits the form.
               </p>
               {!companyProfile.data?.configured && (
                 <p className="rounded-md border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-100">
@@ -535,6 +549,26 @@ export function AyraCommandCenter({ open, onClose }: Props) {
                 </button>
               </div>
             </form>
+            <section className="mt-5 space-y-3 rounded-lg border border-[color:var(--aw-line)] bg-white/[0.03] p-4" aria-label="Chrome extension connection">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Universal Auto-Fill Chrome extension</h3>
+                <p className="mt-1 text-xs text-[color:var(--aw-soft)]">Download the extension, load it unpacked in Chrome, then create a 24-hour connection token and paste it into the extension popup. Creating a new token revokes the previous one.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a href="/downloads/ayra-extension.zip" download className="rounded-md border border-[color:var(--aw-cyan)] px-3 py-2 text-sm text-[color:var(--aw-cyan)]">Download extension (.zip)</a>
+                <button type="button" disabled={!companyProfile.data?.configured || createExtensionToken.isPending} onClick={() => createExtensionToken.mutate()} className="rounded-md border border-[color:var(--aw-cyan)] px-3 py-2 text-sm text-[color:var(--aw-cyan)] disabled:opacity-50">{createExtensionToken.isPending ? "Creating…" : "Generate 24-hour connection token"}</button>
+              </div>
+              {extensionToken && (
+                <div className="space-y-2" role="status">
+                  <label className="block text-xs text-[color:var(--aw-soft)]">Copy this token into the extension popup. It is shown once and expires {extensionTokenExpiry ? new Date(extensionTokenExpiry).toLocaleString() : "in 24 hours"}.
+                    <textarea readOnly value={extensionToken} rows={3} className="mt-1 w-full select-all rounded-md border border-[color:var(--aw-line)] bg-black/30 p-2 font-mono text-xs text-white" onFocus={(event) => event.currentTarget.select()} />
+                  </label>
+                  <button type="button" onClick={() => { void navigator.clipboard.writeText(extensionToken).then(() => toast.success("Extension token copied."), () => toast.error("Copy failed; select and copy the token manually.")); }} className="rounded-md border border-[color:var(--aw-line)] px-3 py-2 text-xs text-white">Copy token</button>
+                </div>
+              )}
+              <p className="text-xs text-[color:var(--aw-soft)]">The extension reads field labels and fills supported empty inputs on the active tab only. Review values before submitting. It skips sensitive fields and never submits forms.</p>
+            </section>
+            </>
           )
         ) : selectedTab === "Self Improvement" ? (
           <div className="space-y-3" aria-label="AYRA self-improvement proposals">

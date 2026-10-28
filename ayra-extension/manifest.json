@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "AYRA Universal Auto-Fill",
+  "version": "1.0.0",
+  "description": "Fill supported empty form fields with your saved Software Vala company profile.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://softwarevala.net/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "AYRA Auto-Fill", "default_popup": "popup.html" }
+}

@@ -19,6 +19,7 @@ const server = vi.hoisted(() => ({
   forgetFact: vi.fn(),
   companyProfile: vi.fn(),
   saveCompanyProfile: vi.fn(),
+  issueExtensionToken: vi.fn(),
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/ai-ceo/ceo.functions", () => ({
@@ -44,6 +45,7 @@ vi.mock("@/lib/ai-ceo/ayra-memory.functions", () => ({
 vi.mock("@/lib/ai-ceo/ayra-autofill.functions", () => ({
   loadAyraCompanyProfile: server.companyProfile,
   saveAyraCompanyProfile: server.saveCompanyProfile,
+  issueAyraAutofillExtensionToken: server.issueExtensionToken,
 }));
 
 afterEach(() => cleanup());
@@ -104,6 +106,7 @@ beforeEach(() => {
     },
   });
   server.saveCompanyProfile.mockResolvedValue({ company_name: "Software Vala" });
+  server.issueExtensionToken.mockResolvedValue({ token: `ayra_ext_${"a".repeat(43)}`, expiresAt: "2026-10-29T21:00:00Z" });
 });
 
 function renderCenter(open = true, onClose = vi.fn()) {
@@ -202,6 +205,33 @@ describe("AYRA Command Center", () => {
         }),
       }),
     );
+  });
+
+  it("downloads the extension and creates a short-lived connection token for a saved profile", async () => {
+    server.companyProfile.mockResolvedValueOnce({
+      configured: true,
+      profile: {
+        company_name: "Software Vala",
+        contact_name: "",
+        email: "",
+        phone: "",
+        address: "",
+        address_line_2: "",
+        city: "",
+        region: "",
+        postal_code: "",
+        country: "",
+        website: "",
+      },
+    });
+    renderCenter();
+    await screen.findByRole("switch", { name: "Allow system coding" });
+    fireEvent.click(screen.getByRole("tab", { name: "Company Profile" }));
+    const download = await screen.findByRole("link", { name: "Download extension (.zip)" });
+    expect(download.getAttribute("href")).toBe("/downloads/ayra-extension.zip");
+    fireEvent.click(screen.getByRole("button", { name: "Generate 24-hour connection token" }));
+    await waitFor(() => expect(server.issueExtensionToken).toHaveBeenCalledOnce());
+    expect(await screen.findByText(/Copy this token into the extension popup/)).toBeTruthy();
   });
 
   it("closes from the close button and Escape key", async () => {

@@ -8,6 +8,7 @@ import {
   saveAyraCompanyProfile as saveProfile,
 } from "./ayra-autofill.server";
 import { requireVpsExecutive } from "./vps-auth.server";
+import { createAyraAutofillExtensionToken } from "./ayra-extension.server";
 
 const ProfileSchema = z
   .object({
@@ -53,3 +54,8 @@ export const autoFillAyraCompanyForm = createServerFn({ method: "POST" })
     const userId = await requireVpsExecutive();
     return autoFillForm(userId, data.fields);
   });
+
+export const issueAyraAutofillExtensionToken = createServerFn({ method: "POST" }).handler(async () => {
+  const userId = await requireVpsExecutive();
+  return createAyraAutofillExtensionToken(userId);
+});

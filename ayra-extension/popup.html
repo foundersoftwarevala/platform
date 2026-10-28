@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AYRA Auto-Fill</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font:
+          14px system-ui,
+          sans-serif;
+      }
+      body {
+        width: 320px;
+        margin: 0;
+        padding: 16px;
+        background: #071526;
+        color: #e8f7ff;
+      }
+      h1 {
+        margin: 0 0 8px;
+        color: #67e8f9;
+        font-size: 17px;
+      }
+      p {
+        color: #b7c8d8;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      input,
+      button {
+        box-sizing: border-box;
+        width: 100%;
+        margin-top: 8px;
+        border-radius: 7px;
+        padding: 10px;
+        font: inherit;
+      }
+      input {
+        border: 1px solid #31506b;
+        background: #0c2036;
+        color: white;
+      }
+      button {
+        border: 1px solid #18c7e8;
+        background: #0e7490;
+        color: white;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+      #status {
+        min-height: 18px;
+        margin: 10px 0 0;
+      }
+      .muted {
+        color: #90a9bc;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid #25425b;
+        margin: 14px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AYRA Universal Auto-Fill</h1>
+    <p>
+      Connect once with a short-lived token generated in AYRA Command Center. Your token is stored
+      locally in this Chrome profile.
+    </p>
+    <label for="token">AYRA connection token</label>
+    <input
+      id="token"
+      type="password"
+      autocomplete="off"
+      spellcheck="false"
+      placeholder="Paste one-time token"
+    />
+    <button id="connect" type="button">Save connection</button>
+    <button id="disconnect" type="button">Disconnect</button>
+    <hr />
+    <button id="fill" type="button">Fill with Software Vala Details</button>
+    <p class="muted">
+      Filling is started only when you click. Review all filled values; AYRA never submits the form.
+    </p>
+    <p id="status" role="status" aria-live="polite"></p>
+    <script src="popup.js"></script>
+  </body>
+</html>

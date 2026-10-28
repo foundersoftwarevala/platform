@@ -239,17 +239,20 @@ authorized human approves them. Workspace URLs are attempted in an iframe, but
 Google/Gmail and other providers may block framing; the UI offers an explicit
 external-open fallback rather than bypassing provider policy.
 
-Follow-up `20261108T223000_ayra_company_autofill.sql` is applied on the VPS
-`sv_platform` only. It adds the RLS-protected singleton company profile and
-48 exact normalized form-field aliases. The initial profile is intentionally
-empty because no authoritative company contact/address values existed in the
-VPS schema; an executive must enter and save verified values in AYRA Command
-Center before Auto-Fill can populate fields. The browser sends field metadata,
-not page HTML or field contents, to the server. Auto-Fill works only when the
-iframe is same-origin with the app, fills supported empty text/email/phone/url,
-textarea, or existing select-option controls, skips sensitive/non-empty fields,
-and never submits the form. Browser same-origin restrictions prevent reading
-or writing forms on third-party domains; do not proxy or bypass those controls.
+Follow-up `20261108T223000_ayra_company_autofill.sql` and
+`20261108T224000_ayra_extension_tokens.sql` are applied on VPS `sv_platform`
+only. They add the RLS-protected singleton company profile, 48 exact normalized
+field aliases, and hashed executive-issued extension tokens. The profile is
+intentionally empty until an executive enters and saves verified company data
+in AYRA Command Center. The in-app iframe Auto-Fill remains same-origin only.
+For third-party forms, use the Chrome MV3 extension in `ayra-extension/` or
+`public/downloads/ayra-extension.zip`: the user explicitly clicks Fill on the
+active tab, the extension sends field metadata (not page HTML or existing field
+values) to the VPS endpoint, and fills only supported empty controls. Tokens
+expire after 24 hours, are stored hashed in VPS Postgres, and a replacement
+revokes the previous token. Sensitive fields are excluded; the extension never
+submits forms and does not bypass page framing or browser security controls.
+See `ayra-extension/README.txt` for installation steps.
 
 ### Applying a migration to the cloud project
 

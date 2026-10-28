@@ -382,6 +382,7 @@ import { Route as AmsAwardsRulesRewardsRouteImport } from './routes/ams.awards.r
 import { Route as AmsAwardsRulesStreaksRouteImport } from './routes/ams.awards.rules.streaks'
 import { Route as AmsAwardsRulesXpRouteImport } from './routes/ams.awards.rules.xp'
 import { Route as ApiAccountInvoiceIdRouteImport } from './routes/api/account/invoice/$id'
+import { Route as ApiAyraAutofillMatchRouteImport } from './routes/api/ayra/autofill/match'
 import { Route as ApiOrdersIdFulfilRouteImport } from './routes/api/orders/$id/fulfil'
 import { Route as ApiProxyDemoSplatRouteImport } from './routes/api/proxy/demo.$'
 import { Route as ApiQrScanCodeRouteImport } from './routes/api/qr/scan/$code'
@@ -2296,6 +2297,11 @@ const ApiAccountInvoiceIdRoute = ApiAccountInvoiceIdRouteImport.update({
   path: '/api/account/invoice/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAyraAutofillMatchRoute = ApiAyraAutofillMatchRouteImport.update({
+  id: '/api/ayra/autofill/match',
+  path: '/api/ayra/autofill/match',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOrdersIdFulfilRoute = ApiOrdersIdFulfilRouteImport.update({
   id: '/api/orders/$id/fulfil',
   path: '/api/orders/$id/fulfil',
@@ -2686,6 +2692,7 @@ export interface FileRoutesByFullPath {
   '/ams/awards/rules/streaks': typeof AmsAwardsRulesStreaksRoute
   '/ams/awards/rules/xp': typeof AmsAwardsRulesXpRoute
   '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
+  '/api/ayra/autofill/match': typeof ApiAyraAutofillMatchRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
   '/api/qr/scan/$code': typeof ApiQrScanCodeRoute
@@ -3053,6 +3060,7 @@ export interface FileRoutesByTo {
   '/ams/awards/rules/streaks': typeof AmsAwardsRulesStreaksRoute
   '/ams/awards/rules/xp': typeof AmsAwardsRulesXpRoute
   '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
+  '/api/ayra/autofill/match': typeof ApiAyraAutofillMatchRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
   '/api/qr/scan/$code': typeof ApiQrScanCodeRoute
@@ -3432,6 +3440,7 @@ export interface FileRoutesById {
   '/ams/awards/rules/streaks': typeof AmsAwardsRulesStreaksRoute
   '/ams/awards/rules/xp': typeof AmsAwardsRulesXpRoute
   '/api/account/invoice/$id': typeof ApiAccountInvoiceIdRoute
+  '/api/ayra/autofill/match': typeof ApiAyraAutofillMatchRoute
   '/api/orders/$id/fulfil': typeof ApiOrdersIdFulfilRoute
   '/api/proxy/demo/$': typeof ApiProxyDemoSplatRoute
   '/api/qr/scan/$code': typeof ApiQrScanCodeRoute
@@ -3812,6 +3821,7 @@ export interface FileRouteTypes {
     | '/ams/awards/rules/streaks'
     | '/ams/awards/rules/xp'
     | '/api/account/invoice/$id'
+    | '/api/ayra/autofill/match'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
     | '/api/qr/scan/$code'
@@ -4179,6 +4189,7 @@ export interface FileRouteTypes {
     | '/ams/awards/rules/streaks'
     | '/ams/awards/rules/xp'
     | '/api/account/invoice/$id'
+    | '/api/ayra/autofill/match'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
     | '/api/qr/scan/$code'
@@ -4557,6 +4568,7 @@ export interface FileRouteTypes {
     | '/ams/awards/rules/streaks'
     | '/ams/awards/rules/xp'
     | '/api/account/invoice/$id'
+    | '/api/ayra/autofill/match'
     | '/api/orders/$id/fulfil'
     | '/api/proxy/demo/$'
     | '/api/qr/scan/$code'
@@ -4742,6 +4754,7 @@ export interface RootRouteChildren {
   ApiTrackRefRoute: typeof ApiTrackRefRoute
   ApiValaAiSplatRoute: typeof ApiValaAiSplatRoute
   ApiAccountInvoiceIdRoute: typeof ApiAccountInvoiceIdRoute
+  ApiAyraAutofillMatchRoute: typeof ApiAyraAutofillMatchRoute
   ApiOrdersIdFulfilRoute: typeof ApiOrdersIdFulfilRoute
   ApiProxyDemoSplatRoute: typeof ApiProxyDemoSplatRoute
   ApiQrScanCodeRoute: typeof ApiQrScanCodeRoute
@@ -7360,6 +7373,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAccountInvoiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ayra/autofill/match': {
+      id: '/api/ayra/autofill/match'
+      path: '/api/ayra/autofill/match'
+      fullPath: '/api/ayra/autofill/match'
+      preLoaderRoute: typeof ApiAyraAutofillMatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/orders/$id/fulfil': {
       id: '/api/orders/$id/fulfil'
       path: '/api/orders/$id/fulfil'
@@ -8077,6 +8097,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTrackRefRoute: ApiTrackRefRoute,
   ApiValaAiSplatRoute: ApiValaAiSplatRoute,
   ApiAccountInvoiceIdRoute: ApiAccountInvoiceIdRoute,
+  ApiAyraAutofillMatchRoute: ApiAyraAutofillMatchRoute,
   ApiOrdersIdFulfilRoute: ApiOrdersIdFulfilRoute,
   ApiProxyDemoSplatRoute: ApiProxyDemoSplatRoute,
   ApiQrScanCodeRoute: ApiQrScanCodeRoute,
