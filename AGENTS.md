@@ -179,9 +179,9 @@ new, separately permissioned registry row; `mon-support` remains monitoring-only
 `scripts/run-agents.mjs` accepts only these exact contracts, uses the local
 `qwen2.5:3b` Ollama model for sales/support drafts, runs deterministic checks
 for HTTP status, telemetry freshness and revenue totals, and records governed
-runs through `fa_agent_run_open/close`. It is serialized, waits five seconds
-between agents, and is scheduled every fifteen minutes by the root cron entry
-in `deploy/production/system/cron-sv-agent-contract-pilot`. Sales and support
+runs through `fa_agent_run_open/close`. It is serialized and waits five seconds between agents. The proposed
+fifteen-minute root cron entry is in
+`deploy/production/system/cron-sv-agent-contract-pilot`; it is not installed yet. Sales and support
 outputs are `PENDING` rows in VPS `ai_agent_drafts`, behind RLS and service-role
 access; they are not inserted into `messages`, whose trigger would announce a
 live chat post. No customer message is sent. The initial manual run created
