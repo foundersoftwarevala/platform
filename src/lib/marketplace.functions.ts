@@ -76,6 +76,14 @@ export type MarketProduct = {
   tech_stack?: string[];
   features?: Json;
   content_status?: string;
+  deployment?: string | null;
+  license?: string | null;
+  mobile?: string | null;
+  is_featured?: boolean;
+  is_trending?: boolean;
+  is_best_seller?: boolean;
+  is_new_release?: boolean;
+  is_ai?: boolean;
   demo_count?: number;
   demo_urls?: ProductDemoBinding[];
 };
@@ -216,7 +224,58 @@ function privilegedClient() {
 }
 
 const PRODUCT_COLS =
-  "id, slug, name, category_id, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, description, thumbnail_url, public_repo_url, tags, tech_stack, features, content_status";
+  "id, slug, name, category_id, industry_label, icon, price_label, price_period, rating, downloads, downloads_label, badge, description, thumbnail_url, public_repo_url, tags, tech_stack, features, content_status, deployment, license, mobile, is_featured, is_trending, is_best_seller, is_new_release, is_ai";
+
+
+export type PublicStorefrontFilterValue = { value: string; label: string; count: number };
+export type PublicStorefrontFilterGroup = {
+  key: string;
+  label: string;
+  source: string;
+  enabled: boolean;
+  position: number;
+  select_mode: "single" | "multi";
+  combine: "and" | "or";
+  visible_desktop: boolean;
+  visible_mobile: boolean;
+  values: PublicStorefrontFilterValue[];
+};
+
+const PublicFilterValuesSchema = z.object({
+  ok: z.literal(true),
+  values: z.array(z.object({ value: z.string(), label: z.string(), count: z.number() })),
+});
+
+/** Publicly visible filter configuration and live values, from the VPS catalogue. */
+export const getPublicStorefrontFilters = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PublicStorefrontFilterGroup[]> => {
+    const sb = publicClient();
+    const { data: config, error } = await sb
+      .from("marketplace_filter_groups")
+      .select(
+        "key,label,source,enabled,position,select_mode,combine,visible_desktop,visible_mobile",
+      )
+      .eq("enabled", true)
+      .order("position", { ascending: true });
+    if (error) throw new Error(`Could not load public filter configuration: ${error.message}`);
+
+    return Promise.all(
+      (config ?? []).map(async (group): Promise<PublicStorefrontFilterGroup> => {
+        const { data, error: valuesError } = await sb.rpc("mm_filter_values", { p_key: group.key });
+        if (valuesError) {
+          throw new Error(`Could not load values for the ${group.label} filter: ${valuesError.message}`);
+        }
+        const values = PublicFilterValuesSchema.parse(data);
+        return {
+          ...group,
+          select_mode: group.select_mode === "single" ? "single" : "multi",
+          combine: group.combine === "and" ? "and" : "or",
+          values: values.values,
+        };
+      }),
+    );
+  },
+);
 
 /** Returns only product slugs with an active Demo Manager URL. */
 export const getPublicDemoAvailability = createServerFn({ method: "GET" }).handler(
@@ -358,6 +417,14 @@ function toProduct(r: any): MarketProduct {
     tech_stack: Array.isArray(r.tech_stack) ? r.tech_stack : [],
     features: r.features ?? [],
     content_status: r.content_status ?? "draft",
+    deployment: r.deployment ?? null,
+    license: r.license ?? null,
+    mobile: r.mobile ?? null,
+    is_featured: Boolean(r.is_featured),
+    is_trending: Boolean(r.is_trending),
+    is_best_seller: Boolean(r.is_best_seller),
+    is_new_release: Boolean(r.is_new_release),
+    is_ai: Boolean(r.is_ai),
   };
 }
 
@@ -411,6 +478,14 @@ function mapProductRecord(row: any): PublicProduct {
       downloads,
       downloads_label: downloadsLabel,
       badge,
+      deployment: row.deployment,
+      license: row.license,
+      mobile: row.mobile,
+      is_featured: row.is_featured,
+      is_trending: row.is_trending,
+      is_best_seller: row.is_best_seller,
+      is_new_release: row.is_new_release,
+      is_ai: row.is_ai,
     }),
     demo_count: 0,
     demo_urls: [],

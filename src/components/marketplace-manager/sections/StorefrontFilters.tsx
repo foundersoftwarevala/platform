@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronUp, Filter, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, Filter, Info } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -23,12 +23,9 @@ import {
  * flags the Product Card Manager's badges read, so a badge and a filter can
  * never disagree about what "Trending" means.
  *
- * One thing this screen says plainly rather than hiding: the public storefront
- * has no faceted filter surface yet. /marketplace renders the homepage, which
- * offers a search box and category rows. So this configuration is real and its
- * values are real, but there is nowhere for it to appear until that surface is
- * built — and a manager should know that before wondering why a toggle changed
- * nothing.
+ * Enabled groups and their live values appear on public category pages. The
+ * homepage itself keeps its search and category rows rather than a separate
+ * faceted product-list surface.
  */
 
 const KEY = ["marketplace", "storefront-filters"] as const;
@@ -81,15 +78,11 @@ export function StorefrontFiltersSection() {
         <StatCard label="Disabled" value={String(groups.length - enabled)} />
       </div>
 
-      {/* The honest state of the public side. */}
-      <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
-        <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        <Info className="mt-0.5 h-4 w-4 flex-none" />
         <span>
-          <b>No public filter surface exists yet.</b> /marketplace renders the
-          marketplace homepage, which offers a search box and category rows — there is
-          no facet panel, and no control calls setActiveCategory. This configuration is
-          saved and its values are real, but nothing on the storefront reads it until
-          that surface is built. Nothing here is reported as live.
+          Enabled groups and their VPS-derived values appear on public category pages. The homepage
+          keeps its search and category-row layout; it does not display a separate filter panel.
         </span>
       </div>
 

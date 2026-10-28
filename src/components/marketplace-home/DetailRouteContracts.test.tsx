@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   loaded: undefined as Record<string, unknown> | undefined,
   match: vi.fn(),
   category: vi.fn(),
+  filters: vi.fn().mockResolvedValue([]),
   product: vi.fn(),
   content: vi.fn().mockResolvedValue(null),
 }));
@@ -28,6 +29,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 vi.mock("@/lib/marketplace.functions", () => ({
   getPublicProductsByCategory: mocks.category,
+  getPublicStorefrontFilters: mocks.filters,
   getPublicProduct: mocks.product,
 }));
 vi.mock("@/lib/marketplace-content.functions", () => ({
@@ -61,6 +63,7 @@ beforeEach(() => {
   mocks.loaded = undefined;
   mocks.match.mockClear();
   mocks.category.mockReset();
+  mocks.filters.mockReset().mockResolvedValue([]);
   mocks.product.mockReset();
 });
 afterEach(cleanup);
@@ -80,6 +83,68 @@ describe("optional matching route loader data", () => {
       shouldThrow: false,
     });
     expect(mocks.category).not.toHaveBeenCalled();
+  });
+
+  it("filters seeded category products using live storefront filter selections", async () => {
+    mocks.loaded = {
+      products: {
+        category: { name: "Education", slug: "education", icon: "ED", description: "Fixture" },
+        products: [
+          {
+            id: "cloud-product",
+            slug: "cloud-product",
+            name: "Cloud Product",
+            industry_label: "Education",
+            icon: "Cloud",
+            price_label: "$249",
+            rating: 4,
+            downloads: 0,
+            downloads_label: "0",
+            badge: null,
+            deployment: "Cloud",
+            demo_urls: [],
+          },
+          {
+            id: "premise-product",
+            slug: "premise-product",
+            name: "Premise Product",
+            industry_label: "Education",
+            icon: "Server",
+            price_label: "$249",
+            rating: 4,
+            downloads: 0,
+            downloads_label: "0",
+            badge: null,
+            deployment: "On-premise",
+            demo_urls: [],
+          },
+        ],
+      },
+    };
+    mocks.filters.mockResolvedValue([
+      {
+        key: "deployment",
+        label: "Deployment",
+        source: "deployment",
+        enabled: true,
+        position: 1,
+        select_mode: "multi",
+        combine: "or",
+        visible_desktop: true,
+        visible_mobile: true,
+        values: [
+          { value: "Cloud", label: "Cloud", count: 1 },
+          { value: "On-premise", label: "On-premise", count: 1 },
+        ],
+      },
+    ]);
+
+    render(<CategoryDetail />, { wrapper });
+    expect(await screen.findByText("Cloud Product")).toBeTruthy();
+    expect(screen.getByText("Premise Product")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Cloud/ }));
+    expect(await screen.findByText("Cloud Product")).toBeTruthy();
+    expect(screen.queryByText("Premise Product")).toBeNull();
   });
 
   it("retains category query fallback when no matching route has loader data", async () => {

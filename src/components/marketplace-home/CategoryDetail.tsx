@@ -1,20 +1,32 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useMatch } from "@tanstack/react-router";
 import { Loader2, ArrowLeft, Heart, Eye, Play, ShoppingCart } from "lucide-react";
-import { getPublicProductsByCategory } from "@/lib/marketplace.functions";
+import {
+  getPublicProductsByCategory,
+  getPublicStorefrontFilters,
+  type MarketProduct,
+  type PublicStorefrontFilterGroup,
+} from "@/lib/marketplace.functions";
+import { filterPublicProducts } from "@/lib/marketplace/public-filtering";
+import { useFavorites } from "@/lib/marketplace-home/persistentState";
 import { useServerFn } from "@/lib/serverFn";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DemoLaunchButton } from "@/components/marketplace-home/DemoLaunchButton";
+
+const EMPTY_PRODUCTS: MarketProduct[] = [];
+const EMPTY_FILTER_GROUPS: PublicStorefrontFilterGroup[] = [];
 
 export function CategoryDetail() {
   const { slug } = useParams({ from: "/marketplace/category/$slug" });
   const navigate = useNavigate();
   const getCategoryFn = useServerFn(getPublicProductsByCategory);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const getFiltersFn = useServerFn(getPublicStorefrontFilters);
+  const { favorites, toggle: toggleSavedProduct } = useFavorites();
+  const [selectedFilters, setSelectedFilters] = useState<Record<string, string[]>>({});
 
   // What the route already loaded. With it the first render has the products
   // in hand, so the page leaves the server complete rather than as a spinner.
@@ -32,6 +44,17 @@ export function CategoryDetail() {
     },
     initialData: seededProducts as never,
   });
+  const filters = useQuery({
+    queryKey: ["public-storefront-filters"],
+    queryFn: () => getFiltersFn(),
+    staleTime: 30_000,
+  });
+  const products = data?.products ?? EMPTY_PRODUCTS;
+  const filterGroups = filters.data ?? EMPTY_FILTER_GROUPS;
+  const visibleProducts = useMemo(
+    () => filterPublicProducts(products, filterGroups, selectedFilters),
+    [filterGroups, products, selectedFilters],
+  );
 
   if (isLoading) {
     return (
@@ -63,21 +86,28 @@ export function CategoryDetail() {
     );
   }
 
-  const { category, products } = data;
+  const { category } = data;
 
   const toggleFavorite = (productId: string) => {
-    setFavorites((prev) => {
-      const updated = new Set(prev);
-      if (updated.has(productId)) {
-        updated.delete(productId);
-        toast.success("Removed from favorites");
-      } else {
-        updated.add(productId);
-        toast.success("Added to favorites!");
+    const wasSaved = favorites.includes(productId);
+    toggleSavedProduct(productId);
+    toast.success(wasSaved ? "Removed from favorites" : "Added to favorites!");
+  };
+
+  const toggleFilterValue = (key: string, value: string, mode: "single" | "multi") => {
+    setSelectedFilters((current) => {
+      const selected = current[key] ?? [];
+      if (mode === "single") {
+        return { ...current, [key]: selected[0] === value ? [] : [value] };
       }
-      return updated;
+      const next = selected.includes(value)
+        ? selected.filter((item) => item !== value)
+        : [...selected, value];
+      return { ...current, [key]: next };
     });
   };
+
+  const clearFilters = () => setSelectedFilters({});
 
   const handleProductClick = (productSlug: string) => {
     navigate({ to: "/marketplace/product/$slug", params: { slug: productSlug } });
@@ -111,19 +141,131 @@ export function CategoryDetail() {
             <div>
               <h1 className="text-4xl font-bold mb-2">{category.name}</h1>
               <p className="text-muted-foreground text-lg">
-                {products.length} {products.length === 1 ? "product" : "products"} available
+                {visibleProducts.length === products.length
+                  ? `${products.length} ${products.length === 1 ? "product" : "products"} available`
+                  : `Showing ${visibleProducts.length} of ${products.length} products`}
               </p>
             </div>
           </div>
         </div>
 
+        {filters.isError && (
+          <div
+            role="status"
+            className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100"
+          >
+            <span>Filters are temporarily unavailable. Products are still shown.</span>
+            <Button variant="outline" size="sm" onClick={() => void filters.refetch()}>
+              Retry
+            </Button>
+          </div>
+        )}
+        {filters.isLoading && (
+          <p role="status" className="mb-6 text-sm text-muted-foreground">
+            Loading available filters…
+          </p>
+        )}
+        {!filters.isError &&
+          filterGroups.some((group) => group.enabled && group.values.length > 0) && (
+            <section
+              aria-label="Filter products"
+              className="mb-8 rounded-xl border border-cyan-500/20 bg-white/[0.03] p-4"
+            >
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-cyan-100">Filter products</h2>
+                {Object.values(selectedFilters).some((values) => values.length > 0) && (
+                  <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {filterGroups
+                  .filter(
+                    (group) =>
+                      group.enabled &&
+                      group.values.length > 0 &&
+                      (group.visible_desktop || group.visible_mobile),
+                  )
+                  .map((group) => {
+                    const visibility = group.visible_mobile
+                      ? group.visible_desktop
+                        ? ""
+                        : "md:hidden"
+                      : group.visible_desktop
+                        ? "hidden md:block"
+                        : "hidden";
+                    const selected = selectedFilters[group.key] ?? [];
+                    return (
+                      <fieldset key={group.key} className={`min-w-0 ${visibility}`}>
+                        <legend className="mb-2 text-xs font-medium text-muted-foreground">
+                          {group.label}
+                        </legend>
+                        {group.source === "category" ? (
+                          <select
+                            aria-label={group.label}
+                            value={category.slug}
+                            onChange={(event) => {
+                              const nextSlug = event.currentTarget.value;
+                              if (nextSlug !== category.slug) {
+                                void navigate({
+                                  to: "/marketplace/category/$slug",
+                                  params: { slug: nextSlug },
+                                });
+                                setSelectedFilters({});
+                              }
+                            }}
+                            className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
+                          >
+                            {group.values.map((value) => (
+                              <option key={value.value} value={value.value}>
+                                {value.label} ({value.count})
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="max-h-40 space-y-1 overflow-y-auto">
+                            {group.values
+                              .filter((value) => value.count > 0)
+                              .map((value) => {
+                                const checked = selected.includes(value.value);
+                                return (
+                                  <label
+                                    key={value.value}
+                                    className="flex cursor-pointer items-center gap-2 text-xs text-gray-200"
+                                  >
+                                    <input
+                                      type={group.select_mode === "single" ? "radio" : "checkbox"}
+                                      name={`filter-${group.key}`}
+                                      checked={checked}
+                                      onChange={() =>
+                                        toggleFilterValue(group.key, value.value, group.select_mode)
+                                      }
+                                      className="accent-cyan-400"
+                                    />
+                                    <span>{value.label}</span>
+                                    <span className="ml-auto text-muted-foreground">
+                                      {value.count}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                          </div>
+                        )}
+                      </fieldset>
+                    );
+                  })}
+              </div>
+            </section>
+          )}
+
         {/* Products Grid */}
-        {products.length > 0 ? (
+        {visibleProducts.length > 0 ? (
           <div>
             <h2 className="text-2xl font-bold mb-6">Featured Products</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {products.map((product) => {
-                const isFavorite = favorites.has(product.id);
+              {visibleProducts.map((product) => {
+                const isFavorite = favorites.includes(product.id);
                 const activeDemo = product.demo_urls?.[0];
 
                 return (
@@ -228,7 +370,6 @@ export function CategoryDetail() {
                           className="flex-1"
                           onClick={(e) => {
                             e.stopPropagation();
-                            toast.success("Opening in detail view...");
                             handleProductClick(product.slug);
                           }}
                         >
@@ -245,8 +386,15 @@ export function CategoryDetail() {
         ) : (
           <Card className="bg-white/5 border-cyan-500/20 p-12 text-center">
             <p className="text-muted-foreground text-lg">
-              No products available in this category yet.
+              {products.length > 0
+                ? "No products match these filters."
+                : "No products available in this category yet."}
             </p>
+            {products.length > 0 && (
+              <Button type="button" variant="outline" className="mt-4" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
           </Card>
         )}
       </div>
