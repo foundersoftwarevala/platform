@@ -389,16 +389,16 @@ export async function computeDomainHealth(degraded: Degraded): Promise<DomainHea
         count(*) filter (where status not in ('resolved','closed') and priority in ('critical','high'))::int,
         'support_tickets' from public.support_tickets
       union all select 'PRODUCT_OPERATIONS',
-        count(*) filter (where moderation_status in ('submitted','in_review','pending'))::int,
+        count(*) filter (where moderation_status in ('submitted','in_review','pending') or content_status in ('blocked','rejected'))::int,
         count(*) filter (where content_status in ('blocked','rejected'))::int,
         'marketplace_products' from public.marketplace_products where deleted_at is null
       union all select 'MARKETPLACE_OPERATIONS',
-        count(*) filter (where status not in ('paid','refunded','cancelled','failed','completed'))::int,
+        count(*) filter (where status not in ('paid','refunded','cancelled','completed'))::int,
         count(*) filter (where status in ('failed','disputed'))::int,
         'marketplace_orders' from public.marketplace_orders where soft_delete_flag is not true
       union all select 'FINANCE_OPERATIONS',
         ((select count(*) from public.payments where deleted_at is null and (status = 'pending' or mismatch_flag)) +
-         (select count(*) from public.finance_approvals where lower(status) in ('pending','requested','awaiting')))::int,
+         (select count(*) from public.finance_approvals where lower(status) in ('pending','requested','awaiting','failed')))::int,
         ((select count(*) from public.payments where deleted_at is null and mismatch_flag) +
          (select count(*) from public.finance_approvals where lower(status) = 'failed'))::int,
         'payments, finance_approvals'
@@ -415,13 +415,13 @@ export async function computeDomainHealth(degraded: Degraded): Promise<DomainHea
         count(*) filter (where lower(status) not in ('resolved','closed','dismissed') and lower(severity) in ('critical','high'))::int,
         'security_alerts' from public.security_alerts
       union all select 'PEOPLE_OPERATIONS',
-        count(*) filter (where status in ('blocked','on_hold') or (deadline < now() and deadline is not null and status not in ('completed','approved','closed','cancelled')))::int,
-        count(*) filter (where severity in ('critical','high') and (status = 'blocked' or (deadline < now() and deadline is not null)))::int,
+        count(*) filter (where status in ('blocked','on_hold') or severity in ('critical','high') or (deadline < now() and deadline is not null and status not in ('completed','approved','closed','cancelled')))::int,
+        count(*) filter (where severity in ('critical','high') or status = 'blocked' or (deadline < now() and deadline is not null and status not in ('completed','approved','closed','cancelled')))::int,
         'tm_tasks' from public.tm_tasks
       union all select 'VENDOR_PARTNER_OPERATIONS',
         ((select count(*) from public.marketplace_sellers where lower(status) in ('pending','in_review','submitted')) +
-         (select count(*) from public.affiliate_applications where lower(status) in ('pending','in_review','submitted')) +
-         (select count(*) from public.franchise_applications where lower(status) in ('pending','in_review','submitted')))::int,
+         (select count(*) from public.affiliate_applications where lower(status) in ('pending','in_review','submitted') or risk_score >= 80) +
+         (select count(*) from public.franchise_applications where lower(status) in ('pending','in_review','submitted') or lower(kyc_status) in ('failed','rejected')))::int,
         ((select count(*) from public.affiliate_applications where risk_score >= 80) +
          (select count(*) from public.franchise_applications where lower(kyc_status) in ('failed','rejected')))::int,
         'marketplace_sellers, affiliate_applications, franchise_applications'
