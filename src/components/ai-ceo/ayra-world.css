@@ -78,7 +78,7 @@
 .aw-round:hover { transform: scale(1.06); }
 .aw-round:active { transform: scale(.98); }
 .aw-talk { width: 84px; height: 84px; border: 3px solid var(--aw-cyan); background: radial-gradient(circle at 30% 25%, oklch(0.3 0.09 240 / .9), oklch(0.22 0.06 240 / .9)); box-shadow: 0 0 22px oklch(0.82 0.15 210 / .5); color: var(--aw-text); }
-.aw-talk.on { animation: aw-ring 1.4s ease-in-out infinite; }
+.aw-talk.on { background: var(--aw-cyan); color: var(--aw-bg); animation: aw-ring 1.4s ease-in-out infinite; }
 @keyframes aw-ring { 0%,100% { box-shadow: 0 0 14px var(--aw-cyan); } 50% { box-shadow: 0 0 34px var(--aw-cyan); } }
 .aw-mute { background: linear-gradient(180deg, oklch(0.36 0.03 255), oklch(0.28 0.03 255)); color: var(--aw-text); box-shadow: inset 0 1px 0 oklch(1 0 0 / .12), 0 6px 14px -6px oklch(0 0 0 / .5); }
 .aw-mute.on { background: var(--aw-cyan); color: var(--aw-bg); box-shadow: 0 0 18px oklch(0.82 0.15 210 / .5); }

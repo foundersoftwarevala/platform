@@ -1,70 +1,52 @@
-import { createClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Database } from "@/integrations/supabase/types";
 
 const state = vi.hoisted(() => ({
-  fail: "",
-  requests: [] as { url: URL; method: string; prefer: string | null }[],
-  activityRows: {} as Record<string, unknown[]>,
-  agentActivityRows: [] as Record<string, unknown>[],
+  failIncludes: "",
+  calls: [] as { statement: string; parameters: unknown[] }[],
+  responses: [] as { includes: string; rows: Record<string, unknown>[] }[],
 }));
-vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: createClient<Database>("https://metrics-fixture.invalid", "fixture-only", {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: {
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        const url = new URL(request.url);
-        const table = url.pathname.split("/").at(-1) ?? "";
-        state.requests.push({ url, method: request.method, prefer: request.headers.get("prefer") });
-        if (table === state.fail) {
-          return Response.json(
-            { message: "Fixture metrics refused", code: "42501" },
-            { status: 403 },
-          );
+type TestTransaction = {
+  unsafe: <T extends unknown[]>(statement: string, parameters?: unknown[]) => Promise<T>;
+};
+vi.mock("@/lib/marketplace-manager/vps-rpc.server", () => ({
+  withVpsPublicDatabase: async <T>(run: (tx: TestTransaction) => Promise<T>) => {
+    const tx: TestTransaction = {
+      unsafe: async <Rows extends unknown[]>(statement: string, parameters: unknown[] = []) => {
+        state.calls.push({ statement, parameters });
+        if (state.failIncludes && statement.includes(state.failIncludes)) {
+          throw new Error("Fixture VPS query failed");
         }
-        if (request.method === "HEAD") {
-          const counts: Record<string, number> = {
-            marketplace_events: 3,
-            usage_events: 4,
-            profiles: 12,
-            marketplace_orders: 5,
-            api_request_logs: 2,
-          };
-          if (!(table in counts)) throw new Error(`Unexpected metric relation: ${table}`);
-          return new Response(null, { headers: { "content-range": `0-0/${counts[table]}` } });
-        }
-        if (table === "api_request_logs") {
-          return Response.json([15, 5, 25, 35].map((latency_ms) => ({ latency_ms })));
-        }
-        if (table === "ai_agent_activity_24h") {
-          return Response.json(state.agentActivityRows);
-        }
-        if (["marketplace_orders", "audit_logs", "support_tickets", "leads"].includes(table)) {
-          return Response.json(state.activityRows[table] ?? []);
-        }
-        throw new Error(`Unexpected metric request: ${request.method} ${table}`);
+        const response = state.responses.find((entry) => statement.includes(entry.includes));
+        return (response?.rows ?? []) as Rows;
       },
-    },
-  }),
+    };
+    return run(tx);
+  },
 }));
-import { computeActivity, computeMetrics } from "./signals.server";
+import { computeActivity, computeDomainHealth, computeMetrics } from "./signals.server";
 
 beforeEach(() => {
-  state.fail = "";
-  state.requests = [];
-  state.activityRows = {};
-  state.agentActivityRows = [];
+  state.failIncludes = "";
+  state.calls = [];
+  state.responses = [];
   vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-10-15T12:00:00Z"));
+  vi.setSystemTime(new Date("2026-10-28T12:00:00Z"));
 });
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
-describe("AI CEO typed metric sources", () => {
-  it("preserves exact counts, timestamp columns, UTC windows and median latency", async () => {
+describe("AI CEO VPS-backed signals", () => {
+  it("counts metrics directly in Postgres with real rolling windows", async () => {
+    state.responses = [
+      { includes: "public.marketplace_events", rows: [{ count: 3 }] },
+      { includes: "public.usage_events", rows: [{ count: 4 }] },
+      { includes: "status_code >= 500", rows: [{ count: 2 }] },
+      { includes: "from public.profiles", rows: [{ count: 12 }] },
+      { includes: "public.marketplace_orders", rows: [{ count: 5 }] },
+      { includes: "percentile_cont", rows: [{ median: 20 }] },
+    ];
     const degraded: string[] = [];
     expect(await computeMetrics(degraded)).toEqual({
       systemActivityRate: 7,
@@ -75,154 +57,72 @@ describe("AI CEO typed metric sources", () => {
       apiLatency: 20,
     });
     expect(degraded).toEqual([]);
-    const heads = state.requests.filter((request) => request.method === "HEAD");
-    expect(heads).toHaveLength(5);
-    expect(heads.every((request) => request.prefer?.includes("count=exact"))).toBe(true);
-    const query = (table: string) =>
-      heads.find((request) => request.url.pathname.endsWith(`/${table}`))?.url.searchParams;
-    expect(query("marketplace_events")?.get("created_at")).toBe("gte.2026-10-14T12:00:00.000Z");
-    expect(query("usage_events")?.get("occurred_at")).toBe("gte.2026-10-14T12:00:00.000Z");
-    expect(query("usage_events")?.has("created_at")).toBe(false);
-    expect(query("marketplace_orders")?.get("created_at")).toBe("gte.2026-10-15T00:00:00.000Z");
-    expect(query("api_request_logs")?.get("status_code")).toBe("gte.500");
+    expect(state.calls).toHaveLength(6);
+    expect(state.calls.every((call) => call.statement.includes("public."))).toBe(true);
+    expect(state.calls.find((call) => call.statement.includes("public.usage_events"))?.parameters[0]).toEqual(
+      new Date("2026-10-27T12:00:00.000Z"),
+    );
+    expect(state.calls.some((call) => call.statement.includes("/rest/v1"))).toBe(false);
   });
 
-  it("retains explicit degradation when the usage source fails", async () => {
-    state.fail = "usage_events";
+  it("keeps independent metrics and reports source failures instead of zero", async () => {
+    state.responses = [
+      { includes: "public.marketplace_events", rows: [{ count: 3 }] },
+      { includes: "from public.profiles", rows: [{ count: 12 }] },
+      { includes: "public.marketplace_orders", rows: [{ count: 5 }] },
+      { includes: "status_code >= 500", rows: [{ count: 2 }] },
+      { includes: "percentile_cont", rows: [{ median: 20 }] },
+    ];
+    state.failIncludes = "public.usage_events";
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const degraded: string[] = [];
-    expect((await computeMetrics(degraded)).systemActivityRate).toBe(3);
+    const result = await computeMetrics(degraded);
+    expect(result.systemActivityRate).toBe(3);
+    expect(result.activeUsers).toBe(12);
     expect(degraded).toEqual(["usage_events"]);
-    expect(log).toHaveBeenCalledWith("[ai-ceo] usage_events unavailable: Fixture metrics refused");
+    expect(log).toHaveBeenCalledWith("[ai-ceo] usage_events unavailable: Fixture VPS query failed");
   });
 
-  it("does not report a failed profile count as zero", async () => {
-    state.fail = "profiles";
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("groups repeated audit events and sorts all sources by actual timestamp", async () => {
+    state.responses = [
+      { includes: "from public.marketplace_orders", rows: [{ id: "order", total: 10, currency: "USD", status: "paid", created_at: "2026-10-28T09:00:00Z" }] },
+      { includes: "lower(regexp_replace(action", rows: [{ actor: "AYRA", action: "ayra inspection", entity_type: "agent", has_critical: "false", event_count: 8, latest_at: "2026-10-28T11:00:00Z" }] },
+      { includes: "from public.support_tickets where created_at", rows: [{ id: "ticket", reference: "T-1", subject: "Help", priority: "normal", status: "open", sla_breached: false, customer_name: "Customer", created_at: "2026-10-28T08:00:00Z" }] },
+      { includes: "from public.leads where created_at", rows: [{ id: "lead", name: "Lead", company: null, status: "new", source: "web", created_at: "2026-10-28T10:00:00Z" }] },
+      { includes: "from public.ai_agent_runs", rows: [{ agent_id: "agent-1", agent_name: "Worker One", action: "scan", state: "COMPLETED", run_count: 12, latest_started_at: "2026-10-28T11:30:00Z" }] },
+    ];
     const degraded: string[] = [];
-    expect((await computeMetrics(degraded)).activeUsers).toBeNull();
-    expect(degraded).toEqual(["profiles"]);
-    expect(log).toHaveBeenCalledWith("[ai-ceo] profiles unavailable: Fixture metrics refused");
-  });
-});
-
-describe("AI CEO activity feed ordering", () => {
-  it("sorts events across sources newest-first and retains raw timestamps", async () => {
-    state.activityRows = {
-      marketplace_orders: [
-        {
-          id: "order",
-          total: 10,
-          currency: "USD",
-          status: "paid",
-          created_at: "2026-10-15T09:00:00Z",
-        },
-      ],
-      audit_logs: [
-        {
-          id: "audit",
-          occurred_at: "2026-10-15T11:00:00Z",
-          actor: "Admin",
-          action: "updated",
-          entity_type: "role",
-          entity_id: "r1",
-          severity: "info",
-        },
-      ],
-      support_tickets: [
-        {
-          id: "ticket",
-          reference: "T-1",
-          subject: "Help",
-          priority: "normal",
-          status: "open",
-          sla_breached: false,
-          customer_name: "Customer",
-          created_at: "2026-10-15T08:00:00Z",
-        },
-      ],
-      leads: [
-        {
-          id: "lead",
-          name: "Lead",
-          company: null,
-          status: "new",
-          deal_value: 100,
-          source: "web",
-          created_at: "2026-10-15T10:00:00Z",
-        },
-      ],
-    };
-
-    const events = await computeActivity([]);
-
-    expect(events.map((event) => event.id)).toEqual([
-      "aud-audit",
-      "led-lead",
-      "ord-order",
-      "tkt-ticket",
-    ]);
+    const events = await computeActivity(degraded);
+    expect(degraded).toEqual([]);
     expect(events.map((event) => event.occurredAt)).toEqual([
-      "2026-10-15T11:00:00Z",
-      "2026-10-15T10:00:00Z",
-      "2026-10-15T09:00:00Z",
-      "2026-10-15T08:00:00Z",
+      "2026-10-28T11:30:00Z",
+      "2026-10-28T11:00:00Z",
+      "2026-10-28T10:00:00Z",
+      "2026-10-28T09:00:00Z",
+      "2026-10-28T08:00:00Z",
     ]);
+    expect(events[1]?.action).toBe("8x ayra inspection");
+    expect(state.calls.filter((call) => call.statement.includes("public.audit_logs"))[0]?.parameters[0]).toEqual(
+      new Date("2026-10-27T12:00:00.000Z"),
+    );
   });
 
-  describe("AI CEO worker-run activity", () => {
-    it("adds grouped agent run counts from the fixed-horizon RPC", async () => {
-      state.agentActivityRows = [
-        {
-          agent_id: "agent-1",
-          agent_name: "Worker One",
-          action: "scan",
-          state: "COMPLETED",
-          run_count: 12,
-          latest_started_at: "2026-10-15T11:30:00Z",
-        },
-        {
-          agent_id: "agent-2",
-          agent_name: "Worker Two",
-          action: "sync",
-          state: "FAILED",
-          run_count: 3,
-          latest_started_at: "2026-10-15T11:00:00Z",
-        },
-      ];
-
-      const degraded: string[] = [];
-      const events = await computeActivity(degraded);
-
-      expect(degraded).toEqual([]);
-      expect(
-        events.map(({ actor, action, target, impact }) => ({
-          actor,
-          action,
-          target,
-          impact,
-        })),
-      ).toEqual([
-        { actor: "Worker One", action: "scan", target: "COMPLETED · 12 runs", impact: "positive" },
-        { actor: "Worker Two", action: "sync", target: "FAILED · 3 runs", impact: "negative" },
-      ]);
-      expect(
-        state.requests.some(
-          ({ url, method }) =>
-            url.pathname.endsWith("/rpc/ai_agent_activity_24h") && method === "POST",
-        ),
-      ).toBe(true);
-    });
-
-    it("marks the worker-run source degraded when its RPC fails", async () => {
-      state.fail = "ai_agent_activity_24h";
-      vi.spyOn(console, "error").mockImplementation(() => {});
-      const degraded: string[] = [];
-
-      const events = await computeActivity(degraded);
-
-      expect(events).toEqual([]);
-      expect(degraded).toContain("ai_agent_runs.feed");
-    });
+  it("maps company domains to live VPS source tables and computes open/critical counts", async () => {
+    state.responses = [{
+      includes: "select * from (select 'EXECUTIVE'",
+      rows: [
+        { domain: "SALES_OPERATIONS", open_items: 314, critical_items: 20, source_tables: "leads" },
+        { domain: "SUPPORT_OPERATIONS", open_items: 2, critical_items: 1, source_tables: "reseller_support_tickets" },
+        { domain: "EXECUTIVE", open_items: 0, critical_items: 0, source_tables: "founder_attention, founder_decisions" },
+      ],
+    }];
+    const degraded: string[] = [];
+    const health = await computeDomainHealth(degraded);
+    expect(health).toEqual([
+      { domain: "SALES_OPERATIONS", health: "CRITICAL", reason: "314 open items; 20 high/critical. Source: leads.", openAttention: 314, criticalAttention: 20, kpisAtRisk: 0 },
+      { domain: "SUPPORT_OPERATIONS", health: "CRITICAL", reason: "2 open items; 1 high/critical. Source: reseller_support_tickets.", openAttention: 2, criticalAttention: 1, kpisAtRisk: 0 },
+      { domain: "EXECUTIVE", health: "HEALTHY", reason: "0 open items; 0 high/critical. Source: founder_attention, founder_decisions.", openAttention: 0, criticalAttention: 0, kpisAtRisk: 0 },
+    ]);
+    expect(degraded).toEqual([]);
   });
 });

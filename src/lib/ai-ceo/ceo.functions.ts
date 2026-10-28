@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import type { CEOOpsState } from "./ops.types";
 import type { CEOState, CEOSuggestion } from "./types";
+import { requireVpsExecutive } from "./vps-auth.server";
+import { AYRA_ROLES, type AyraGrant, type AyraGrantAudit, type AyraGrantPermission, type AyraGrantRole, isAyraGrantPermission } from "./ayra-grants";
+import { withVpsPublicDatabase } from "@/lib/marketplace-manager/vps-rpc.server";
 
 /**
  * The AI CEO module's server API.
@@ -11,60 +13,10 @@ import type { CEOState, CEOSuggestion } from "./types";
  * This replaces the imported module's `AIRA_API_URL` client, which pointed at
  * an external Prisma service that was never stood up: every call returned
  * `configured: false` and the UI quietly fell back to in-memory seed data, so
- * nothing an operator did survived a reload. These handlers read and write the
- * platform's own PostgreSQL through the same Supabase admin client the rest of
- * the project's server functions use.
+ * nothing an operator did survived a reload. These handlers read and write the platform's VPS PostgreSQL database directly.
  *
- * Access is restricted to `boss` and `admin`. There is no `ceo` role in
- * user_roles; those two are the executive roles the Control Panel already uses
- * for this tier, and the module shows platform-wide revenue, risk and customer
- * data, so it must not be readable by an ordinary signed-in account.
+ * Access is restricted by the VPS user_roles table to boss, admin, and super_admin.
  */
-
-async function admin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
-}
-
-/**
- * Boss or admin only. Throws for anyone else, including a signed-in customer.
- *
- * The token is checked against the auth service with the **publishable** key,
- * not the service-role one. This module used the service-role client's
- * `auth.getUser()`, which sends the service key as `apikey`, and the auth
- * service answers that 401 "Invalid API key" — so every call from every AI CEO
- * screen was refused with "Executive authentication required" and the whole
- * console rendered empty in production while looking perfectly healthy.
- * `requireInternalOperator` had already met this and asks the same way.
- *
- * The role check is unchanged and still runs with the service key, which the
- * REST side does accept. Nothing is loosened: boss and admin, and no one else.
- */
-async function requireExecutive() {
-  const header = getRequestHeader("authorization") ?? getRequestHeader("Authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) throw new Error("Executive authentication required");
-
-  const url = process.env["SUPABASE_URL"]?.trim();
-  const publishable =
-    process.env["SUPABASE_PUBLISHABLE_KEY"]?.trim() ?? process.env["SUPABASE_ANON_KEY"]?.trim();
-  if (!url || !publishable) throw new Error("Executive authentication is not configured");
-
-  const response = await fetch(`${url}/auth/v1/user`, {
-    headers: { apikey: publishable, Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) throw new Error("Executive authentication required");
-  const user = (await response.json()) as { id?: string };
-  if (!user?.id) throw new Error("Executive authentication required");
-
-  const db = await admin();
-  const [{ data: isBoss }, { data: isAdmin }] = await Promise.all([
-    db.rpc("has_role", { _user_id: user.id, _role: "boss" }),
-    db.rpc("has_role", { _user_id: user.id, _role: "admin" }),
-  ]);
-  if (!isBoss && !isAdmin) throw new Error("Executive permission required");
-  return user.id;
-}
 
 /**
  * Everything the dashboard needs, in one round trip.
@@ -75,7 +27,7 @@ async function requireExecutive() {
  */
 export const loadCeoState = createServerFn({ method: "GET" }).handler(
   async (): Promise<CEOState> => {
-    await requireExecutive();
+    await requireVpsExecutive();
 
     const [{ readSuggestions, readLastRefresh }, signals] = await Promise.all([
       import("./store.server"),
@@ -83,13 +35,14 @@ export const loadCeoState = createServerFn({ method: "GET" }).handler(
     ]);
 
     const degraded: string[] = [];
-    const [suggestions, lastRefresh, metrics, observations, activityEvents, decisions] =
+    const [suggestions, lastRefresh, metrics, observations, activityEvents, companyHealth, decisions] =
       await Promise.all([
         readSuggestions(),
         readLastRefresh(),
         signals.computeMetrics(degraded),
         signals.computeObservations(degraded),
         signals.computeActivity(degraded),
+        signals.computeDomainHealth(degraded),
         signals.loadDecisions(degraded),
       ]);
 
@@ -101,6 +54,7 @@ export const loadCeoState = createServerFn({ method: "GET" }).handler(
       metricSources: signals.METRIC_SOURCES,
       observations,
       activityEvents,
+      companyHealth,
       decisions,
       degraded,
     };
@@ -109,15 +63,16 @@ export const loadCeoState = createServerFn({ method: "GET" }).handler(
 
 /** Recompute the live figures without re-reading the stored suggestion set. */
 export const refreshSignals = createServerFn({ method: "POST" }).handler(async () => {
-  await requireExecutive();
+  await requireVpsExecutive();
   const signals = await import("./signals.server");
   const { writeLastRefresh } = await import("./store.server");
 
   const degraded: string[] = [];
-  const [metrics, observations, activityEvents] = await Promise.all([
+  const [metrics, observations, activityEvents, companyHealth] = await Promise.all([
     signals.computeMetrics(degraded),
     signals.computeObservations(degraded),
     signals.computeActivity(degraded),
+    signals.computeDomainHealth(degraded),
   ]);
 
   const at = new Date().toISOString();
@@ -130,6 +85,7 @@ export const refreshSignals = createServerFn({ method: "POST" }).handler(async (
     metricSources: signals.METRIC_SOURCES,
     observations,
     activityEvents,
+    companyHealth,
     degraded,
   };
 });
@@ -144,7 +100,7 @@ export const refreshSignals = createServerFn({ method: "POST" }).handler(async (
 export const sendSuggestionToBoss = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ id: z.string().min(1).max(120) }).parse(input))
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
-    await requireExecutive();
+    await requireVpsExecutive();
     const store = await import("./store.server");
 
     const { ok, suggestion } = await store.setSuggestionStatus(data.id, "reviewed");
@@ -163,7 +119,7 @@ export const sendSuggestionToBoss = createServerFn({ method: "POST" })
 
 export const loadBossQueue = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ suggestions: CEOSuggestion[] }> => {
-    await requireExecutive();
+    await requireVpsExecutive();
     const { readBossQueue } = await import("./store.server");
     const rows = await readBossQueue();
     return {
@@ -185,7 +141,7 @@ export const decideSuggestion = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
-    await requireExecutive();
+    await requireVpsExecutive();
     const store = await import("./store.server");
 
     const queue = await store.readBossQueue();
@@ -224,7 +180,7 @@ export const createSuggestion = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }): Promise<{ ok: boolean; id?: string; error?: string }> => {
-    await requireExecutive();
+    await requireVpsExecutive();
     const store = await import("./store.server");
 
     const suggestion: CEOSuggestion = {
@@ -250,8 +206,116 @@ export const createSuggestion = createServerFn({ method: "POST" })
  */
 export const loadCeoOps = createServerFn({ method: "GET" }).handler(
   async (): Promise<CEOOpsState> => {
-    await requireExecutive();
+    await requireVpsExecutive();
     const ops = await import("./ops.server");
     return ops.loadOpsState();
   },
 );
+
+export const loadAyraGrants = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AyraGrant[]> => {
+    await requireVpsExecutive();
+    const rows = await withVpsPublicDatabase((tx) => tx<{
+      role_name: AyraGrantRole;
+      permission_key: AyraGrantPermission;
+      is_enabled: boolean;
+      updated_at: string;
+    }[]>`
+      select role_name, permission_key, is_enabled, updated_at::text
+        from public.ayra_grants
+       order by role_name, permission_key
+    `);
+    return rows.map((row) => ({
+      roleName: row.role_name,
+      permissionKey: row.permission_key,
+      isEnabled: row.is_enabled,
+      updatedAt: row.updated_at,
+    }));
+  },
+);
+
+export const loadAyraGrantAudit = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AyraGrantAudit[]> => {
+    await requireVpsExecutive();
+    const rows = await withVpsPublicDatabase((tx) => tx<{
+      id: string;
+      occurred_at: string;
+      actor: string | null;
+      action: string;
+      entity_id: string | null;
+      metadata: import("@/lib/json").Json | null;
+    }[]>`
+      select id::text, occurred_at::text, actor, action, entity_id, metadata
+        from public.audit_logs
+       where entity_type = 'ayra_grant'
+       order by occurred_at desc
+       limit 50
+    `);
+    return rows.map((row) => ({
+      id: row.id,
+      occurredAt: row.occurred_at,
+      actor: row.actor ?? "System",
+      action: row.action,
+      entityId: row.entity_id,
+      metadata: row.metadata,
+    }));
+  },
+);
+
+export const setAyraGrant = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      roleName: z.enum(AYRA_ROLES),
+      permissionKey: z.string().refine(isAyraGrantPermission),
+      isEnabled: z.boolean(),
+    }).parse(input),
+  )
+  .handler(async ({ data }): Promise<AyraGrant> => {
+    const userId = await requireVpsExecutive();
+    return withVpsPublicDatabase(async (tx) => {
+      const [current] = await tx<{ is_enabled: boolean }[]>`
+        select is_enabled from public.ayra_grants
+         where role_name = ${data.roleName} and permission_key = ${data.permissionKey}
+         for update
+      `;
+      if (!current) throw new Error("This AYRA grant is not configured in the VPS database.");
+
+      const [updated] = await tx<{
+        role_name: AyraGrantRole;
+        permission_key: AyraGrantPermission;
+        is_enabled: boolean;
+        updated_at: string;
+      }[]>`
+        update public.ayra_grants
+           set is_enabled = ${data.isEnabled}, updated_at = now()
+         where role_name = ${data.roleName} and permission_key = ${data.permissionKey}
+         returning role_name, permission_key, is_enabled, updated_at::text
+      `;
+      if (!updated) throw new Error("The AYRA grant update did not persist.");
+
+      if (current.is_enabled !== updated.is_enabled) {
+        const details = JSON.stringify({
+          roleName: updated.role_name,
+          permissionKey: updated.permission_key,
+          wasEnabled: current.is_enabled,
+          isEnabled: updated.is_enabled,
+        });
+        await tx`
+          insert into public.audit_logs
+            (id, occurred_at, actor, action, entity_type, entity_id, severity, actor_id, metadata)
+          values
+            (gen_random_uuid(), now(), 'AYRA Command Center',
+             ${updated.is_enabled ? "ayra_grant_enabled" : "ayra_grant_disabled"},
+             'ayra_grant', ${`${updated.role_name}:${updated.permission_key}`},
+             'info', ${userId}::uuid, ${details}::jsonb)
+        `;
+      }
+
+      return {
+        roleName: updated.role_name,
+        permissionKey: updated.permission_key,
+        isEnabled: updated.is_enabled,
+        updatedAt: updated.updated_at,
+      };
+    });
+  });

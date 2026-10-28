@@ -1,3 +1,5 @@
+import type { DomainHealth } from "@/lib/founder/state.types";
+
 /**
  * Types for the AI CEO module.
  *
@@ -102,6 +104,7 @@ export interface CEOState {
   metricSources: MetricSources;
   observations: AIObservation[];
   activityEvents: ActivityEvent[];
+  companyHealth: DomainHealth[];
   decisions: AIDecisionRecord[];
   /** Set when a source could not be read, so the UI can say so honestly. */
   degraded: string[];

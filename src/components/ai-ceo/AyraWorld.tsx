@@ -22,8 +22,8 @@ export function AyraMark({ className = "" }: { className?: string }) {
   );
 }
 
-const STEPS = ["Understand your command", "Open the required website", "Perform actions (e.g., login, search, etc.)", "Show results and next steps"];
-const stepFor: Record<CoreState, number> = { idle: 0, listening: 1, thinking: 1, executing: 3, verifying: 3, speaking: 4, completed: 4, error: 0 };
+const STEPS = ["Ready", "Listen", "Think", "Respond", "Complete"];
+const stepFor: Record<CoreState, number> = { idle: 0, listening: 1, thinking: 2, executing: 3, verifying: 3, speaking: 4, completed: 4, error: 0 };
 
 export function TopBar({ cmd, setCmd, onRun, listening, onMic, onTools, onSettings, role, inputRef }: {
   cmd: string; setCmd: (v: string) => void; onRun: () => void; listening: boolean; onMic: () => void;
@@ -107,9 +107,10 @@ export function AgentStage({ core, look, setLook, reply, muted, micNote, micStat
       <div className="aw-bubble">
         {reply ? <p className="text-base leading-snug">{reply.replace(/\*\*|__/g, "")}</p> : <p className="text-xl leading-snug">Hi!<br />I'm <span className="text-[color:var(--aw-cyan)]">AYRA</span><br />How can I help you today?</p>}
       </div>
-      <div className="aw-plan">
-        {["Plan", "Search", "Open", "Login", "Execute", "Report"].map((s, i) => (
-          <div key={s} className={i < stepFor[core] + (stepFor[core] ? 1 : 0) ? "text-[color:var(--aw-cyan)]" : ""}>{s}</div>
+      <div className="aw-plan" aria-label="AYRA conversation status">
+        <strong className="text-[color:var(--aw-cyan)]">Conversation</strong>
+        {STEPS.map((step, index) => (
+          <div key={step} className={index <= stepFor[core] ? "text-[color:var(--aw-cyan)]" : ""}>{step}</div>
         ))}
       </div>
       <div className="aw-agents" aria-label="All agents">
@@ -187,7 +188,7 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
     <section className="aw-panel flex min-h-0 flex-col p-3">
       <div className="flex items-center gap-4 px-2 pb-3">
         <div className="grid h-12 w-12 place-items-center rounded-full bg-[color:var(--aw-blue)]/20 ring-2 ring-[color:var(--aw-cyan)]"><RotateCw className="h-6 w-6 text-[color:var(--aw-cyan)]" /></div>
-        <div className="flex-1"><div className="aw-display text-xl font-bold">BROWSER</div><div className="text-xs text-[color:var(--aw-soft)]">AYRA will open, control, and work here for you</div></div>
+        <div className="flex-1"><div className="aw-display text-xl font-bold">BROWSER</div><div className="text-xs text-[color:var(--aw-soft)]">Search and links open in a new tab; screenshots use the VPS capture service. Remote browser control is not connected.</div></div>
         {["Browser", "Automate", "Screenshot", "Download"].map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-md px-3 py-2 text-[15px] ${tab === t ? "aw-tab-on" : ""}`}>{t}</button>
         ))}
@@ -229,7 +230,7 @@ export function BrowserPanel({ onRun, reply, busy }: { onRun: (cmd: string) => v
           </div>
         ) : tab === "Automate" ? (
           <div className="aw-google flex flex-1 flex-col gap-3 overflow-auto p-4 text-sm">
-            <div className="font-semibold">Tell AYRA a task — she plans it and opens any website it mentions.</div>
+            <div className="font-semibold">Ask AYRA about a task. Mentioned websites open in a separate tab; AYRA does not interact with those pages.</div>
             <textarea value={task} onChange={(e) => setTask(e.target.value)} rows={2} aria-label="Automation task" placeholder="e.g. Open github.com and tell me how to create a new repository"
               className="rounded-lg border border-[color:var(--g-line)] bg-transparent p-2 outline-none" />
             <button onClick={automate} disabled={!task.trim() || busy} className="self-start rounded bg-[color:var(--g-blue)] px-5 py-2 text-[color:var(--g-white)] disabled:opacity-50">Run with AYRA</button>

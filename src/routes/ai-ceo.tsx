@@ -85,7 +85,7 @@ const SECTIONS: Array<{ label: string; icon: NavItem["icon"]; to: string; group:
   { label: "Settings", icon: Settings, to: "/ai-ceo/settings", group: "Platform" },
 ];
 
-const primary: NavItem[] = SECTIONS.slice(0, 4).map(({ label, icon }) => ({ label, icon }));
+const primary: NavItem[] = [];
 
 const GROUP_ORDER = ["Command Centre", "Operations", "Intelligence", "Platform"];
 

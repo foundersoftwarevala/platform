@@ -138,6 +138,7 @@ export function useCEOSuggestions() {
   const observations = useMemo(() => data?.observations ?? [], [data]);
   const activityEvents = useMemo(() => data?.activityEvents ?? [], [data]);
   const decisions = useMemo(() => data?.decisions ?? [], [data]);
+  const companyHealth = useMemo(() => data?.companyHealth ?? [], [data]);
 
   const getObservationsByCategory = useCallback(
     (category: AIObservation["category"]) => observations.filter((o) => o.category === category),
@@ -182,6 +183,7 @@ export function useCEOSuggestions() {
     metricSources: data?.metricSources as MetricSources | undefined,
     observations,
     activityEvents,
+    companyHealth,
     decisions,
     /** Live sources that did not answer on this load. */
     degraded: data?.degraded ?? [],

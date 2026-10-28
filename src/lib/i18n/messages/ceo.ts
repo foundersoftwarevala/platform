@@ -263,8 +263,8 @@ export const CEO_MESSAGES = {
   "ceo.ci_h_agents": ["Agents open to work", "agents in a lifecycle state that can take work"],
   "ceo.ci_h_runs": ["Runs in flight", "agent runs currently running or waiting"],
   "ceo.ci_h_unverified": [
-    "Finished, unverified",
-    "runs that completed but whose outcome nobody has checked",
+    "Awaiting verification (24h)",
+    "completed runs from the last 24 hours whose outcome has not been checked",
   ],
   "ceo.ci_h_tasks_overdue": ["Tasks overdue", "tasks past their deadline and not closed"],
   "ceo.ci_h_approvals": ["Approvals open", "approval requests nobody has answered"],

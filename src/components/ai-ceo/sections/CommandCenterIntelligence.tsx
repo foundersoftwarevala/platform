@@ -24,7 +24,7 @@ import { useFounderState } from "@/hooks/useFounderState";
 import { useFounderSignalRoutes } from "@/hooks/useFounderSignalRoutes";
 import { useFounderHealth } from "@/hooks/useFounderHealth";
 import { useTranslation } from "@/lib/i18n/use-translation";
-import type { AttentionItem, Kpi, PendingApproval, Risk } from "@/lib/founder/state.types";
+import type { AttentionItem, DomainHealth, Kpi, PendingApproval, Risk } from "@/lib/founder/state.types";
 
 /**
  * What the Command Center knows, beyond what it can count.
@@ -104,13 +104,12 @@ const when = (value: string | null, missing: string): string => {
 /** A KPI counts as drifted when its own thresholds say so — never by eye. */
 const hasDrifted = (kpi: Kpi): boolean => kpi.status === "AT_RISK" || kpi.status === "CRITICAL";
 
-export function CommandCenterIntelligence() {
+export function CommandCenterIntelligence({ companyHealth }: { companyHealth: DomainHealth[] }) {
   const { t } = useTranslation();
   const {
     attention,
     kpis,
     risks,
-    health,
     pendingApprovals,
     sources,
     degraded,
@@ -166,7 +165,7 @@ export function CommandCenterIntelligence() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {health.length === 0 ? (
+          {companyHealth.length === 0 ? (
             <EmptyState
               icon={Brain}
               title={t("ceo.ci_health_empty_title")}
@@ -174,7 +173,7 @@ export function CommandCenterIntelligence() {
             />
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {health.map((domain, i) => (
+              {companyHealth.map((domain, i) => (
                 <motion.div
                   key={domain.domain}
                   initial={{ opacity: 0, y: 10 }}

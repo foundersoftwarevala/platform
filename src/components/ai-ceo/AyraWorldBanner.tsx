@@ -105,7 +105,20 @@ export function AyraWorldBanner() {
         onRun={() => void run()}
         listening={speech.listening}
         onMic={toggleTalk}
-        onTools={(tool) => setReply(`${tool} is available in the AYRA Command Center.`)}
+        onTools={(tool) => {
+          if (tool === "settings" || tool === "roles") {
+            setSettingsOpen(true);
+          } else if (tool === "security") {
+            window.location.assign("/ai-ceo/security");
+          } else if (tool === "chat") {
+            inputRef.current?.focus();
+          } else if (tool === "ops") {
+            window.location.assign("/ai-ceo/agents");
+          } else if (tool === "lookbook") {
+            setLook(null);
+            setReply("Choose an agent portrait from the strip on the left to view that look.");
+          }
+        }}
         onSettings={() => setSettingsOpen(true)}
         role="AYRA"
         inputRef={inputRef}

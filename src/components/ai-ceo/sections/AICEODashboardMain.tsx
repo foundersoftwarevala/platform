@@ -105,6 +105,7 @@ const AICEODashboardMain = () => {
     metricSources,
     observations,
     activityEvents,
+    companyHealth,
     degraded,
     isLoading,
     lastRefresh,
@@ -277,7 +278,7 @@ const AICEODashboardMain = () => {
         already exists rather than querying tables again, so there is one
         answer rather than two that can disagree.
       */}
-      <CommandCenterIntelligence />
+      <CommandCenterIntelligence companyHealth={companyHealth} />
 
       {/* Main Grid: Observations + Suggestions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
