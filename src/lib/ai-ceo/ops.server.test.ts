@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 
 describe("AI CEO agent directory metrics", () => {
-  it("counts runs from VPS ai_agent_runs instead of stale ai_agents.runs_30d values", async () => {
+  it("derives run counts and success rates from VPS ai_agent_runs", async () => {
     mocks.withVpsPublicDatabase.mockImplementation(
       async (run: (tx: TransactionSql) => Promise<unknown>) => {
         const tx = (async (strings: TemplateStringsArray) => {
@@ -32,7 +32,7 @@ describe("AI CEO agent directory metrics", () => {
               status: "active",
               tools: [],
               runs_30d: 2304,
-              success_rate: null,
+              success_rate: 100,
               max_tokens: 1024,
               created_at: "2026-10-28T00:00:00Z",
             },
@@ -47,6 +47,7 @@ describe("AI CEO agent directory metrics", () => {
       expect.objectContaining({
         name: "Demo Health Worker",
         runs30d: 2304,
+        successRate: 100,
         modelId: null,
         tools: [],
       }),
@@ -54,6 +55,9 @@ describe("AI CEO agent directory metrics", () => {
     expect(mocks.query).toContain("from public.ai_agent_runs");
     expect(mocks.query).toContain("interval '30 days'");
     expect(mocks.query).not.toContain("a.runs_30d");
+    expect(mocks.query).not.toContain("a.success_rate");
+    expect(mocks.query).toContain("state = 'COMPLETED'");
+    expect(mocks.query).toContain("state in ('COMPLETED', 'FAILED')");
     expect(degraded).toEqual([]);
   });
 

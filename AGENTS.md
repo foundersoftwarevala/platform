@@ -200,9 +200,14 @@ The follow-up VPS-only monitoring batch adds exact, bounded contracts for
 five. The new monitors read aggregate counts or fixed public routes only; they
 do not change catalog, vendor, security, payment, order, website, error, or
 alert state. Each run is governed and recorded in `ai_agent_runs` with the
-`ANALYZE` permission. This brings the active contract pilot to 15 agents; the
-remaining 127 roster entries stay unactivated. The VPS migration is
-`20261108T226000_agent_monitoring_batch_two.sql`; do not apply it to Supabase.
+`ANALYZE` permission. VPS `sv_platform` received migration
+`20261108T226000_agent_monitoring_batch_two.sql` only; it was not applied to
+Supabase. The guarded release was deployed and the 23:00 UTC cron batch
+completed 15/15. At verification, all ten new monitors had successful runs
+and the active contract pilot had 15 agents; 127 roster entries remain
+unactivated. The AI CEO Agent Directory derives its 30-day run count and
+success rate from `ai_agent_runs` completed/failed records, not the stale
+`ai_agents.success_rate` summary field.
 
 AYRA chat uses the existing Vala AI stream;
 the banner's browser panel opens links in a new tab and states that remote

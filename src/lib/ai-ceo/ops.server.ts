@@ -155,10 +155,15 @@ export async function loadAgents(degraded: Degraded): Promise<CEOAgent[]> {
         >`
         select a.id::text, a.name, a.purpose, a.model_id::text, a.status,
                a.tools, coalesce(r.runs_30d, 0)::int as runs_30d,
-               a.success_rate, a.max_tokens, a.created_at::text
+               r.success_rate, a.max_tokens, a.created_at::text
           from public.ai_agents a
           left join (
-            select agent_id, count(*)::int as runs_30d
+            select agent_id, count(*)::int as runs_30d,
+                   round(
+                     100.0 * count(*) filter (where state = 'COMPLETED')
+                     / nullif(count(*) filter (where state in ('COMPLETED', 'FAILED')), 0),
+                     1
+                   ) as success_rate
               from public.ai_agent_runs
              where started_at >= statement_timestamp() - interval '30 days'
                and started_at <= statement_timestamp()
