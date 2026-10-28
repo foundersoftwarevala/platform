@@ -55,9 +55,7 @@ export function AyraCommandCenter({ open, onClose }: Props) {
             ACCESS &amp; PERMISSIONS
           </h3>
           <p className="text-[color:var(--aw-soft)]">
-            Actual access is governed by the signed-in account&apos;s Control Panel roles and
-            server-side authorization. This panel is informational only and cannot assign roles or
-            grant permissions.
+            Actual Control Panel roles and server authorization govern these settings.
           </p>
         </div>
       </aside>

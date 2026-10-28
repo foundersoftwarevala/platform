@@ -12,10 +12,9 @@ describe("AYRA Command Center", () => {
     expect(screen.getByRole("dialog", { name: "AYRA COMMAND CENTER" })).toBeTruthy();
     expect(
       screen.getByText(
-        /Actual access is governed by the signed-in account's Control Panel roles and server-side authorization/i,
+        "Actual Control Panel roles and server authorization govern these settings.",
       ),
     ).toBeTruthy();
-    expect(screen.getByText(/cannot assign roles or grant permissions/i)).toBeTruthy();
     expect(screen.queryByLabelText("Command Center PIN")).toBeNull();
     expect(screen.queryByRole("switch")).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Select role" })).toBeNull();
