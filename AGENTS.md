@@ -209,6 +209,62 @@ unactivated. The AI CEO Agent Directory derives its 30-day run count and
 success rate from `ai_agent_runs` completed/failed records, not the stale
 `ai_agents.success_rate` summary field.
 
+### Batch 3 sales contracts (2026-10-28)
+
+VPS-only migration `20261108T227000_sales_agent_batch_three.sql` activates
+15 sales/business-development contracts. `sales-lead-followup` reuses its
+Batch 1 registry row with an updated three-day inactivity rule; the other 14
+are contract-bound and available. `scripts/run-agents.mjs` runs the 29 approved
+agents serially with the existing five-second delay and fails closed if a
+contract or lifecycle differs.
+
+Customer-facing text is stored as `PENDING` in `ai_agent_outreach_drafts`, a
+private RLS table with service-role-only access. No agent sends customer
+messages or changes subscriptions/orders. Lead qualification appends
+`rule_based` rows to `lead_scores`; `leads.ai_score` is not overwritten.
+
+The 2026-10-28 VPS run completed **29/29** governed agents. Batch 3 recorded
+10 rule-based lead scores across two runs, three inactive-lead follow-up
+drafts, and one reseller re-engagement draft. Other Batch 3 contracts had no
+eligible rows. No live `messages` were inserted. Demo booking asks for
+availability because no verified calendar exists; proposal output is text
+because no PDF workflow exists. No discounts, pricing, company sizes, or
+availability are invented. The initial run exposed a JSONB metadata
+serialization defect; it was corrected and the retry completed 29/29.
+
+The migration was applied to VPS `sv_platform` only. Production build, full
+TypeScript check, five focused runner tests, scoped lint, guarded deployment,
+PM2 health, and local/public HTTP 200 checks passed. Unrelated worktree edits
+were excluded.
+
+### Batch 4 marketing, SEO, support, and reporting contracts (2026-10-29)
+
+VPS-only migration `20261108T228000_marketing_seo_support_agent_batch_four.sql`
+activates the 15 `mon-*`/`reporting` contracts. All checks are read-only and
+save summaries or draft suggestions through governed `ai_agent_runs`; no email,
+SMS, review reply, refund, campaign, ticket, product, or banner is changed.
+Social mentions and complaint flags never trigger auto-replies/notifications.
+
+The VPS schema has no urgent ticket tag, authoritative refund-policy source,
+banner destination field/table, checkout-session funnel contract, or
+side-effect-free email/SMS health endpoint. Accordingly, complaint monitoring
+uses critical/high priority; refunds return `requires_human_policy_review`;
+banner and notification coverage report when unavailable; conversion reports
+observed counters and does not claim abandonment; competitor pricing is not
+simulated because only stored SEO snapshots exist. Customer inactivity counts
+are profile activity, not verified paid-customer status. FAQ and banner URL
+checks use the SSRF-guarded fetch helper and only fetch same-origin HTTPS
+Software Vala URLs.
+
+The Batch 4 migration and a follow-up exact-contract correction were applied
+to VPS `sv_platform` only. All 44 fixed contracts match the runner, and the
+manual governed run completed **44/44**; all 15 Batch 4 records are COMPLETED
+with results and no errors. The pre-existing 15-minute root cron remains
+installed and calls this runner. Production build and full TypeScript check
+passed, six focused tests and scoped lint passed, PM2 is online, and local and
+public homepage checks returned HTTP 200. No customer-facing messages,
+notifications, refunds, product, or campaign changes were made.
+
 AYRA chat uses the existing Vala AI stream;
 the banner's browser panel opens links in a new tab and states that remote
 browser control is not connected. No database rows were changed for this UI
