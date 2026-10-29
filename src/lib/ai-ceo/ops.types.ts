@@ -77,7 +77,7 @@ export interface CEONotification {
   createdAt: string | null;
 }
 
-/** A day of paid API consumption, from `finance_ai_api_usage` and `usage_daily`. */
+/** Aggregated API consumption from the VPS `usage_events` table. */
 export interface CEOUsageRow {
   id: string;
   day: string;

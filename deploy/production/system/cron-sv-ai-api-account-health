@@ -1,0 +1,1 @@
+*/15 * * * * /bin/bash -o pipefail -c 'cd /var/www/softwarevala && /usr/bin/flock -n /run/lock/sv-ai-api-account-health.lock /usr/bin/node scripts/ops/ai-account-health.mjs 2>&1 | /usr/bin/logger -t sv-ai-api-account-health'

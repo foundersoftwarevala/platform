@@ -17,6 +17,8 @@ import {
   KeyRound,
   Server,
   Plug,
+  Activity,
+  RefreshCw,
 } from "lucide-react";
 import {
   Area,
@@ -52,13 +54,19 @@ import {
 } from "@/components/ui/select";
 
 import {
-  useApiServiceHealthCheck,
-  useApiServiceTest,
-  useInsertRecord,
-  useManyRecords,
-  useUpdateRecord,
-  type Row,
-} from "@/lib/manager-queries";
+  useVpsAiRegistry,
+  useCheckVpsAiServiceHealth,
+  useInsertVpsAiRegistryRecord,
+  useTestVpsAiService,
+  useUpdateVpsAiRegistryRecord,
+} from "@/lib/ai-api-vps.queries";
+import type { Row } from "@/lib/manager-queries";
+import {
+  useAddVpsApiAccount,
+  useCheckVpsApiAccountEndpoint,
+  useSetVpsApiAccountStatus,
+  useVpsApiAccounts,
+} from "@/lib/ai-api-accounts.queries";
 import {
   ErrorState,
   GlassCard,
@@ -166,6 +174,272 @@ function ModelUsageChart({ usage }: { usage: Row[] }) {
   );
 }
 
+function VpsProviderAccountsSection() {
+  const accountsQuery = useVpsApiAccounts();
+  const addAccount = useAddVpsApiAccount();
+  const setStatus = useSetVpsApiAccountStatus();
+  const checkEndpoint = useCheckVpsApiAccountEndpoint();
+  const [addingProviderId, setAddingProviderId] = useState<string | null>(null);
+  const [label, setLabel] = useState("");
+  const [serviceId, setServiceId] = useState("none");
+  const [environment, setEnvironment] = useState<"production" | "staging" | "development">(
+    "production",
+  );
+  const [secret, setSecret] = useState("");
+  const data = accountsQuery.data;
+  const provider = data?.providers.find((item) => item.id === addingProviderId);
+  const services =
+    data?.services.filter((service) => service.provider_id === addingProviderId) ?? [];
+
+  const resetForm = () => {
+    setLabel("");
+    setServiceId("none");
+    setEnvironment("production");
+    setSecret("");
+    setAddingProviderId(null);
+  };
+
+  const submit = () => {
+    if (!label.trim() || !addingProviderId || !secret.trim()) return;
+    addAccount.mutate(
+      {
+        label: label.trim(),
+        providerId: addingProviderId,
+        serviceId: serviceId === "none" ? null : serviceId,
+        environment,
+        secret: secret.trim(),
+      },
+      {
+        onSuccess: resetForm,
+      },
+    );
+  };
+
+  return (
+    <GlassCard
+      title="Provider credential accounts"
+      icon={<KeyRound className="h-4 w-4 text-neon-cyan" />}
+      description="Accounts are stored in VPS Postgres. Endpoint checks never send a credential; valid status is based on actual provider responses."
+    >
+      {data?.providers.length ? (
+        <div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {data.providers.map((item) => {
+            const count = data.accounts.filter((account) => account.provider_id === item.id).length;
+            return (
+              <div
+                key={item.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {count} credential account{count === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={addAccount.isPending}
+                  onClick={() => {
+                    if (addingProviderId === item.id) {
+                      resetForm();
+                    } else {
+                      setLabel("");
+                      setServiceId("none");
+                      setEnvironment("production");
+                      setSecret("");
+                      setAddingProviderId(item.id);
+                    }
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {addingProviderId === item.id ? "Cancel" : "Add more"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+      {addingProviderId && provider ? (
+        <div className="mb-4 grid gap-3 rounded-lg border border-border/60 p-3 md:grid-cols-2">
+          <div>
+            <Label htmlFor={`vps-account-label-${provider.id}`}>Account label</Label>
+            <Input
+              id={`vps-account-label-${provider.id}`}
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Provider</Label>
+            <Input value={provider.name} readOnly aria-label={`Provider ${provider.name}`} />
+          </div>
+          <div>
+            <Label>Service (optional)</Label>
+            <Select value={serviceId} onValueChange={setServiceId}>
+              <SelectTrigger aria-label={`${provider.name} service`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Provider-wide credential</SelectItem>
+                {services.map((service) => (
+                  <SelectItem key={service.id} value={service.id}>
+                    {service.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Environment</Label>
+            <Select
+              value={environment}
+              onValueChange={(value) => {
+                if (value === "production" || value === "staging" || value === "development") {
+                  setEnvironment(value);
+                }
+              }}
+            >
+              <SelectTrigger aria-label="VPS credential environment">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="production">Production</SelectItem>
+                <SelectItem value="staging">Staging</SelectItem>
+                <SelectItem value="development">Development</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <Label htmlFor={`vps-account-secret-${provider.id}`}>Credential</Label>
+            <Input
+              id={`vps-account-secret-${provider.id}`}
+              type="password"
+              autoComplete="new-password"
+              value={secret}
+              onChange={(event) => setSecret(event.target.value)}
+            />
+          </div>
+          <div className="md:col-span-2 flex justify-end">
+            <Button
+              onClick={submit}
+              disabled={addAccount.isPending || !label.trim() || !secret.trim()}
+            >
+              {addAccount.isPending ? <Spinner /> : <Plus />}
+              Save encrypted account
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {accountsQuery.isLoading ? <LoadingBlock rows={3} /> : null}
+      {accountsQuery.error ? (
+        <div className="flex items-center justify-between gap-3 py-4">
+          <p className="text-sm text-destructive">{accountsQuery.error.message}</p>
+          <Button size="sm" variant="outline" onClick={() => void accountsQuery.refetch()}>
+            <RefreshCw /> Try again
+          </Button>
+        </div>
+      ) : null}
+      {data && data.accounts.length === 0 ? (
+        <p className="py-5 text-center text-sm text-muted-foreground">
+          No credential accounts configured.
+        </p>
+      ) : null}
+      {data?.accounts.length ? (
+        <div className="space-y-2">
+          {data.accounts.map((account) => (
+            <div
+              key={account.id}
+              className="flex flex-col gap-3 rounded-md border border-border/50 p-3 lg:flex-row lg:items-center lg:justify-between"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{account.label}</span>
+                  <Badge
+                    variant={account.status === "active" ? "default" : "outline"}
+                    className={
+                      account.status === "active"
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                        : undefined
+                    }
+                  >
+                    {account.status}
+                  </Badge>
+                  <Badge
+                    variant={
+                      ["invalid", "expired", "unreachable"].includes(account.health_status)
+                        ? "destructive"
+                        : "secondary"
+                    }
+                    className={
+                      account.health_status === "healthy"
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                        : account.health_status === "throttled"
+                          ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                          : undefined
+                    }
+                  >
+                    {account.health_status}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {account.environment} · •••• {account.last_four}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {account.provider_name ?? "Provider unavailable"}
+                  {account.service_name ? ` · ${account.service_name}` : " · provider-wide"}
+                  {account.failure_reason ? ` · ${account.failure_reason}` : ""}
+                </p>
+                {account.expires_at ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Expires {new Date(account.expires_at).toLocaleString()}
+                  </p>
+                ) : null}
+                {account.last_checked_at ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Last provider-response health result{" "}
+                    {new Date(account.last_checked_at).toLocaleString()}
+                  </p>
+                ) : null}
+                {account.integrity_checked_at ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Encrypted-value integrity checked{" "}
+                    {new Date(account.integrity_checked_at).toLocaleString()}; credential validity
+                    is not implied.
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={checkEndpoint.isPending}
+                  onClick={() => checkEndpoint.mutate({ accountId: account.id })}
+                >
+                  <Activity /> Check endpoint
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setStatus.mutate({
+                      accountId: account.id,
+                      status: account.status === "active" ? "inactive" : "active",
+                    })
+                  }
+                >
+                  {account.status === "active" ? "Disable" : "Enable"}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </GlassCard>
+  );
+}
+
 function ModalitySection({
   modality,
   models,
@@ -185,7 +459,7 @@ function ModalitySection({
   onOpenServiceDialog: (category: string) => void;
   onOpenProviderDialog: () => void;
 }) {
-  const updateModel = useUpdateRecord("Model updated");
+  const updateModel = useUpdateVpsAiRegistryRecord();
 
   const modalityModels = useMemo(
     () => models.filter((m) => String(m["modality"]).toLowerCase() === modality),
@@ -419,9 +693,9 @@ function CentralRegistrySection({
   usageEvents: Row[];
   onConfigure: (service: Row) => void;
 }) {
-  const updateService = useUpdateRecord("Registry service updated");
-  const healthCheck = useApiServiceHealthCheck();
-  const testService = useApiServiceTest();
+  const updateService = useUpdateVpsAiRegistryRecord();
+  const healthCheck = useCheckVpsAiServiceHealth();
+  const testService = useTestVpsAiService();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -441,15 +715,31 @@ function CentralRegistrySection({
     }
     return entries;
   }, [capabilities]);
-  const configuredServiceIds = useMemo(
-    () =>
-      new Set(
-        keys
-          .filter((key) => key["status"] === "active" && key["service_id"])
-          .map((key) => String(key["service_id"])),
-      ),
-    [keys],
-  );
+  const configuredServiceIds = useMemo(() => {
+    const now = Date.now();
+    const eligible = keys.filter(
+      (key) =>
+        key["status"] === "active" &&
+        key["environment"] === "production" &&
+        key["health_status"] !== "invalid" &&
+        key["health_status"] !== "expired" &&
+        (!key["expires_at"] || new Date(String(key["expires_at"])).getTime() > now),
+    );
+    const configured = new Set(
+      eligible.filter((key) => key["service_id"]).map((key) => String(key["service_id"])),
+    );
+    const providerIds = new Set(
+      eligible
+        .filter((key) => !key["service_id"] && key["provider_id"])
+        .map((key) => String(key["provider_id"])),
+    );
+    for (const service of services) {
+      if (providerIds.has(String(service["provider_id"] ?? ""))) {
+        configured.add(String(service["id"]));
+      }
+    }
+    return configured;
+  }, [keys, services]);
   const serviceUsage = useMemo(() => {
     const entries = new Map<string, { requests: number; cost: number }>();
     for (const event of usageEvents) {
@@ -854,7 +1144,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
   });
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const insertRecord = useInsertRecord("Created successfully");
+  const insertRecord = useInsertVpsAiRegistryRecord();
 
   // Dialog states
   const [providerOpen, setProviderOpen] = useState(false);
@@ -905,15 +1195,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
     }
   }, [view]);
 
-  const many = useManyRecords([
-    { table: "ai_providers", orderBy: "name", ascending: true, limit: 200 },
-    { table: "ai_models", orderBy: "name", ascending: true, limit: 500 },
-    { table: "api_services", orderBy: "name", ascending: true, limit: 500 },
-    { table: "usage_daily", orderBy: "day", ascending: false, limit: 2000 },
-    { table: "api_service_capabilities", orderBy: "capability_name", ascending: true, limit: 2000 },
-    { table: "api_keys", orderBy: "created_at", ascending: false, limit: 500 },
-    { table: "usage_events", orderBy: "occurred_at", ascending: false, limit: 2000 },
-  ]);
+  const many = useVpsAiRegistry();
 
   if (many.isLoading) {
     return (
@@ -946,7 +1228,7 @@ export default function AiApiScreen({ view }: ScreenProps) {
     capabilities = [],
     keys = [],
     usageEvents = [],
-  ] = many.data ?? [];
+  ] = many.data ?? [[], [], [], [], [], [], []];
 
   const totalModels = models.length;
   const activeModels = models.filter((m) => m["status"] === "active").length;
@@ -1029,8 +1311,6 @@ export default function AiApiScreen({ view }: ScreenProps) {
   const handleCreateKey = () => {
     if (!keyForm.label.trim() || !keyForm.secret.trim()) return;
     const secret = keyForm.secret.trim();
-    const prefix = secret.slice(0, Math.min(8, secret.length));
-    const lastFour = secret.slice(-4);
 
     insertRecord.mutate({
       table: "api_keys",
@@ -1038,9 +1318,6 @@ export default function AiApiScreen({ view }: ScreenProps) {
         label: keyForm.label.trim(),
         environment: keyForm.environment,
         status: "active",
-        key_prefix: prefix,
-        last_four: lastFour,
-        fingerprint: `${prefix}_${lastFour}_${Date.now()}`,
         secret_encrypted: secret || null,
         service_id: keyForm.service_id === "none" ? null : keyForm.service_id,
         provider_id: keyForm.provider_id === "none" ? null : keyForm.provider_id,
@@ -1079,6 +1356,8 @@ export default function AiApiScreen({ view }: ScreenProps) {
           </div>
         }
       />
+
+      <VpsProviderAccountsSection />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

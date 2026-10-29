@@ -183,7 +183,7 @@ export function UsageWorkspace() {
   return (
     <Register
       title={t("ceo.usage")}
-      subtitle="What the platform spent on paid providers, by day and service."
+      subtitle="Provider requests, tokens, and recorded cost for the last 30 days, from VPS usage events."
       icon={DollarSign}
       status={summary.spendUsd === null ? "Not recorded" : `$${summary.spendUsd.toLocaleString()}`}
       loadingLabel={t("ceo.usage_loading")}
@@ -224,7 +224,15 @@ export function UsageWorkspace() {
           />
         </>
       }
-      head={["Day", "Provider", "Service", t("ceo.requests"), t("ceo.tokens"), "Cost", "Table"]}
+      head={[
+        "Window",
+        "Provider",
+        "Service / Agent",
+        t("ceo.requests"),
+        t("ceo.tokens"),
+        "Cost",
+        "Source",
+      ]}
       rows={usage.map((row) => [
         <Day key="d" value={row.day} />,
         <span key="p" className="font-medium">
@@ -250,7 +258,7 @@ export function UsageWorkspace() {
         <EmptyState
           icon={DollarSign}
           title={t("ceo.usage_empty")}
-          description="Neither finance_ai_api_usage nor usage_daily holds a row. Spend appears here as soon as a paid call is recorded."
+          description="No AI usage events were recorded in the last 30 days. Agent and AYRA calls appear here when the AI API Manager records them."
         />
       }
     />

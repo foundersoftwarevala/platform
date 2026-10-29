@@ -1,49 +1,20 @@
-import { isIP } from "node:net";
 import { deploymentSetting } from "@/lib/seo/seo-store.server";
+import { withVpsPublicDatabase } from "@/lib/marketplace-manager/vps-rpc.server";
+import {
+  recordVpsAiUsage,
+  resolveVpsAiTarget,
+  type VpsAiTarget,
+} from "@/lib/ai-manager-vps.server";
 
 type LocalChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
-type OllamaChunk = { message?: { content?: string }; done?: boolean; error?: string };
-
-function isPrivateHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "::1" ||
-    host.endsWith(".localhost") ||
-    host.endsWith(".local") ||
-    host === "ollama"
-  )
-    return true;
-  if (isIP(host) === 4) {
-    const octets = host.split(".").map(Number);
-    return (
-      octets[0] === 10 ||
-      octets[0] === 127 ||
-      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
-      (octets[0] === 192 && octets[1] === 168)
-    );
-  }
-  return (
-    isIP(host) === 6 && (host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:"))
-  );
-}
-
-function localChatConfiguration(): { url: string; model: string } {
-  const url = new URL(deploymentSetting("OLLAMA_BASE_URL") || "http://127.0.0.1:11434");
-  if (url.protocol !== "http:" || !isPrivateHost(url.hostname) || url.username || url.password) {
-    throw new Error("AYRA chat requires a local Ollama endpoint.");
-  }
-  url.pathname = "/api/chat";
-  url.search = "";
-  url.hash = "";
-  return {
-    url: url.toString(),
-    model:
-      deploymentSetting("AYRA_CHAT_MODEL") || deploymentSetting("OLLAMA_MODEL") || "qwen2.5:3b",
-  };
-}
+type OllamaChunk = {
+  message?: { content?: string };
+  done?: boolean;
+  error?: string;
+  prompt_eval_count?: number;
+  eval_count?: number;
+};
 
 function sseError(message: string): string {
   return `data: ${JSON.stringify({ type: "error", error: { message } })}\n\n`;
@@ -54,20 +25,41 @@ export async function streamLocalAyraChat(options: {
   memoryStatus: "ready" | "not_configured" | "unavailable";
   signal: AbortSignal;
 }): Promise<Response> {
-  const config = localChatConfiguration();
-  const response = await fetch(config.url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      model: config.model,
-      messages: options.messages,
-      stream: true,
-      options: { temperature: 0.3, num_ctx: 8192, num_predict: 1000 },
-    }),
-    signal: AbortSignal.any([options.signal, AbortSignal.timeout(120_000)]),
-  });
+  const modelId =
+    deploymentSetting("AYRA_CHAT_MODEL") || deploymentSetting("OLLAMA_MODEL") || "qwen2.5:3b";
+  const serviceName = deploymentSetting("AYRA_AI_SERVICE") || "Ollama Local";
+  const target = await withVpsPublicDatabase((tx) => resolveVpsAiTarget(tx, serviceName, modelId));
+  if (!target.isLocalOllama)
+    throw new Error("AYRA chat is restricted to the approved local Ollama service.");
+
+  const endpoint = new URL(target.endpoint);
+  endpoint.pathname = "/api/chat";
+  const startedAt = Date.now();
+  let statusCode = 0;
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let usageWritten = false;
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: target.modelId,
+        messages: options.messages,
+        stream: true,
+        options: { temperature: 0.3, num_ctx: 8192, num_predict: 1000 },
+      }),
+      signal: AbortSignal.any([options.signal, AbortSignal.timeout(120_000)]),
+    });
+    statusCode = response.status;
+  } catch (error) {
+    await recordUsage(target, false);
+    throw error;
+  }
   if (!response.ok || !response.body) {
     const detail = (await response.text().catch(() => "")).slice(0, 300);
+    await recordUsage(target, false);
     throw new Error(
       `Local AYRA chat failed (${response.status}): ${detail || response.statusText}`,
     );
@@ -75,11 +67,26 @@ export async function streamLocalAyraChat(options: {
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
+  async function recordUsage(target: VpsAiTarget, success: boolean) {
+    if (usageWritten) return;
+    await withVpsPublicDatabase((tx) =>
+      recordVpsAiUsage(tx, target, {
+        product: "ayra-chat",
+        source: "ayra-chat",
+        statusCode,
+        success,
+        latencyMs: Date.now() - startedAt,
+        tokensIn,
+        tokensOut,
+      }),
+    );
+    usageWritten = true;
+  }
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let buffer = "";
       let completed = false;
-      const enqueueLine = (line: string) => {
+      const enqueueLine = async (line: string) => {
         if (!line.trim()) return;
         let chunk: OllamaChunk;
         try {
@@ -89,6 +96,10 @@ export async function streamLocalAyraChat(options: {
         }
         if (chunk.error)
           throw new Error(`Local Ollama stream failed: ${chunk.error.slice(0, 200)}`);
+        if (Number.isSafeInteger(chunk.prompt_eval_count) && (chunk.prompt_eval_count ?? -1) >= 0)
+          tokensIn = chunk.prompt_eval_count!;
+        if (Number.isSafeInteger(chunk.eval_count) && (chunk.eval_count ?? -1) >= 0)
+          tokensOut = chunk.eval_count!;
         if (chunk.message?.content) {
           controller.enqueue(
             new TextEncoder().encode(
@@ -97,6 +108,7 @@ export async function streamLocalAyraChat(options: {
           );
         }
         if (chunk.done) {
+          await recordUsage(target, true);
           completed = true;
           controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
           controller.close();
@@ -111,19 +123,26 @@ export async function streamLocalAyraChat(options: {
             const lines = buffer.split(/\r?\n/);
             buffer = lines.pop() ?? "";
             for (const line of lines) {
-              enqueueLine(line);
+              await enqueueLine(line);
               if (completed) break;
             }
           }
           if (!completed) {
             buffer += decoder.decode();
-            if (buffer.trim()) enqueueLine(buffer);
+            if (buffer.trim()) await enqueueLine(buffer);
           }
           if (!completed) {
+            await recordUsage(target, true);
             controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
             controller.close();
           }
         } catch (error) {
+          await recordUsage(target, false).catch((meterError: unknown) => {
+            console.error(
+              "[ayra-chat] usage metering failed:",
+              meterError instanceof Error ? meterError.message : "unknown error",
+            );
+          });
           const message = error instanceof Error ? error.message : "Local AYRA chat failed.";
           controller.enqueue(new TextEncoder().encode(sseError(message)));
           controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
@@ -135,6 +154,12 @@ export async function streamLocalAyraChat(options: {
     },
     cancel(reason) {
       void reader.cancel(reason);
+      void recordUsage(target, false).catch((error: unknown) => {
+        console.error(
+          "[ayra-chat] usage metering failed:",
+          error instanceof Error ? error.message : "unknown error",
+        );
+      });
     },
   });
   return new Response(stream, {

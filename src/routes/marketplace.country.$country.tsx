@@ -178,6 +178,12 @@ function CountryPage() {
         <p className="text-sm text-white/70">
           The catalogue does not target that country.
         </p>
+        <p className="mt-4 text-sm text-white/70">
+          Interested in a reseller opportunity?{" "}
+          <a href="/apply/reseller" className="font-semibold text-cyan-300 hover:text-cyan-200">
+            Apply to become a reseller
+          </a>
+        </p>
         <Link to="/" className="mt-4 inline-block text-sm font-semibold text-cyan-300">
           Back to the marketplace
         </Link>
@@ -204,6 +210,20 @@ function CountryPage() {
           and a live demo once you are signed in.
         </p>
       </header>
+
+      <section className="mx-6 mb-8 rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-5 sm:mx-8">
+        <h2 className="text-lg font-bold">Explore the reseller opportunity in {seo.country}</h2>
+        <p className="mt-2 max-w-2xl text-sm text-white/70">
+          Interested in offering software solutions to businesses in your market? Apply to join
+          Software Vala as a reseller.
+        </p>
+        <a
+          href="/apply/reseller"
+          className="mt-4 inline-flex rounded-xl bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"
+        >
+          Apply to become a reseller
+        </a>
+      </section>
 
       {seo.categories.length > 0 && (
         <section className="px-6 pb-8">

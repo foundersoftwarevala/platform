@@ -4404,6 +4404,9 @@ export const Route = createFileRoute("/api/manager/resource")({
             values[key] = pieces.map((piece) => piece.trim()).filter(Boolean);
             continue;
           }
+          // Blank optional form fields mean "use the database default" (or
+          // NULL), not an empty string that can violate a column constraint.
+          if (value === "" && !(resource.required ?? []).includes(key)) continue;
           values[key] = value;
         }
 

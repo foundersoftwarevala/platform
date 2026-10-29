@@ -33,8 +33,13 @@ vi.mock("@/lib/marketplace-manager/vps-rpc.server", () => ({
     return run(tx);
   },
 }));
-const ollama = vi.hoisted(() => ({ generate: vi.fn() }));
-vi.mock("@/lib/founder/local-ollama.server", () => ({ generateLocalJson: ollama.generate }));
+const aiManager = vi.hoisted(() => ({ generate: vi.fn() }));
+vi.mock("@/lib/ai-manager-vps.server", () => ({
+  requestVpsAiJson: aiManager.generate,
+}));
+vi.mock("@/lib/seo/seo-store.server", () => ({
+  deploymentSetting: () => undefined,
+}));
 
 import {
   createLowSuccessPromptProposals,
@@ -50,7 +55,7 @@ beforeEach(() => {
   state.candidates = [];
   state.proposals = [];
   state.agents = [];
-  ollama.generate.mockResolvedValue({
+  aiManager.generate.mockResolvedValue({
     model: "local-test-model",
     value: {
       reason: "Verified outcomes show this agent needs clearer task boundaries.",
@@ -78,7 +83,15 @@ describe("AYRA human-reviewed self-improvement", () => {
     expect(state.calls[0]?.sql).toContain("r.verification = 'FAILED'");
     expect(state.calls[0]?.sql).toContain(">= 5");
     expect(state.calls[0]?.sql).toContain("< 50");
-    expect(ollama.generate).toHaveBeenCalledOnce();
+    expect(aiManager.generate).toHaveBeenCalledOnce();
+    expect(aiManager.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceName: "Ollama Local",
+        modelId: "qwen2.5:3b",
+        source: "ayra-improvement",
+        product: "ayra-improvement",
+      }),
+    );
   });
 
   it("does not overwrite an agent prompt changed after proposal creation", async () => {

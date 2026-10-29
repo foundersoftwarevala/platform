@@ -10,7 +10,7 @@ vi.mock("@/lib/marketplace-manager/vps-rpc.server", () => ({
   withVpsPublicDatabase: mocks.withVpsPublicDatabase,
 }));
 
-import { loadAgents } from "./ops.server";
+import { loadAgents, loadUsage } from "./ops.server";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -62,6 +62,53 @@ describe("AI CEO agent directory metrics", () => {
     expect(mocks.query).toContain("state = 'COMPLETED'");
     expect(mocks.query).toContain("state in ('COMPLETED', 'FAILED')");
     expect(degraded).toEqual([]);
+  });
+
+  describe("AI CEO usage and spend", () => {
+    it("reads exact VPS usage_events aggregates and includes agent attribution", async () => {
+      mocks.withVpsPublicDatabase.mockImplementation(
+        async (run: (tx: TransactionSql) => Promise<unknown>) => {
+          const tx = (async (strings: TemplateStringsArray) => {
+            mocks.query = strings.join(" ");
+            return [
+              {
+                service_id: "service-1",
+                provider: "Ollama Local",
+                service: "Ollama Local",
+                agent_id: "agent-1",
+                agent_name: "Support Reply Drafter",
+                source: "ai-agent-runner",
+                requests: "3",
+                tokens: "1200",
+                cost_usd: "0",
+                cost_unpriced: false,
+                first_at: "2026-10-28T10:00:00Z",
+                last_at: "2026-10-29T10:00:00Z",
+              },
+            ];
+          }) as unknown as TransactionSql;
+          return run(tx);
+        },
+      );
+
+      const degraded: string[] = [];
+      await expect(loadUsage(degraded)).resolves.toEqual([
+        {
+          id: "service-1:agent-1:ai-agent-runner",
+          day: "Last 30 days",
+          provider: "Ollama Local",
+          service: "Support Reply Drafter · Ollama Local",
+          requests: 3,
+          tokens: 1200,
+          costUsd: 0,
+          source: "ai-agent-runner · agent agent-1",
+        },
+      ]);
+      expect(mocks.query).toContain("from public.usage_events e");
+      expect(mocks.query).toContain("left join public.ai_agents a on a.id = e.ai_agent_id");
+      expect(mocks.query).toContain("interval '30 days'");
+      expect(degraded).toEqual([]);
+    });
   });
 
   it("returns the registered runtime name instead of exposing a model UUID", async () => {

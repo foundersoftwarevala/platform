@@ -79,6 +79,7 @@ import {
 } from "lucide-react";
 import { Card, PageHeader, PillButton, StatCard, SubNav } from "../ui";
 import { SeoSection as LegacySeoEditor } from "./SeoSection";
+import BulkResellerSeoModule from "@/components/seo-manager/BulkResellerSeoModule";
 
 import { notBuilt } from "@/lib/ui/not-built";
 import { useTranslation } from "@/lib/i18n/use-translation";
@@ -793,6 +794,7 @@ export const SEO_MODULE_GROUPS: {
     label: "Blog & AI",
     items: [
       { id: "blogcenter", label: "Blog Center", icon: Rss },
+      { id: "bulk-reseller-seo", label: "Bulk Reseller SEO", icon: Sparkles },
       { id: "social", label: "Social Discovery", icon: Share2 },
       { id: "campaigns", label: "Campaigns", icon: Target },
       { id: "aiwriter", label: "AI Writer", icon: Wand2 },
@@ -1430,6 +1432,8 @@ export function renderSeoModule(id: string) {
       return <BlogCenterModule />;
     case "aiwriter":
       return <AiWriterModule />;
+    case "bulk-reseller-seo":
+      return <BulkResellerSeoModule />;
     case "aikeyword":
       return <AiKeywordModule />;
     case "google":

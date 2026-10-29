@@ -366,6 +366,32 @@ The AI CEO Agent Directory joins `ai_models` on the VPS and displays the
 registered model name/runtime or `Rule-based / no LLM`, rather than the UUID.
 The migration was applied to VPS `sv_platform` only; Supabase was not accessed.
 
+### AI API Manager metering
+
+Agent text-generation calls now resolve an active, approved provider and model
+from the VPS `api_services`/`ai_models` registry through
+`src/lib/ai-manager-vps.server.ts`. Local Ollama remains the agents' default;
+the helper retrieves an encrypted production credential only for a selected
+external provider. AYRA prompt generation uses the same Manager path, while
+AYRA chat remains restricted to the approved local Ollama service.
+
+Metered requests write provider/model, token counts, status, latency, source
+and registered-price cost to VPS `usage_events`. Nullable agent attribution
+is provided by `usage_events.ai_agent_id`; migration
+`20261108T234000_ai_usage_agent_attribution.sql` and its guarded rollback were
+applied to VPS `sv_platform` only. The CEO Usage & Spend panel reads the
+trailing 30 days from this table and groups by provider/model and agent. Local
+Ollama calls report tokens but have zero external provider cost; unknown
+provider pricing is shown as unpriced rather than estimated or fabricated.
+No agents were manually triggered during deployment, so the attribution count
+was zero immediately after release; subsequent governed AI calls populate it.
+
+Validation: the focused metering/AYRA/dashboard suite passes 12 tests, the
+production build and full TypeScript check pass, and the guarded staged release
+passed its homepage smoke. PM2 is online; local and public homepage checks
+return HTTP 200. Unrelated pre-existing worktree edits were preserved outside
+the release.
+
 AYRA chat uses the existing Vala AI stream;
 the banner's browser panel opens links in a new tab and states that remote
 browser control is not connected. No database rows were changed for this UI
@@ -544,6 +570,22 @@ The product in it (`current_product_id`) can change; the URL never does.
   country list (the slot generator, the home rails and the gate all read it).
   The last 20 (Brazil … Tunisia) were appended, not sorted in, because
   `slot_no` is the position in this list.
+- **Reseller CTA on country pages:** `src/routes/marketplace.country.$country.tsx`
+  links directly to the existing `/apply/reseller` form. Keep each country's
+  canonical URL on its own page; the apply URL is a CTA destination, not a
+  canonical or metadata replacement. Unsupported countries remain noindex
+  fallbacks but retain the same direct CTA. The VPS country SEO data included
+  Philippines but not India when verified on 2026-10-29; do not fabricate
+  catalogue-country data to create a landing page.
+- **Bulk Reseller SEO drafts:** SEO Manager → Bulk Reseller SEO calls the
+  named local Ollama task `generate_bulk_seo_reseller`, saves ten country
+  metadata/hashtag drafts in `seo_bulk_assets` on VPS `sv_platform`, and
+  exposes Copy All. Each description and row uses the fixed
+  `https://softwarevala.net/apply/reseller` URL and includes `#SoftwareVala`.
+  Drafts require human review. The URL is the campaign CTA destination, not an
+  external backlink-placement target; the tool does not invent or post links
+  to third-party sites. Table migration: `20261108T235000_seo_bulk_reseller_assets.sql`
+  (VPS only).
 - **Slots, on both databases (VPS applied 2026-10-12):** 9,100 = 7,200
   occupied + 1,800 vacant + 100 reserved. The 1,800 vacant are the 20 new
   countries; the catalogue has no product for any of them yet, so they stay

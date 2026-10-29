@@ -331,6 +331,53 @@ describe("manager resource influencer authorization", () => {
     });
   });
 
+  it("omits blank optional product fields so database defaults satisfy column constraints", async () => {
+    let written: Record<string, unknown> | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const requestUrl = String(input);
+        if (requestUrl.includes("/rest/v1/marketplace_products")) {
+          written = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return new Response(JSON.stringify([{ id: payoutId }]), { status: 201 });
+        }
+        return new Response("null", { status: 200 });
+      }),
+    );
+
+    const response = await call("POST", "products", "admin", {
+      resource: "products",
+      values: {
+        name: "E2E QA product",
+        slug: "e2e-qa-product",
+        badge: "",
+        icon: "",
+        category_id: "",
+        visible: "false",
+        is_featured: "false",
+        is_trending: "false",
+        is_best_seller: "false",
+        is_new_release: "false",
+        content_status: "in_review",
+        sort_order: "999998",
+        search_keywords: "",
+        features: "",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(written).toMatchObject({
+      name: "E2E QA product",
+      slug: "e2e-qa-product",
+      visible: "false",
+      search_keywords: [],
+    });
+    expect(written).not.toHaveProperty("features");
+    expect(written).not.toHaveProperty("badge");
+    expect(written).not.toHaveProperty("icon");
+    expect(written).not.toHaveProperty("category_id");
+  });
+
   it("keeps legacy influencer payouts read-only", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

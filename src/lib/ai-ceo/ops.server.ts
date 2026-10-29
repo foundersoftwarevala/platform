@@ -38,7 +38,7 @@ export const OPS_SOURCES: Record<string, string> = {
   tasks: "tm_tasks",
   automations: "automation_rules + marketing_automations + seo_automations + tm_automations",
   notifications: "notifications",
-  usage: "finance_ai_api_usage + usage_daily",
+  usage: "usage_events (VPS Postgres, trailing 30 days)",
   security: "security_alerts + security_findings",
   insights: "promise_ai_insights + server_ai_insights",
 };
@@ -333,53 +333,58 @@ export async function loadNotifications(degraded: Degraded): Promise<CEONotifica
 }
 
 export async function loadUsage(degraded: Degraded): Promise<CEOUsageRow[]> {
-  const finance = await safe(
-    "finance_ai_api_usage",
+  return safe(
+    "usage_events",
     degraded,
-    async () => {
-      const data = await rows(
-        "finance_ai_api_usage",
-        "id,provider,service,usage_date,requests,tokens,cost",
-        "usage_date.desc",
-      );
-      return data.map((row) => ({
-        id: `finance:${String(row.id)}`,
-        day: str(row, "usage_date") ?? "—",
-        provider: str(row, "provider") ?? "—",
-        service: str(row, "service"),
-        requests: num(row, "requests"),
-        tokens: num(row, "tokens"),
-        costUsd: num(row, "cost"),
-        source: "finance_ai_api_usage",
-      }));
-    },
+    async () =>
+      withVpsPublicDatabase(async (tx) => {
+        const data = await tx<
+          {
+            service_id: string;
+            provider: string;
+            service: string;
+            agent_id: string | null;
+            agent_name: string | null;
+            source: string;
+            requests: number | string;
+            tokens: number | string;
+            cost_usd: number | string;
+            cost_unpriced: boolean;
+            first_at: string;
+            last_at: string;
+          }[]
+        >`
+          select s.id::text as service_id, p.name as provider, s.name as service,
+                 e.ai_agent_id::text as agent_id, a.name as agent_name, e.source,
+                 sum(e.requests)::bigint as requests,
+                 sum(e.tokens_in + e.tokens_out)::bigint as tokens,
+                 sum(e.cost_usd)::numeric as cost_usd,
+                 bool_or(e.source like '%:cost-unpriced') as cost_unpriced,
+                 min(e.occurred_at)::text as first_at, max(e.occurred_at)::text as last_at
+            from public.usage_events e
+            left join public.api_services s on s.id = e.service_id
+            left join public.ai_providers p on p.id = s.provider_id
+            left join public.ai_agents a on a.id = e.ai_agent_id
+           where e.occurred_at >= now() - interval '30 days'
+           group by s.id, p.name, s.name, e.ai_agent_id, a.name, e.source
+           order by max(e.occurred_at) desc, p.name, s.name, e.source
+           limit 1000
+        `;
+        return data.map((row) => ({
+          id: `${row.service_id}:${row.agent_id ?? "no-agent"}:${row.source}`,
+          day: "Last 30 days",
+          provider: row.provider ?? "Unregistered provider",
+          service: row.agent_name
+            ? `${row.agent_name} · ${row.service}`
+            : (row.service ?? row.agent_id ?? "Unregistered service"),
+          requests: num(row, "requests"),
+          tokens: num(row, "tokens"),
+          costUsd: row.cost_unpriced ? null : num(row, "cost_usd"),
+          source: row.agent_id ? `${row.source} · agent ${row.agent_id}` : row.source,
+        }));
+      }),
     [] as CEOUsageRow[],
   );
-
-  const daily = await safe(
-    "usage_daily",
-    degraded,
-    async () => {
-      const data = await rows(
-        "usage_daily",
-        "id,day,service_id,model_id,requests,tokens,cost_usd",
-        "day.desc",
-      );
-      return data.map((row) => ({
-        id: `daily:${String(row.id)}`,
-        day: str(row, "day") ?? "—",
-        provider: str(row, "service_id") ?? "—",
-        service: str(row, "model_id"),
-        requests: num(row, "requests"),
-        tokens: num(row, "tokens"),
-        costUsd: num(row, "cost_usd"),
-        source: "usage_daily",
-      }));
-    },
-    [] as CEOUsageRow[],
-  );
-
-  return [...finance, ...daily];
 }
 
 export async function loadSecurity(degraded: Degraded): Promise<CEOSecurityRow[]> {
