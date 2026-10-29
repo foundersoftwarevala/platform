@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from demo_monitor import (  # noqa: E402
     SUPABASE_URL, SERVICE_KEY, rest, rest_all, agent_run_open, agent_run_close,
 )
+from demo_worker_http import internal_api_headers  # noqa: E402
 
 APP = os.environ.get("SV_APP_ORIGIN") or "http://127.0.0.1:3000"
 TOKEN = os.environ.get("INTERNAL_API_TOKEN") or ""
@@ -57,7 +58,7 @@ def investigate(product_id, url):
         APP.rstrip("/") + "/api/demo/process",
         data=body,
         method="POST",
-        headers={"content-type": "application/json", "x-internal-token": TOKEN},
+        headers=internal_api_headers(TOKEN),
     )
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT) as response:

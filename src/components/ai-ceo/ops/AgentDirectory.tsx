@@ -116,7 +116,7 @@ export function AgentDirectory() {
           </Link>,
           <ToneBadge key="s" value={agent.status} />,
           <span key="m" className="font-mono text-xs">
-            {agent.modelId ?? "—"}
+            {agent.modelDisplay}
           </span>,
           <Figure key="r" value={agent.runs30d} />,
           <Figure key="p" value={agent.successRate} suffix="%" />,
@@ -212,7 +212,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
             <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
               {t("ceo.model")}
             </dt>
-            <dd className="mt-1 font-mono text-xs">{agent.modelId ?? "—"}</dd>
+            <dd className="mt-1 font-mono text-xs">{agent.modelDisplay}</dd>
           </div>
           <div>
             <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">

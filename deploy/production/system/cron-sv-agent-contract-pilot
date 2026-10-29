@@ -1,2 +1,3 @@
-# Five contract-bound agents; protected by the runner's database advisory lock.
-*/15 * * * * /var/www/softwarevala/scripts/ops/run-agent-contract-pilot.sh
+# The 142-agent serial cycle takes about 18 minutes. Run every 30 minutes so
+# the advisory lock does not reject the next scheduled cycle before completion.
+*/30 * * * * /var/www/softwarevala/scripts/ops/run-agent-contract-pilot.sh

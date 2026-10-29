@@ -145,6 +145,7 @@ export async function loadAgents(degraded: Degraded): Promise<CEOAgent[]> {
             name: string;
             purpose: string | null;
             model_id: string | null;
+            model_display: string;
             status: string | null;
             tools: unknown;
             runs_30d: number | string;
@@ -153,10 +154,16 @@ export async function loadAgents(degraded: Degraded): Promise<CEOAgent[]> {
             created_at: string;
           }[]
         >`
-        select a.id::text, a.name, a.purpose, a.model_id::text, a.status,
-               a.tools, coalesce(r.runs_30d, 0)::int as runs_30d,
+        select a.id::text, a.name, a.purpose, a.model_id::text,
+               coalesce(
+                 m.name || ' (' || m.model_id || ')',
+                 case when a.model_id is null then 'Rule-based / no LLM'
+                      else 'Unregistered model (' || a.model_id::text || ')' end
+               ) as model_display,
+               a.status, a.tools, coalesce(r.runs_30d, 0)::int as runs_30d,
                r.success_rate, a.max_tokens, a.created_at::text
           from public.ai_agents a
+          left join public.ai_models m on m.id = a.model_id
           left join (
             select agent_id, count(*)::int as runs_30d,
                    round(
@@ -179,6 +186,7 @@ export async function loadAgents(degraded: Degraded): Promise<CEOAgent[]> {
         purpose: row.purpose,
         status: row.status ?? "unknown",
         modelId: row.model_id,
+        modelDisplay: row.model_display,
         runs30d: num(row, "runs_30d"),
         successRate: num(row, "success_rate"),
         tools: Array.isArray(row.tools) ? row.tools.map(String) : [],

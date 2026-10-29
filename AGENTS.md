@@ -280,10 +280,10 @@ active URLs and each returned HTTP 200. Reporting persisted one
 `WEEKLY_SYSTEM_HEALTH` row with array-valued findings and recommendations.
 Sales follow-up results remain human-review drafts; no customer message was
 sent. A separate existing `fa_jobs` task for `demo-scanner` later failed with
-HTTP 403; it was not created by this fixed runner and its queue state was not
-changed. At that verification, 66/67 active contract agents had latest
-`COMPLETED` states because of that separate failed run. The existing
-15-minute root cron remains installed and loads the runner on each invocation.
+HTTP 403; it was not created by this fixed runner. At that verification,
+66/67 active contract agents had latest `COMPLETED` states because of that
+separate failed run. The root cron was subsequently changed to 30 minutes
+after measuring an 18-minute full cycle; the advisory lock remains enabled.
 
 Validation: production build, full TypeScript check, seven focused runner
 tests, scoped ESLint, and `git diff --check` passed. PM2 processes were online
@@ -314,7 +314,10 @@ keys and `mon-customer` timed out. A serialized catch-up then completed 76/76
 selected keys (the 75 new metadata agents plus a `mon-customer` retry); a
 VPS query confirmed completed governed runs for all 142 distinct active
 agents. The runner's advisory lock refused an overlapping cron invocation.
-The existing 15-minute cron remains installed.
+The installed cron now runs every 30 minutes. The 142-agent serial cycle
+measured about 18 minutes; the longer interval avoids a scheduled invocation
+being rejected by the advisory lock while the previous cycle is still running.
+The lock remains as a second overlap guard.
 
 Validation: the production build passed, full `npx tsc --noEmit -p .`
 completed with exit code 0, seven focused runner tests passed, and scoped
@@ -322,6 +325,41 @@ ESLint plus `git diff --check` passed. The in-place build temporarily
 interrupted the live app; the preserved prior `.output` was restored and
 PM2/local/public HTTP health returned online/200. The runner itself executed
 from the VPS working tree; no new web-app bundle was released.
+
+### Demo scanner recovery follow-up (2026-10-29)
+
+The legacy `fa_jobs` demo scanner used loopback `127.0.0.1:3000` without the
+canonical `Host` header, so production domain-lock middleware returned 403.
+`scripts/demo_worker_http.py` now supplies the canonical host for both demo
+scan and intake workers. A later retry passed that gate but failed because the
+configured external AI credential was invalid; the job reached its maximum
+attempts and is dead-lettered. No credential value is recorded here.
+
+`src/lib/demo/process.server.ts` now uses validated local Ollama JSON analysis
+if the configured AI provider fails, preserving the existing evidence checks
+and review-only flow. Focused demo tests and Python worker checks pass, and a
+fresh full TypeScript check exits 0. The staged production build passed an
+HTTP 200 homepage smoke before its bundle was atomically installed. A follow-up
+guard ensures failed usage metering is not bypassed by local fallback; the
+rebuilt bundle is deployed and the preceding bundle is retained at
+`/var/www/softwarevala/.output.prev-agent-fix-20261029T024048Z` (earlier
+rollback build:
+`/var/www/softwarevala/.output.prev-agent-fix-20261029T023405Z`). PM2 remained
+online and both local and public homepage checks returned HTTP 200. Local
+Ollama exposes `qwen2.5:3b`; the dead-letter job was not requeued and no
+business database rows were changed.
+
+`mon-social` itself completed 7/7 governed runs in the observed 24-hour
+window. The separate YouTube channel-feed sync completed 67 times and failed
+29 times with HTTP 404; this is a source/feed mismatch, not rate limiting.
+The YouTube source was not changed without a verified canonical channel;
+its feed URL still requires owner confirmation. Migration
+`20261108T233000_ai_agent_ollama_model_mapping.sql` registers the verified
+local `qwen2.5:3b` runtime and maps only the 92 `scripts/run-agents.mjs` keys
+that invoke Ollama. The remaining 50 deterministic agents have no model FK.
+The AI CEO Agent Directory joins `ai_models` on the VPS and displays the
+registered model name/runtime or `Rule-based / no LLM`, rather than the UUID.
+The migration was applied to VPS `sv_platform` only; Supabase was not accessed.
 
 AYRA chat uses the existing Vala AI stream;
 the banner's browser panel opens links in a new tab and states that remote

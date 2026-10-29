@@ -1,6 +1,8 @@
-import { aiComplete } from "@/lib/ai-gateway.server";
+import { AiMeteringError, aiComplete } from "@/lib/ai-gateway.server";
 import { catalogueChanged } from "@/lib/marketplace/catalogue-invalidation";
 import { parseStructured } from "@/lib/ai/content-provider";
+import { generateLocalJson } from "@/lib/founder/local-ollama.server";
+import { z } from "zod";
 import {
   applySurfaceBranding,
   evidenceCorpus,
@@ -36,6 +38,25 @@ import { DEMO_BRAND } from "./brand";
  */
 
 type Row = Record<string, unknown>;
+
+const DemoFindingSchema = z.object({
+  value: z.string(),
+  kind: z.string().optional(),
+  reason: z.string().optional(),
+});
+
+const DemoAnalysisSchema = z.object({
+  software_name: z.string(),
+  summary: z.string(),
+  category_slug: z.string(),
+  category_reason: z.string(),
+  confidence: z.number().min(0).max(1),
+  contacts_to_remove: z.array(DemoFindingSchema),
+  developer_branding: z.array(DemoFindingSchema),
+  developer_links: z.array(DemoFindingSchema),
+  logo_images: z.array(DemoFindingSchema),
+  kept: z.array(DemoFindingSchema),
+});
 
 function db() {
   const url = process.env.SUPABASE_URL?.trim() ?? "";
@@ -150,6 +171,36 @@ Answer with one JSON object only:
   "logo_images": [{"value": string, "reason": string}],
   "kept": [{"value": string, "reason": string}]
 }`;
+
+async function completeDemoAnalysis(prompt: string) {
+  try {
+    return await aiComplete({
+      module: "demo-manager",
+      serviceName: "OpenAI API",
+      json: true,
+      temperature: 0,
+      maxTokens: 2500,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
+    });
+  } catch (error) {
+    if (error instanceof AiMeteringError) throw error;
+    console.warn("[demo-process] configured AI provider unavailable; using local Ollama");
+    const local = await generateLocalJson({
+      system: SYSTEM_PROMPT,
+      prompt,
+      schema: DemoAnalysisSchema,
+      numPredict: 2500,
+    });
+    return {
+      text: JSON.stringify(local.value),
+      service: "Local Ollama",
+      model: local.model,
+    };
+  }
+}
 
 type Finding = { value: string; kind?: string; reason?: string };
 
@@ -317,32 +368,14 @@ export async function investigateDemo(input: { productId: string; url: string; a
     const categories = await store.get<{ id: string; slug: string; name: string }[]>(
       "marketplace_categories?select=id,slug,name&is_hidden=eq.false&order=sort_order.asc",
     );
-    const ai = await aiComplete({
-      module: "demo-manager",
-      serviceName: "OpenAI API",
-      json: true,
-      temperature: 0,
-      // Raising this was the wrong instinct and the numbers said so: at 1,800
-      // the answer was cut off, and at 4,000 it was cut off again having used
-      // every token. The model fills whatever room it is given, because the
-      // prompt asked it to justify every piece of ordinary interface text it
-      // kept — a list the code then truncates to thirty anyway. The prompt
-      // bounds the lists now, so the budget is back to something reasonable
-      // with room to spare.
-      maxTokens: 2500,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: JSON.stringify({
-            demo_address: page.url,
-            marketplace_product: product.name,
-            categories: categories.map((c) => `${c.slug}: ${c.name}`),
-            evidence: evidenceForPrompt(evidence, [page.body]),
-          }),
-        },
-      ],
-    });
+    const ai = await completeDemoAnalysis(
+      JSON.stringify({
+        demo_address: page.url,
+        marketplace_product: product.name,
+        categories: categories.map((c) => `${c.slug}: ${c.name}`),
+        evidence: evidenceForPrompt(evidence, [page.body]),
+      }),
+    );
     const answer = parseStructured(ai.text);
     if (!answer) throw new Error("The AI Manager's answer was not valid JSON.");
 

@@ -19,6 +19,7 @@ export interface CEOAgent {
   purpose: string | null;
   status: string;
   modelId: string | null;
+  modelDisplay: string;
   /** Runs recorded over the last thirty days; null when never measured. */
   runs30d: number | null;
   /** 0–100. Null when the agent has no completed run to measure. */

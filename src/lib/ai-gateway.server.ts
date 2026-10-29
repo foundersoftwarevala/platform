@@ -254,7 +254,7 @@ function estimateCostUsd(model: string, tokensIn: number, tokensOut: number): nu
   return (tokensIn / 1000) * pricing.in + (tokensOut / 1000) * pricing.out;
 }
 
-class AiMeteringError extends Error {
+export class AiMeteringError extends Error {
   constructor() {
     super(
       "The AI provider responded, but recording usage failed. No provider fallback was attempted.",

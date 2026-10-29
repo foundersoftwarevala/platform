@@ -1,9 +1,23 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { activateDemo, listProcessedDemos, publishDemo } from "./process.server";
+import { AiMeteringError, aiComplete } from "@/lib/ai-gateway.server";
+import { generateLocalJson } from "@/lib/founder/local-ollama.server";
+import { activateDemo, investigateDemo, listProcessedDemos, publishDemo } from "./process.server";
 import { safeFetch } from "./safe-fetch.server";
 
-vi.mock("@/lib/ai-gateway.server", () => ({
-  aiComplete: vi.fn().mockRejectedValue(new Error("OpenAI temporary outage")),
+vi.mock("@/lib/ai-gateway.server", () => {
+  class MockAiMeteringError extends Error {
+    constructor() {
+      super("AI usage recording failed");
+      this.name = "AiMeteringError";
+    }
+  }
+  return {
+    aiComplete: vi.fn().mockRejectedValue(new Error("OpenAI temporary outage")),
+    AiMeteringError: MockAiMeteringError,
+  };
+});
+vi.mock("@/lib/founder/local-ollama.server", () => ({
+  generateLocalJson: vi.fn().mockRejectedValue(new Error("Local Ollama temporary outage")),
 }));
 vi.mock("@/lib/marketplace/catalogue-invalidation", () => ({
   catalogueChanged: vi.fn(),
@@ -63,11 +77,12 @@ it("rejects an incomplete inventory instead of returning a success-shaped partia
 });
 
 it.each([
-  { blank: false, message: "OpenAI temporary outage" },
+  { blank: false, message: "Local Ollama temporary outage" },
   { blank: true, message: "unbuilt starter landing page" },
+  { blank: false, message: "AI usage recording failed", meteringFailure: true },
 ])(
   "refuses publication without deleting the existing live record: $message",
-  async ({ blank, message }) => {
+  async ({ blank, message, meteringFailure = false }) => {
     vi.stubEnv("SUPABASE_URL", "https://database.test");
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "unit-test-only");
     const product = {
@@ -87,6 +102,10 @@ it.each([
       processing: { rules, verification: { ok: true } },
     };
     const writes: Record<string, unknown>[] = [];
+    if (meteringFailure) {
+      vi.mocked(aiComplete).mockRejectedValueOnce(new AiMeteringError());
+      vi.mocked(generateLocalJson).mockClear();
+    }
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string, init?: RequestInit) => {
@@ -127,6 +146,7 @@ it.each([
         actor: { id: null, email: null },
       }),
     ).rejects.toThrow(message);
+    if (meteringFailure) expect(generateLocalJson).not.toHaveBeenCalled();
     expect(row.status).toBe("active");
     expect(row.processing_status).toBe("failed");
     expect(row.processing.rules).toEqual(rules);
@@ -134,6 +154,80 @@ it.each([
     expect(writes).toHaveLength(2);
   },
 );
+
+it("uses the validated local Ollama result when the configured provider is unavailable", async () => {
+  vi.stubEnv("SUPABASE_URL", "https://database.test");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "unit-test-only");
+  const product = {
+    id: "030420be-2499-496a-945a-9065b5a58364",
+    name: "Nursing Training Institute",
+    slug: "nursing-training-institute",
+    category_id: "4c39f027-3383-4ce7-b660-2608cadcf7f1",
+  };
+  const category = { id: product.category_id, slug: "education", name: "Education" };
+  const demo = {
+    id: "e5e41e27-000b-4f57-b79e-4a88f4ff7376",
+    product_id: product.id,
+    demo_name: product.name,
+    url: "https://health-prep-forge.lovable.app/",
+    status: "inactive",
+    sort_order: 0,
+    processing_status: "investigating",
+  };
+  let row: Record<string, unknown> = demo;
+  vi.mocked(generateLocalJson).mockResolvedValueOnce({
+    model: "qwen2.5:3b",
+    value: {
+      software_name: product.name,
+      summary: "Nursing training software.",
+      category_slug: "education",
+      category_reason: "Training content.",
+      confidence: 0.9,
+      contacts_to_remove: [
+        { value: "info@nursinginstitute.edu", kind: "email", reason: "Public contact" },
+      ],
+      developer_branding: [],
+      developer_links: [],
+      logo_images: [],
+      kept: [],
+    },
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string, init?: RequestInit) => {
+      const url = new URL(input);
+      const resource = url.pathname.split("/").at(-1);
+      if (resource === "marketplace_products") return Response.json([product]);
+      if (resource === "product_demo_urls") {
+        if (init?.method === "POST") {
+          row = { ...demo, ...JSON.parse(String(init.body)) };
+          return Response.json([row]);
+        }
+        if (init?.method === "PATCH") {
+          row = { ...row, ...JSON.parse(String(init.body)) };
+          return Response.json([row]);
+        }
+        return Response.json([]);
+      }
+      if (resource === "marketplace_categories") return Response.json([category]);
+      if (resource === "demo_url_audit_log") return Response.json([{}]);
+      throw new Error(`Unexpected test request: ${resource}`);
+    }),
+  );
+
+  const result = await investigateDemo({
+    productId: product.id,
+    url: demo.url,
+    actor: { id: null, email: null },
+  });
+
+  expect(result.processing_status).toBe("review");
+  expect(result.processing).toMatchObject({
+    ai: { service: "Local Ollama", model: "qwen2.5:3b" },
+    identity: { category_slug: "education" },
+  });
+  expect(generateLocalJson).toHaveBeenCalledOnce();
+});
 
 it("refuses activation until the detected demo category matches the product category", async () => {
   vi.stubEnv("SUPABASE_URL", "https://database.test");
