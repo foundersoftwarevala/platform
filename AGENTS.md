@@ -352,9 +352,9 @@ business database rows were changed.
 `mon-social` itself completed 7/7 governed runs in the observed 24-hour
 window. The separate YouTube channel-feed sync completed 67 times and failed
 29 times with HTTP 404; this is a source/feed mismatch, not rate limiting.
-The enabled VPS `storefront_social_links` YouTube row now uses the verified
-canonical channel URL `https://www.youtube.com/channel/UCr05ta1hSWwTMU36zVQBJKw`
-(resolved from the existing official `@softwarevala` handle). The official
+The enabled VPS `storefront_social_links` YouTube row uses the owner-requested
+URL `https://youtube.com/@softwarevala`, which resolves to the verified
+canonical channel ID `UCr05ta1hSWwTMU36zVQBJKw`. The official
 channel page returns HTTP 200, but YouTube's public Atom feed endpoint returned
 404/500 for this channel and 404 for other tested channel IDs, so the feed-sync
 failure is upstream and remains unresolved; no API credential or alternate
