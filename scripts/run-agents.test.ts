@@ -5,6 +5,8 @@ import {
   BATCH_TWO_AGENT_KEYS,
   BATCH_THREE_AGENT_KEYS,
   BATCH_FOUR_AGENT_KEYS,
+  BATCH_FIVE_AGENT_KEYS,
+  BATCH_SIX_AGENT_KEYS,
   leadScore,
   extractStoredLinks,
   normalizeDraft,
@@ -27,24 +29,47 @@ describe("VPS agent contract runner", () => {
   });
 
   it("limits execution to reviewed contracts and spaces runs by five seconds", () => {
-    expect(Object.keys(TASK_CONTRACTS)).toEqual([
-      "demo-scanner",
-      "support-reply-drafter",
-      "mon-availability",
-      "finance-intelligence",
-      "mon-homepage",
-      "mon-vendor",
-      "mon-security",
-      "mon-order",
-      "mon-payment",
+    expect(Object.keys(TASK_CONTRACTS)).toHaveLength(67);
+    expect(BATCH_FIVE_AGENT_KEYS).toEqual([
       "mon-website",
       "mon-api",
       "mon-database",
+      "mon-performance",
       "mon-error",
+      "mon-availability",
+      "mon-sla-monitor",
+      "mon-compliance-monitor",
+      "mon-risk-monitor",
+      "mon-contract",
+      "mon-document",
+      "mon-inventory-monitor",
+      "mon-agent-workforce",
+      "mon-decision-monitor",
       "mon-alerts",
-      ...BATCH_THREE_AGENT_KEYS,
-      ...BATCH_FOUR_AGENT_KEYS,
     ]);
+    expect(BATCH_SIX_AGENT_KEYS).toEqual([
+      "data-intelligence",
+      "research",
+      "task-operations",
+      "knowledge-operations",
+      "customer-operations",
+      "risk",
+      "compliance",
+      "reporting",
+      "monitoring",
+      "workforce-intelligence",
+      "vendor-procurement",
+      "sales-intelligence",
+      "quality-assurance",
+      "sla-service",
+      "alert-escalation",
+    ]);
+    expect(
+      [...BATCH_FIVE_AGENT_KEYS, ...BATCH_SIX_AGENT_KEYS].every((key) => TASK_CONTRACTS[key]),
+    ).toBe(true);
+    expect(TASK_CONTRACTS.reporting).toContain("founder_reports");
+    expect(TASK_CONTRACTS["alert-escalation"]).toContain("more than five");
+    expect(TASK_CONTRACTS["mon-inventory-monitor"]).toContain("do not infer stock");
     expect(BATCH_FOUR_AGENT_KEYS).toEqual([
       "mon-seo",
       "mon-social",
@@ -136,6 +161,20 @@ describe("VPS agent contract runner", () => {
     expect(() => normalizeDraft(" ")).toThrow(/empty/);
     expect(() => normalizeDraft("x".repeat(4_001))).toThrow(/4000/);
     expect(() => normalizeDraft("<script>alert(1)</script>")).toThrow(/markup/);
+  });
+
+  it("rejects unknown, duplicate, or empty selective retry rosters before database access", async () => {
+    const query = vi.fn();
+    await expect(runBatch(query as never, { agentKeys: [] })).rejects.toThrow(
+      /unique reviewed contract keys/,
+    );
+    await expect(
+      runBatch(query as never, { agentKeys: ["reporting", "reporting"] }),
+    ).rejects.toThrow(/unique reviewed contract keys/);
+    await expect(runBatch(query as never, { agentKeys: ["unreviewed-agent"] })).rejects.toThrow(
+      /unique reviewed contract keys/,
+    );
+    expect(query).not.toHaveBeenCalled();
   });
 
   it("fails closed before any task runs when a contract is missing or changed", async () => {

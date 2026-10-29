@@ -265,6 +265,27 @@ passed, six focused tests and scoped lint passed, PM2 is online, and local and
 public homepage checks returned HTTP 200. No customer-facing messages,
 notifications, refunds, product, or campaign changes were made.
 
+### Batch 5 monitoring and Batch 6 AI/data/research contracts (2026-10-29)
+
+Migrations `20261108T230000_monitoring_agent_batch_five.sql` and
+`20261108T231000_ai_data_research_agent_batch_six.sql` were dry-run
+transactionally and applied to VPS `sv_platform` only; Supabase was not used.
+The runner has 67 unique fixed contracts: 44 previously active agents plus
+23 new keys. Batch 5 includes six existing keys, and Batch 6 reuses the
+existing `reporting` key.
+
+Verification confirmed all 67 active contract agents had a latest
+`COMPLETED` governed run. The demo scanner checked five active URLs and each
+returned HTTP 200. Reporting persisted one `WEEKLY_SYSTEM_HEALTH` row with
+array-valued findings and recommendations. Sales follow-up results remain
+human-review drafts; no customer message was sent. The existing 15-minute
+root cron remains installed and loads the runner on each invocation.
+
+Validation: production build, full TypeScript check, seven focused runner
+tests, scoped ESLint, and `git diff --check` passed. PM2 processes were online
+and the public homepage returned HTTP 200. No application deployment or PM2
+restart was needed for this runner-and-migration change.
+
 AYRA chat uses the existing Vala AI stream;
 the banner's browser panel opens links in a new tab and states that remote
 browser control is not connected. No database rows were changed for this UI
