@@ -174,45 +174,340 @@ function ModelUsageChart({ usage }: { usage: Row[] }) {
   );
 }
 
+type VpsProviderAccount = NonNullable<
+  ReturnType<typeof useVpsApiAccounts>["data"]
+>["accounts"][number];
+type VpsProviderService = NonNullable<
+  ReturnType<typeof useVpsApiAccounts>["data"]
+>["services"][number];
+
+interface ProviderAccountDraft {
+  id: string;
+  afterId: string | null;
+  label: string;
+  secret: string;
+  serviceId: string;
+  environment: "production" | "staging" | "development";
+}
+
 function VpsProviderAccountsSection() {
   const accountsQuery = useVpsApiAccounts();
   const addAccount = useAddVpsApiAccount();
   const setStatus = useSetVpsApiAccountStatus();
   const checkEndpoint = useCheckVpsApiAccountEndpoint();
-  const [addingProviderId, setAddingProviderId] = useState<string | null>(null);
-  const [label, setLabel] = useState("");
-  const [serviceId, setServiceId] = useState("none");
-  const [environment, setEnvironment] = useState<"production" | "staging" | "development">(
-    "production",
+  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(() => new Set());
+  const [draftsByProvider, setDraftsByProvider] = useState<Record<string, ProviderAccountDraft[]>>(
+    {},
   );
-  const [secret, setSecret] = useState("");
   const data = accountsQuery.data;
-  const services =
-    data?.services.filter((service) => service.provider_id === addingProviderId) ?? [];
 
-  const resetForm = () => {
-    setLabel("");
-    setServiceId("none");
-    setEnvironment("production");
-    setSecret("");
-    setAddingProviderId(null);
+  const addDraft = (providerId: string, afterId: string | null) => {
+    const draft: ProviderAccountDraft = {
+      id: crypto.randomUUID(),
+      afterId,
+      label: "",
+      secret: "",
+      serviceId: "none",
+      environment: "production",
+    };
+    setDraftsByProvider((current) => ({
+      ...current,
+      [providerId]: [...(current[providerId] ?? []), draft],
+    }));
   };
 
-  const submit = () => {
-    if (!label.trim() || !addingProviderId || !secret.trim()) return;
+  const updateDraft = (
+    providerId: string,
+    draftId: string,
+    update: Partial<Omit<ProviderAccountDraft, "id" | "afterId">>,
+  ) => {
+    setDraftsByProvider((current) => ({
+      ...current,
+      [providerId]: (current[providerId] ?? []).map((draft) =>
+        draft.id === draftId ? { ...draft, ...update } : draft,
+      ),
+    }));
+  };
+
+  const removeDraft = (providerId: string, draftId: string) => {
+    setDraftsByProvider((current) => {
+      const drafts = current[providerId] ?? [];
+      const removed = drafts.find((draft) => draft.id === draftId);
+      if (!removed) return current;
+      return {
+        ...current,
+        [providerId]: drafts
+          .filter((draft) => draft.id !== draftId)
+          .map((draft) =>
+            draft.afterId === draftId ? { ...draft, afterId: removed.afterId } : draft,
+          ),
+      };
+    });
+  };
+
+  const toggleProvider = (providerId: string) => {
+    setExpandedProviders((current) => {
+      const next = new Set(current);
+      if (next.has(providerId)) next.delete(providerId);
+      else next.add(providerId);
+      return next;
+    });
+  };
+
+  const submitDraft = (providerId: string, draft: ProviderAccountDraft) => {
+    if (!draft.label.trim() || !draft.secret.trim()) return;
     addAccount.mutate(
       {
-        label: label.trim(),
-        providerId: addingProviderId,
-        serviceId: serviceId === "none" ? null : serviceId,
-        environment,
-        secret: secret.trim(),
+        label: draft.label.trim(),
+        providerId,
+        serviceId: draft.serviceId === "none" ? null : draft.serviceId,
+        environment: draft.environment,
+        secret: draft.secret.trim(),
       },
-      {
-        onSuccess: resetForm,
-      },
+      { onSuccess: () => removeDraft(providerId, draft.id) },
     );
   };
+
+  const getRows = (accounts: VpsProviderAccount[], drafts: ProviderAccountDraft[]) => {
+    const draftsByAnchor = new Map<string | null, ProviderAccountDraft[]>();
+    for (const draft of drafts) {
+      const anchored = draftsByAnchor.get(draft.afterId) ?? [];
+      anchored.push(draft);
+      draftsByAnchor.set(draft.afterId, anchored);
+    }
+    const rows: Array<
+      | { kind: "account"; id: string; account: (typeof accounts)[number] }
+      | { kind: "draft"; id: string; draft: ProviderAccountDraft }
+    > = [];
+    const appendDrafts = (afterId: string | null) => {
+      for (const draft of draftsByAnchor.get(afterId) ?? []) {
+        rows.push({ kind: "draft", id: draft.id, draft });
+        appendDrafts(draft.id);
+      }
+    };
+    for (const account of accounts) {
+      rows.push({ kind: "account", id: account.id, account });
+      appendDrafts(account.id);
+    }
+    appendDrafts(null);
+    return rows;
+  };
+
+  const renderAccount = (account: VpsProviderAccount, position: number, onAdd?: () => void) => (
+    <div
+      key={account.id}
+      className="flex min-w-0 items-start gap-2 rounded-md border border-border/50 p-2"
+    >
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+        {position}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">{account.label}</span>
+          <Badge
+            variant={account.status === "active" ? "default" : "outline"}
+            className={
+              account.status === "active"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                : undefined
+            }
+          >
+            {account.status}
+          </Badge>
+          <Badge
+            variant={
+              ["invalid", "expired", "unreachable"].includes(account.health_status)
+                ? "destructive"
+                : "secondary"
+            }
+            className={
+              account.health_status === "healthy"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                : account.health_status === "throttled"
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                  : undefined
+            }
+          >
+            {account.health_status}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            {account.environment} · •••• {account.last_four}
+          </span>
+        </div>
+        <p className="mt-1 truncate text-xs text-muted-foreground">
+          {account.provider_name ?? "Provider unavailable"}
+          {account.service_name ? ` · ${account.service_name}` : " · provider-wide"}
+          {account.failure_reason ? ` · ${account.failure_reason}` : ""}
+        </p>
+        {account.expires_at ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Expires {new Date(account.expires_at).toLocaleString()}
+          </p>
+        ) : null}
+        {account.last_checked_at ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Last provider-response health result{" "}
+            {new Date(account.last_checked_at).toLocaleString()}
+          </p>
+        ) : null}
+        {account.integrity_checked_at ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Encrypted-value integrity checked{" "}
+            {new Date(account.integrity_checked_at).toLocaleString()}; credential validity is not
+            implied.
+          </p>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-1">
+        {onAdd ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            aria-label={`Add key after ${account.label}`}
+            onClick={onAdd}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-[11px]"
+          disabled={checkEndpoint.isPending}
+          onClick={() => checkEndpoint.mutate({ accountId: account.id })}
+        >
+          <Activity /> Check
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-[11px]"
+          onClick={() =>
+            setStatus.mutate({
+              accountId: account.id,
+              status: account.status === "active" ? "inactive" : "active",
+            })
+          }
+        >
+          {account.status === "active" ? "Disable" : "Enable"}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderDraft = (
+    providerId: string,
+    providerName: string,
+    services: VpsProviderService[],
+    draft: ProviderAccountDraft,
+    position: number,
+  ) => (
+    <div
+      key={draft.id}
+      className="flex items-start gap-2 rounded-md border border-primary/30 bg-muted/20 p-2"
+    >
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
+        {position}
+      </span>
+      <div className="grid min-w-0 flex-1 gap-2 md:grid-cols-2">
+        <div>
+          <Label htmlFor={`account-label-${draft.id}`} className="text-xs">
+            Key Label
+          </Label>
+          <Input
+            id={`account-label-${draft.id}`}
+            className="h-8"
+            placeholder={`${providerName} Account ${position}`}
+            value={draft.label}
+            onChange={(event) => updateDraft(providerId, draft.id, { label: event.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor={`account-secret-${draft.id}`} className="text-xs">
+            Secret API Key
+          </Label>
+          <Input
+            id={`account-secret-${draft.id}`}
+            className="h-8"
+            type="password"
+            autoComplete="new-password"
+            value={draft.secret}
+            onChange={(event) => updateDraft(providerId, draft.id, { secret: event.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor={`account-service-${draft.id}`} className="text-xs">
+            Service
+          </Label>
+          <Select
+            value={draft.serviceId}
+            onValueChange={(serviceId) => updateDraft(providerId, draft.id, { serviceId })}
+          >
+            <SelectTrigger id={`account-service-${draft.id}`} className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Provider-wide credential</SelectItem>
+              {services.map((service) => (
+                <SelectItem key={service.id} value={service.id}>
+                  {service.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor={`account-environment-${draft.id}`} className="text-xs">
+            Environment
+          </Label>
+          <Select
+            value={draft.environment}
+            onValueChange={(environment) => {
+              if (
+                environment === "production" ||
+                environment === "staging" ||
+                environment === "development"
+              ) {
+                updateDraft(providerId, draft.id, { environment });
+              }
+            }}
+          >
+            <SelectTrigger id={`account-environment-${draft.id}`} className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="production">Production</SelectItem>
+              <SelectItem value="staging">Staging</SelectItem>
+              <SelectItem value="development">Development</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="flex shrink-0 flex-col gap-1">
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 px-2 text-xs"
+          disabled={addAccount.isPending || !draft.label.trim() || !draft.secret.trim()}
+          onClick={() => submitDraft(providerId, draft)}
+        >
+          {addAccount.isPending ? <Spinner /> : "Save"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          disabled={addAccount.isPending}
+          onClick={() => removeDraft(providerId, draft.id)}
+        >
+          Remove
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <GlassCard
@@ -221,227 +516,64 @@ function VpsProviderAccountsSection() {
       description="Accounts are stored in VPS Postgres. Endpoint checks never send a credential; valid status is based on actual provider responses."
     >
       {data?.providers.length ? (
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {data.providers.map((item) => {
-            const providerAccounts = data.accounts.filter(
-              (account) => account.provider_id === item.id,
-            );
-            const count = providerAccounts.length;
-            const isAdding = addingProviderId === item.id;
+        <div className="space-y-2">
+          {data.providers.map((provider) => {
+            const accounts = data.accounts.filter((account) => account.provider_id === provider.id);
+            const drafts = draftsByProvider[provider.id] ?? [];
+            const rows = getRows(accounts, drafts);
+            const services = data.services.filter((service) => service.provider_id === provider.id);
+            const expanded = expandedProviders.has(provider.id);
+            const lastRow = rows.at(-1);
+            const appendAfter = lastRow?.id ?? null;
             return (
-              <div key={item.id} className="space-y-3 rounded-lg border border-border/60 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {count} credential account{count === 1 ? "" : "s"}
-                    </p>
-                  </div>
+              <section
+                key={provider.id}
+                className="overflow-hidden rounded-lg border border-border/60"
+              >
+                <div className="flex min-h-12 items-center gap-3 px-3 py-2">
+                  <p className="min-w-0 flex-1 truncate font-medium">{provider.name}</p>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    Accounts: {accounts.length}
+                  </span>
                   <Button
                     type="button"
                     size="icon"
                     variant="outline"
                     className="h-8 w-8 shrink-0"
-                    aria-label={`${isAdding ? "Close" : "Add"} account for ${item.name}`}
-                    aria-expanded={isAdding}
-                    disabled={addAccount.isPending}
-                    onClick={() => {
-                      if (isAdding) {
-                        resetForm();
-                      } else {
-                        setLabel("");
-                        setServiceId("none");
-                        setEnvironment("production");
-                        setSecret("");
-                        setAddingProviderId(item.id);
-                      }
-                    }}
+                    aria-label={`${expanded ? "Collapse" : "Expand"} ${provider.name} accounts`}
+                    aria-expanded={expanded}
+                    onClick={() => toggleProvider(provider.id)}
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus
+                      className={`h-4 w-4 transition-transform ${expanded ? "rotate-45" : ""}`}
+                    />
                   </Button>
                 </div>
-                {providerAccounts.length ? (
-                  <div className="space-y-2">
-                    {providerAccounts.map((account) => (
-                      <div
-                        key={account.id}
-                        className="flex flex-col gap-3 rounded-md border border-border/50 p-3 lg:flex-row lg:items-center lg:justify-between"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium">{account.label}</span>
-                            <Badge
-                              variant={account.status === "active" ? "default" : "outline"}
-                              className={
-                                account.status === "active"
-                                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                                  : undefined
-                              }
-                            >
-                              {account.status}
-                            </Badge>
-                            <Badge
-                              variant={
-                                ["invalid", "expired", "unreachable"].includes(
-                                  account.health_status,
-                                )
-                                  ? "destructive"
-                                  : "secondary"
-                              }
-                              className={
-                                account.health_status === "healthy"
-                                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                                  : account.health_status === "throttled"
-                                    ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-                                    : undefined
-                              }
-                            >
-                              {account.health_status}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {account.environment} · •••• {account.last_four}
-                            </span>
-                          </div>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">
-                            {account.provider_name ?? "Provider unavailable"}
-                            {account.service_name
-                              ? ` · ${account.service_name}`
-                              : " · provider-wide"}
-                            {account.failure_reason ? ` · ${account.failure_reason}` : ""}
-                          </p>
-                          {account.expires_at ? (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Expires {new Date(account.expires_at).toLocaleString()}
-                            </p>
-                          ) : null}
-                          {account.last_checked_at ? (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Last provider-response health result{" "}
-                              {new Date(account.last_checked_at).toLocaleString()}
-                            </p>
-                          ) : null}
-                          {account.integrity_checked_at ? (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Encrypted-value integrity checked{" "}
-                              {new Date(account.integrity_checked_at).toLocaleString()}; credential
-                              validity is not implied.
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="flex shrink-0 flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={checkEndpoint.isPending}
-                            onClick={() => checkEndpoint.mutate({ accountId: account.id })}
-                          >
-                            <Activity /> Check endpoint
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              setStatus.mutate({
-                                accountId: account.id,
-                                status: account.status === "active" ? "inactive" : "active",
-                              })
-                            }
-                          >
-                            {account.status === "active" ? "Disable" : "Enable"}
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                    No credential accounts for this provider yet.
-                  </p>
-                )}
-                {isAdding ? (
-                  <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
-                    <div>
-                      <Label htmlFor={`vps-account-label-${item.id}`}>Key Label</Label>
-                      <Input
-                        id={`vps-account-label-${item.id}`}
-                        placeholder={`${item.name} Account ${count + 1}`}
-                        value={label}
-                        onChange={(event) => setLabel(event.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor={`vps-account-secret-${item.id}`}>Secret API Key</Label>
-                      <Input
-                        id={`vps-account-secret-${item.id}`}
-                        type="password"
-                        autoComplete="new-password"
-                        value={secret}
-                        onChange={(event) => setSecret(event.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor={`vps-account-service-${item.id}`}>Service (optional)</Label>
-                      <Select value={serviceId} onValueChange={setServiceId}>
-                        <SelectTrigger
-                          id={`vps-account-service-${item.id}`}
-                          aria-label={`${item.name} service`}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Provider-wide credential</SelectItem>
-                          {services.map((service) => (
-                            <SelectItem key={service.id} value={service.id}>
-                              {service.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor={`vps-account-environment-${item.id}`}>Environment</Label>
-                      <Select
-                        value={environment}
-                        onValueChange={(value) => {
-                          if (
-                            value === "production" ||
-                            value === "staging" ||
-                            value === "development"
-                          ) {
-                            setEnvironment(value);
-                          }
-                        }}
-                      >
-                        <SelectTrigger
-                          id={`vps-account-environment-${item.id}`}
-                          aria-label="VPS credential environment"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="production">Production</SelectItem>
-                          <SelectItem value="staging">Staging</SelectItem>
-                          <SelectItem value="development">Development</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={resetForm}>
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={submit}
-                        disabled={addAccount.isPending || !label.trim() || !secret.trim()}
-                      >
-                        {addAccount.isPending ? <Spinner /> : null}
-                        Save
-                      </Button>
-                    </div>
+                {expanded ? (
+                  <div className="space-y-2 border-t border-border/60 bg-muted/10 p-3">
+                    {rows.length ? (
+                      rows.map((row, index) =>
+                        row.kind === "account"
+                          ? renderAccount(row.account, index + 1, () =>
+                              addDraft(provider.id, row.id),
+                            )
+                          : renderDraft(provider.id, provider.name, services, row.draft, index + 1),
+                      )
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No keys added yet.</p>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => addDraft(provider.id, appendAfter)}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add another key
+                    </Button>
                   </div>
                 ) : null}
-              </div>
+              </section>
             );
           })}
         </div>
@@ -456,96 +588,11 @@ function VpsProviderAccountsSection() {
         </div>
       ) : null}
       {data?.accounts.some((account) => account.provider_id === null) ? (
-        <div className="mb-4 space-y-2">
+        <div className="mt-4 space-y-2">
           <p className="text-sm font-medium">Accounts without a registered provider</p>
           {data.accounts
             .filter((account) => account.provider_id === null)
-            .map((account) => (
-              <div
-                key={account.id}
-                className="flex flex-col gap-3 rounded-md border border-border/50 p-3 lg:flex-row lg:items-center lg:justify-between"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{account.label}</span>
-                    <Badge
-                      variant={account.status === "active" ? "default" : "outline"}
-                      className={
-                        account.status === "active"
-                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                          : undefined
-                      }
-                    >
-                      {account.status}
-                    </Badge>
-                    <Badge
-                      variant={
-                        ["invalid", "expired", "unreachable"].includes(account.health_status)
-                          ? "destructive"
-                          : "secondary"
-                      }
-                      className={
-                        account.health_status === "healthy"
-                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                          : account.health_status === "throttled"
-                            ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-                            : undefined
-                      }
-                    >
-                      {account.health_status}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {account.environment} · •••• {account.last_four}
-                    </span>
-                  </div>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {account.provider_name ?? "Provider unavailable"}
-                    {account.service_name ? ` · ${account.service_name}` : " · provider-wide"}
-                    {account.failure_reason ? ` · ${account.failure_reason}` : ""}
-                  </p>
-                  {account.expires_at ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Expires {new Date(account.expires_at).toLocaleString()}
-                    </p>
-                  ) : null}
-                  {account.last_checked_at ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Last provider-response health result{" "}
-                      {new Date(account.last_checked_at).toLocaleString()}
-                    </p>
-                  ) : null}
-                  {account.integrity_checked_at ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Encrypted-value integrity checked{" "}
-                      {new Date(account.integrity_checked_at).toLocaleString()}; credential validity
-                      is not implied.
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={checkEndpoint.isPending}
-                    onClick={() => checkEndpoint.mutate({ accountId: account.id })}
-                  >
-                    <Activity /> Check endpoint
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setStatus.mutate({
-                        accountId: account.id,
-                        status: account.status === "active" ? "inactive" : "active",
-                      })
-                    }
-                  >
-                    {account.status === "active" ? "Disable" : "Enable"}
-                  </Button>
-                </div>
-              </div>
-            ))}
+            .map((account, index) => renderAccount(account, index + 1))}
         </div>
       ) : null}
     </GlassCard>
