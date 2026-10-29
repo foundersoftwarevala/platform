@@ -4,7 +4,7 @@ import { safeFetch } from "../src/lib/demo/safe-fetch.server.ts";
 import { scoreLead } from "../src/lib/marketplace/lead-intake.ts";
 
 export const BATCH_DELAY_MS = 5_000;
-export const TASK_CONTRACTS = Object.freeze({
+export const TASK_CONTRACTS = {
   "demo-scanner":
     "Read up to five active public.product_demo_urls rows, make bounded SSRF-guarded HTTP GET checks without using stored credentials, save status/timing/check time to the existing demo URL health fields, and record each outcome in ai_agent_runs. Never activate or otherwise modify a demo.",
   "support-reply-drafter":
@@ -139,7 +139,204 @@ export const TASK_CONTRACTS = Object.freeze({
     "Read unresolved support tickets and report any breached SLA flag, negative remaining minutes, or age above 24 hours. Record bounded references in ai_agent_runs; never reply, notify, or alter tickets.",
   "alert-escalation":
     "Count unresolved HIGH/CRITICAL founder_attention items. If more than five exist, create one deduplicated CRITICAL internal founder_attention alert; never send external notifications or change existing alerts.",
+};
+
+const BATCH_SEVEN_SCOPES = Object.freeze({
+  "customer-success": { domain: "customer support", tables: ["support_tickets"] },
+  "demo-brand-compliance": {
+    domain: "brand and legal metadata",
+    tables: ["legal_documents", "marketplace_products"],
+  },
+  "demo-health": { domain: "demo health", tables: ["demo_health", "product_demo_urls"] },
+  "demo-intake": { domain: "demo intake", tables: ["demo_requests"] },
+  "demo-intelligence": { domain: "demo analytics", tables: ["demo_analytics", "demos"] },
+  "demo-marketplace-matching": {
+    domain: "marketplace matching",
+    tables: ["marketplace_products", "marketplace_categories"],
+  },
+  "demo-sync": { domain: "demo synchronization", tables: ["demo_sandbox_jobs", "demo_sandboxes"] },
+  "inventory-operations": {
+    domain: "inventory operations",
+    tables: [],
+    limitation:
+      "No authoritative inventory relation was verified; inventory levels cannot be inferred.",
+  },
+  "marketing-intelligence": {
+    domain: "marketing activity",
+    tables: ["marketing_campaigns", "marketing_leads"],
+  },
+  "mon-approval-monitor": { domain: "approval workflow", tables: ["founder_decisions"] },
+  "mon-author": {
+    domain: "author submissions",
+    tables: ["author_submissions", "author_approval_evidence"],
+  },
+  "mon-automation": { domain: "agent run operations", tables: ["ai_agent_runs"] },
+  "mon-commission": {
+    domain: "commission records",
+    tables: ["finance_commissions", "marketplace_commissions"],
+  },
+  "mon-company-brain-monitor": { domain: "founder knowledge", tables: ["founder_knowledge"] },
+  "mon-developer": { domain: "developer tasks", tables: ["developer_tasks", "tm_tasks"] },
+  "mon-finance": {
+    domain: "finance activity",
+    tables: ["marketplace_orders", "finance_commissions"],
+  },
+  "mon-franchise": { domain: "franchise records", tables: ["franchises", "franchise_contracts"] },
+  "mon-goal-monitor": { domain: "company goals", tables: ["founder_goals"] },
+  "mon-influencer": {
+    domain: "influencer records",
+    tables: ["influencer_profiles", "influencer_campaign_assignments"],
+  },
+  "mon-integration": {
+    domain: "service integrations",
+    tables: ["api_integrations", "api_services"],
+  },
+  "mon-kpi-monitor": { domain: "reporting records", tables: ["founder_reports"] },
+  "mon-lead": { domain: "lead pipeline", tables: ["leads", "lead_scores"] },
+  "mon-legal": { domain: "legal records", tables: ["legal_documents", "legal_policies"] },
+  "mon-license": { domain: "license records", tables: ["marketplace_licenses", "licenses"] },
+  "mon-marketplace": {
+    domain: "marketplace activity",
+    tables: ["marketplace_products", "marketplace_sellers", "marketplace_orders"],
+  },
+  "mon-product-demo": {
+    domain: "product demo records",
+    tables: ["product_demo_urls", "demo_requests"],
+  },
+  "mon-promise": { domain: "promise records", tables: ["pm_promises", "promises"] },
+  "mon-renewal": {
+    domain: "renewal activity",
+    tables: ["server_subscriptions", "finance_subscriptions"],
+  },
+  "mon-reseller": { domain: "reseller records", tables: ["resellers", "reseller_memberships"] },
+  "mon-revenue": { domain: "revenue records", tables: ["marketplace_orders"] },
+  "mon-sales": { domain: "sales pipeline", tables: ["leads", "sales_leads"] },
+  "mon-subscription": {
+    domain: "subscription records",
+    tables: ["server_subscriptions", "finance_subscriptions"],
+  },
+  "mon-support": { domain: "support workload", tables: ["support_tickets"] },
+  "mon-task": { domain: "task operations", tables: ["tm_tasks", "tm_activity"] },
+  "mon-user": { domain: "user account metadata", tables: ["profiles", "user_roles"] },
+  "product-intelligence": {
+    domain: "product catalog",
+    tables: ["marketplace_products", "marketplace_product_pricing", "marketplace_order_items"],
+  },
+  "sales-affiliate-sales": {
+    domain: "affiliate sales metadata",
+    tables: ["leads", "marketplace_commissions"],
+  },
+  "sales-africa": { domain: "Africa sales metadata", tables: ["leads"] },
+  "sales-agency-sales": { domain: "agency sales metadata", tables: ["leads"] },
+  "sales-channel-sales": { domain: "channel sales metadata", tables: ["leads", "lead_sources"] },
+  "sales-checkout-recovery": {
+    domain: "checkout recovery",
+    tables: ["leads"],
+    limitation:
+      "No verified checkout-session or abandonment relation was found; lead counts do not measure checkout drop-off.",
+  },
+  "sales-competitive-intelligence": {
+    domain: "competitive intelligence",
+    tables: ["marketplace_products"],
+    limitation:
+      "No verified competitor data source was found; catalog counts are not competitor observations.",
+  },
+  "sales-crm-sales": { domain: "CRM sales pipeline", tables: ["leads", "lead_activities"] },
+  "sales-customer-expansion": {
+    domain: "customer expansion",
+    tables: ["server_subscriptions", "profiles"],
+  },
+  "sales-customer-reactivation": {
+    domain: "customer reactivation",
+    tables: ["server_subscriptions", "profiles"],
+  },
+  "sales-dormant-customer": {
+    domain: "dormant customer metadata",
+    tables: ["server_subscriptions", "profiles"],
+  },
+  "sales-education-sales": { domain: "education sales metadata", tables: ["leads"] },
+  "sales-enterprise-account": {
+    domain: "enterprise sales",
+    tables: ["leads"],
+    limitation: "No verified employee-count field was found; enterprise size cannot be inferred.",
+  },
+  "sales-erp-sales": { domain: "ERP sales metadata", tables: ["leads", "marketplace_products"] },
+  "sales-europe": { domain: "Europe sales metadata", tables: ["leads"] },
+  "sales-franchise-recruitment": {
+    domain: "franchise recruitment",
+    tables: ["franchise_applications", "franchise_leads"],
+  },
+  "sales-franchise-sales": { domain: "franchise sales", tables: ["franchise_leads", "franchises"] },
+  "sales-high-value-lead": { domain: "high-value lead metadata", tables: ["leads", "lead_scores"] },
+  "sales-inbound-sales": { domain: "inbound sales", tables: ["leads", "lead_sources"] },
+  "sales-india": { domain: "India sales metadata", tables: ["leads"] },
+  "sales-international-sales": { domain: "international sales metadata", tables: ["leads"] },
+  "sales-latin-america": { domain: "Latin America sales metadata", tables: ["leads"] },
+  "sales-localization-sales": { domain: "localization sales metadata", tables: ["leads"] },
+  "sales-lost-lead-recovery": {
+    domain: "lost-lead recovery metadata",
+    tables: ["leads", "lead_activities"],
+  },
+  "sales-middle-east": { domain: "Middle East sales metadata", tables: ["leads"] },
+  "sales-negotiation-support": { domain: "negotiation pipeline metadata", tables: ["leads"] },
+  "sales-north-america": { domain: "North America sales metadata", tables: ["leads"] },
+  "sales-offline-software-sales": {
+    domain: "offline software sales metadata",
+    tables: ["leads", "marketplace_products"],
+    limitation:
+      "No verified offline-capability field was found; offline compatibility cannot be inferred.",
+  },
+  "sales-outbound-sales": {
+    domain: "outbound sales metadata",
+    tables: ["leads", "lead_activities"],
+  },
+  "sales-partner-sales": { domain: "partner sales metadata", tables: ["resellers", "leads"] },
+  "sales-pos-sales": { domain: "POS sales metadata", tables: ["leads", "marketplace_products"] },
+  "sales-quotation": {
+    domain: "quotation metadata",
+    tables: ["leads", "marketplace_product_pricing"],
+  },
+  "sales-referral-sales": { domain: "referral sales metadata", tables: ["leads", "lead_sources"] },
+  "sales-regional-sales-intelligence": {
+    domain: "regional sales metadata",
+    tables: ["leads", "lead_sources"],
+  },
+  "sales-reseller-recruitment": {
+    domain: "reseller recruitment",
+    tables: ["resellers", "reseller_memberships", "leads"],
+  },
+  "sales-review-management-sales": {
+    domain: "review management metadata",
+    tables: ["marketplace_reviews", "leads"],
+  },
+  "sales-saas-sales": { domain: "SaaS sales metadata", tables: ["server_subscriptions", "leads"] },
+  "sales-sales-analytics": {
+    domain: "sales analytics metadata",
+    tables: ["leads", "marketplace_orders"],
+  },
+  "sales-software-sales": {
+    domain: "software sales metadata",
+    tables: ["marketplace_products", "leads"],
+  },
+  "sales-southeast-asia": { domain: "Southeast Asia sales metadata", tables: ["leads"] },
 });
+
+function batchSevenContract(scope) {
+  const sources = scope.tables.length
+    ? scope.tables.map((table) => `public.${table}`).join(", ")
+    : "no verified domain relation is available";
+  const limitation = scope.limitation ? ` Limitation: ${scope.limitation}` : "";
+  return `Read-only approximate relation-count summary for ${scope.domain}. Inspect PostgreSQL catalog estimates for these sources only: ${sources}. Send only relation names and estimated row counts to local Ollama and record a bounded summary in ai_agent_runs. Do not read business rows or personal data, write business data, contact users, call external services, or execute jobs.${limitation}`;
+}
+
+export const BATCH_SEVEN_AGENT_KEYS = Object.freeze(Object.keys(BATCH_SEVEN_SCOPES));
+export const BATCH_SEVEN_TASK_CONTRACTS = Object.freeze(
+  Object.fromEntries(
+    Object.entries(BATCH_SEVEN_SCOPES).map(([key, scope]) => [key, batchSevenContract(scope)]),
+  ),
+);
+Object.assign(TASK_CONTRACTS, BATCH_SEVEN_TASK_CONTRACTS);
+Object.freeze(TASK_CONTRACTS);
 
 export const BATCH_THREE_AGENT_KEYS = Object.freeze([
   "sales-lead-qualification",
@@ -559,6 +756,12 @@ const AGENTS = [
     action: "escalate_founder_alerts",
     run: runAlertEscalation,
   },
+  ...BATCH_SEVEN_AGENT_KEYS.map((key) => ({
+    key,
+    permission: "READ",
+    action: "summarize_domain_relation_metadata",
+    run: runBatchSevenMetadata,
+  })),
 ];
 
 export function assertVpsDatabaseUrl(raw) {
@@ -652,6 +855,47 @@ async function draftWithOllama({ system, prompt }) {
   const body = await response.json();
   const draft = normalizeDraft(body?.message?.content);
   return { draft, model };
+}
+
+async function runBatchSevenMetadata(db, agent) {
+  const scope = BATCH_SEVEN_SCOPES[agent.agent_key];
+  if (!scope) throw new Error(`No fixed metadata scope exists for ${agent.agent_key}.`);
+
+  const relations = scope.tables.length
+    ? await db`
+        select c.relname as relation,
+               case when c.reltuples >= 0 then c.reltuples::bigint else null end as estimated_rows
+          from pg_catalog.pg_class c
+          join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+         where n.nspname = 'public'
+           and c.relname = any(${scope.tables})
+           and c.relkind in ('r', 'p', 'm')
+         order by c.relname
+      `
+    : [];
+  const observed = new Set(relations.map((relation) => relation.relation));
+  const unavailable = scope.tables.filter((table) => !observed.has(table));
+  const evidence = {
+    domain: scope.domain,
+    relation_estimates: relations.map(({ relation, estimated_rows }) => ({
+      relation: `public.${relation}`,
+      estimated_rows,
+      approximate: true,
+    })),
+    unavailable_relations: unavailable.map((table) => `public.${table}`),
+    limitation: scope.limitation ?? null,
+  };
+  const { draft, model } = await draftWithOllama({
+    system:
+      "Summarize only the supplied PostgreSQL relation names and approximate row-count estimates. Do not infer business performance, risk, compliance, customer behavior, or missing facts from row counts. Explicitly say when evidence is unavailable. Use no external tools, make no recommendations that require unseen data, and keep the summary under 600 characters.",
+    prompt: JSON.stringify(evidence),
+  });
+  return {
+    action: "read_only_relation_metadata_summary",
+    ...evidence,
+    summary: draft,
+    model,
+  };
 }
 
 async function openRun(db, agent, permission, action) {

@@ -290,6 +290,39 @@ tests, scoped ESLint, and `git diff --check` passed. PM2 processes were online
 and the public homepage returned HTTP 200. No application deployment or PM2
 restart was needed for this runner-and-migration change.
 
+### Remaining agent metadata-only contracts (2026-10-29)
+
+The VPS-only migration
+`20261108T232000_remaining_agent_metadata_contracts.sql` was applied to
+`sv_platform` and re-run inside a rolled-back transaction to verify its
+no-op/idempotent path. A read-only audit found 142 active agents, not the
+estimated 141: 67 already had reviewed contracts and 75 did not. The 75 now
+have exact contracts and `AVAILABLE` lifecycle; all 142 active agents have a
+nonempty contract. No `tools`, model assignments, business records, or
+permissions were changed, and Supabase was not accessed.
+
+The new contracts are strictly read-only metadata summaries. Their fixed
+relation allowlists query PostgreSQL catalog row-count estimates only; no
+business-table rows are selected. Local Ollama receives relation names and
+approximate counts, and its summaries are not evidence of actual customer,
+financial, security, compliance, or system-health conditions. Missing or
+unverified source data is reported as unavailable. No emails, messages,
+alerts, or other business actions are sent or performed.
+
+The initial process had loaded the earlier 67-key roster: it completed 66
+keys and `mon-customer` timed out. A serialized catch-up then completed 76/76
+selected keys (the 75 new metadata agents plus a `mon-customer` retry); a
+VPS query confirmed completed governed runs for all 142 distinct active
+agents. The runner's advisory lock refused an overlapping cron invocation.
+The existing 15-minute cron remains installed.
+
+Validation: the production build passed, full `npx tsc --noEmit -p .`
+completed with exit code 0, seven focused runner tests passed, and scoped
+ESLint plus `git diff --check` passed. The in-place build temporarily
+interrupted the live app; the preserved prior `.output` was restored and
+PM2/local/public HTTP health returned online/200. The runner itself executed
+from the VPS working tree; no new web-app bundle was released.
+
 AYRA chat uses the existing Vala AI stream;
 the banner's browser panel opens links in a new tab and states that remote
 browser control is not connected. No database rows were changed for this UI

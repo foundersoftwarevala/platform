@@ -7,6 +7,7 @@ import {
   BATCH_FOUR_AGENT_KEYS,
   BATCH_FIVE_AGENT_KEYS,
   BATCH_SIX_AGENT_KEYS,
+  BATCH_SEVEN_AGENT_KEYS,
   leadScore,
   extractStoredLinks,
   normalizeDraft,
@@ -29,7 +30,26 @@ describe("VPS agent contract runner", () => {
   });
 
   it("limits execution to reviewed contracts and spaces runs by five seconds", () => {
-    expect(Object.keys(TASK_CONTRACTS)).toHaveLength(67);
+    expect(Object.keys(TASK_CONTRACTS)).toHaveLength(142);
+    expect(BATCH_SEVEN_AGENT_KEYS).toHaveLength(75);
+    expect(BATCH_SEVEN_AGENT_KEYS.every((key) => TASK_CONTRACTS[key])).toBe(true);
+    expect(
+      BATCH_SEVEN_AGENT_KEYS.every((key) => {
+        const contract = TASK_CONTRACTS[key];
+        return (
+          contract.startsWith("Read-only approximate relation-count summary") &&
+          contract.includes("local Ollama") &&
+          contract.includes("Do not read business rows or personal data")
+        );
+      }),
+    ).toBe(true);
+    expect(BATCH_SEVEN_AGENT_KEYS).toContain("inventory-operations");
+    expect(TASK_CONTRACTS["inventory-operations"]).toContain(
+      "No authoritative inventory relation was verified",
+    );
+    expect(TASK_CONTRACTS["sales-competitive-intelligence"]).toContain(
+      "No verified competitor data source was found",
+    );
     expect(BATCH_FIVE_AGENT_KEYS).toEqual([
       "mon-website",
       "mon-api",
