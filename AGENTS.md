@@ -274,12 +274,16 @@ The runner has 67 unique fixed contracts: 44 previously active agents plus
 23 new keys. Batch 5 includes six existing keys, and Batch 6 reuses the
 existing `reporting` key.
 
-Verification confirmed all 67 active contract agents had a latest
-`COMPLETED` governed run. The demo scanner checked five active URLs and each
-returned HTTP 200. Reporting persisted one `WEEKLY_SYSTEM_HEALTH` row with
-array-valued findings and recommendations. Sales follow-up results remain
-human-review drafts; no customer message was sent. The existing 15-minute
-root cron remains installed and loads the runner on each invocation.
+The fixed runner completed a full **67/67** cycle. All 15 Batch 5 keys and all
+15 Batch 6 keys have latest `COMPLETED` results. The demo scanner checked five
+active URLs and each returned HTTP 200. Reporting persisted one
+`WEEKLY_SYSTEM_HEALTH` row with array-valued findings and recommendations.
+Sales follow-up results remain human-review drafts; no customer message was
+sent. A separate existing `fa_jobs` task for `demo-scanner` later failed with
+HTTP 403; it was not created by this fixed runner and its queue state was not
+changed. At that verification, 66/67 active contract agents had latest
+`COMPLETED` states because of that separate failed run. The existing
+15-minute root cron remains installed and loads the runner on each invocation.
 
 Validation: production build, full TypeScript check, seven focused runner
 tests, scoped ESLint, and `git diff --check` passed. PM2 processes were online
