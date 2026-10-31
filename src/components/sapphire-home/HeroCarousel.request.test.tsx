@@ -29,11 +29,13 @@ vi.mock("@tanstack/react-query", () => ({
 import HeroCarousel from "./HeroCarousel";
 afterEach(cleanup);
 
-it("connects the actual homepage to the sapphire hero, not the unused marketplace copy", () => {
+it("connects the actual homepage to Sapphire and preserves its banners", () => {
   const route = readFileSync(resolve("src", "routes", "index.tsx"), "utf8");
   const home = readFileSync(resolve("src", "components", "sapphire-home", "HomeIndex.tsx"), "utf8");
   expect(route).toContain('from "@/components/sapphire-home/HomeIndex"');
   expect(home).toContain('from "@/components/sapphire-home/HeroCarousel"');
+  expect(home).toContain("<FestiveBanner />");
+  expect(home).toContain("<FeatureStrip />");
   expect(home).toContain("<HeroCarousel />");
 });
 

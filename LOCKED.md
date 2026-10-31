@@ -1,65 +1,67 @@
-# LOCKED — Marketplace Homepage and Marketplace Manager
+# LOCKED — Sapphire Homepage and Marketplace Manager
 
-This is the approved copy of the storefront. The design in these files is final;
-work on them connects them to real data, it does not redesign them.
+The approved public homepage is the premium Sapphire storefront shown at `/`.
+Its header, announcements, hero, 3D product cards, product rows, social sharing,
+and footer are locked. Connect and repair existing data flows; do not redesign,
+replace, remove, or duplicate the homepage.
 
-    tag: marketplace-locked-20260908   (the approved design)
+## The one homepage
 
-## The one marketplace
+There is one active public homepage: `src/routes/index.tsx` renders
+`src/components/sapphire-home/HomeIndex.tsx` with
+`src/styles/sapphire-home.css`. `/marketplace/` redirects to `/`; the Marketplace
+Manager, product pages, category pages, APIs, and catalogue remain available.
+Do not reactivate the retired Marketplace homepage at `/`.
 
-There is one marketplace homepage, one catalogue data flow, one search and one
-category system. If you are looking for "the other version" of any of these,
-there is none.
+| What                                | Where                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------ |
+| Homepage route                      | `src/routes/index.tsx`                                                         |
+| Homepage sections and product cards | `src/components/sapphire-home/*`                                               |
+| Homepage visual system              | `src/styles/sapphire-home.css`                                                 |
+| Static seeded demo cards            | `allDemos` in `src/data/catalogue.ts`                                          |
+| Country catalogue cards             | `fetchCountryRail` in `src/lib/marketplace/country-rail.ts`                    |
+| Product and demo destinations       | Existing `/marketplace/product/<slug>` and `/demo/<slug>` routes               |
+| Marketplace administration          | `src/components/marketplace-manager/` and `src/routes/marketplace-manager.tsx` |
 
-| What | Where |
-|---|---|
-| Homepage | `src/components/marketplace-home/HomeIndex.tsx`, served at `/` (`src/routes/index.tsx`) and `/marketplace` (`src/routes/marketplace.index.tsx`) with the same loader |
-| Homepage sections | `src/components/marketplace-home/*` (RefSections, CategorySlider, HeroCarousel, TopUtilityBar, …) |
-| First page of rows (server-rendered) | `getHomeCatalog` in `src/lib/marketplace/home-catalog.functions.ts` |
-| Later rows and "load more" | `/api/marketplace/catalog` |
-| The catalogue reader behind both | `src/lib/marketplace/catalog.server.ts` (applies the manager's row configuration, schedules and hand-placed order) |
-| The product card | `src/lib/marketplace/catalog-card.ts` (`CARD_FIELDS`, `toCard`, `CatalogCard`), drawn by `DemoCard` in `HomeIndex.tsx` |
-| Search | `/api/marketplace/search` — the homepage box (`format=cards`) and the AI finder / recommend / compare tools |
-| Categories | table `marketplace_categories`: homepage rows, the category strip and the industry grid (`/api/marketplace/rows`), category pages (`/marketplace/category/<slug>`) |
-| Products | table `marketplace_products` (public = `visible` and `content_status = published`) |
-| Homepage layout | table `marketplace_homepage_sections` via `mm_homepage_sections`; edited in Marketplace Manager → Layout Order |
-| Hero slides | table `home_hero_slides`: storefront `src/lib/marketplace-content/hero.functions.ts`, manager `src/lib/hero-slides.ts` |
-| Catalogue admin | Marketplace Manager → Products / Categories / Layout Order, through the server functions in `src/lib/marketplace.functions.ts` |
+## Permanent homepage rules
 
-The Marketplace Manager is `src/components/marketplace-manager/` with its route
-`src/routes/marketplace-manager.tsx` — the workspace the Control Panel sidebar
-opens. No second shell, sidebar or section router.
+1. **One active homepage.** The Sapphire route above is canonical. Preserve its
+   Login/navigation, announcement and feature banners, hero, product details,
+   Features and Tech Stack tabs, Live Demo, Buy Now, square social-share menu,
+   lower sections, links, forms, and footer.
+2. **Exactly 100 cards in each populated product row.** The shared
+   `HOMEPAGE_CARDS_PER_ROW`/`fillProductRail` contract is covered by
+   `src/lib/marketplace/product-rail.test.ts`. Repeat only existing real cards
+   to fill a short row. When a source row has more than 100 products, keep live
+   demo products first and cap only the homepage presentation. Do not delete,
+   rewrite, or lose catalogue records, details, or active demo URLs; overflow
+   remains in the catalogue and its existing routes.
+3. **Country cards share the same 100-card limit.** They can use only remaining
+   row capacity; do not append a second unbounded rail to a full row.
+4. **No duplicate implementations.** Keep one homepage route, one Sapphire
+   card implementation, and the existing Marketplace Manager and catalogue.
+   Do not add a parallel homepage or a second version of a component.
+5. **Preserve source data and routes.** Card selection changes only what is
+   visible in this homepage row. It never removes products or changes their
+   destinations, demo URLs, business data, or permissions.
+6. **Keep the approved visual identity.** Preserve the current Sapphire colors,
+   3D depth, card sizing, responsive behavior, banners, and social menu. A
+   requested functional repair is not permission for an unrelated redesign.
+7. **Protect this code in GitHub.** Changes to the homepage route, Sapphire
+   components/styles, row-limit helper, and this lock require a reviewed PR
+   from the designated code owner. GitHub branch protection is the enforcement
+   mechanism; repository instructions/tests are not a security boundary.
 
-## Rules
+The Marketplace Manager remains `src/components/marketplace-manager/` with its
+existing route and server functions. Do not delete or merge its modules into
+the public homepage.
 
-1. **One of each.** One homepage, one catalogue reader, one card, one search,
-   one category system. Extend them; never add a parallel one.
-2. **No copies.** Do not create `X.new.tsx`, `X-v2.tsx`, `XCanonical.tsx`, a
-   `.backup`, an `/old` or `/legacy` folder, or an archive in the repository.
-   Git holds every previous version. A duplicate or obsolete implementation,
-   once its useful parts are migrated and nothing depends on it, is deleted
-   outright — not archived, renamed or commented out.
-3. **Real data only.** Products, categories, counts and prices come from the
-   database. No product list, category list or number is written into a page.
-4. **The UI is the specification.** Connect the design to real data; do not
-   redesign it, and do not substitute a component for one written from scratch.
-5. **Colour: density may change, hue may not.** The depth layer at the end of
-   `marketplace-home.css` raises saturation, contrast and shadow depth only.
-6. **Server functions return serialisable types.** The catalogue server
-   functions in `src/lib/marketplace.functions.ts` type JSON columns as `Json`
-   (`features`, `seo.schema_json`), never `unknown`; an `unknown` there makes
-   the product page and demo routes lose their types.
-7. **Demo numbering belongs to the rendered category.** Number distinct active
-   cards with a demo gateway link from 1, including existing `/demo/...` URLs.
-   Country cards continue after that category's static demos; filtered rows
-   restart at 1. Carousel copies do not receive duplicate number badges.
+## Verification before changing the homepage
 
-The standalone `src/lib/marketplace-recovery.functions.ts` was a copy of
-`recoverMarketplaceData` and was removed on 2026-10-11; the recovery route uses
-the one in `src/lib/marketplace.functions.ts`. Repository-wide notes (types,
-migrations, known bugs) are in [AGENTS.md](AGENTS.md).
-
-## How to compare against the approved design
-
-    git diff marketplace-locked-20260908 -- src/components/marketplace-home
-    git diff marketplace-locked-20260908 -- src/components/marketplace-manager
+- Run the focused product-rail tests and the repository typecheck/build.
+- Confirm each populated, unfiltered row renders 100 cards, including after
+  country-card loading.
+- Confirm live demos are preferred when a source row must be capped.
+- Confirm overflow products and all existing demo/product routes remain.
+- Preserve the Login, top banners, hero, social-share actions, and lower
+  homepage sections in the browser.

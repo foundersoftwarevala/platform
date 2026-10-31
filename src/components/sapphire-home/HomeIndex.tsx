@@ -63,6 +63,11 @@ import { RAIL_COUNTRIES } from "@/lib/marketplace/rail-countries";
 import { useTranslation } from "@/lib/i18n/use-translation";
 import { useCatalogueCounts } from "@/components/sapphire-home/useCatalogueCounts";
 import { LIFETIME_DISCOUNT, LIFETIME_MRP, LIFETIME_PRICE } from "@/lib/site-content/constants";
+import {
+  countryCardCapacity,
+  fillProductRail,
+  HOMEPAGE_CARDS_PER_ROW,
+} from "@/lib/marketplace/product-rail";
 
 // Master Categories for filtering (55 rows — matches actual data values)
 const masterCategories = ["All", ...allMasterCategories55];
@@ -91,19 +96,6 @@ const CATALOGUE_SHELF_COLOUR: Record<string, string> = {
   "Restaurant POS": "from-orange-600 to-red-600",
   "School Management": "from-teal-500 to-cyan-600",
 };
-const PRODUCTS_PER_ROW = 80;
-
-/**
- * Repeat only real products from the category to create a full browsing rail.
- * A category that already carries more products than the rail length keeps all
- * of them: the target is a floor for short rows, never a cap on real ones.
- */
-const fillProductRail = (products: HomeDemo[], target = PRODUCTS_PER_ROW) => {
-  if (products.length === 0) return [];
-  const length = Math.max(target, products.length);
-  return Array.from({ length }, (_, index) => products[index % products.length] as HomeDemo);
-};
-
 /**
  * The real catalogue products for one shelf, added after the shelf's own cards.
  *
@@ -122,6 +114,7 @@ const CountryRailCards = memo(function CountryRailCards({
   shelf,
   colour,
   already,
+  maxCards,
   demoNumberOffset,
   favorites,
   onToggleFavorite,
@@ -131,6 +124,7 @@ const CountryRailCards = memo(function CountryRailCards({
   colour: string;
   /** The slugs the shelf already shows, joined, so the memo around this holds. */
   already: string;
+  maxCards: number;
   demoNumberOffset: number;
   favorites: string[];
   onToggleFavorite: (slug: string) => void;
@@ -140,6 +134,7 @@ const CountryRailCards = memo(function CountryRailCards({
   const anchor = useRef<HTMLSpanElement>(null);
   const slug = catalogueSlugForShelf(shelf);
   const skip = useMemo(() => new Set(already.split(",").filter(Boolean)), [already]);
+  const visibleCards = useMemo(() => fillProductRail(cards, maxCards), [cards, maxCards]);
 
   useEffect(() => {
     if (!slug) return;
@@ -174,9 +169,9 @@ const CountryRailCards = memo(function CountryRailCards({
   return (
     <>
       <span ref={anchor} aria-hidden className="block w-0 shrink-0" />
-      {cards.map((demo, index) => (
+      {visibleCards.map((demo, index) => (
         <DemoCard
-          key={`${shelf}-country-${demo.id}`}
+          key={`${shelf}-country-${demo.id}-${index}`}
           demo={demo}
           demoNumber={demoNumbers[index]}
           isFavorite={favorites.includes(catalogueSlug(demo.name))}
@@ -303,10 +298,13 @@ const Index = () => {
                 // The shelf's own cards are repeated only as far as the real
                 // catalogue cards do not already fill the rail: a country card
                 // takes the place of a duplicate, never of a real one.
-                const added = addedByShelf[masterCat] ?? 0;
+                const added = searchQuery.trim()
+                  ? 0
+                  : countryCardCapacity(categoryDemos, addedByShelf[masterCat] ?? 0);
                 const rowDemos = searchQuery.trim()
-                  ? categoryDemos
-                  : fillProductRail(categoryDemos, Math.max(PRODUCTS_PER_ROW - added, 0));
+                  ? fillProductRail(categoryDemos)
+                  : fillProductRail(categoryDemos, HOMEPAGE_CARDS_PER_ROW - added);
+                const countryCardLimit = Math.max(HOMEPAGE_CARDS_PER_ROW - rowDemos.length, 0);
                 const demoNumbers = demoNumbersForCards(rowDemos);
 
                 return (
@@ -315,7 +313,9 @@ const Index = () => {
                   <ProductCarouselRow
                     key={masterCat}
                     title={masterCat}
-                    count={new Set(rowDemos.map((d) => d.id)).size + added}
+                    count={
+                      new Set(rowDemos.map((d) => d.id)).size + Math.min(added, countryCardLimit)
+                    }
                   >
                     {rowDemos.map((demo, index) => (
                       <DemoCard
@@ -335,6 +335,7 @@ const Index = () => {
                             : (CATALOGUE_SHELF_COLOUR[masterCat] ?? shelfColour(undefined))
                         }
                         already={categoryDemos.map((d) => catalogueSlug(d.name)).join(",")}
+                        maxCards={countryCardLimit}
                         demoNumberOffset={demoNumbers.filter((number) => number !== null).length}
                         favorites={favorites}
                         onToggleFavorite={toggleFavorite}
@@ -350,9 +351,7 @@ const Index = () => {
                 count={new Set(filteredDemos.map((d) => d.id)).size}
               >
                 {(() => {
-                  const rowDemos = searchQuery.trim()
-                    ? filteredDemos
-                    : fillProductRail(filteredDemos);
+                  const rowDemos = fillProductRail(filteredDemos);
                   const demoNumbers = demoNumbersForCards(rowDemos);
                   return rowDemos.map((demo, index) => (
                     <DemoCard
@@ -522,9 +521,7 @@ const DemoCard = memo(
     // still go to the product and its demo.
     const slot = slotParams(demo.slotUrl);
     const openCard = () =>
-      slot
-        ? void navigate({ to: "/marketplace/$category/$country", params: slot })
-        : openProduct();
+      slot ? void navigate({ to: "/marketplace/$category/$country", params: slot }) : openProduct();
     const [activeTab, setActiveTab] = useState<"features" | "tech">("features");
     const [leadAction, setLeadAction] = useState<LeadAction | null>(null);
 

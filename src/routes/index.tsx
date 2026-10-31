@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { createFileRoute } from "@tanstack/react-router";
-import "@/styles/marketplace-home.css";
-import HomeIndex from "@/components/marketplace-home/HomeIndex";
+import "@/styles/sapphire-home.css";
+import HomeIndex from "@/components/sapphire-home/HomeIndex";
 import { absoluteUrl } from "@/lib/seo/site-url";
 import { getPublicHomeSeo } from "@/lib/i18n/public-seo.functions";
 
